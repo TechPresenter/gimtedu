@@ -1,0 +1,29 @@
+/* System administration module - small motion helpers (transform/opacity only, reduced-motion aware). */
+@-webkit-keyframes sys-indeterminate {
+  0% { -webkit-transform: translateX(-110%); transform: translateX(-110%); }
+  100% { -webkit-transform: translateX(320%); transform: translateX(320%); }
+}
+@keyframes sys-indeterminate {
+  0% { -webkit-transform: translateX(-110%); transform: translateX(-110%); }
+  100% { -webkit-transform: translateX(320%); transform: translateX(320%); }
+}
+@-webkit-keyframes sys-grow {
+  from { -webkit-transform: scaleX(0); transform: scaleX(0); }
+  to { -webkit-transform: scaleX(1); transform: scaleX(1); }
+}
+@keyframes sys-grow {
+  from { -webkit-transform: scaleX(0); transform: scaleX(0); }
+  to { -webkit-transform: scaleX(1); transform: scaleX(1); }
+}
+@-webkit-keyframes sys-ring {
+  from { stroke-dashoffset: var(--sys-ring-from, 283); }
+}
+@keyframes sys-ring {
+  from { stroke-dashoffset: var(--sys-ring-from, 283); }
+}
+.sys-indeterminate { -webkit-animation: sys-indeterminate 1.2s ease-in-out infinite; animation: sys-indeterminate 1.2s ease-in-out infinite; }
+.sys-grow { -webkit-transform-origin: left center; transform-origin: left center; -webkit-animation: sys-grow .8s cubic-bezier(.22, 1, .36, 1) both; animation: sys-grow .8s cubic-bezier(.22, 1, .36, 1) both; }
+.sys-ring { -webkit-animation: sys-ring 1s cubic-bezier(.22, 1, .36, 1) both; animation: sys-ring 1s cubic-bezier(.22, 1, .36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .sys-indeterminate, .sys-grow, .sys-ring { -webkit-animation: none; animation: none; }
+}

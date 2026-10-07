@@ -1,0 +1,38 @@
+{
+  "name": "gimt-smartcampus-admin",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:fast": "vite build",
+    "typecheck": "tsc -b --noEmit",
+    "preview": "vite preview",
+    "dev:site": "vite -c vite.site.config.ts",
+    "build:site": "vite build -c vite.site.config.ts",
+    "typecheck:site": "tsc -p tsconfig.site.json --noEmit"
+  },
+  "dependencies": {
+    "@headlessui/react": "^2.2.10",
+    "@tanstack/react-query": "^5.104.1",
+    "chart.js": "^4.5.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.52.0",
+    "react": "^18.3.1",
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.6"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.29",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21"
+  }
+}

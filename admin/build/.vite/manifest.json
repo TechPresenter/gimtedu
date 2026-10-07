@@ -1,0 +1,1312 @@
+{
+  "../assets/fonts/inter-latin-400-normal.woff2": {
+    "file": "assets/inter-latin-400-normal-C38fXH4l.woff2",
+    "src": "../assets/fonts/inter-latin-400-normal.woff2"
+  },
+  "../assets/fonts/inter-latin-500-normal.woff2": {
+    "file": "assets/inter-latin-500-normal-Cerq10X2.woff2",
+    "src": "../assets/fonts/inter-latin-500-normal.woff2"
+  },
+  "../assets/fonts/inter-latin-600-normal.woff2": {
+    "file": "assets/inter-latin-600-normal-LgqL8muc.woff2",
+    "src": "../assets/fonts/inter-latin-600-normal.woff2"
+  },
+  "../assets/fonts/inter-latin-700-normal.woff2": {
+    "file": "assets/inter-latin-700-normal-Yt3aPRUw.woff2",
+    "src": "../assets/fonts/inter-latin-700-normal.woff2"
+  },
+  "../assets/fonts/plus-jakarta-sans-latin-500-normal.woff2": {
+    "file": "assets/plus-jakarta-sans-latin-500-normal-Bf-nb4oT.woff2",
+    "src": "../assets/fonts/plus-jakarta-sans-latin-500-normal.woff2"
+  },
+  "../assets/fonts/plus-jakarta-sans-latin-600-normal.woff2": {
+    "file": "assets/plus-jakarta-sans-latin-600-normal-DLTa1BUW.woff2",
+    "src": "../assets/fonts/plus-jakarta-sans-latin-600-normal.woff2"
+  },
+  "../assets/fonts/plus-jakarta-sans-latin-700-normal.woff2": {
+    "file": "assets/plus-jakarta-sans-latin-700-normal-CfpNZvy6.woff2",
+    "src": "../assets/fonts/plus-jakarta-sans-latin-700-normal.woff2"
+  },
+  "../assets/fonts/plus-jakarta-sans-latin-800-normal.woff2": {
+    "file": "assets/plus-jakarta-sans-latin-800-normal-CusIZhrK.woff2",
+    "src": "../assets/fonts/plus-jakarta-sans-latin-800-normal.woff2"
+  },
+  "_AuthLayout-VFdpFapL.js": {
+    "file": "assets/AuthLayout-VFdpFapL.js",
+    "name": "AuthLayout",
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html"
+    ]
+  },
+  "_arrow-left-BwozWCJY.js": {
+    "file": "assets/arrow-left-BwozWCJY.js",
+    "name": "arrow-left",
+    "imports": [
+      "index.html"
+    ]
+  },
+  "_charts-Dc-AdfeN.js": {
+    "file": "assets/charts-Dc-AdfeN.js",
+    "name": "charts",
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "_query-CgRkCFfQ.js": {
+    "file": "assets/query-CgRkCFfQ.js",
+    "name": "query",
+    "imports": [
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "_react-CtfzmOI7.js": {
+    "file": "assets/react-CtfzmOI7.js",
+    "name": "react"
+  },
+  "index.html": {
+    "file": "assets/index-DRCG1xS2.js",
+    "name": "index",
+    "src": "index.html",
+    "isEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "_react-CtfzmOI7.js"
+    ],
+    "dynamicImports": [
+      "src/modules/dashboard/DashboardPage.tsx",
+      "src/modules/dashboard/NotificationsPage.tsx",
+      "src/modules/dashboard/MessagesPage.tsx",
+      "src/modules/dashboard/ProfilePage.tsx",
+      "src/modules/system/UsersPage.tsx",
+      "src/modules/system/RolesPage.tsx",
+      "src/modules/system/ActivityLogsPage.tsx",
+      "src/modules/system/SettingsPage.tsx",
+      "src/modules/system/BackupPage.tsx",
+      "src/modules/system/SecurityPage.tsx",
+      "src/modules/students/StudentsPage.tsx",
+      "src/modules/students/StudentFormPage.tsx",
+      "src/modules/students/StudentProfilePage.tsx",
+      "src/modules/students/StudentFormPage.tsx",
+      "src/modules/students/IdCardsPage.tsx",
+      "src/modules/students/PromotionPage.tsx",
+      "src/modules/faculty/FacultyPage.tsx",
+      "src/modules/faculty/FacultyProfilePage.tsx",
+      "src/modules/faculty/StaffPage.tsx",
+      "src/modules/faculty/StaffProfilePage.tsx",
+      "src/modules/faculty/LeavesPage.tsx",
+      "src/modules/academics/AcademicsPage.tsx",
+      "src/modules/academics/TimetablePage.tsx",
+      "src/modules/admissions/AdmissionsPipelinePage.tsx",
+      "src/modules/admissions/ApplicationsPage.tsx",
+      "src/modules/admissions/AdmissionFormPage.tsx",
+      "src/modules/admissions/AdmissionViewPage.tsx",
+      "src/modules/admissions/AdmissionFormPage.tsx",
+      "src/modules/admissions/EnquiriesPage.tsx",
+      "src/modules/admissions/ContactMessagesPage.tsx",
+      "src/modules/admissions/FeedbackPage.tsx",
+      "src/modules/attendance/StudentAttendancePage.tsx",
+      "src/modules/attendance/EmployeeAttendancePage.tsx",
+      "src/modules/attendance/AttendanceReportsPage.tsx",
+      "src/modules/fees/FeesDashboardPage.tsx",
+      "src/modules/fees/FeeStructuresPage.tsx",
+      "src/modules/fees/InvoicesPage.tsx",
+      "src/modules/fees/PaymentsPage.tsx",
+      "src/modules/fees/FeeCollectionPage.tsx",
+      "src/modules/fees/ScholarshipsPage.tsx",
+      "src/modules/fees/RefundsPage.tsx",
+      "src/modules/fees/FeeReportsPage.tsx",
+      "src/modules/fees/ExpensesPage.tsx",
+      "src/modules/exams/ExamsPage.tsx",
+      "src/modules/exams/ExamDetailPage.tsx",
+      "src/modules/exams/ExamSchedulePage.tsx",
+      "src/modules/exams/MarksEntryPage.tsx",
+      "src/modules/exams/ResultsPage.tsx",
+      "src/modules/exams/GradeScalePage.tsx",
+      "src/modules/exams/MarksheetsPage.tsx",
+      "src/modules/exams/CertificatesPage.tsx",
+      "src/modules/exams/CertificateTemplatesPage.tsx",
+      "src/modules/campus/LibraryDashboardPage.tsx",
+      "src/modules/campus/BooksPage.tsx",
+      "src/modules/campus/CirculationPage.tsx",
+      "src/modules/campus/LibraryMembersPage.tsx",
+      "src/modules/campus/LibraryFinesPage.tsx",
+      "src/modules/campus/HostelDashboardPage.tsx",
+      "src/modules/campus/HostelRoomsPage.tsx",
+      "src/modules/campus/HostelAllocationsPage.tsx",
+      "src/modules/campus/HostelComplaintsPage.tsx",
+      "src/modules/campus/HostelVisitorsPage.tsx",
+      "src/modules/campus/TransportDashboardPage.tsx",
+      "src/modules/campus/VehiclesPage.tsx",
+      "src/modules/campus/RoutesPage.tsx",
+      "src/modules/campus/DriversPage.tsx",
+      "src/modules/campus/TransportAllocationsPage.tsx",
+      "src/modules/campus/MaintenancePage.tsx",
+      "src/modules/career/PlacementDashboardPage.tsx",
+      "src/modules/career/CompaniesPage.tsx",
+      "src/modules/career/DrivesPage.tsx",
+      "src/modules/career/PlacementApplicationsPage.tsx",
+      "src/modules/career/OffersPage.tsx",
+      "src/modules/career/TrainingPage.tsx",
+      "src/modules/career/AlumniPage.tsx",
+      "src/modules/career/AlumniEventsPage.tsx",
+      "src/modules/career/AlumniJobsPage.tsx",
+      "src/modules/career/AlumniStoriesPage.tsx",
+      "src/modules/career/AlumniDonationsPage.tsx",
+      "src/modules/communication/NoticesPage.tsx",
+      "src/modules/communication/EventsPage.tsx",
+      "src/modules/communication/CampaignsPage.tsx",
+      "src/modules/communication/SubscribersPage.tsx",
+      "src/modules/communication/EmailTemplatesPage.tsx",
+      "src/modules/communication/MessageLogsPage.tsx",
+      "src/modules/cms/CmsOverviewPage.tsx",
+      "src/modules/cms/PagesPage.tsx",
+      "src/modules/cms/PageBuilderPage.tsx",
+      "src/modules/cms/MenusPage.tsx",
+      "src/modules/cms/HomepageSectionsPage.tsx",
+      "src/modules/cms/BannersPage.tsx",
+      "src/modules/cms/BlogPage.tsx",
+      "src/modules/cms/MediaPage.tsx",
+      "src/modules/cms/GalleryPage.tsx",
+      "src/modules/cms/FaqsPage.tsx",
+      "src/modules/cms/TestimonialsPage.tsx",
+      "src/modules/cms/AnnouncementsPage.tsx",
+      "src/modules/cms/SeoPage.tsx",
+      "src/modules/reports/ReportsPage.tsx",
+      "src/pages/auth/LoginPage.tsx",
+      "src/pages/auth/ForgotPasswordPage.tsx",
+      "src/pages/auth/ResetPasswordPage.tsx",
+      "src/components/layout/NotFound.tsx"
+    ],
+    "css": [
+      "assets/index-CGXCFXdy.css"
+    ],
+    "assets": [
+      "assets/inter-latin-400-normal-C38fXH4l.woff2",
+      "assets/inter-latin-500-normal-Cerq10X2.woff2",
+      "assets/inter-latin-600-normal-LgqL8muc.woff2",
+      "assets/inter-latin-700-normal-Yt3aPRUw.woff2",
+      "assets/plus-jakarta-sans-latin-500-normal-Bf-nb4oT.woff2",
+      "assets/plus-jakarta-sans-latin-600-normal-DLTa1BUW.woff2",
+      "assets/plus-jakarta-sans-latin-700-normal-CfpNZvy6.woff2",
+      "assets/plus-jakarta-sans-latin-800-normal-CusIZhrK.woff2"
+    ]
+  },
+  "src/components/layout/NotFound.tsx": {
+    "file": "assets/NotFound-D4ZLkMnT.js",
+    "name": "NotFound",
+    "src": "src/components/layout/NotFound.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/academics/AcademicsPage.tsx": {
+    "file": "assets/AcademicsPage-DMOVngkK.js",
+    "name": "AcademicsPage",
+    "src": "src/modules/academics/AcademicsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/academics/TimetablePage.tsx": {
+    "file": "assets/TimetablePage-msSouB5a.js",
+    "name": "TimetablePage",
+    "src": "src/modules/academics/TimetablePage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/admissions/AdmissionFormPage.tsx": {
+    "file": "assets/AdmissionFormPage-Cf1znty_.js",
+    "name": "AdmissionFormPage",
+    "src": "src/modules/admissions/AdmissionFormPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/admissions/AdmissionViewPage.tsx": {
+    "file": "assets/AdmissionViewPage-DLXst5cA.js",
+    "name": "AdmissionViewPage",
+    "src": "src/modules/admissions/AdmissionViewPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/admissions/AdmissionsPipelinePage.tsx": {
+    "file": "assets/AdmissionsPipelinePage--Hksyw29.js",
+    "name": "AdmissionsPipelinePage",
+    "src": "src/modules/admissions/AdmissionsPipelinePage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/admissions/ApplicationsPage.tsx": {
+    "file": "assets/ApplicationsPage-CvceF7dT.js",
+    "name": "ApplicationsPage",
+    "src": "src/modules/admissions/ApplicationsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/admissions/ContactMessagesPage.tsx": {
+    "file": "assets/ContactMessagesPage-Xr9Xp7ci.js",
+    "name": "ContactMessagesPage",
+    "src": "src/modules/admissions/ContactMessagesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/admissions/EnquiriesPage.tsx": {
+    "file": "assets/EnquiriesPage-CbmeSDr8.js",
+    "name": "EnquiriesPage",
+    "src": "src/modules/admissions/EnquiriesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/admissions/FeedbackPage.tsx": {
+    "file": "assets/FeedbackPage-BIbwhkPV.js",
+    "name": "FeedbackPage",
+    "src": "src/modules/admissions/FeedbackPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/attendance/AttendanceReportsPage.tsx": {
+    "file": "assets/AttendanceReportsPage-q0TTXYAf.js",
+    "name": "AttendanceReportsPage",
+    "src": "src/modules/attendance/AttendanceReportsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/attendance/EmployeeAttendancePage.tsx": {
+    "file": "assets/EmployeeAttendancePage-C9xjksk8.js",
+    "name": "EmployeeAttendancePage",
+    "src": "src/modules/attendance/EmployeeAttendancePage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/attendance/StudentAttendancePage.tsx": {
+    "file": "assets/StudentAttendancePage-5EIwjnRU.js",
+    "name": "StudentAttendancePage",
+    "src": "src/modules/attendance/StudentAttendancePage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/BooksPage.tsx": {
+    "file": "assets/BooksPage-CAEhrkY3.js",
+    "name": "BooksPage",
+    "src": "src/modules/campus/BooksPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/CirculationPage.tsx": {
+    "file": "assets/CirculationPage-C_OYxyxL.js",
+    "name": "CirculationPage",
+    "src": "src/modules/campus/CirculationPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/DriversPage.tsx": {
+    "file": "assets/DriversPage-wrmGGh0i.js",
+    "name": "DriversPage",
+    "src": "src/modules/campus/DriversPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/HostelAllocationsPage.tsx": {
+    "file": "assets/HostelAllocationsPage-BIT0IZwO.js",
+    "name": "HostelAllocationsPage",
+    "src": "src/modules/campus/HostelAllocationsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/HostelComplaintsPage.tsx": {
+    "file": "assets/HostelComplaintsPage-0CRMEehx.js",
+    "name": "HostelComplaintsPage",
+    "src": "src/modules/campus/HostelComplaintsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/HostelDashboardPage.tsx": {
+    "file": "assets/HostelDashboardPage-KLGYXDgs.js",
+    "name": "HostelDashboardPage",
+    "src": "src/modules/campus/HostelDashboardPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/HostelRoomsPage.tsx": {
+    "file": "assets/HostelRoomsPage-DsaT71p_.js",
+    "name": "HostelRoomsPage",
+    "src": "src/modules/campus/HostelRoomsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/HostelVisitorsPage.tsx": {
+    "file": "assets/HostelVisitorsPage-D_5zQrSk.js",
+    "name": "HostelVisitorsPage",
+    "src": "src/modules/campus/HostelVisitorsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/LibraryDashboardPage.tsx": {
+    "file": "assets/LibraryDashboardPage-Dz7q0YHA.js",
+    "name": "LibraryDashboardPage",
+    "src": "src/modules/campus/LibraryDashboardPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/LibraryFinesPage.tsx": {
+    "file": "assets/LibraryFinesPage-C_AGJKMI.js",
+    "name": "LibraryFinesPage",
+    "src": "src/modules/campus/LibraryFinesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/LibraryMembersPage.tsx": {
+    "file": "assets/LibraryMembersPage-nqQsuVWy.js",
+    "name": "LibraryMembersPage",
+    "src": "src/modules/campus/LibraryMembersPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/MaintenancePage.tsx": {
+    "file": "assets/MaintenancePage-C-c7kwYM.js",
+    "name": "MaintenancePage",
+    "src": "src/modules/campus/MaintenancePage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/RoutesPage.tsx": {
+    "file": "assets/RoutesPage-DGVIPEEu.js",
+    "name": "RoutesPage",
+    "src": "src/modules/campus/RoutesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/TransportAllocationsPage.tsx": {
+    "file": "assets/TransportAllocationsPage-DEMYQAUa.js",
+    "name": "TransportAllocationsPage",
+    "src": "src/modules/campus/TransportAllocationsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/TransportDashboardPage.tsx": {
+    "file": "assets/TransportDashboardPage-BMQiSIg2.js",
+    "name": "TransportDashboardPage",
+    "src": "src/modules/campus/TransportDashboardPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/campus/VehiclesPage.tsx": {
+    "file": "assets/VehiclesPage-D5uha-9J.js",
+    "name": "VehiclesPage",
+    "src": "src/modules/campus/VehiclesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/career/AlumniDonationsPage.tsx": {
+    "file": "assets/AlumniDonationsPage-DWZ_lpK9.js",
+    "name": "AlumniDonationsPage",
+    "src": "src/modules/career/AlumniDonationsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/career/AlumniEventsPage.tsx": {
+    "file": "assets/AlumniEventsPage-C6f4pgkv.js",
+    "name": "AlumniEventsPage",
+    "src": "src/modules/career/AlumniEventsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/career/AlumniJobsPage.tsx": {
+    "file": "assets/AlumniJobsPage-Dog9kJma.js",
+    "name": "AlumniJobsPage",
+    "src": "src/modules/career/AlumniJobsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/career/AlumniPage.tsx": {
+    "file": "assets/AlumniPage-DwQsxANX.js",
+    "name": "AlumniPage",
+    "src": "src/modules/career/AlumniPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/career/AlumniStoriesPage.tsx": {
+    "file": "assets/AlumniStoriesPage-BKG5YhWY.js",
+    "name": "AlumniStoriesPage",
+    "src": "src/modules/career/AlumniStoriesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/career/CompaniesPage.tsx": {
+    "file": "assets/CompaniesPage-Ch4u-ZAo.js",
+    "name": "CompaniesPage",
+    "src": "src/modules/career/CompaniesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/career/DrivesPage.tsx": {
+    "file": "assets/DrivesPage-DQ2ccxj6.js",
+    "name": "DrivesPage",
+    "src": "src/modules/career/DrivesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/career/OffersPage.tsx": {
+    "file": "assets/OffersPage-BEjakMmg.js",
+    "name": "OffersPage",
+    "src": "src/modules/career/OffersPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/career/PlacementApplicationsPage.tsx": {
+    "file": "assets/PlacementApplicationsPage-BRqFbT0z.js",
+    "name": "PlacementApplicationsPage",
+    "src": "src/modules/career/PlacementApplicationsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/career/PlacementDashboardPage.tsx": {
+    "file": "assets/PlacementDashboardPage-Dt1MWttR.js",
+    "name": "PlacementDashboardPage",
+    "src": "src/modules/career/PlacementDashboardPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/career/TrainingPage.tsx": {
+    "file": "assets/TrainingPage-b5J_6VVZ.js",
+    "name": "TrainingPage",
+    "src": "src/modules/career/TrainingPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/cms/AnnouncementsPage.tsx": {
+    "file": "assets/AnnouncementsPage-BHYCefuO.js",
+    "name": "AnnouncementsPage",
+    "src": "src/modules/cms/AnnouncementsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/cms/BannersPage.tsx": {
+    "file": "assets/BannersPage-DJcuHTUa.js",
+    "name": "BannersPage",
+    "src": "src/modules/cms/BannersPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/cms/BlogPage.tsx": {
+    "file": "assets/BlogPage-BAZaEkbc.js",
+    "name": "BlogPage",
+    "src": "src/modules/cms/BlogPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/cms/CmsOverviewPage.tsx": {
+    "file": "assets/CmsOverviewPage-1MKGghMa.js",
+    "name": "CmsOverviewPage",
+    "src": "src/modules/cms/CmsOverviewPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/cms/FaqsPage.tsx": {
+    "file": "assets/FaqsPage-Da-E6p7o.js",
+    "name": "FaqsPage",
+    "src": "src/modules/cms/FaqsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/cms/GalleryPage.tsx": {
+    "file": "assets/GalleryPage-D7odCxxc.js",
+    "name": "GalleryPage",
+    "src": "src/modules/cms/GalleryPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/cms/HomepageSectionsPage.tsx": {
+    "file": "assets/HomepageSectionsPage-CAYCY8Fb.js",
+    "name": "HomepageSectionsPage",
+    "src": "src/modules/cms/HomepageSectionsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/cms/MediaPage.tsx": {
+    "file": "assets/MediaPage-BqLJObtz.js",
+    "name": "MediaPage",
+    "src": "src/modules/cms/MediaPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/cms/MenusPage.tsx": {
+    "file": "assets/MenusPage-DOjKXOTv.js",
+    "name": "MenusPage",
+    "src": "src/modules/cms/MenusPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/cms/PageBuilderPage.tsx": {
+    "file": "assets/PageBuilderPage-CH9UOch6.js",
+    "name": "PageBuilderPage",
+    "src": "src/modules/cms/PageBuilderPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/cms/PagesPage.tsx": {
+    "file": "assets/PagesPage-BDIjvf6W.js",
+    "name": "PagesPage",
+    "src": "src/modules/cms/PagesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/cms/SeoPage.tsx": {
+    "file": "assets/SeoPage-e4HYvPKD.js",
+    "name": "SeoPage",
+    "src": "src/modules/cms/SeoPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/cms/TestimonialsPage.tsx": {
+    "file": "assets/TestimonialsPage-Un8CACLb.js",
+    "name": "TestimonialsPage",
+    "src": "src/modules/cms/TestimonialsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/communication/CampaignsPage.tsx": {
+    "file": "assets/CampaignsPage-Du6NWiZA.js",
+    "name": "CampaignsPage",
+    "src": "src/modules/communication/CampaignsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/communication/EmailTemplatesPage.tsx": {
+    "file": "assets/EmailTemplatesPage-Bu6kXzFG.js",
+    "name": "EmailTemplatesPage",
+    "src": "src/modules/communication/EmailTemplatesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/communication/EventsPage.tsx": {
+    "file": "assets/EventsPage-4U7Zjnee.js",
+    "name": "EventsPage",
+    "src": "src/modules/communication/EventsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/communication/MessageLogsPage.tsx": {
+    "file": "assets/MessageLogsPage-b6RG_7eb.js",
+    "name": "MessageLogsPage",
+    "src": "src/modules/communication/MessageLogsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/communication/NoticesPage.tsx": {
+    "file": "assets/NoticesPage-Y0udUSNw.js",
+    "name": "NoticesPage",
+    "src": "src/modules/communication/NoticesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/communication/SubscribersPage.tsx": {
+    "file": "assets/SubscribersPage-CZ9bNmEf.js",
+    "name": "SubscribersPage",
+    "src": "src/modules/communication/SubscribersPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/dashboard/DashboardPage.tsx": {
+    "file": "assets/DashboardPage-BwCtQLj8.js",
+    "name": "DashboardPage",
+    "src": "src/modules/dashboard/DashboardPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/dashboard/MessagesPage.tsx": {
+    "file": "assets/MessagesPage-HLLWDEpG.js",
+    "name": "MessagesPage",
+    "src": "src/modules/dashboard/MessagesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/dashboard/NotificationsPage.tsx": {
+    "file": "assets/NotificationsPage-CMQ69fTz.js",
+    "name": "NotificationsPage",
+    "src": "src/modules/dashboard/NotificationsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/dashboard/ProfilePage.tsx": {
+    "file": "assets/ProfilePage-4UYHantk.js",
+    "name": "ProfilePage",
+    "src": "src/modules/dashboard/ProfilePage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/exams/CertificateTemplatesPage.tsx": {
+    "file": "assets/CertificateTemplatesPage-f25i5A4a.js",
+    "name": "CertificateTemplatesPage",
+    "src": "src/modules/exams/CertificateTemplatesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/exams/CertificatesPage.tsx": {
+    "file": "assets/CertificatesPage-B6EN6BDq.js",
+    "name": "CertificatesPage",
+    "src": "src/modules/exams/CertificatesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/exams/ExamDetailPage.tsx": {
+    "file": "assets/ExamDetailPage-BxBbO-xi.js",
+    "name": "ExamDetailPage",
+    "src": "src/modules/exams/ExamDetailPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/exams/ExamSchedulePage.tsx": {
+    "file": "assets/ExamSchedulePage-Bmilis5_.js",
+    "name": "ExamSchedulePage",
+    "src": "src/modules/exams/ExamSchedulePage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/exams/ExamsPage.tsx": {
+    "file": "assets/ExamsPage-oUHRebR6.js",
+    "name": "ExamsPage",
+    "src": "src/modules/exams/ExamsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/exams/GradeScalePage.tsx": {
+    "file": "assets/GradeScalePage-IySwr9Q5.js",
+    "name": "GradeScalePage",
+    "src": "src/modules/exams/GradeScalePage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/exams/MarksEntryPage.tsx": {
+    "file": "assets/MarksEntryPage-ClSliYVY.js",
+    "name": "MarksEntryPage",
+    "src": "src/modules/exams/MarksEntryPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/exams/MarksheetsPage.tsx": {
+    "file": "assets/MarksheetsPage-q__YOkbo.js",
+    "name": "MarksheetsPage",
+    "src": "src/modules/exams/MarksheetsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/exams/ResultsPage.tsx": {
+    "file": "assets/ResultsPage-V3ajz7hd.js",
+    "name": "ResultsPage",
+    "src": "src/modules/exams/ResultsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/faculty/FacultyPage.tsx": {
+    "file": "assets/FacultyPage-Csg2IqMN.js",
+    "name": "FacultyPage",
+    "src": "src/modules/faculty/FacultyPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/faculty/FacultyProfilePage.tsx": {
+    "file": "assets/FacultyProfilePage-BY70OXIP.js",
+    "name": "FacultyProfilePage",
+    "src": "src/modules/faculty/FacultyProfilePage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/faculty/LeavesPage.tsx": {
+    "file": "assets/LeavesPage-Cd1sQz2J.js",
+    "name": "LeavesPage",
+    "src": "src/modules/faculty/LeavesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/faculty/StaffPage.tsx": {
+    "file": "assets/StaffPage-BpPxPBe8.js",
+    "name": "StaffPage",
+    "src": "src/modules/faculty/StaffPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/faculty/StaffProfilePage.tsx": {
+    "file": "assets/StaffProfilePage-Clx5jpBF.js",
+    "name": "StaffProfilePage",
+    "src": "src/modules/faculty/StaffProfilePage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/fees/ExpensesPage.tsx": {
+    "file": "assets/ExpensesPage-BFpZ_z0E.js",
+    "name": "ExpensesPage",
+    "src": "src/modules/fees/ExpensesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/fees/FeeCollectionPage.tsx": {
+    "file": "assets/FeeCollectionPage-DFjRDao2.js",
+    "name": "FeeCollectionPage",
+    "src": "src/modules/fees/FeeCollectionPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/fees/FeeReportsPage.tsx": {
+    "file": "assets/FeeReportsPage-D5bZwRsZ.js",
+    "name": "FeeReportsPage",
+    "src": "src/modules/fees/FeeReportsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/fees/FeeStructuresPage.tsx": {
+    "file": "assets/FeeStructuresPage-q4VgwxsD.js",
+    "name": "FeeStructuresPage",
+    "src": "src/modules/fees/FeeStructuresPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/fees/FeesDashboardPage.tsx": {
+    "file": "assets/FeesDashboardPage-Dg0BoaEY.js",
+    "name": "FeesDashboardPage",
+    "src": "src/modules/fees/FeesDashboardPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/fees/InvoicesPage.tsx": {
+    "file": "assets/InvoicesPage-CRQl_4In.js",
+    "name": "InvoicesPage",
+    "src": "src/modules/fees/InvoicesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/fees/PaymentsPage.tsx": {
+    "file": "assets/PaymentsPage-CtBJmKp_.js",
+    "name": "PaymentsPage",
+    "src": "src/modules/fees/PaymentsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/fees/RefundsPage.tsx": {
+    "file": "assets/RefundsPage-DqTrYMvG.js",
+    "name": "RefundsPage",
+    "src": "src/modules/fees/RefundsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/fees/ScholarshipsPage.tsx": {
+    "file": "assets/ScholarshipsPage-CfS08V8r.js",
+    "name": "ScholarshipsPage",
+    "src": "src/modules/fees/ScholarshipsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/reports/ReportsPage.tsx": {
+    "file": "assets/ReportsPage-BonqBCfo.js",
+    "name": "ReportsPage",
+    "src": "src/modules/reports/ReportsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/students/IdCardsPage.tsx": {
+    "file": "assets/IdCardsPage-Da-OIKCo.js",
+    "name": "IdCardsPage",
+    "src": "src/modules/students/IdCardsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/students/PromotionPage.tsx": {
+    "file": "assets/PromotionPage-D4aI7QJK.js",
+    "name": "PromotionPage",
+    "src": "src/modules/students/PromotionPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/students/StudentFormPage.tsx": {
+    "file": "assets/StudentFormPage-Cl3lw-QX.js",
+    "name": "StudentFormPage",
+    "src": "src/modules/students/StudentFormPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/students/StudentProfilePage.tsx": {
+    "file": "assets/StudentProfilePage-BG7BlrRg.js",
+    "name": "StudentProfilePage",
+    "src": "src/modules/students/StudentProfilePage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/students/StudentsPage.tsx": {
+    "file": "assets/StudentsPage-D-vG0OiU.js",
+    "name": "StudentsPage",
+    "src": "src/modules/students/StudentsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/system/ActivityLogsPage.tsx": {
+    "file": "assets/ActivityLogsPage-BloIrx9B.js",
+    "name": "ActivityLogsPage",
+    "src": "src/modules/system/ActivityLogsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/system/BackupPage.tsx": {
+    "file": "assets/BackupPage-Ddrftnfu.js",
+    "name": "BackupPage",
+    "src": "src/modules/system/BackupPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/system/RolesPage.tsx": {
+    "file": "assets/RolesPage-sSZAi738.js",
+    "name": "RolesPage",
+    "src": "src/modules/system/RolesPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/system/SecurityPage.tsx": {
+    "file": "assets/SecurityPage-BfPHGKFa.js",
+    "name": "SecurityPage",
+    "src": "src/modules/system/SecurityPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/system/SettingsPage.tsx": {
+    "file": "assets/SettingsPage-q4FbnIOB.js",
+    "name": "SettingsPage",
+    "src": "src/modules/system/SettingsPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/modules/system/UsersPage.tsx": {
+    "file": "assets/UsersPage-nQLlWLIL.js",
+    "name": "UsersPage",
+    "src": "src/modules/system/UsersPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "index.html",
+      "_react-CtfzmOI7.js"
+    ]
+  },
+  "src/pages/auth/ForgotPasswordPage.tsx": {
+    "file": "assets/ForgotPasswordPage-uodj_zHG.js",
+    "name": "ForgotPasswordPage",
+    "src": "src/pages/auth/ForgotPasswordPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "_react-CtfzmOI7.js",
+      "index.html",
+      "_AuthLayout-VFdpFapL.js",
+      "_arrow-left-BwozWCJY.js"
+    ]
+  },
+  "src/pages/auth/LoginPage.tsx": {
+    "file": "assets/LoginPage-DOHGJ4j7.js",
+    "name": "LoginPage",
+    "src": "src/pages/auth/LoginPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "_react-CtfzmOI7.js",
+      "index.html",
+      "_AuthLayout-VFdpFapL.js"
+    ]
+  },
+  "src/pages/auth/ResetPasswordPage.tsx": {
+    "file": "assets/ResetPasswordPage-hCtqamMb.js",
+    "name": "ResetPasswordPage",
+    "src": "src/pages/auth/ResetPasswordPage.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_query-CgRkCFfQ.js",
+      "_react-CtfzmOI7.js",
+      "index.html",
+      "_AuthLayout-VFdpFapL.js",
+      "_arrow-left-BwozWCJY.js"
+    ]
+  }
+}
