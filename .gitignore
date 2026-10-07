@@ -1,0 +1,21 @@
+# Local configuration
+config/local.php
+storage/installed.lock
+
+# Runtime data
+storage/backups/*
+storage/logs/*
+storage/cache/*
+storage/private/*
+storage/tmp/*
+!storage/**/.gitkeep
+assets/uploads/*
+!assets/uploads/.htaccess
+!assets/uploads/.gitkeep
+
+# Node / build tooling (admin/build is committed so production needs no Node)
+node_modules/
+frontend/node_modules/
+tools/.cache/
+.DS_Store
+*.log
