@@ -1,0 +1,58 @@
+# =====================================================================
+# GIMT SmartCampus - Apache configuration (mod_rewrite required)
+# If installed in a sub-folder, set RewriteBase accordingly (e.g. /gimt/).
+# =====================================================================
+Options -Indexes -MultiViews
+DirectoryIndex index.php
+ErrorDocument 404 /404.php
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Block internal folders and dot-files
+  RewriteRule ^(app|config|database|storage|tools|frontend|node_modules|install/lib)(/|$) - [F,L]
+  RewriteRule (^|/)\.(?!well-known) - [F,L]
+  RewriteRule \.(sql|md|lock|log|sh|cjs|json)$ - [F,L,NC]
+
+  # JSON API
+  RewriteRule ^api(/.*)?$ api/index.php [L,QSA]
+
+  # Admin SPA handled by admin/.htaccess
+
+  # SEO files
+  RewriteRule ^sitemap\.xml$ sitemap.php [L]
+  RewriteRule ^robots\.txt$ robots.php [L]
+
+  # Pretty URLs for the public website
+  RewriteRule ^verify-certificate/([A-Za-z0-9/\-]+)/?$ verify-certificate.php?no=$1 [L,QSA]
+  RewriteRule ^programs/([a-z0-9\-]+)/?$ program.php?slug=$1 [L,QSA]
+  RewriteRule ^blog/([a-z0-9\-]+)/?$ post.php?slug=$1 [L,QSA]
+  RewriteRule ^events/([a-z0-9\-]+)/?$ event.php?slug=$1 [L,QSA]
+  RewriteRule ^notices/([a-z0-9\-]+)/?$ notice.php?slug=$1 [L,QSA]
+  RewriteRule ^gallery/([a-z0-9\-]+)/?$ gallery.php?slug=$1 [L,QSA]
+  RewriteRule ^page/([a-z0-9\-]+)/?$ page.php?slug=$1 [L,QSA]
+
+  # Extension-less URLs: /about -> about.php
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME}.php -f
+  RewriteRule ^([a-z0-9\-]+)/?$ $1.php [L,QSA]
+
+  # Any other single-segment slug -> CMS page
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^([a-z0-9\-]+)/?$ page.php?slug=$1 [L,QSA]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  <FilesMatch "\.(css|js|woff2|svg|png|jpe?g|webp|gif|ico)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml text/xml application/xml
+</IfModule>

@@ -1,0 +1,14 @@
+# GIMT SmartCampus Admin (React SPA) - route every non-file request to index.php
+Options -Indexes
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+  RewriteRule ^ index.php [L]
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|woff2|svg|png|jpg)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>

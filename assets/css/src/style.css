@@ -1,0 +1,125 @@
+/* GIMT public website + print views. Build: tools/build-css.sh -> assets/css/style.css */
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/inter-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 500; font-display: swap; src: url('../fonts/inter-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/inter-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/inter-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 500; font-display: swap; src: url('../fonts/plus-jakarta-sans-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/plus-jakarta-sans-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/plus-jakarta-sans-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 800; font-display: swap; src: url('../fonts/plus-jakarta-sans-latin-800-normal.woff2') format('woff2'); }
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
+  body { @apply bg-white font-sans text-slate-700 antialiased; }
+  h1, h2, h3, h4, h5 { @apply font-display text-brand-900; }
+  :focus-visible { @apply outline-none ring-2 ring-accent-500 ring-offset-2; }
+  [x-cloak] { display: none !important; }
+}
+
+@layer components {
+  /* Layout */
+  .container-site { @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8; }
+  .section { @apply py-16 sm:py-20 lg:py-24; }
+  .section-tight { @apply py-12 sm:py-14; }
+  .eyebrow { @apply inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-accent-600; }
+  .section-title { @apply font-display text-3xl font-extrabold tracking-tight text-brand-900 sm:text-4xl; }
+  .section-lead { @apply mt-3 max-w-2xl text-base leading-relaxed text-slate-600 sm:text-lg; }
+
+  /* Buttons */
+  .btn { @apply inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 py-3 text-sm font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-60; }
+  .btn-sm { @apply rounded-lg px-3.5 py-2 text-[13px]; }
+  .btn-lg { @apply px-7 py-3.5 text-base; }
+  .btn-primary { @apply bg-brand-800 text-white shadow-sm hover:bg-brand-900; }
+  .btn-success, .btn-accent { @apply bg-accent-600 text-white shadow-lg shadow-accent-600/20 hover:-translate-y-0.5 hover:bg-accent-700; }
+  .btn-secondary { @apply border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50; }
+  .btn-outline { @apply border-2 border-brand-800 text-brand-800 hover:bg-brand-800 hover:text-white; }
+  .btn-outline-light { @apply border-2 border-white/80 text-white hover:bg-white hover:text-brand-900; }
+  .btn-ghost { @apply text-slate-600 hover:bg-slate-100 hover:text-slate-900; }
+  .btn-danger { @apply bg-red-600 text-white hover:bg-red-700; }
+  .btn-icon { @apply inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800; }
+
+  /* Cards & surfaces */
+  .card { @apply rounded-2xl border border-slate-200/80 bg-white shadow-card; }
+  .card-hover { @apply transition duration-300 hover:-translate-y-1 hover:shadow-soft; }
+  .card-header { @apply flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4; }
+  .card-title { @apply text-[15px] font-semibold text-slate-900; }
+  .card-subtitle { @apply mt-0.5 text-xs text-slate-500; }
+  .card-body { @apply p-5; }
+  .page-header { @apply mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between; }
+  .page-title { @apply font-display text-2xl font-bold text-slate-900; }
+  .page-subtitle { @apply mt-1 text-sm text-slate-500; }
+
+  /* Forms */
+  .form-label { @apply mb-1.5 block text-sm font-medium text-slate-700; }
+  .form-input { @apply block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10; }
+  .form-error { @apply mt-1.5 text-xs font-medium text-red-600; }
+  .form-hint { @apply mt-1.5 text-xs text-slate-500; }
+
+  /* Badges & chips */
+  .badge { @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset; }
+  .badge-green { @apply bg-emerald-50 text-emerald-700 ring-emerald-600/15; }
+  .badge-red { @apply bg-red-50 text-red-700 ring-red-600/15; }
+  .badge-amber { @apply bg-amber-50 text-amber-700 ring-amber-600/20; }
+  .badge-blue { @apply bg-blue-50 text-blue-700 ring-blue-600/15; }
+  .badge-purple { @apply bg-violet-50 text-violet-700 ring-violet-600/15; }
+  .badge-cyan { @apply bg-cyan-50 text-cyan-700 ring-cyan-600/15; }
+  .badge-slate { @apply bg-slate-100 text-slate-600 ring-slate-500/15; }
+  .chip { @apply inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-brand-300 hover:text-brand-800; }
+  .chip-active { @apply border-brand-800 bg-brand-800 text-white hover:text-white; }
+
+  /* Navigation */
+  .nav-link { @apply relative rounded-lg px-3 py-2 text-[13.5px] font-medium text-slate-700 transition hover:text-brand-800; }
+  .nav-link-active { @apply text-brand-800 after:absolute after:inset-x-3 after:-bottom-[1px] after:h-0.5 after:rounded-full after:bg-accent-600; }
+  .tabs { @apply flex gap-1 overflow-x-auto border-b border-slate-200; }
+  .tab { @apply -mb-px inline-flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3.5 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-800; }
+  .tab-active { @apply border-brand-700 text-brand-800; }
+
+  /* Rich text from the CMS */
+  .prose-site { @apply max-w-none text-[15.5px] leading-relaxed text-slate-600; }
+  .prose-site h2 { @apply mb-3 mt-8 text-2xl font-bold text-brand-900; }
+  .prose-site h3 { @apply mb-2 mt-6 text-xl font-semibold text-brand-900; }
+  .prose-site p { @apply my-4; }
+  .prose-site a { @apply font-medium text-brand-700 underline decoration-brand-200 underline-offset-2 hover:text-brand-900; }
+  .prose-site ul { @apply my-4 list-disc space-y-1.5 pl-5; }
+  .prose-site ol { @apply my-4 list-decimal space-y-1.5 pl-5; }
+  .prose-site blockquote { @apply my-6 border-l-4 border-accent-500 bg-slate-50 py-3 pl-5 pr-4 italic text-slate-700; }
+  .prose-site img { @apply my-6 rounded-2xl; }
+  .prose-site table { @apply my-6 w-full border-collapse text-sm; }
+  .prose-site th { @apply border border-slate-200 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-800; }
+  .prose-site td { @apply border border-slate-200 px-3 py-2; }
+
+  /* Misc */
+  .empty-state { @apply flex flex-col items-center px-6 py-12 text-center; }
+  .empty-state-icon { @apply inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-700; }
+  .kpi-icon { @apply inline-flex h-10 w-10 items-center justify-center rounded-xl; }
+  .kpi-card { @apply block rounded-2xl border border-slate-200/70 p-4; }
+  .icon-tile { @apply inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-700 transition group-hover:bg-brand-800 group-hover:text-white; }
+  .link { @apply font-medium text-brand-700 hover:text-brand-900 hover:underline; }
+  .reveal { @apply translate-y-4 opacity-0 transition duration-700 ease-out; }
+  .reveal.is-visible { @apply translate-y-0 opacity-100; }
+  .data-table { @apply w-full text-left text-sm; }
+  .data-table th { @apply border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500; }
+  .data-table td { @apply border-b border-slate-100 px-4 py-3; }
+  .tabs-nav { @apply flex gap-1; }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .scrollbar-none { scrollbar-width: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .bg-hero-overlay { background-image: linear-gradient(90deg, rgba(7, 26, 59, 0.94) 0%, rgba(11, 42, 91, 0.82) 42%, rgba(11, 42, 91, 0.25) 75%, rgba(11, 42, 91, 0.05) 100%); }
+  .bg-dots { background-image: radial-gradient(rgba(11, 42, 91, 0.08) 1px, transparent 1px); background-size: 18px 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal { @apply translate-y-0 opacity-100 transition-none; }
+}
+
+@media print {
+  .no-print { display: none !important; }
+}
