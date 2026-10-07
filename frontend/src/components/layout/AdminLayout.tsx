@@ -39,7 +39,10 @@ export function AdminLayout() {
         <main id="main" className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
           <ErrorBoundary key={location.pathname}>
             <Suspense fallback={<PageLoader />}>
-              <Outlet />
+              {/* subtle page-enter transition on every route change */}
+              <div key={location.pathname} className="motion-safe:animate-slide-up">
+                <Outlet />
+              </div>
             </Suspense>
           </ErrorBoundary>
         </main>

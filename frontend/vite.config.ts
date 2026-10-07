@@ -20,6 +20,8 @@ export default defineConfig(({ command, mode }) => {
       port: Number(env.VITE_PORT || process.env.VITE_PORT || 5173),
       strictPort: false,
       host: '127.0.0.1',
+      // index.css loads the self-hosted fonts from ../assets/fonts
+      fs: { allow: [path.resolve(__dirname, '..')] },
       proxy: {
         '/api': { target, changeOrigin: false },
         '/assets': { target },

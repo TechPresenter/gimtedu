@@ -1,5 +1,8 @@
 import type { RouteObject } from 'react-router-dom';
 import { page } from '../shared';
+import { routes as libraryExtra } from './library/routes';
+import { routes as hostelExtra } from './hostel/routes';
+import { routes as transportExtra } from './transport/routes';
 
 /** Routes owned by the campus module (paths are relative to /admin). */
 export const routes: RouteObject[] = [
@@ -19,4 +22,5 @@ export const routes: RouteObject[] = [
   page('transport/drivers', 'transport', () => import('./DriversPage')),
   page('transport/allocations', 'transport', () => import('./TransportAllocationsPage')),
   page('transport/maintenance', 'transport', () => import('./MaintenancePage')),
+  ...libraryExtra, ...hostelExtra, ...transportExtra,
 ];

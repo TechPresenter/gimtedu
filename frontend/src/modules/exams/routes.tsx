@@ -1,5 +1,6 @@
 import type { RouteObject } from 'react-router-dom';
 import { page } from '../shared';
+import { routes as certificatesExtra } from './certificates/routes';
 
 /** Routes owned by the exams module (paths are relative to /admin). */
 export const routes: RouteObject[] = [
@@ -12,4 +13,5 @@ export const routes: RouteObject[] = [
   page('marksheets', 'results', () => import('./MarksheetsPage')),
   page('certificates', 'certificates', () => import('./CertificatesPage')),
   page('certificates/templates', 'certificates', () => import('./CertificateTemplatesPage')),
+  ...certificatesExtra,
 ];

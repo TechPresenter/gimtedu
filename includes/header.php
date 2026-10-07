@@ -1,5 +1,8 @@
 <?php
-/** Public website <head> + top bar + main navigation. Rendered via site_header($page). */
+/**
+ * Public website <head> + loading screen + reading progress + top bar + main navigation. Rendered via site_header($page).
+ * Loads the website bundle (React islands + TS enhancements) through site_assets_head() — dev server or built manifest.
+ */
 $page = $GLOBALS['__site_page'] ?? [];
 $name = institute_name();
 $seoRef = $page['seo'] ?? null;
@@ -21,14 +24,18 @@ $ctaUrl = setting('header_cta_url', '/apply');
 $ga = setting('google_analytics_id');
 $gtm = setting('gtm_id');
 $pixel = setting('meta_pixel_id');
+$cursor = $page['cursor'] ?? (setting('site_cursor', '1') === '1');
+$whatsapp = setting('whatsapp_number');
+$bodyClass = trim(($page['body_class'] ?? '') . ($whatsapp ? ' has-whatsapp' : ''));
 $orgSchema = [
     '@context' => 'https://schema.org', '@type' => 'CollegeOrUniversity', 'name' => $name, 'alternateName' => setting('brand_name', 'Global IMT'),
     'url' => absolute_url(''), 'logo' => absolute_url('assets/images/logo.svg'), 'email' => $email, 'telephone' => $phone,
     'address' => ['@type' => 'PostalAddress', 'streetAddress' => setting('address'), 'addressLocality' => setting('city', 'Greater Noida'), 'addressRegion' => setting('state', 'Uttar Pradesh'), 'postalCode' => setting('pincode', '201310'), 'addressCountry' => 'IN'],
     'sameAs' => array_values(social_links()),
 ];
+$tickerItems = $topbar ? array_slice(array_column($topbar, 'title'), 0, 5) : [setting('admissions_open_text', 'Admissions Open for 2026-27')];
 ?><!doctype html>
-<html lang="en">
+<html lang="en"<?= ($page['motion'] ?? true) === false ? ' data-motion="off"' : '' ?>>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -50,7 +57,10 @@ $orgSchema = [
   <link rel="icon" type="image/svg+xml" href="<?= e(setting('favicon') ? upload_url(setting('favicon')) : asset('assets/images/favicon.svg')) ?>">
   <link rel="preload" href="<?= e(base_url('assets/fonts/plus-jakarta-sans-latin-800-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="<?= e(base_url('assets/fonts/inter-latin-400-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
+  <?php foreach ((array) ($page['preload'] ?? []) as $pre): ?><link rel="preload" as="image" href="<?= e($pre) ?>" fetchpriority="high">
+  <?php endforeach; ?>
   <link rel="stylesheet" href="<?= e(asset('assets/css/style.css')) ?>">
+  <?= site_assets_head() ?>
   <script type="application/ld+json"><?= json_encode($orgSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?></script>
   <?php if (!empty($seo['schema_json'])): ?><script type="application/ld+json"><?= str_replace('</', '<\/', $seo['schema_json']) ?></script><?php endif; ?>
   <?php foreach ((array) ($page['schema'] ?? []) as $schema): ?><script type="application/ld+json"><?= json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?></script><?php endforeach; ?>
@@ -58,21 +68,34 @@ $orgSchema = [
   <?php if ($ga): ?><script async src="https://www.googletagmanager.com/gtag/js?id=<?= e($ga) ?>"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config',<?= js_json($ga) ?>);</script><?php endif; ?>
   <?php if ($pixel): ?><script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init',<?= js_json($pixel) ?>);fbq('track','PageView');</script><?php endif; ?>
 </head>
-<body class="<?= e($page['body_class'] ?? '') ?>">
-<a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg">Skip to main content</a>
+<body class="<?= e($bodyClass) ?>"<?= $cursor ? ' data-cursor' : '' ?>>
+<a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[110] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg">Skip to main content</a>
+
+<?php if (($page['loader'] ?? true) !== false): ?>
+<div id="site-loader" aria-hidden="true">
+  <img src="<?= e(logo_url()) ?>" alt="" class="loader-logo h-16 w-auto" width="150" height="64">
+  <span class="loader-bar"><span></span></span>
+</div>
+<?php endif; ?>
+<div class="read-progress" data-read-progress aria-hidden="true"><span data-read-progress-bar></span></div>
 
 <?php if (setting('show_topbar', '1') === '1'): ?>
-<div class="bg-brand-900 text-[12.5px] text-white/85">
+<div class="topbar">
   <div class="container-site flex h-10 items-center justify-between gap-4">
     <div class="flex min-w-0 items-center gap-5">
-      <span class="flex min-w-0 items-center gap-1.5 truncate font-medium text-white"><?= icon('graduation-cap', 'h-4 w-4 shrink-0 text-accent-400') ?><span class="truncate"><?= e($topbar[0]['title'] ?? setting('admissions_open_text', 'Admissions Open for 2026-27')) ?></span></span>
-      <a href="tel:<?= e(preg_replace('/\s+/', '', $phone)) ?>" class="hidden items-center gap-1.5 hover:text-white md:flex"><?= icon('phone', 'h-3.5 w-3.5') ?><?= e($phone) ?></a>
-      <a href="mailto:<?= e($email) ?>" class="hidden items-center gap-1.5 hover:text-white lg:flex"><?= icon('mail', 'h-3.5 w-3.5') ?><?= e($email) ?></a>
+      <span class="flex min-w-0 items-center gap-2 font-medium text-white">
+        <span class="live-dot pulse-ring" aria-hidden="true"></span>
+        <span class="ticker" data-ticker aria-live="off">
+          <?php foreach ($tickerItems as $i => $t): ?><span class="ticker-item<?= $i === 0 ? ' is-active' : '' ?>" data-ticker-item><?= e($t) ?></span><?php endforeach; ?>
+        </span>
+      </span>
+      <a href="tel:<?= e(preg_replace('/\s+/', '', $phone)) ?>" class="hidden shrink-0 items-center gap-1.5 md:flex"><?= icon('phone', 'h-3.5 w-3.5 text-accent-400') ?>Helpline: <?= e($phone) ?></a>
+      <a href="mailto:<?= e($email) ?>" class="hidden shrink-0 items-center gap-1.5 lg:flex"><?= icon('mail', 'h-3.5 w-3.5 text-accent-400') ?><?= e($email) ?></a>
     </div>
     <div class="flex shrink-0 items-center gap-4">
-      <a href="<?= e(site_url('student-portal')) ?>" class="hidden items-center gap-1.5 hover:text-white sm:flex"><?= icon('user', 'h-3.5 w-3.5') ?>Student Login</a>
-      <a href="<?= e(site_url('faculty-portal')) ?>" class="hidden items-center gap-1.5 hover:text-white sm:flex"><?= icon('user-round', 'h-3.5 w-3.5') ?>Faculty Login</a>
-      <a href="<?= e(admin_url('login')) ?>" class="flex items-center gap-1.5 hover:text-white"><?= icon('lock', 'h-3.5 w-3.5') ?>Admin Login</a>
+      <a href="<?= e(site_url('student-portal')) ?>" class="hidden items-center gap-1.5 sm:flex"><?= icon('user', 'h-3.5 w-3.5') ?>Student Login</a>
+      <a href="<?= e(site_url('faculty-portal')) ?>" class="hidden items-center gap-1.5 md:flex"><?= icon('user-round', 'h-3.5 w-3.5') ?>Faculty Login</a>
+      <a href="<?= e(admin_url('login')) ?>" class="flex items-center gap-1.5"><?= icon('lock', 'h-3.5 w-3.5') ?>Admin Login</a>
     </div>
   </div>
 </div>

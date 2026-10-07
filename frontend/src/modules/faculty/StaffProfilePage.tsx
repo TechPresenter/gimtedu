@@ -1,5 +1,6 @@
-import { ModuleStub } from '../shared';
+import { EmployeeProfile } from './components/EmployeeProfile';
 
+/** /staff/:id — staff profile with tabs (?tab=overview|professional|attendance|leaves|documents|payroll|activity). */
 export default function StaffProfilePage() {
-  return <ModuleStub title="Staff Profile" />;
+  return <EmployeeProfile type="staff" />;
 }

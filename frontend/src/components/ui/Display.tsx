@@ -5,6 +5,7 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight, ChevronRight, House, type Luc
 import { appUrl } from '@/lib/config';
 import { initials } from '@/lib/format';
 import { useDocumentTitle } from '@/lib/hooks';
+import { CountUp } from './Motion';
 
 /* ---------------------------------------------------------------- Colors */
 export type Tone = 'blue' | 'navy' | 'green' | 'orange' | 'amber' | 'purple' | 'pink' | 'red' | 'cyan' | 'slate';
@@ -101,7 +102,7 @@ export function StatCard({ label, value, icon: Icon, tone = 'blue', trend, to, l
         <Icon className="h-5 w-5" aria-hidden />
       </span>
       <p className="mt-3 text-[13px] font-medium text-slate-600 dark:text-slate-300">{label}</p>
-      {loading ? <div className="skeleton mt-1.5 h-7 w-20" /> : <p className="mt-0.5 font-display text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{value}</p>}
+      {loading ? <div className="skeleton mt-1.5 h-7 w-20" /> : <p className="mt-0.5 font-display text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{typeof value === 'number' ? <CountUp value={value} /> : value}</p>}
       {trend && !loading && (
         <p className="mt-1.5 flex items-center gap-1 text-xs">
           <span className={clsx('inline-flex items-center gap-0.5 font-semibold', dir === 'flat' ? 'text-slate-500' : good ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400')}>
@@ -114,7 +115,7 @@ export function StatCard({ label, value, icon: Icon, tone = 'blue', trend, to, l
       {hint && !trend && <p className="mt-1.5 truncate text-xs text-slate-500 dark:text-slate-400">{hint}</p>}
     </>
   );
-  const cls = clsx('block rounded-2xl border border-slate-200/70 p-4 transition dark:border-slate-800', t.bg, to && 'hover:-translate-y-0.5 hover:shadow-card');
+  const cls = clsx('block rounded-2xl border border-slate-200/70 p-4 transition dark:border-slate-800', t.bg, 'duration-200 hover:-translate-y-0.5 hover:shadow-card');
   return to ? (
     <Link to={to} className={cls}>
       {body}
@@ -134,7 +135,7 @@ export function StatTile({ label, value, icon: Icon, tone = 'blue', sub, loading
       </span>
       <div className="min-w-0">
         <p className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
-        {loading ? <div className="skeleton mt-1 h-6 w-16" /> : <p className="font-display text-xl font-bold leading-tight text-slate-900 dark:text-white">{value}</p>}
+        {loading ? <div className="skeleton mt-1 h-6 w-16" /> : <p className="font-display text-xl font-bold leading-tight text-slate-900 dark:text-white">{typeof value === 'number' ? <CountUp value={value} /> : value}</p>}
         {sub && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{sub}</p>}
       </div>
     </div>

@@ -1,5 +1,6 @@
-import { ModuleStub } from '../shared';
+import { EmployeeProfile } from './components/EmployeeProfile';
 
+/** /faculty/:id — faculty profile with tabs (?tab=overview|professional|subjects|timetable|attendance|leaves|documents|payroll|activity). */
 export default function FacultyProfilePage() {
-  return <ModuleStub title="Faculty Profile" />;
+  return <EmployeeProfile type="faculty" />;
 }

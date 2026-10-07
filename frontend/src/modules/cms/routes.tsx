@@ -1,5 +1,7 @@
 import type { RouteObject } from 'react-router-dom';
 import { page } from '../shared';
+import { routes as siteExtra } from './site/routes';
+import { routes as contentExtra } from './content/routes';
 
 /** Routes owned by the cms module (paths are relative to /admin). */
 export const routes: RouteObject[] = [
@@ -16,4 +18,5 @@ export const routes: RouteObject[] = [
   page('cms/testimonials', 'cms', () => import('./TestimonialsPage')),
   page('cms/announcements', 'cms', () => import('./AnnouncementsPage')),
   page('cms/seo', 'seo', () => import('./SeoPage')),
+  ...siteExtra, ...contentExtra,
 ];

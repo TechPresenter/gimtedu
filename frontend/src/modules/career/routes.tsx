@@ -1,5 +1,7 @@
 import type { RouteObject } from 'react-router-dom';
 import { page } from '../shared';
+import { routes as placementExtra } from './placement/routes';
+import { routes as alumniExtra } from './alumni/routes';
 
 /** Routes owned by the career module (paths are relative to /admin). */
 export const routes: RouteObject[] = [
@@ -14,4 +16,5 @@ export const routes: RouteObject[] = [
   page('alumni/jobs', 'alumni', () => import('./AlumniJobsPage')),
   page('alumni/stories', 'alumni', () => import('./AlumniStoriesPage')),
   page('alumni/donations', 'alumni', () => import('./AlumniDonationsPage')),
+  ...placementExtra, ...alumniExtra,
 ];
