@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import {
   Activity, ArrowLeft, Award, BookOpen, Bus, CalendarCheck, Droplet, FileText, GraduationCap, Hotel, IdCard, LayoutDashboard, Mail, MessageSquare, MoreHorizontal,
-  Pencil, Phone, Printer, ReceiptIndianRupee, Trophy, User, UserCheck, UserX, Briefcase, ClipboardList, Cake, AlertTriangle,
+  Pencil, Phone, Printer, ReceiptIndianRupee, Trophy, User, UserCheck, UserX, Briefcase, ClipboardList, Cake, AlertTriangle, CalendarDays, FileSpreadsheet,
 } from 'lucide-react';
 import { Alert, Avatar, Button, Card, CardSkeleton, CountUp, Dropdown, EmptyState, PageHeader, Skeleton, StatusBadge, Tabs, type TabDef } from '@/components/ui';
 import { useApi } from '@/lib/queries';
@@ -130,7 +130,9 @@ export default function StudentProfilePage() {
                   { label: 'Print profile', icon: Printer, href: printUrl('student-profile.php', { id: s.id }), target: '_blank' },
                   { label: 'Print ID card', icon: IdCard, href: printUrl('id-cards.php', { ids: s.id }), target: '_blank' },
                   can('certificates', 'create') && { label: 'Generate certificate', icon: Award, to: `/certificates?student_id=${s.id}` },
-                  can('fees', 'create') && { label: 'Collect fee', icon: ReceiptIndianRupee, to: `/fees/collect?student_id=${s.id}` },
+                  can('fees', 'create') && { label: 'Collect fee', icon: ReceiptIndianRupee, to: `/fees/collect?student=${s.id}` },
+                  can('fees', 'view') && q.data.print_views['fee-statement'] && { label: 'Fee statement', icon: FileSpreadsheet, href: printUrl('fee-statement.php', { student_id: s.id }), target: '_blank' },
+                  can('timetable', 'view') && q.data.print_views.timetable && !!s.section_id && { label: 'Print timetable', icon: CalendarDays, href: printUrl('timetable.php', { view: 'student', id: s.id }), target: '_blank' },
                   canEdit && { label: '', divider: true },
                   canEdit && !inactive && { label: 'Deactivate…', icon: UserX, danger: true, onClick: () => setDialog('deactivate') },
                   canEdit && inactive && { label: 'Re-activate', icon: UserCheck, onClick: () => setDialog('activate') },

@@ -13,7 +13,9 @@ import { AttendanceOverview } from './components/AttendanceOverview';
 import { MarkAttendance, type MarkSelection } from './components/MarkAttendance';
 import { SectionCalendar } from './components/SectionCalendar';
 import { DeviceIntegrationModal } from './components/DeviceIntegrationModal';
-import { currentMonth, PercentPill, todayIso } from './components/shared';
+import { currentMonth, PercentPill, todayIso, useAttendanceOptions } from './components/shared';
+
+const DAY_NAMES = ['Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays', 'Sundays'];
 
 const TABS = ['overview', 'mark', 'calendar', 'sessions', 'holidays'] as const;
 type Tab = (typeof TABS)[number];
@@ -26,6 +28,8 @@ export default function StudentAttendancePage() {
   const invalidate = useInvalidate();
   const [params, setParams] = useSearchParams();
   const [deviceOpen, setDeviceOpen] = useState(false);
+  const options = useAttendanceOptions();
+  const weeklyOff = (options.data?.weekly_off ?? [7]).map((d) => DAY_NAMES[d - 1]).filter(Boolean);
   const tab: Tab = (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'overview';
   const date = params.get('date') && /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') ?? '') ? (params.get('date') as string) : todayIso();
   const month = params.get('month') && /^\d{4}-\d{2}$/.test(params.get('month') ?? '') ? (params.get('month') as string) : currentMonth();
@@ -160,7 +164,7 @@ export default function StudentAttendancePage() {
             <CalendarX2 className="hidden h-5 w-5 shrink-0 text-rose-500 sm:block" aria-hidden />
             <p>
               <strong className="text-slate-900 dark:text-white">Holidays</strong> and <strong className="text-slate-900 dark:text-white">vacations</strong> block student attendance marking.
-              Exam breaks and institute events only show a warning. Sundays are weekly offs.
+              Exam breaks and institute events only show a warning. {weeklyOff.join(' and ')} are weekly offs.
             </p>
           </Card>
           <CrudTable

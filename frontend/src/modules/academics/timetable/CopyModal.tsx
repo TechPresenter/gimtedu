@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { AlertTriangle, ArrowRight, CheckCircle2, Copy, Users } from 'lucide-react';
-import { Alert, Button, EmptyState, Field, Modal, PageLoader, RadioGroup, useToast } from '@/components/ui';
+import { Alert, Button, EmptyState, Field, Modal, PageLoader, RadioGroup, useConfirm, useToast } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useCrudList } from '@/lib/queries';
 import type { TtSectionContext } from '../types';
@@ -16,11 +16,13 @@ interface CopyReport {
 }
 
 /** Copy a section's weekly timetable to another section of the same program & semester. */
-export function CopyModal({ open, onClose, section, sessionId, onDone }: { open: boolean; onClose: () => void; section: TtSectionContext; sessionId: number; onDone: () => void }) {
+export function CopyModal({ open, onClose, section, sessionId, onDone, canReplace = true }: { open: boolean; onClose: () => void; section: TtSectionContext; sessionId: number; onDone: () => void; /** Replace clears the target first - needs delete rights. */ canReplace?: boolean }) {
   const toast = useToast();
+  const confirm = useConfirm();
+  const defaultMode = canReplace ? 'replace' : 'merge';
   const navigate = useNavigate();
   const [target, setTarget] = useState('');
-  const [mode, setMode] = useState('replace');
+  const [mode, setMode] = useState(defaultMode);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<CopyReport | null>(null);
@@ -34,11 +36,11 @@ export function CopyModal({ open, onClose, section, sessionId, onDone }: { open:
   useEffect(() => {
     if (open) {
       setTarget('');
-      setMode('replace');
+      setMode(defaultMode);
       setError(null);
       setReport(null);
     }
-  }, [open]);
+  }, [open, defaultMode]);
   useEffect(() => {
     if (open && !target && options.length) setTarget(String(options[0].id));
   }, [open, options, target]);
@@ -47,6 +49,16 @@ export function CopyModal({ open, onClose, section, sessionId, onDone }: { open:
     if (!target) {
       setError('Choose the section to copy to.');
       return;
+    }
+    const row = options.find((o) => String(o.id) === target);
+    if (mode === 'replace' && row && String(row.timetable_status) !== 'not_created') {
+      const ok = await confirm({
+        title: `Replace the timetable of ${String(row.label)}?`,
+        message: `All ${Number(row.periods_count ?? 0)} existing periods of ${String(row.label)} will be removed and replaced with a copy of ${section.label}.`,
+        confirmText: 'Replace timetable',
+        danger: true,
+      });
+      if (!ok) return;
     }
     setSaving(true);
     setError(null);
@@ -144,8 +156,8 @@ export function CopyModal({ open, onClose, section, sessionId, onDone }: { open:
               value={mode}
               onChange={setMode}
               options={[
-                { value: 'replace', label: 'Replace - clear the target timetable first' },
-                { value: 'merge', label: 'Merge - only fill the target’s empty periods' },
+                ...(canReplace ? [{ value: 'replace', label: 'Replace - clear the target timetable first' }] : []),
+                { value: 'merge', label: 'Merge - only fill the target’s empty periods (never beyond a subject’s weekly periods)' },
               ]}
             />
           </Field>

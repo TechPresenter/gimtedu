@@ -52,8 +52,9 @@ route('GET', '/feedback/{id:\d+}/details', function ($p) {
         api_error('Ticket not found. It may have been deleted.', 404);
     }
     $logs = db_all("SELECT l.action, l.description, l.meta, l.created_at, u.name AS user_name FROM activity_logs l LEFT JOIN users u ON u.id = l.user_id
-                    WHERE l.module = 'feedback' AND (l.record_id = ? OR l.record_id LIKE ? OR l.record_id LIKE ? OR l.record_id LIKE ?) ORDER BY l.created_at DESC, l.id DESC LIMIT 50",
-        [(string) $f['id'], $f['id'] . ',%', '%,' . $f['id'], '%,' . $f['id'] . ',%']);
+                    WHERE l.module = 'feedback' AND (l.record_id = ? OR l.record_id LIKE ? OR l.record_id LIKE ? OR l.record_id LIKE ?) AND l.created_at >= ?
+                    ORDER BY l.created_at DESC, l.id DESC LIMIT 50",
+        [(string) $f['id'], $f['id'] . ',%', '%,' . $f['id'], '%,' . $f['id'] . ',%', adm_log_since($f['created_at'])]);
     $timeline = [];
     $seen = [];
     foreach ($logs as $l) {

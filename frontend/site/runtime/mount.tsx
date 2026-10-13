@@ -68,9 +68,13 @@ export function mountIsland(
   });
   host.setAttribute('data-island-state', 'mounted');
 
-  // re-run the vanilla enhancements for HTML injected from slots (reveal, lazy images, counters …)
+  // re-run the vanilla enhancements for HTML injected from slots (reveal, lazy images, counters …) and mount islands
+  // nested in that HTML (e.g. a Countdown inside a Tabs panel)
   const runtime = window.__gimtSite;
-  if (runtime && runtime !== 'fallback') runtime.enhance(host);
+  if (runtime && runtime !== 'fallback') {
+    runtime.enhance(host);
+    runtime.mountIslands(host);
+  }
 
   // release the height lock once the island is at least as tall as the fallback was
   if (lockedHeight > 0) {

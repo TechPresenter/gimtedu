@@ -1,5 +1,10 @@
 # GIMT SmartCampus — Design reference
 
+> **PUBLIC WEBSITE = "Design v3" at the end (latest client brief, 2026-10-12): orange-red + deep navy + white + warm grey,
+> bold sans-serif editorial typography, Online Manipal–inspired layout patterns.** (Design v2 = superseded where v3 differs.)
+> The admin panel keeps the navy/green look of mockup §1. For the website, mockups §2–§5 still define WHICH sections
+> and content each page has; their navy/green colours and styling are superseded by Design v2.
+
 The client supplied five mockups with the brief. Local captures (not committed — large files) live in
 `tools/.cache/mockups/*.png` when available; this document describes them so the UI can be matched without them.
 Use them as **direction**, not pixel specs: same structure, hierarchy, palette and density; original implementation.
@@ -102,3 +107,82 @@ Options" 4 cards (Admission Enquiry, Program Information, Scholarships, Campus V
 
 Bundled photography for all of the above: `assets/images/site/*.jpg` (hero-campus-students, campus-*, facility-*,
 program-*, students-*, leader-1..3, graduation, placement-student, news-campus, dashboard-banner).
+
+---------------------------------------------------------------------------------------------------------------
+## Design v2 — public website (client decision 2026-10-12): Online Manipal–style, orange + black
+Reference captures (local, not committed): `tools/.cache/ref/home/*.png` (onlinemanipal.com homepage, desktop + mobile
+slices, `desktop-menu.png` = Courses mega menu) and `tools/.cache/ref/landing/*.png` (their ad landing page);
+`info.json` in each folder lists the measured colours/fonts. Take the **design language** from them — never their
+logos, photos, text, university names, rankings or exact layouts (brief: inspired by, not copied). All content, photos
+and claims are GIMT's own (settings/CMS/DB driven; no invented rankings, no fake urgency numbers).
+
+Palette (website only): orange `#F26722` (primary CTA, highlights, links on hover; hover `#DD5A17`), ink `#151419`
+(headings, dark bands, active pills), body text `#575757`, muted `#686868`, surfaces `#F7F6F6` / `#F4F4F4` / white,
+pastels for cards `#CCC1FF` (lavender) `#A9D8FF` (sky) `#BEFFFE` (aqua) `#EFEFD0` (cream, footer backdrop)
+`#F2DFB4` (sand), yellow `#FDD900` (urgency/countdown strip, "Most Popular" tags), ribbon red `#D32531` (ranking
+ribbons), WhatsApp green for the chat tab only. GIMT logo stays as-is (it is navy/green — place it on light surfaces).
+Typography: elegant high-contrast **serif display** for headings (self-hosted free font such as Fraunces / Playfair
+Display / Instrument Serif — similar feel to their "Queens"), clean grotesk body (Inter, already self-hosted), large
+light-weight serif numbers for stats.
+
+Patterns: floating rounded light-grey header bar inset from the page edges (logo · nav with ▾ carets · orange
+"Apply Now" pill · round search + menu icon buttons), sticky with a small top gap; big rounded mega menu (left sidebar
+"By Level / By Department" filters + grid of program cards with a black tag pill top-right, pastel chips, duration,
+full-width "View all programs" outline pill); hero = big serif headline with a hand-drawn orange ellipse around a key
+word, doodles (sparkle stars, curved arrow, rotated sticker tags such as "Learn · Grow · Succeed"), faint grid-paper
+background, student cut-out photo, row of small program image cards; pill tab filters (black active pill, outlined
+inactive); carousels with round white arrow buttons; light-grey rounded cards (`#F4F4F4`, 16–20px radius, hairline
+border) with image + pastel institution/department chip + rating/duration/fee meta + dark tag; pastel feature cards
+with white pill buttons; dark ink bands with subtle grid pattern and serif stat numbers separated by thin dividers;
+recruiter logo strip in a light card; testimonial cards with photo + program meta; FAQ accordion; footer = large white
+rounded card on a cream backdrop with serif column headings + expandable "All programs" link directory, copyright on
+the cream below; floating vertical green "Chat" WhatsApp tab on the right edge + round call button; rounded-full pill
+buttons everywhere.
+
+Campaign landing page `/admissions-open` (ad traffic): scrolling announcement strip (orange text on light bar),
+reduced header (logo · phone · Apply Now), dark hero with grid + soft swirl, serif headline with a highlighted pill
+phrase, orange scholarship line, programs list, Download Brochure pill, approvals/affiliations badge card (generic
+emblems, settings-driven), right-side dark lead form card ("Free Career Counselling": name, email, +91 phone, program,
+consent, Apply Now → POST /api/public/enquiry with UTM params captured into the enquiry source), yellow strip with a
+countdown to the real application deadline (setting) and real seats-filled % (admissions vs intake) — hide either if
+data is missing; then approvals carousel with red ribbon labels, explore programs with pill tabs, scholarships/
+financing cards on a sand band + "Request call back", advantages tiles with colourful icon circles, student stories,
+final CTA with the form again, sticky mobile bottom bar (Call · Apply). robots noindex,follow (configurable).
+
+---------------------------------------------------------------------------------------------------------------
+## Design v3 — public website, FINAL direction (latest client brief, 2026-10-12)
+Supersedes Design v2's colours and serif typography; v2's layout patterns (floating pill header, mega menu with
+sidebar filters + program cards, pill tabs, round arrow carousels, warm footer card, WhatsApp tab, /admissions-open
+structure) remain. Identity: "premium academic institution meets modern technology university" — clean, trustworthy,
+sophisticated, dynamic, human-designed, conversion-focused; distinctive, NOT generic AI aesthetics.
+
+Tokens (CSS custom properties + Tailwind; WCAG-checked): orange-red vivid `#F05A28` (accents, large display text,
+icons, scribbles), filled CTA `#D03E16` + white text (4.8:1), hover `#B83511`, orange-red text on white `#C93C14`
+(5.1:1); deep navy `#0B2A5B` (headings, dark bands, active pills) / `#071A3B` (darkest); white; warm greys `#F5F2EE`
+(sections) `#EDE8E2` (cards/borders); body text `#4A5568`. Small pastel tints optional for card accents; yellow only
+for urgency strips; WhatsApp green for the chat button. Typography: bold modern sans-serif — Plus Jakarta Sans
+700/800 display (tight tracking, fluid clamp() sizes), Inter body. No serif.
+
+Visual language: asymmetric/layered campus photography with masks & clip-path, gradient overlays, floating 2D
+geometric shapes, slow morphing SVG blobs, mesh/radial gradient lighting, subtle grain where tasteful, gradient borders
++ animated accent lines, depth through layering and negative space, glassmorphism only on selected floating panels
+(solid @supports fallbacks, -webkit- prefixes beside standard properties), restrained 3D card tilt. Motion only on
+important elements: scroll fade-up + stagger, text-mask heading reveal, clip-path image reveal, counters, parallax at
+restrained speed, magnetic CTA (desktop), ripple, animated underline nav, accordion, skeletons, View Transitions page
+transitions where supported; everything static under prefers-reduced-motion.
+
+CTA system (site-wide, 180–300 ms, slight lift, arrow nudge, focus ring, active/loading/disabled states):
+**Apply for Admission** = primary filled orange-red · **Explore Courses** = secondary navy · **Download Brochure** =
+outline · **Request a Callback** = soft contrast (warm-grey/orange tint).
+
+Required website widgets/components (see REQUIREMENTS "Client update — full website redesign brief"): floating
+sticky header, animated mega menu, announcement ticker + admission notification bar, layered hero (value proposition,
+supporting line, Apply + Explore CTAs, layered imagery, animated shapes, admission badge, trust indicators), animated
+stats, course & department cards, rankings/accreditation (verified, settings-driven), campus life gallery, faculty
+cards, research & innovation showcase, testimonials & success stories, news / events / academic calendar widgets,
+scholarship & admission panels, interactive campus map, FAQ accordion, floating WhatsApp, sticky enquiry CTA,
+back-to-top, smart enquiry forms, rich footer with newsletter; advanced: Course Finder (stream, degree, duration,
+eligibility filters), Admission Journey timeline, Campus Explorer (interactive map + gallery), Placement Showcase
+(verified data only), Smart multi-step Enquiry form, Academic Calendar with filters, Faculty Directory (search,
+department filters, profiles), Scholarship Assistant (eligibility questions -> matching scholarships), Student Life
+slider (draggable photos/videos), mobile admission bar (Apply + Call).

@@ -32,3 +32,17 @@
 @-webkit-keyframes progress-fill { from { -webkit-transform: scaleX(0); } to { -webkit-transform: scaleX(1); } }
 @-webkit-keyframes loader-out { to { opacity: 0; visibility: hidden; } }
 @-webkit-keyframes pop-in { 0% { opacity: 0; -webkit-transform: scale(.6); } 70% { opacity: 1; -webkit-transform: scale(1.06); } 100% { -webkit-transform: scale(1); } }
+@-webkit-keyframes twinkle { 0%, 100% { -webkit-transform: scale(1) rotate(0deg); opacity: 1; } 50% { -webkit-transform: scale(.78) rotate(18deg); opacity: .75; } }
+@-webkit-keyframes wiggle { 0%, 100% { -webkit-transform: rotate(var(--r, -8deg)); } 50% { -webkit-transform: rotate(calc(var(--r, -8deg) + 4deg)); } }
+@-webkit-keyframes card-in { from { opacity: 0; -webkit-transform: translate3d(0, 10px, 0) scale(.98); } to { opacity: 1; -webkit-transform: none; } }
+@-webkit-keyframes swirl-drift { 0%, 100% { -webkit-transform: translate3d(0, 0, 0) rotate(0deg); } 50% { -webkit-transform: translate3d(0, -14px, 0) rotate(3deg); } }
+@-webkit-keyframes accent-sweep { from { -webkit-transform: translate3d(-100%, 0, 0); } to { -webkit-transform: translate3d(250%, 0, 0); } }
+@-webkit-keyframes geo-drift { 0%, 100% { -webkit-transform: translate3d(0, 0, 0) rotate(var(--rot, 0deg)); } 50% { -webkit-transform: translate3d(0, -10px, 0) rotate(calc(var(--rot, 0deg) + 8deg)); } }
+@-webkit-keyframes clip-reveal { from { -webkit-clip-path: inset(12% 9% 12% 9% round 56px); } to { -webkit-clip-path: inset(0 0 0 0 round 0); } }
+@-webkit-keyframes img-settle { from { -webkit-transform: scale(1.14); } to { -webkit-transform: scale(1); } }
+/* Cross-document view transitions (Chrome/Edge 126+, Safari 18.2+; ignored elsewhere): quick cross-fade between pages */
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .28s; }
+@media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
+@-webkit-keyframes overlay-pulse { 0%, 100% { opacity: .35; } 50% { opacity: .75; } }
+@-webkit-keyframes cta-glow { 0%, 72%, 100% { box-shadow: 0 0 0 0 rgba(240, 90, 40, 0); } 82% { box-shadow: 0 0 0 10px rgba(240, 90, 40, .22); } 92% { box-shadow: 0 0 0 16px rgba(240, 90, 40, 0); } }

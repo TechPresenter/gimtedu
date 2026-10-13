@@ -6,7 +6,7 @@ import clsx from 'clsx';
 import { ArrowRight, CornerDownLeft, Search, X } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useDebounce } from '@/lib/hooks';
-import { Spinner } from '@/components/ui';
+import { Avatar, Spinner } from '@/components/ui';
 
 export interface SearchItem {
   id: number | string;
@@ -102,6 +102,7 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
                           onClick={() => go(it.url)}
                           className={clsx('flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left', active === i ? 'bg-brand-50 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60')}
                         >
+                          {it.image && <Avatar name={it.title} src={it.image} size="sm" />}
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm font-medium text-slate-900 dark:text-white">{it.title}</span>
                             {it.subtitle && <span className="block truncate text-xs text-slate-500">{it.subtitle}</span>}

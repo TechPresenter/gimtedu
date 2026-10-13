@@ -4,6 +4,7 @@ import { CalendarCheck, ChevronLeft, ChevronRight, ExternalLink, Percent, UserCh
 import { Alert, Button, Card, CardHeader, EmptyState, IconButton, Input, Reveal, Skeleton, StatTile, Stagger } from '@/components/ui';
 import { BarChart } from '@/components/charts';
 import { useApi } from '@/lib/queries';
+import { useAuth } from '@/lib/auth';
 import { formatTime, isoDate } from '@/lib/format';
 import type { ApiError } from '@/lib/api';
 import { currentMonth, dow, monthGrid, monthLabel, shiftMonth, WEEKDAYS, type EmployeeType } from '../../hr';
@@ -37,6 +38,7 @@ const statusLabel: Record<string, string> = { present: 'Present', late: 'Late', 
 /** Monthly attendance calendar of an employee (records come from Attendance › Faculty & Staff Attendance). */
 export default function AttendanceTab({ type, id }: { type: EmployeeType; id: number }) {
   const [month, setMonth] = useState(currentMonth());
+  const { can } = useAuth();
   const { data, isLoading, error, isFetching } = useApi<Payload>(['hr-attendance', type, id, month], `${type}/${id}/attendance`, { month }, { placeholderData: (prev) => prev });
   const today = isoDate();
   if (error) return <Alert variant="error">{(error as ApiError).message}</Alert>;
@@ -58,6 +60,7 @@ export default function AttendanceTab({ type, id }: { type: EmployeeType; id: nu
               title="Monthly calendar"
               subtitle={data && !data.has_any ? 'No attendance recorded yet' : `${s?.marked ?? 0} days marked`}
               icon={CalendarCheck}
+              className="flex-wrap gap-y-3"
               actions={
                 <div className="flex items-center gap-1">
                   <IconButton size="sm" icon={ChevronLeft} label="Previous month" onClick={() => setMonth((m) => shiftMonth(m, -1))} />
@@ -74,7 +77,7 @@ export default function AttendanceTab({ type, id }: { type: EmployeeType; id: nu
                   icon={CalendarCheck}
                   title="No attendance records"
                   description="Daily attendance for faculty and staff is marked from Attendance › Faculty & Staff Attendance."
-                  action={<Button to="/attendance/employees" icon={ExternalLink}>Mark attendance</Button>}
+                  action={can('attendance', 'create') || can('attendance', 'view') ? <Button to="/attendance/employees" icon={ExternalLink}>Mark attendance</Button> : undefined}
                 />
               ) : (
                 <>
@@ -87,7 +90,8 @@ export default function AttendanceTab({ type, id }: { type: EmployeeType; id: nu
                       const rec = data?.days[d];
                       const holiday = data?.holidays[d];
                       const off = data?.weekly_offs.includes(dow(d));
-                      const leave = !rec && data?.leave_days[d];
+                      // Approved leave covers working days only: weekly offs and holidays inside a long leave stay "Off".
+                      const leave = !rec && !holiday && !off && data?.leave_days[d];
                       const st = rec?.status ?? (leave ? 'leave' : null);
                       return (
                         <div
@@ -125,8 +129,15 @@ export default function AttendanceTab({ type, id }: { type: EmployeeType; id: nu
             <div className="p-4">
               {isLoading ? (
                 <Skeleton className="h-56" />
-              ) : (
+              ) : (data?.trend ?? []).some((t) => t.percent !== null) ? (
                 <BarChart labels={(data?.trend ?? []).map((t) => t.label)} series={[{ label: 'Attendance %', data: (data?.trend ?? []).map((t) => t.percent ?? 0), color: '#22943F' }]} percent height={230} legend={false} />
+              ) : (
+                <EmptyState
+                  icon={Percent}
+                  title="No working days marked"
+                  description="The trend appears once attendance is marked for days this employee was expected on campus (approved leave is excluded)."
+                  className="!py-10"
+                />
               )}
             </div>
           </Card>

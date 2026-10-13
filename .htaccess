@@ -5,13 +5,14 @@
 Options -Indexes -MultiViews
 DirectoryIndex index.php
 ErrorDocument 404 /404.php
+ErrorDocument 500 /500.php
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
   # Block internal folders and dot-files
-  RewriteRule ^(app|config|database|storage|tools|frontend|node_modules|install/lib)(/|$) - [F,L]
+  RewriteRule ^(app|config|database|storage|tools|frontend|includes|node_modules|install/lib)(/|$) - [F,L]
   RewriteRule (^|/)\.(?!well-known) - [F,L]
   RewriteRule \.(sql|md|lock|log|sh|cjs|json)$ - [F,L,NC]
 
@@ -20,6 +21,9 @@ ErrorDocument 404 /404.php
 
   # Admin SPA handled by admin/.htaccess
 
+  # Student & Faculty portal SPA (/portal/...) handled by portal/.htaccess
+  RewriteRule ^portal$ portal/ [R=301,L]
+
   # SEO files
   RewriteRule ^sitemap\.xml$ sitemap.php [L]
   RewriteRule ^robots\.txt$ robots.php [L]
@@ -27,6 +31,7 @@ ErrorDocument 404 /404.php
   # Pretty URLs for the public website
   RewriteRule ^verify-certificate/([A-Za-z0-9/\-]+)/?$ verify-certificate.php?no=$1 [L,QSA]
   RewriteRule ^programs/([a-z0-9\-]+)/?$ program.php?slug=$1 [L,QSA]
+  RewriteRule ^admissions-open/([a-z0-9\-]+)/?$ admissions-open.php?program=$1 [L,QSA]
   RewriteRule ^blog/([a-z0-9\-]+)/?$ post.php?slug=$1 [L,QSA]
   RewriteRule ^events/([a-z0-9\-]+)/?$ event.php?slug=$1 [L,QSA]
   RewriteRule ^notices/([a-z0-9\-]+)/?$ notice.php?slug=$1 [L,QSA]

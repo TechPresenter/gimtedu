@@ -65,7 +65,7 @@ export default function OverviewTab() {
         <Reveal>
           <Alert
             variant="warning"
-            title={`${formatNumber(k.unassigned)} subject${k.unassigned === 1 ? '' : 's'} in this session have no faculty assigned`}
+            title={`${formatNumber(k.unassigned)} section subject${k.unassigned === 1 ? ' has' : 's have'} no faculty assigned this session`}
             action={<Button size="sm" variant="secondary" iconRight={ArrowRight} to="/academics?tab=assignments">Assign faculty</Button>}
           >
             Students in these sections cannot be timetabled or marked for attendance until a teacher is assigned.

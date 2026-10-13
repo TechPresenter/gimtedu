@@ -529,16 +529,16 @@ function fees_add_concession(int $invoiceId, string $type, float $amount, string
 }
 
 /**
- * Concession a scholarship scheme gives on an invoice (percentage of tuition items, else of gross), before caps.
+ * Concession a scholarship scheme gives on an invoice (fixed value, or a percentage of the tuition items), before caps.
  */
 function fees_scholarship_amount(array $sch, array $inv): float
 {
     if ($sch['type'] === 'fixed') {
         return (float) $sch['value'];
     }
+    // Percentage schemes apply to tuition only (hostel / transport / one-off invoices without tuition get nothing).
     $tuition = (float) db_value("SELECT COALESCE(SUM(sfi.amount), 0) FROM student_fee_items sfi JOIN fee_heads fh ON fh.id = sfi.fee_head_id WHERE sfi.student_fee_id = ? AND fh.type = 'tuition'", [(int) $inv['id']]);
-    $base = $tuition > 0 ? $tuition : (float) $inv['gross_amount'];
-    return fees_round($base * (float) $sch['value'] / 100);
+    return fees_round($tuition * (float) $sch['value'] / 100);
 }
 
 /**
@@ -600,7 +600,7 @@ function fees_award_scholarship(int $scholarshipId, array $studentIds, string $r
                 }
             }
             if ($given <= 0) {
-                $result['skipped'][] = $st['name'] . ' (' . $st['student_uid'] . ') — nothing left to concede';
+                $result['skipped'][] = $st['name'] . ' (' . $st['student_uid'] . ') — no open tuition balance to apply it to';
                 continue;
             }
             $result['awarded']++;
@@ -795,6 +795,14 @@ function fees_collect(array $in): array
     $paymentId = db_transaction(function () use ($plan, $student, $date, $mode, $reference, $bank, $remarks, $discount, $discountReason, $gateway, $in) {
         // Lock the invoices for the duration of the transaction.
         db_all('SELECT id FROM student_fees WHERE id IN (' . implode(',', array_map('intval', array_keys($plan))) . ') FOR UPDATE');
+        // Re-check under the lock: another counter may have collected against the same invoice meanwhile.
+        foreach ($plan as $fid => $p) {
+            $fresh = db_row('SELECT invoice_no, status, net_amount, paid_amount FROM student_fees WHERE id = ?', [(int) $fid]);
+            $payable = fees_round((float) $fresh['net_amount'] - (float) $fresh['paid_amount'] + $p['late'] - $p['discount']);
+            if (in_array($fresh['status'], ['cancelled', 'paid', 'waived'], true) || $p['amount'] > $payable + 0.001) {
+                throw new CrudValidationException(['allocations' => sprintf('%s changed while you were collecting (payable now %s). Reload the student and try again.', $fresh['invoice_no'], money(max(0, $payable), 2))]);
+            }
+        }
         $receiptNo = fees_receipt_no();
         $first = array_key_first($plan);
         $pid = db_insert('payments', [
@@ -1023,8 +1031,10 @@ function fees_refund_transition(int $id, string $action, array $in = []): array
             if ($errors) {
                 throw new CrudValidationException($errors);
             }
-            db_transaction(function () use ($id, $r, $mode, $ref, $date, $now) {
-                db_update('refunds', ['status' => 'processed', 'mode' => $mode, 'reference_no' => $ref !== '' ? mb_substr($ref, 0, 100) : null, 'refund_date' => $date, 'processed_by' => user_id(), 'processed_at' => $now], 'id = ?', [$id]);
+            $remarks = trim((string) ($in['remarks'] ?? ''));
+            db_transaction(function () use ($id, $r, $mode, $ref, $date, $now, $remarks) {
+                db_update('refunds', ['status' => 'processed', 'mode' => $mode, 'reference_no' => $ref !== '' ? mb_substr($ref, 0, 100) : null, 'refund_date' => $date, 'processed_by' => user_id(), 'processed_at' => $now,
+                    'remarks' => $remarks !== '' ? mb_substr($remarks, 0, 255) : $r['remarks']], 'id = ?', [$id]);
                 $processed = (float) db_value("SELECT COALESCE(SUM(amount), 0) FROM refunds WHERE payment_id = ? AND status = 'processed'", [(int) $r['payment_id']]);
                 if ($processed + 0.001 >= (float) $r['payment_total']) {
                     db_update('payments', ['status' => 'refunded'], 'id = ?', [(int) $r['payment_id']]);
@@ -1653,7 +1663,8 @@ function fees_report(string $tab, array $f, ?int $page = 1, ?int $perPage = 25):
             $to = $f['to'];
             $in = db_all("SELECT p.payment_date AS d, p.mode, SUM(p.amount + p.fine_amount) AS amount, COUNT(*) AS n FROM payments p WHERE p.status IN ('success', 'refunded') AND p.payment_date BETWEEN ? AND ? GROUP BY p.payment_date, p.mode", [$from, $to]);
             $refunds = db_all("SELECT r.refund_date AS d, r.mode, SUM(r.amount) AS amount, COUNT(*) AS n FROM refunds r WHERE r.status = 'processed' AND r.refund_date BETWEEN ? AND ? GROUP BY r.refund_date, r.mode", [$from, $to]);
-            $exp = db_all("SELECT e.expense_date AS d, COALESCE(e.payment_mode, 'bank_transfer') AS mode, SUM(e.amount + e.tax_amount) AS amount, COUNT(*) AS n FROM expenses e WHERE e.status = 'paid' AND e.expense_date BETWEEN ? AND ? GROUP BY e.expense_date, mode", [$from, $to]);
+            $exp = db_all("SELECT COALESCE(DATE(e.paid_at), e.expense_date) AS d, COALESCE(e.payment_mode, 'bank_transfer') AS mode, SUM(e.amount + e.tax_amount) AS amount, COUNT(*) AS n
+                           FROM expenses e WHERE e.status = 'paid' AND COALESCE(DATE(e.paid_at), e.expense_date) BETWEEN ? AND ? GROUP BY d, mode", [$from, $to]);
             $days = [];
             $blank = fn ($d) => ['date' => $d, 'receipts' => 0, 'cash_in' => 0.0, 'bank_in' => 0.0, 'total_in' => 0.0, 'refunds_out' => 0.0, 'expenses_out' => 0.0, 'total_out' => 0.0, 'cash_out' => 0.0, 'net' => 0.0, 'cash_balance' => 0.0];
             foreach ($in as $r) {
@@ -1812,14 +1823,28 @@ function expenses_transition(int $id, string $action, array $in = []): array
             if (!isset(fees_modes()[$mode]) || $mode === 'online') {
                 $errors['payment_mode'] = 'Select how the vendor was paid.';
             }
-            $ref = trim((string) ($in['reference_no'] ?? ($e['reference_no'] ?? '')));
+            $ref = trim((string) ($in['payment_reference'] ?? ''));
             if ($mode !== 'cash' && $ref === '') {
-                $errors['reference_no'] = 'Enter the UTR / cheque number of the payment.';
+                $errors['payment_reference'] = 'Enter the UTR / cheque number of the payment.';
+            } elseif (mb_strlen($ref) > 100) {
+                $errors['payment_reference'] = 'Reference may not be longer than 100 characters.';
+            }
+            $paidOn = trim((string) ($in['paid_on'] ?? ''));
+            if ($paidOn !== '') {
+                $dt = DateTime::createFromFormat('Y-m-d', $paidOn);
+                if (!$dt || $dt->format('Y-m-d') !== $paidOn) {
+                    $errors['paid_on'] = 'Enter a valid payment date.';
+                } elseif ($paidOn > fees_today()) {
+                    $errors['paid_on'] = 'Payment date cannot be in the future.';
+                } elseif ($paidOn < $e['expense_date']) {
+                    $errors['paid_on'] = 'Payment date cannot be before the expense date.';
+                }
             }
             if ($errors) {
                 throw new CrudValidationException($errors);
             }
-            db_update('expenses', ['status' => 'paid', 'payment_mode' => $mode, 'reference_no' => $ref !== '' ? mb_substr($ref, 0, 100) : null, 'paid_at' => $now], 'id = ?', [$id]);
+            $paidAt = $paidOn !== '' && $paidOn !== fees_today() ? $paidOn . ' 12:00:00' : $now;
+            db_update('expenses', ['status' => 'paid', 'payment_mode' => $mode, 'payment_reference' => $ref !== '' ? $ref : null, 'paid_at' => $paidAt], 'id = ?', [$id]);
             log_activity('update', 'expenses', $id, sprintf('Marked expense %s "%s" as paid (%s via %s)', $e['expense_no'], $e['title'], money($total, 2), fees_mode_label($mode)));
             break;
         default:
@@ -1839,7 +1864,12 @@ function expenses_summary(?int $sessionId = null): array
                           COALESCE(SUM(CASE WHEN $counted THEN e.tax_amount END), 0) AS tax, COUNT(*) AS n
                    FROM expenses e WHERE e.expense_date BETWEEN ? AND ?", [$from, $to]);
     $month = (float) db_value("SELECT COALESCE(SUM(e.amount + e.tax_amount), 0) FROM expenses e WHERE $counted AND e.expense_date BETWEEN ? AND ?", [date('Y-m-01'), fees_today()]);
-    $prev = (float) db_value("SELECT COALESCE(SUM(e.amount + e.tax_amount), 0) FROM expenses e WHERE $counted AND e.expense_date BETWEEN ? AND ?", [date('Y-m-01', strtotime('first day of last month')), date('Y-m-t', strtotime('last day of last month'))]);
+    $prevStart = date('Y-m-01', strtotime('first day of last month'));
+    $prevEnd = date('Y-m-t', strtotime('last day of last month'));
+    $prev = (float) db_value("SELECT COALESCE(SUM(e.amount + e.tax_amount), 0) FROM expenses e WHERE $counted AND e.expense_date BETWEEN ? AND ?", [$prevStart, $prevEnd]);
+    // Same number of days of last month (fair month-to-date comparison).
+    $prevToDate = (float) db_value("SELECT COALESCE(SUM(e.amount + e.tax_amount), 0) FROM expenses e WHERE $counted AND e.expense_date BETWEEN ? AND ?",
+        [$prevStart, min($prevEnd, date('Y-m-d', strtotime($prevStart . ' +' . ((int) date('j') - 1) . ' days')))]);
     $budget = (float) db_value("SELECT COALESCE(SUM(budget_amount), 0) FROM expense_categories WHERE status = 'active'");
     $months = [];
     $cursor = strtotime($from);
@@ -1856,7 +1886,7 @@ function expenses_summary(?int $sessionId = null): array
     $vendors = db_all("SELECT e.vendor, COUNT(*) AS n, SUM(e.amount + e.tax_amount) AS amount FROM expenses e WHERE $counted AND e.vendor IS NOT NULL AND e.expense_date BETWEEN ? AND ? GROUP BY e.vendor ORDER BY amount DESC LIMIT 5", [$from, $to]);
     return [
         'session' => $ses,
-        'kpis' => ['spent' => (float) $tot['spent'], 'this_month' => $month, 'last_month' => $prev, 'pending_amount' => (float) $tot['pending_amount'], 'pending_count' => (int) $tot['pending_count'],
+        'kpis' => ['spent' => (float) $tot['spent'], 'this_month' => $month, 'last_month' => $prev, 'last_month_to_date' => $prevToDate, 'pending_amount' => (float) $tot['pending_amount'], 'pending_count' => (int) $tot['pending_count'],
             'approved_unpaid' => (int) $tot['approved_unpaid'], 'approved_unpaid_amount' => (float) $tot['approved_unpaid_amount'], 'tax' => (float) $tot['tax'], 'count' => (int) $tot['n'],
             'budget' => $budget, 'utilization' => $budget > 0 ? round((float) $tot['spent'] * 100 / $budget, 1) : 0],
         'monthly' => array_map(fn ($ym) => ['month' => $ym, 'label' => date('M y', strtotime($ym . '-01')), 'spent' => (float) ($byMonth[$ym] ?? 0), 'income' => (float) ($income[$ym] ?? 0)], $months),

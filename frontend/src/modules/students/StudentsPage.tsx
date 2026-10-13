@@ -137,7 +137,7 @@ export default function StudentsPage() {
       />
 
       {/* KPI strip */}
-      <Stagger className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4" step={70}>
+      <Stagger className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4" itemClassName="h-full [&>*]:h-full" step={70}>
         {[
           <StatCard key="t" label="Total Students" value={s?.total ?? 0} icon={Users} tone="navy" loading={stats.isLoading} hint={`${formatNumber(s?.active ?? 0)} active · ${formatNumber((s?.total ?? 0) - (s?.active ?? 0))} other`} />,
           <StatCard key="a" label="Active Students" value={s?.active ?? 0} icon={UserCheck} tone="green" loading={stats.isLoading}

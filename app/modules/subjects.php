@@ -22,12 +22,12 @@ return [
     'search' => ['t.name', 't.code', 'p.short_name', 'p.name'],
     'order' => 'p.sort_order ASC, t.semester_no ASC, t.code ASC',
     'columns' => [
-        ['key' => 'name', 'label' => 'Subject', 'format' => 'title', 'sub' => 'code', 'sortable' => true, 'link' => 'view'],
-        ['key' => 'program_sem', 'label' => 'Program / Semester', 'format' => 'title', 'sub' => 'course_name', 'sortable' => "CONCAT(p.short_name, LPAD(t.semester_no, 2, '0'))"],
+        ['key' => 'name', 'label' => 'Subject', 'format' => 'title', 'sub' => 'subject_sub', 'sortable' => true, 'link' => 'view', 'width' => '220px'],
+        ['key' => 'program_sem', 'label' => 'Program / Semester', 'format' => 'title', 'sub' => 'course_name', 'sortable' => "CONCAT(p.short_name, LPAD(t.semester_no, 2, '0'))", 'width' => '130px'],
         ['key' => 'type', 'label' => 'Type', 'format' => 'badge', 'sortable' => true, 'colors' => ['theory' => 'blue', 'practical' => 'cyan', 'lab' => 'purple', 'project' => 'amber']],
-        ['key' => 'is_elective', 'label' => 'Elective', 'format' => 'boolean', 'sortable' => true],
+        ['key' => 'is_elective', 'label' => 'Elective', 'format' => 'boolean', 'sortable' => true, 'hidden' => true],
         ['key' => 'credits', 'label' => 'Credits', 'format' => 'number', 'align' => 'center', 'sortable' => true],
-        ['key' => 'marks_scheme', 'label' => 'Int / Ext / Prac', 'format' => 'text', 'align' => 'center'],
+        ['key' => 'marks_scheme', 'label' => 'Marks I/E/P', 'format' => 'text', 'align' => 'center'],
         ['key' => 'pass_marks', 'label' => 'Pass', 'format' => 'number', 'align' => 'center', 'sortable' => true, 'hidden' => true],
         ['key' => 'hours_per_week', 'label' => 'Hrs/Week', 'format' => 'number', 'align' => 'center', 'sortable' => true, 'hidden' => true],
         ['key' => 'faculty_names', 'label' => 'Faculty', 'format' => 'truncate', 'truncate' => 40],
@@ -77,6 +77,7 @@ return [
     'form' => ['size' => 'xl'],
     'hooks' => [
         'transform_row' => function (array $r): array {
+            $r['subject_sub'] = $r['code'] . ((int) $r['is_elective'] ? ' · Elective' : '');
             $r['marks_scheme'] = (int) $r['max_internal'] . ' / ' . (int) $r['max_external'] . ' / ' . (int) $r['max_practical'];
             $r['credits'] = rtrim(rtrim((string) $r['credits'], '0'), '.');
             return $r;

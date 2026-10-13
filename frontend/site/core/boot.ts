@@ -4,8 +4,11 @@ import { initHeader } from './header';
 import { initIslands } from './islands';
 import { initLightbox, openLightbox } from './lightbox';
 import { initLoader } from './loader';
+import { initAttention, initBlobs, initDismiss, initSpotlight, initTextReveal } from './effects';
+import { initMega } from './mega';
+import { initViewModes } from './viewmode';
 import { initMenus } from './menu';
-import { initCounters, initLazyImages, initMarquee, initParallax, initProgress, initReveal } from './motion';
+import { initCounters, initLazyImages, initMarquee, initParallax, initProgress, initReveal, initScribbles } from './motion';
 import { initOverlays } from './overlays';
 import { initCursor, initMagnetic, initRipple, initTilt } from './pointer';
 import { initAccordions, initFilters, initForms, initSliders } from './widgets';
@@ -15,6 +18,12 @@ export function enhance(root: ParentNode = document): void {
   const steps: [string, (r: ParentNode) => void][] = [
     ['lazy', initLazyImages],
     ['reveal', initReveal],
+    ['text-reveal', initTextReveal],
+    ['scribbles', initScribbles],
+    ['blobs', initBlobs],
+    ['dismiss', initDismiss],
+    ['mega', initMega],
+    ['view-modes', initViewModes],
     ['counters', initCounters],
     ['progress', initProgress],
     ['accordions', initAccordions],
@@ -24,6 +33,8 @@ export function enhance(root: ParentNode = document): void {
     ['marquee', initMarquee],
     ['magnetic', initMagnetic],
     ['tilt', initTilt],
+    ['spotlight', initSpotlight],
+    ['attention', initAttention],
   ];
   // error isolation: one failing behaviour never blocks the others
   for (const [name, fn] of steps) {
@@ -39,7 +50,7 @@ export function enhance(root: ParentNode = document): void {
 export function boot(): void {
   const html = document.documentElement;
   const runtime: SiteRuntime = {
-    version: '1.0.0',
+    version: '2.0.0',
     enhance,
     mountIslands: (root?: ParentNode) => initIslands(root),
     openLightbox,

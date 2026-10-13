@@ -126,10 +126,8 @@ export default function ProgramExplorer({
                 <span className="text-sm font-semibold">{c.label}</span>
               </button>
             ) : (
-              <button key={c.key} type="button" onClick={() => select(c.key)} aria-pressed={active} className={clsx('chip', active && 'chip-active')}>
-                {c.icon && <Icon name={c.icon} className="h-4 w-4" />}
+              <button key={c.key} type="button" onClick={() => select(c.key)} aria-pressed={active} className={clsx('chip', active && 'chip-active')} aria-label={`${c.label} (${counts[c.key] ?? 0})`}>
                 {c.label}
-                <span className={clsx('chip-count', active && 'is-active')}>{counts[c.key] ?? 0}</span>
               </button>
             );
           })}

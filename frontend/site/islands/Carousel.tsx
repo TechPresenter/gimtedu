@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { staticMode } from '../core/dom';
 import { useHoverPause, usePageVisible, useStaticMode } from '../lib/hooks';
@@ -28,13 +28,15 @@ export interface CarouselProps extends IslandBaseProps {
   dots?: boolean;
   /** Simple cards when no `slides` slot is provided. */
   items?: CarouselItem[];
+  /** 'dark' = translucent arrow buttons for ink bands. */
+  theme?: 'light' | 'dark';
 }
 
 /**
  * Generic scroll-snap carousel. Slides come from the server-rendered fallback (`<div data-slot="slides">` children,
  * e.g. program_card() output) or from `items`. Native touch scrolling, mouse drag, arrows, dots, keyboard, autoplay.
  */
-export default function Carousel({ ariaLabel = 'Carousel', perView, gap = 24, autoplay = 0, loop = true, arrows = true, dots = true, items = [], slots }: CarouselProps) {
+export default function Carousel({ ariaLabel = 'Carousel', perView, gap = 24, autoplay = 0, loop = true, arrows = true, dots = false, items = [], theme, slots }: CarouselProps) {
   const slides = slots?.slides ?? [];
   const total = slides.length || items.length;
   const trackRef = useRef<HTMLDivElement>(null);
@@ -164,7 +166,7 @@ export default function Carousel({ ariaLabel = 'Carousel', perView, gap = 24, au
   } as CSSProperties;
 
   return (
-    <div className="carousel" role="region" aria-roledescription="carousel" aria-label={ariaLabel} {...handlers}>
+    <div className={clsx('carousel', theme === 'dark' && 'on-dark')} role="region" aria-roledescription="carousel" aria-label={ariaLabel} {...handlers}>
       <div
         ref={trackRef}
         className="carousel-track scrollbar-none"
@@ -211,6 +213,11 @@ export default function Carousel({ ariaLabel = 'Carousel', perView, gap = 24, au
 
       {(arrows || dots) && pages > 1 && (
         <div className="carousel-controls">
+          {arrows && (
+            <button type="button" className="carousel-arrow" onClick={() => goTo(index - 1, true)} disabled={!loop && index <= 0} aria-label="Previous slide">
+              <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+            </button>
+          )}
           {dots && (
             <div className="carousel-dots" role="group" aria-label="Choose slide">
               {Array.from({ length: pages }, (_, i) => (
@@ -219,14 +226,9 @@ export default function Carousel({ ariaLabel = 'Carousel', perView, gap = 24, au
             </div>
           )}
           {arrows && (
-            <div className="ml-auto flex gap-2">
-              <button type="button" className="carousel-arrow" onClick={() => goTo(index - 1, true)} disabled={!loop && index <= 0} aria-label="Previous slide">
-                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-              </button>
-              <button type="button" className="carousel-arrow" onClick={() => goTo(index + 1, true)} disabled={!loop && index >= pages - 1} aria-label="Next slide">
-                <ChevronRight className="h-5 w-5" aria-hidden="true" />
-              </button>
-            </div>
+            <button type="button" className="carousel-arrow" onClick={() => goTo(index + 1, true)} disabled={!loop && index >= pages - 1} aria-label="Next slide">
+              <ArrowRight className="h-5 w-5" aria-hidden="true" />
+            </button>
           )}
         </div>
       )}

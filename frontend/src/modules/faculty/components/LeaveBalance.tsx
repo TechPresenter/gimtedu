@@ -15,7 +15,14 @@ const fmt = (n: number) => formatNumber(n, n % 1 ? 1 : 0);
 export function LeaveBalanceList({ type, id, limit = 4 }: { type: EmployeeType; id: number; limit?: number }) {
   const { data, isLoading } = useLeaveBalance(type, id);
   if (isLoading) return <div className="space-y-4">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-8" />)}</div>;
-  const rows = (data?.balance ?? []).filter((b) => !b.unlimited && (b.quota < 100 || b.used > 0)).slice(0, limit);
+  // Types already in use (e.g. an ongoing maternity leave) come first so the sidebar never hides them.
+  const rows = (data?.balance ?? [])
+    .filter((b) => !b.unlimited && (b.quota < 100 || b.used > 0 || b.pending > 0))
+    .map((b, i) => ({ b, i, inUse: b.used > 0 || b.pending > 0 }))
+    .sort((x, y) => Number(y.inUse) - Number(x.inUse) || x.i - y.i)
+    .slice(0, limit)
+    .sort((x, y) => x.i - y.i)
+    .map((x) => x.b);
   if (!rows.length) return <p className="text-sm text-slate-500">No leave types with a quota.</p>;
   return (
     <ul className="space-y-3.5">

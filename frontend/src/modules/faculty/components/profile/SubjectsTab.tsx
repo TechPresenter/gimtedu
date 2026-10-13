@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { BookOpen, ExternalLink, Layers } from 'lucide-react';
+import { BookOpen, CalendarClock, ExternalLink, GraduationCap, Hash, Layers } from 'lucide-react';
 import { Alert, Badge, Button, Card, CardHeader, DataTable, EmptyState, Reveal, Select, StatTile, Stagger, type Column } from '@/components/ui';
 import { useApi } from '@/lib/queries';
-import { useAcademicSession } from '@/lib/auth';
+import { useAcademicSession, useAuth } from '@/lib/auth';
 import { formatNumber, labelize } from '@/lib/format';
 import type { ApiError } from '@/lib/api';
-import { CalendarClock, GraduationCap, Hash } from 'lucide-react';
 
 interface SubjectRow {
   id: number;
@@ -34,6 +33,8 @@ const typeColor: Record<string, 'navy' | 'cyan' | 'purple' | 'amber' | 'green'> 
 /** Subjects assigned to a faculty member (academics' faculty_subjects), read-only here. */
 export default function SubjectsTab({ id }: { id: number }) {
   const { all } = useAcademicSession();
+  const { can } = useAuth();
+  const canAcademics = can('academics', 'view');
   const [session, setSession] = useState('');
   const { data, isLoading, error } = useApi<Payload>(['hr-subjects', id, session], `faculty/${id}/subjects`, session ? { session_id: session } : undefined);
   const columns: Column<SubjectRow>[] = [
@@ -85,9 +86,11 @@ export default function SubjectsTab({ id }: { id: number }) {
                   placeholder="Current session"
                   className="!w-40"
                 />
-                <Button size="sm" variant="secondary" icon={ExternalLink} to="/academics?tab=assignments">
-                  Manage
-                </Button>
+                {canAcademics && (
+                  <Button size="sm" variant="secondary" icon={ExternalLink} to="/academics?tab=assignments">
+                    Manage
+                  </Button>
+                )}
               </div>
             }
           />
@@ -105,7 +108,7 @@ export default function SubjectsTab({ id }: { id: number }) {
                   icon={BookOpen}
                   title="No subjects assigned"
                   description="Assign subjects and sections to this faculty member from Academics › Faculty Assignments."
-                  action={<Button to="/academics?tab=assignments" icon={ExternalLink}>Open faculty assignments</Button>}
+                  action={canAcademics ? <Button to="/academics?tab=assignments" icon={ExternalLink}>Open faculty assignments</Button> : undefined}
                 />
               }
             />

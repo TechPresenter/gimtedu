@@ -256,3 +256,83 @@ Architecture decision (keeps the brief's SEO + fast-loading requirement): pages 
 content for search engines and instant first paint); a Vite-built **React + TypeScript "islands" bundle** mounts the
 interactive components onto server-rendered placeholders (progressive enhancement — content is still readable
 without JS). The admin panel likewise uses subtle premium motion (`Reveal`, `Stagger`, `CountUp`, page transitions).
+
+## Client update — 2026-10-12: website look = Online Manipal style, orange + black
+The client asked for the website front pages, menu and everything to follow https://www.onlinemanipal.com/ in colour
+and design, and for a campaign landing page like their "online degree courses" ad page. Decision: public website uses
+"Design v2" in docs/DESIGN.md (orange #F26722 + near-black #151419, serif display headings, floating pill header,
+Manipal-style mega menu, pastel cards, dark grid bands, cream footer); campaign landing page at **/admissions-open**.
+Inspired-by only: no copying of their logos, images, text, rankings or exact layouts. The admin panel keeps navy/green.
+
+## Client update — full website redesign brief (2026-10-12, latest; supersedes the orange + black note above)
+Redesign the GIMT public website into a premium, modern, high-conversion university website (world-class UI/UX +
+creative frontend + motion design). Brand: orange-red, deep navy, white, subtle warm grey; modern sans-serif
+typography (Inter / Plus Jakarta Sans / Manrope); clean, trustworthy, sophisticated, dynamic, human-designed,
+conversion-focused; authentic campus imagery (students, labs, classrooms, faculty, academic activities); one
+consistent design system across all pages. Client recommendation: orange-red + navy + white, bold editorial
+typography, asymmetrical campus photography, restrained 3D cards, animated statistics and strong admission CTAs —
+motion only on important elements so the site stays premium AND fast.
+Components, motion, visual effects, hero, CTA system and advanced widgets: see docs/DESIGN.md "Design v3".
+Interaction: hover/focus/active/disabled/loading states everywhere, keyboard-accessible navigation and dropdowns,
+form success/error messages, touch-friendly mobile, clear CTA hierarchy, **no dead links or decorative controls
+pretending to work**. Technical: inspect and reuse the existing stack (PHP SSR + React/TS islands + Tailwind + CSS3),
+preserve the backend and all working features, semantic HTML5, CSS custom properties for tokens, SVG illustrations,
+IntersectionObserver / Web Animations API, responsive + lazy images, progressive enhancement, @supports feature
+queries, vendor prefixes only where useful (-webkit-backdrop-filter, -webkit-mask-image next to standard properties).
+Performance & a11y: WCAG, prefers-reduced-motion, no unnecessary JS, no layout shift, transform/opacity animation,
+no horizontal overflow, optimised images/fonts, readable contrast + visible focus, no autoplay audio, SEO-friendly,
+Core Web Vitals-conscious. Responsive: large desktop, laptop, tablet, mobile (mobile: readable text, fast, compact
+nav, touch-friendly CTAs, lightweight animation). Implement real components and interactions (not mockups), page by
+page, reusing components.
+Final QC (must be run before completion, fix everything found): every page at desktop/tablet/mobile — all links,
+buttons, dropdowns, forms, CTAs work; animations smooth/purposeful; no horizontal overflow, layout shift, broken images
+or console errors; WebKit effects have standard fallbacks; reduced motion respected; keyboard + visible focus
+everywhere; optimised images/fonts/scripts; SEO metadata, semantic headings, alt text, structured data; admission
+information and institutional claims use VERIFIED content only (settings/CMS/DB — no invented rankings or numbers);
+backend and existing features intact; remove redundant animations, excessive gradients, generic effects, unneeded
+dependencies.
+
+## Client update — 2026-10-12: complete audit, enhancement & finalization brief (latest; adds to everything above)
+Act as senior full-stack developer, UI/UX designer, technical SEO expert, cybersecurity specialist and university
+website auditor. Audit, enhance and finalize the GIMT website WITHOUT breaking existing functionality:
+1. **Policy pages** (CMS pages, admin-editable): Privacy Policy, Terms & Conditions, Disclaimer, Cookie Policy, Refund &
+   Cancellation Policy, Admission Policy, Scholarship Policy, Anti-Ragging Policy, Grievance Redressal Policy,
+   Accessibility Policy, Equal Opportunity Policy and other relevant university policies (e.g. Code of Conduct, Fee
+   Policy, Examination Policy, Internal Complaints Committee / POSH, Mandatory Disclosure). Verified institutional info
+   only; unverified legal details as clearly marked placeholders (e.g. "[To be confirmed by GIMT: …]").
+2. **Dynamic Notice Board & Announcement System**: admission notices, examination schedules, results, holidays, events,
+   scholarship announcements, important deadlines; downloadable PDFs, categories, search, filters, pinned notices,
+   publication + expiry dates, archives, pagination, admin management.
+3. **Route audit**: fix every missing page, broken link, 404/500, wrong redirect, non-functional button, missing asset,
+   invalid form and console error; custom 404 and 500 pages; relevant redirects (admin-managed redirect manager);
+   breadcrumbs, page summaries, related content, meaningful empty states.
+4. **Crawl & index**: valid XML sitemaps + sitemap index when needed, robots.txt, canonical URLs, correct HTTP status
+   codes, crawl rules, per-page indexability settings.
+5. **SEO**: technical, on-page, off-page workflow support, local, international, image, video, structured data —
+   unique titles/descriptions, Open Graph, Twitter Cards, semantic HTML, heading hierarchy, internal linking, alt text,
+   pagination handling, hreflang where appropriate, Schema.org, Google Search Console, GA4, Google Tag Manager,
+   consent-aware conversion tracking (cookie consent + Google Consent Mode), Core Web Vitals, SEO audit tooling.
+6. **Integrations** via admin settings + environment variables (secrets never in frontend code): Google Maps, spam
+   protection (reCAPTCHA or equivalent), secure SMTP / transactional email, WhatsApp, social media, error monitoring,
+   analytics, other useful services.
+7. **Light / Dark / System mode** on the website with persistent preference, accessible contrast, consistent styling.
+8. **View modes**: Grid, List, Compact, Detailed for courses, notices, events, news, faculty directory — responsive,
+   remembered per user.
+9. **Branding/UI**: premium orange-red + navy + white (Design v3), professional typography, responsive navigation,
+   animated gradients, 2D shapes, blobs, subtle 3D, glassmorphism, scroll reveals, hover/interactive cards,
+   micro-animations, sticky admission CTAs, floating WhatsApp, skeletons, transitions, reduced motion; speed,
+   usability, accessibility first.
+10. **Forms (every form)**: accessible labels, required-field validation, client + server validation, clear error/success
+   messages, spam prevention, secure submission, duplicate-submission protection, DB integration; reliable email
+   validation + normalisation; international phone validation with a searchable country selector (flags, names,
+   dialing codes, country-specific number validation via a reliable library), normalised to E.164; country, state,
+   city, postal code and address fields wherever necessary.
+11. **Admin**: role-based permissions + audit logs for pages, policies, notices, courses, enquiries, SEO metadata,
+   redirects, sitemap generation, robots settings, analytics, themes, page-view modes, forms, media, integrations,
+   global website settings.
+12. Inspect and reuse the existing architecture, preserve working features, avoid unnecessary packages, never replace
+   real functionality with static mockups. Test every page, link, form, validation rule, theme, view mode,
+   integration, redirect, SEO output, sitemap, robots directive, security control and breakpoint; fix everything found.
+13. **Deliverables**: production-ready, secure, accessible, responsive, high-performance site + a concise report of
+   completed features, resolved errors, remaining limitations, required credentials, SEO setup requirements and
+   deployment instructions (docs/REPORT.md, docs/DEPLOYMENT.md).

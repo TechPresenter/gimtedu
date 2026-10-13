@@ -185,6 +185,16 @@ function CrudTableInner({
     setFormOpen(true);
   };
 
+  // Deep link from the top bar "Quick add" menu: /faculty?add=1 opens the create form once.
+  useEffect(() => {
+    if (scope || params.get('add') !== '1' || !meta.can.create) return;
+    const next = new URLSearchParams(params);
+    next.delete('add');
+    setParams(next, { replace: true });
+    openCreate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const remove = async (row: Row) => {
     const name = String(row.name ?? row.title ?? row.full_name ?? row.code ?? `#${row.id}`);
     const ok = await confirm({ title: `Delete ${meta.singular.toLowerCase()}?`, message: <>Are you sure you want to delete <strong>{name}</strong>? This action cannot be undone.</>, confirmText: 'Delete', danger: true });

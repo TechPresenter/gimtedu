@@ -18,8 +18,9 @@
  *   POST   /admissions/{id}/convert                                  create the student record (transaction)
  *   POST   /admissions/{id}/documents       multipart {doc_type, file, remarks}
  *   POST   /admissions/documents/{docId}/verify {status: verified|rejected|pending, remarks}
+ *   GET    /admissions/documents/{docId}/file[?download=1]           view / download the stored file (admissions.view)
  *   DELETE /admissions/documents/{docId}
- *   POST   /admissions/{id}/followups       {type, notes, outcome, next_followup_date}
+ *   POST   /admissions/{id}/followups      {type, notes, outcome, next_followup_date}
  *   POST   /admissions/followups/{fid}/done
  *   DELETE /admissions/followups/{fid}
  */
@@ -346,7 +347,7 @@ route('GET', '/admissions/{id:\d+}/profile', function ($p) {
     unset($f);
     $history = db_all('SELECT h.*, u.name AS changed_by_name FROM admission_stage_history h LEFT JOIN users u ON u.id = h.changed_by WHERE h.admission_id = ? ORDER BY h.created_at, h.id', [$id]);
     $activity = db_all("SELECT l.action, l.description, l.created_at, u.name AS user_name FROM activity_logs l LEFT JOIN users u ON u.id = l.user_id
-                        WHERE l.module = 'admissions' AND l.record_id = ? ORDER BY l.created_at DESC, l.id DESC LIMIT 60", [(string) $id]);
+                        WHERE l.module = 'admissions' AND l.record_id = ? AND l.created_at >= ? ORDER BY l.created_at DESC, l.id DESC LIMIT 60", [(string) $id, adm_log_since($a['created_at'])]);
     // Timeline: stage history + follow-ups + document events + other activity, newest first
     $timeline = [];
     foreach ($history as $h) {
@@ -538,6 +539,35 @@ route('POST', '/admissions/documents/{doc:\d+}/verify', function ($p) {
     log_activity($status === 'verified' ? 'approve' : 'update', 'admissions', $d['admission_id'], sprintf('%s %s of %s (%s)%s', ucfirst($status === 'pending' ? 'reset' : $status), strtolower($label),
         admission_full_name($d), $d['application_no'], $remarks ? ' — ' . $remarks : ''));
     api_ok(['status' => $status], $label . ' ' . ($status === 'pending' ? 'reset to pending.' : $status . '.'));
+});
+
+/* View / download an applicant document (private storage). Streams the file only to users who can view admissions. */
+route('GET', '/admissions/documents/{doc:\d+}/file', function ($p) {
+    api_require('admissions', 'view');
+    $d = db_row('SELECT id, admission_id, doc_type, file_path, original_name FROM admission_documents WHERE id = ?', [(int) $p['doc']]);
+    $path = $d ? (string) $d['file_path'] : '';
+    if (!$d || !str_starts_with($path, 'storage/private/') || str_contains($path, '..') || !is_file(APP_ROOT . '/' . $path)) {
+        api_error('Document file not found.', 404);
+    }
+    $abs = APP_ROOT . '/' . $path;
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($abs) ?: 'application/octet-stream';
+    $label = admission_doc_types()[$d['doc_type']] ?? 'Document';
+    $name = preg_replace('/[^A-Za-z0-9._\- ]/', '_', (string) ($d['original_name'] ?: $label . '.' . pathinfo($abs, PATHINFO_EXTENSION)));
+    $inline = empty($_GET['download']) && in_array($mime, ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif'], true);
+    if (!empty($_GET['download'])) {
+        log_activity('export', 'admissions', $d['admission_id'], 'Downloaded ' . strtolower($label) . ' (' . $name . ')');
+    }
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    header('Content-Type: ' . $mime);
+    header('Content-Length: ' . filesize($abs));
+    header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . $name . '"');
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: private, no-store');
+    header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
+    readfile($abs);
+    exit;
 });
 
 route('DELETE', '/admissions/documents/{doc:\d+}', function ($p) {

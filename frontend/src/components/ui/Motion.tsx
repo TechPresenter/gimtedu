@@ -62,8 +62,10 @@ export function CountUp({ value, format, duration = 900, className }: CountUpPro
 
   useEffect(() => {
     if (!inView) return;
-    if (prefersReducedMotion()) {
+    // Background tabs don't run animation frames — show the final value instead of a stuck 0.
+    if (prefersReducedMotion() || document.hidden) {
       setShown(target);
+      fromRef.current = target;
       return;
     }
     const from = fromRef.current;

@@ -15,6 +15,14 @@ require_once APP_ROOT . '/app/services/system.php';
 const SECURITY_POLICY_KEYS = ['password_min_length', 'password_require_uppercase', 'password_require_number', 'password_require_special', 'password_expiry_days',
     'max_login_attempts', 'lockout_minutes', 'max_ip_attempts', 'session_timeout', 'remember_me_days', 'two_factor_enabled'];
 
+/** Only a Super Admin may sign another Super Admin out of remembered devices. */
+function security_guard_super_tokens(int $userId): void
+{
+    if ($userId !== user_id() && !is_super_admin() && system_user_is_super($userId)) {
+        api_error('Only a Super Admin can revoke the sessions of another Super Admin.', 403);
+    }
+}
+
 function security_policy_values(): array
 {
     $out = [];
@@ -113,6 +121,7 @@ route('DELETE', '/security/tokens/{id:\d+}', function ($p) {
     if (!$t) {
         api_error('This session has already ended.', 404);
     }
+    security_guard_super_tokens((int) $t['user_id']);
     db_delete('user_tokens', 'id = ?', [$t['id']]);
     log_activity('revoke', 'security', $t['user_id'], "Revoked a remembered session of {$t['name']} (" . browser_label($t['user_agent']) . ', ' . $t['ip_address'] . ')');
     api_ok(null, "Session revoked. {$t['name']} will need to sign in again on that device.");
@@ -121,6 +130,7 @@ route('DELETE', '/security/tokens/{id:\d+}', function ($p) {
 route('POST', '/security/tokens/revoke-user', function () {
     api_require('security', 'edit');
     $in = api_validate(['user_id' => 'required|integer|exists:users,id'], null, ['user_id' => 'User']);
+    security_guard_super_tokens((int) $in['user_id']);
     $name = db_value('SELECT name FROM users WHERE id = ?', [(int) $in['user_id']]);
     $n = db_exec("DELETE FROM user_tokens WHERE user_id = ? AND type = 'remember'", [(int) $in['user_id']]);
     log_activity('revoke', 'security', $in['user_id'], "Signed $name out of $n remembered device(s)");

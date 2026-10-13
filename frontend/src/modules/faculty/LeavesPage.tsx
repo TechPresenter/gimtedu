@@ -40,6 +40,9 @@ const TABS = [
   { key: 'calendar', label: 'Who is on leave', icon: CalendarRange },
   { key: 'balances', label: 'Balances', icon: Scale },
 ];
+/** Compact leave-type names for chart legends ("Casual Leave" -> "Casual", "Leave Without Pay" -> "Without pay"). */
+const shortLeaveName = (name: string) =>
+  name.replace(/\s*\(.*\)$/, '').replace(/ Leave$/, '').replace(/^Leave Without Pay$/i, 'Without pay').replace(/^Compensatory Off$/i, 'Comp. off');
 const toneHex: Record<string, string> = { blue: '#2563EB', green: '#10B981', amber: '#F59E0B', purple: '#8B5CF6', pink: '#F43F5E', cyan: '#06B6D4', red: '#EF4444', orange: '#F97316', navy: '#183C7A', slate: '#64748B' };
 
 export default function LeavesPage() {
@@ -189,7 +192,7 @@ export default function LeavesPage() {
                     <Skeleton className="h-44" />
                   ) : byType.length ? (
                     <DoughnutChart
-                      labels={byType.map((t) => t.name.replace(/\s*\(.*\)$/, ''))}
+                      labels={byType.map((t) => shortLeaveName(t.name))}
                       data={byType.map((t) => t.days)}
                       colors={byType.map((t) => toneHex[leaveTone(t.color)] ?? '#64748B')}
                       centerValue={formatNumber(s?.session_days ?? 0)}

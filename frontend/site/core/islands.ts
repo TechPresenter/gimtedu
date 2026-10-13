@@ -51,7 +51,11 @@ async function mount(host: HTMLElement): Promise<void> {
 let observer: IntersectionObserver | null = null;
 
 export function initIslands(root: ParentNode = document): void {
-  const hosts = within('[data-island]', root).filter((el) => !el.hasAttribute('data-island-state'));
+  const candidates = within('[data-island]', root).filter((el) => !el.hasAttribute('data-island-state'));
+  // Nested islands (an island inside another island's slot HTML, e.g. a Countdown in a Tabs panel) are mounted by the
+  // parent after it renders (runtime/mount.tsx calls mountIslands(host)) — mounting them now would target fallback
+  // DOM that React is about to replace.
+  const hosts = candidates.filter((el) => !candidates.some((other) => other !== el && other.contains(el)) && !el.parentElement?.closest('[data-island]:not([data-island-state="mounted"])'));
   if (!hosts.length) return;
   hosts.forEach((host) => host.setAttribute('data-island-state', 'pending'));
   const eager = hosts.filter((h) => h.hasAttribute('data-eager'));

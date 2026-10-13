@@ -468,7 +468,7 @@ function students_fee_stats(int $id): array
 /** Latest SGPA / CGPA from results (falls back to the academic history). */
 function students_gpa(int $id): array
 {
-    $r = db_row('SELECT r.sgpa, r.cgpa, r.semester_no, r.result_status, r.backlog_count FROM results r WHERE r.student_id = ? AND (r.cgpa IS NOT NULL OR r.sgpa IS NOT NULL)
+    $r = db_row('SELECT r.sgpa, r.cgpa, r.semester_no, r.result_status, r.backlog_count FROM results r WHERE r.student_id = ? AND r.is_published = 1 AND (r.cgpa IS NOT NULL OR r.sgpa IS NOT NULL)
                  ORDER BY r.semester_no DESC, r.id DESC LIMIT 1', [$id]);
     if ($r) {
         return ['sgpa' => $r['sgpa'] !== null ? (float) $r['sgpa'] : null, 'cgpa' => $r['cgpa'] !== null ? (float) $r['cgpa'] : null, 'semester' => (int) $r['semester_no'],
@@ -576,8 +576,9 @@ function students_promotion_preview(int $programId, int $semester, ?int $section
                          WHERE ar.person_type = 'student' AND ar.person_id IN ($in)$attWhere GROUP BY ar.person_id", $attArgs) as $a) {
             $att[(int) $a['person_id']] = $a['total'] ? round($a['attended'] * 100 / $a['total'], 1) : null;
         }
+        // latest published result that carries a CGPA (mid-term / unpublished results have none and must not hide backlogs)
         foreach (db_all("SELECT r.student_id, r.sgpa, r.cgpa, r.result_status, r.backlog_count FROM results r
-                         JOIN (SELECT student_id, MAX(id) AS id FROM results WHERE student_id IN ($in) GROUP BY student_id) x ON x.id = r.id") as $r) {
+                         JOIN (SELECT student_id, MAX(id) AS id FROM results WHERE student_id IN ($in) AND is_published = 1 AND cgpa IS NOT NULL GROUP BY student_id) x ON x.id = r.id") as $r) {
             $res[(int) $r['student_id']] = $r;
         }
         foreach (db_all("SELECT sa.student_id, sa.cgpa FROM student_academic sa JOIN (SELECT student_id, MAX(semester_no) AS sem FROM student_academic WHERE student_id IN ($in) AND cgpa IS NOT NULL GROUP BY student_id) x

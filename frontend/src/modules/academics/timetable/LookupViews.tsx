@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarDays, DoorOpen, GraduationCap, Printer, School, Search, UserRound } from 'lucide-react';
 import { Alert, Avatar, Badge, Button, Card, Combobox, EmptyState, Skeleton } from '@/components/ui';
@@ -33,6 +33,8 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
 function Shell({ picker, header, grid, sessionId, view, empty }: { picker: ReactNode; header: ReactNode; grid: ReturnType<typeof useGrid>; sessionId: number; view: 'faculty' | 'room' | 'student'; empty: ReactNode }) {
   const navigate = useNavigate();
   const data = grid.data;
+  // Student view: colour subjects exactly like the class view of their section.
+  const subjectOrder = useMemo(() => (data?.subjects ? new Map(data.subjects.map((s, i) => [s.id, i] as [number, number])) : undefined), [data]);
   return (
     <div className="space-y-5">
       <Card className="p-4">{picker}</Card>
@@ -51,6 +53,7 @@ function Shell({ picker, header, grid, sessionId, view, empty }: { picker: React
               slots={data?.slots ?? []}
               entries={data?.entries ?? []}
               mode={view === 'student' ? 'class' : view}
+              subjectOrder={subjectOrder}
               loading={grid.isLoading}
               onOpen={(e) => navigate(`/timetable?section=${e.section_id}&session=${sessionId}`)}
             />

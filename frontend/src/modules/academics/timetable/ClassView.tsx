@@ -349,7 +349,7 @@ export function ClassView({ sessionId, sessions, sectionId, programId, days, slo
           onChanged={refresh}
         />
       )}
-      {ctx && <CopyModal open={copyOpen} onClose={() => setCopyOpen(false)} section={ctx} sessionId={sessionId} onDone={refresh} />}
+      {ctx && <CopyModal open={copyOpen} onClose={() => setCopyOpen(false)} section={ctx} sessionId={sessionId} onDone={refresh} canReplace={perms.delete} />}
     </div>
   );
 }

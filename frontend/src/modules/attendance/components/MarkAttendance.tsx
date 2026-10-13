@@ -46,7 +46,7 @@ export function MarkAttendance({ selection, onChange }: { selection: MarkSelecti
   return (
     <div className="space-y-5">
       <Card className="p-4 sm:p-5">
-        <div className="grid gap-4 md:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
           <Field label="Date" htmlFor="att-date">
             <Input id="att-date" type="date" value={date} max={todayIso()} onChange={(e) => e.target.value && onChange({ date: e.target.value, subject: null, slot: null })} />
           </Field>
@@ -181,7 +181,7 @@ function ManualPeriodPicker({ data, subject, slot, onChange }: { data: PeriodsPa
           No timetable is published for this class on {data.day.day_name}. Choose the subject and, optionally, the period.
         </p>
       )}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Subject" htmlFor="att-subject" required>
           <Combobox id="att-subject" options={subjectOptions} value={subject} onChange={(v) => onChange({ subject: v === null ? null : Number(v) })} placeholder={subjectOptions.length ? 'Choose subject…' : 'No subjects assigned to you'} />
         </Field>
@@ -285,7 +285,9 @@ function Roster({ selection, onChange }: { selection: MarkSelection; onChange: (
       if (res.data.new_defaulters.length) {
         toast.warning(`${res.data.new_defaulters.map((d) => `${d.name} (${d.percent}%)`).slice(0, 3).join(', ')} fell below ${data.min_percent}% attendance.`, 'Low attendance');
       }
-      await invalidate('attendance', 'crud');
+      // The saved marks are the new baseline; refresh the roster, periods and dashboards in the background
+      setInitial(marks);
+      void invalidate('attendance', 'crud');
     } catch (e) {
       const err = e as ApiError;
       setErrors(err.errors ?? {});
@@ -311,8 +313,8 @@ function Roster({ selection, onChange }: { selection: MarkSelection; onChange: (
     try {
       const res = await api.del(`attendance/sheet/${data.sheet.id}`);
       toast.success(res.message || 'Attendance session deleted.');
-      await invalidate('attendance', 'crud');
       onChange({ subject: null, slot: null });
+      void invalidate('attendance', 'crud');
     } catch (e) {
       toast.error((e as ApiError).message);
     }
@@ -501,7 +503,7 @@ function Roster({ selection, onChange }: { selection: MarkSelection; onChange: (
 
       {/* Class details + sticky save bar */}
       <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-4 sm:px-5 dark:border-slate-800 dark:bg-slate-800/30">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="Conducted by" htmlFor="att-faculty">
             <Combobox id="att-faculty" source="faculty" value={facultyId} initialOptions={facultyInitial} onChange={(v) => setFacultyId(v === null ? null : Number(v))} placeholder="Search faculty…" disabled={!canSave} />
           </Field>

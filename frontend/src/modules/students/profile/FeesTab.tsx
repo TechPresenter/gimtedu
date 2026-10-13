@@ -1,4 +1,4 @@
-import { AlertTriangle, BadgePercent, Banknote, FileText, HandCoins, Printer, Receipt, Wallet } from 'lucide-react';
+import { AlertTriangle, BadgePercent, Banknote, FileSpreadsheet, FileText, HandCoins, Printer, Receipt, Wallet } from 'lucide-react';
 import { Button, ProgressBar, Reveal, StatusBadge, Stagger, type Column } from '@/components/ui';
 import { useApi } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
@@ -22,7 +22,7 @@ export default function FeesTab({ studentId }: TabProps) {
   if (q.isLoading) return <TabLoading />;
   if (q.error) return <TabError error={q.error} onRetry={() => q.refetch()} />;
   const { totals: t, invoices, payments, print_views: pv } = q.data!;
-  const collect = can('fees', 'create') ? <Button size="sm" icon={HandCoins} to={`/fees/collect?student_id=${studentId}`}>Collect fee</Button> : undefined;
+  const collect = can('fees', 'create') ? <Button size="sm" icon={HandCoins} to={`/fees/collect?student=${studentId}`}>Collect fee</Button> : undefined;
   if (!invoices.length && !payments.length) {
     return <TabEmpty icon={Wallet} title="No fee records yet" description="Invoices appear once a fee structure is assigned to this student, and payments as they are collected." action={collect} />;
   }
@@ -35,6 +35,9 @@ export default function FeesTab({ studentId }: TabProps) {
     { key: 'balance_amount', header: 'Balance', align: 'right', render: (r) => <span className="whitespace-nowrap font-semibold tabular-nums">{formatMoney(r.balance_amount)}</span> },
     { key: 'due_date', header: 'Due', render: (r) => <span className="whitespace-nowrap">{r.due_date ? formatDate(r.due_date) : '—'}</span> },
     { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
+    ...(pv['fee-invoice']
+      ? [{ key: 'print', header: '', align: 'right' as const, render: (r: Invoice) => <PrintLink href={printUrl('fee-invoice.php', { id: r.id })} label={`Print invoice ${r.invoice_no}`} /> }]
+      : []),
   ];
   const paymentCols: Column<Payment>[] = [
     { key: 'receipt_no', header: 'Receipt', render: (r) => <span className="font-mono text-xs font-semibold">{r.receipt_no}</span> },
@@ -43,8 +46,8 @@ export default function FeesTab({ studentId }: TabProps) {
     { key: 'mode', header: 'Mode', render: (r) => <span className="whitespace-nowrap">{labelize(r.mode)}{r.reference_no ? <span className="block text-xs text-slate-500">{r.reference_no}</span> : null}</span> },
     { key: 'invoice_no', header: 'Against', render: (r) => <span className="text-xs">{r.invoice_no ?? labelize(r.purpose)}</span> },
     { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
-    ...(pv.receipt
-      ? [{ key: 'print', header: '', align: 'right' as const, render: (r: Payment) => <a href={printUrl('receipt.php', { id: r.id })} target="_blank" rel="noopener noreferrer" className="btn-icon !h-8 !w-8" aria-label={`Print receipt ${r.receipt_no}`}><Printer className="h-4 w-4" /></a> }]
+    ...(pv['fee-receipt']
+      ? [{ key: 'print', header: '', align: 'right' as const, render: (r: Payment) => <PrintLink href={printUrl('fee-receipt.php', { id: r.id })} label={`Print receipt ${r.receipt_no}`} /> }]
       : []),
   ];
   return (
@@ -58,11 +61,19 @@ export default function FeesTab({ studentId }: TabProps) {
         ]}
       </Stagger>
       <TableCard<Invoice> title="Invoices" subtitle="Fee assigned per semester / service" icon={FileText} columns={invoiceCols} rows={invoices} empty="No invoices raised" emptyIcon={FileText}
-        actions={<>{can('fees', 'view') && <Button size="sm" variant="secondary" to="/fees/invoices">All invoices</Button>}{collect}</>} />
+        actions={<>{pv['fee-statement'] && <Button size="sm" variant="secondary" icon={FileSpreadsheet} href={printUrl('fee-statement.php', { student_id: studentId })} target="_blank">Statement</Button>}{collect}</>} />
       <TableCard<Payment> title="Payment history" subtitle={`${payments.length} payment${payments.length === 1 ? '' : 's'}`} icon={Receipt} columns={paymentCols} rows={payments} empty="No payments received yet" emptyIcon={Receipt} delay={60} />
-      {!pv.receipt && payments.length > 0 && (
+      {!pv['fee-receipt'] && payments.length > 0 && (
         <Reveal><p className="text-xs text-slate-500">Receipts can be reprinted from Fees › Payments.</p></Reveal>
       )}
     </div>
+  );
+}
+
+function PrintLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="btn-icon !h-8 !w-8" aria-label={label} title={label}>
+      <Printer className="h-4 w-4" />
+    </a>
   );
 }

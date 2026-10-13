@@ -1,5 +1,5 @@
 import {
-  Award, BadgeCheck, BedDouble, BriefcaseBusiness, Bus, CalendarCheck, CalendarDays, CalendarRange, ChartColumn, ChartPie, ClipboardList, Database, Globe,
+  Award, BadgeCheck, BedDouble, Bot, BriefcaseBusiness, Bus, CalendarCheck, CalendarDays, CalendarRange, ChartColumn, ChartPie, ClipboardList, Database, Globe,
   GraduationCap, HandCoins, History, IndianRupee, Inbox, LayoutDashboard, Library, Mail, Megaphone, MessageCircle, MessageSquare, School, Settings,
   ShieldCheck, UserCog, UserPlus, Users, UsersRound, Wallet, type LucideIcon,
 } from 'lucide-react';
@@ -206,6 +206,7 @@ export const NAVIGATION: NavGroup[] = [
       },
       { key: 'events', label: 'Events', icon: CalendarRange, to: '/events', perm: 'events' },
       { key: 'enquiries', label: 'Enquiries', icon: MessageCircle, to: '/enquiries', perm: 'enquiries' },
+      { key: 'chatbot', label: 'AI Chatbot', icon: Bot, to: '/chatbot', perm: 'communication' },
       { key: 'contact_messages', label: 'Contact Messages', icon: Inbox, to: '/contact-messages', perm: 'contact_messages' },
       { key: 'feedback', label: 'Feedback & Complaints', icon: MessageSquare, to: '/feedback', perm: 'feedback' },
     ],
@@ -243,6 +244,7 @@ export const NAVIGATION: NavGroup[] = [
           { label: 'Roles & Permissions', to: '/roles', perm: 'roles' },
         ],
       },
+      { key: 'portal_access', label: 'Portal Access', icon: BadgeCheck, to: '/portal-access', perm: 'users', action: 'manage' },
       { key: 'activity_logs', label: 'Activity Logs', icon: History, to: '/activity-logs', perm: 'activity_logs' },
       { key: 'settings', label: 'System Settings', icon: Settings, to: '/settings', perm: 'settings' },
       { key: 'backup', label: 'Backup', icon: Database, to: '/backup', perm: 'backup' },

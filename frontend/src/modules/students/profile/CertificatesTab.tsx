@@ -1,8 +1,9 @@
-import { Award, ExternalLink, FilePlus2 } from 'lucide-react';
+import { Award, ExternalLink, FilePlus2, Printer } from 'lucide-react';
 import { Button, StatusBadge, type Column } from '@/components/ui';
 import { useApi } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
 import { formatDate, labelize } from '@/lib/format';
+import { printUrl } from '@/lib/config';
 import { TabEmpty, TabError, TabLoading, TableCard, type TabProps } from './shared';
 
 interface CertRow extends Record<string, unknown> {
@@ -12,10 +13,11 @@ interface CertRow extends Record<string, unknown> {
 
 export default function CertificatesTab({ studentId }: TabProps) {
   const { can } = useAuth();
-  const q = useApi<{ rows: CertRow[] }>(['students', studentId, 'certificates'], `students/${studentId}/certificates`);
+  const q = useApi<{ rows: CertRow[]; print_views: Record<string, boolean> }>(['students', studentId, 'certificates'], `students/${studentId}/certificates`);
   if (q.isLoading) return <TabLoading cards={1} />;
   if (q.error) return <TabError error={q.error} onRetry={() => q.refetch()} />;
   const rows = q.data!.rows;
+  const canPrint = !!q.data!.print_views?.certificate;
   const generate = can('certificates', 'create') ? <Button size="sm" icon={FilePlus2} to={`/certificates?student_id=${studentId}`}>Generate certificate</Button> : undefined;
   if (!rows.length) {
     return <TabEmpty icon={Award} title="No certificates issued" description="Bonafide, character, transfer and other certificates issued to this student will be listed here with their verification links." action={generate} />;
@@ -27,7 +29,16 @@ export default function CertificatesTab({ studentId }: TabProps) {
     { key: 'valid_until', header: 'Valid until', render: (r) => (r.valid_until ? formatDate(r.valid_until) : 'Lifetime') },
     { key: 'verified_count', header: 'Verifications', align: 'center', render: (r) => r.verified_count },
     { key: 'status', header: 'Status', render: (r) => <span title={r.revoked_reason ?? ''}><StatusBadge status={r.status} /></span> },
-    { key: 'verify', header: '', align: 'right', render: (r) => <a href={r.verify_url} target="_blank" rel="noopener noreferrer" className="link inline-flex items-center gap-1 whitespace-nowrap text-xs">Verify <ExternalLink className="h-3 w-3" /></a> },
+    { key: 'verify', header: '', align: 'right', render: (r) => (
+      <div className="flex items-center justify-end gap-3">
+        <a href={r.verify_url} target="_blank" rel="noopener noreferrer" className="link inline-flex items-center gap-1 whitespace-nowrap text-xs">Verify <ExternalLink className="h-3 w-3" /></a>
+        {canPrint && r.status !== 'revoked' && (
+          <a href={printUrl('certificate.php', { id: r.id })} target="_blank" rel="noopener noreferrer" className="btn-icon !h-8 !w-8" aria-label={`Print ${r.certificate_no}`} title={`Print ${r.certificate_no}`}>
+            <Printer className="h-4 w-4" />
+          </a>
+        )}
+      </div>
+    ) },
   ];
   return <TableCard<CertRow> title="Issued certificates" subtitle={`${rows.length} certificate${rows.length === 1 ? '' : 's'} · QR-verifiable`} icon={Award} columns={cols} rows={rows} empty="No certificates" emptyIcon={Award} actions={generate} />;
 }

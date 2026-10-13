@@ -8,7 +8,7 @@ import { useAcademicSession, useAuth } from '@/lib/auth';
 import { printUrl } from '@/lib/config';
 import { formatDate, formatNumber } from '@/lib/format';
 import type { Row } from '@/lib/types';
-import { ALL_STAGES, FollowupModal, STAGE_TONE, StageBadge, StageMoveModal, sourceLabel, type FollowupTarget, type MoveRequest } from './shared';
+import { ALL_STAGES, FollowupModal, STAGE_TONE, StageBadge, StageMoveModal, sourceLabel, useExternalNavKey, type FollowupTarget, type MoveRequest } from './shared';
 
 export default function ApplicationsPage() {
   const [params, setParams] = useSearchParams();
@@ -20,6 +20,7 @@ export default function ApplicationsPage() {
   const stageParam = params.get('f.stage') ?? '';
   // Remount the table when a stage chip changes the URL filter so CrudTable re-reads it.
   const [tableKey, setTableKey] = useState(0);
+  const navKey = useExternalNavKey();
   const defaults = useMemo(() => (sessionId && !params.get('f.academic_session_id') ? { academic_session_id: String(sessionId) } : {}), [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pickStage = (stage: string) => {
@@ -51,7 +52,7 @@ export default function ApplicationsPage() {
         }
       />
       <CrudTable
-        key={`${tableKey}-${sessionId ?? 0}`}
+        key={`${tableKey}-${navKey}-${sessionId ?? 0}`}
         module="admissions"
         urlState
         title="All applications"

@@ -6,12 +6,16 @@ import { useApi } from '@/lib/queries';
 import { formatDate, formatTime } from '@/lib/format';
 import type { ApiError } from '@/lib/api';
 import type { CalendarDay, CalendarPayload } from '../types';
-import { currentMonth, heatClass, HeatLegend, MiniStat, monthLabel, MonthNav, PercentBar, SectionPicker } from './shared';
+import { currentMonth, heatClass, HeatLegend, MiniStat, monthLabel, MonthNav, PercentBar, SectionPicker, useAttendanceOptions } from './shared';
 import type { MarkSelection } from './MarkAttendance';
 
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export function SectionCalendar({ section, month, onChange, onOpen }: { section: number | null; month: string; onChange: (p: { section?: number | null; month?: string }) => void; onOpen: (s: Partial<MarkSelection>) => void }) {
+export function SectionCalendar({ section: picked, month, onChange, onOpen }: { section: number | null; month: string; onChange: (p: { section?: number | null; month?: string }) => void; onOpen: (s: Partial<MarkSelection>) => void }) {
+  // Default to the first class the user may see so the heatmap is never blank on arrival
+  const opts = useAttendanceOptions();
+  const first = opts.data?.sections[0]?.value;
+  const section = picked ?? (first !== undefined ? Number(first) : null);
   const q = useApi<CalendarPayload>(['attendance', 'calendar', section, month], 'attendance/calendar', { section_id: section ?? undefined, month }, { enabled: !!section });
   const d = q.data;
   const [selected, setSelected] = useState<string | null>(null);
@@ -40,12 +44,12 @@ export function SectionCalendar({ section, month, onChange, onOpen }: { section:
 
       {!section ? (
         <Card>
-          <EmptyState icon={CalendarRange} title="Choose a class" description="The monthly heatmap shows each day's attendance for the selected section, with holidays and weekly offs." />
+          <EmptyState icon={CalendarRange} title={opts.isLoading ? 'Loading classes…' : 'Choose a class'} description="The monthly heatmap shows each day's attendance for the selected section, with holidays and weekly offs." />
         </Card>
       ) : q.error ? (
         <Alert variant="error" title="Unable to load the calendar">{(q.error as ApiError).message}</Alert>
       ) : (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <Card>
             <CardHeader
               title={d ? `${d.section.label} · ${monthLabel(month)}` : monthLabel(month)}

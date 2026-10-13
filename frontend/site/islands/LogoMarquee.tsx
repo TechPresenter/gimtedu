@@ -21,19 +21,21 @@ export interface LogoMarqueeProps extends IslandBaseProps {
   /** Logos start grayscale and gain colour on hover (default true). */
   grayscale?: boolean;
   ariaLabel?: string;
+  /** Small heading inside the light card strip, e.g. "Leading Recruiters". */
+  label?: string;
 }
 
-const TINTS = ['bg-brand-50 text-brand-800', 'bg-accent-50 text-accent-700', 'bg-cyan-50 text-cyan-700', 'bg-amber-50 text-amber-700', 'bg-violet-50 text-violet-700', 'bg-rose-50 text-rose-700'];
+const TINTS = ['tint-lavender', 'tint-sky', 'tint-aqua', 'tint-sand', 'tint-blush', 'tint-pistachio'];
 
 function Logo({ item, i, hidden }: { item: LogoItem; i: number; hidden?: boolean }) {
   const content = item.logo ? (
-    <img src={item.logo} alt={hidden ? '' : item.name} loading="lazy" className="h-9 w-auto max-w-[140px] object-contain" />
+    <img src={item.logo} alt={hidden ? '' : item.name} loading="lazy" decoding="async" className="logo-img" />
   ) : (
     <>
-      <span className={clsx('inline-flex h-9 w-9 items-center justify-center rounded-lg font-display text-sm font-extrabold', TINTS[i % TINTS.length])} aria-hidden="true">
+      <span className={clsx('logo-mark', TINTS[i % TINTS.length])} aria-hidden="true">
         {item.name.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()}
       </span>
-      <span className="font-display text-lg font-extrabold tracking-tight text-slate-700">{item.name}</span>
+      <span className="text-[17px] font-bold tracking-tight text-brand-900">{item.name}</span>
     </>
   );
   const cls = 'logo-tile';
@@ -82,8 +84,8 @@ function Row({ items, reverse, speed, paused }: { items: LogoItem[]; reverse?: b
   );
 }
 
-/** Infinite recruiter/partner logo marquee (CSS animation), grayscale → colour on hover, pause control. */
-export default function LogoMarquee({ items, rows, speed = 45, grayscale = true, ariaLabel = 'Our recruiters' }: LogoMarqueeProps) {
+/** Infinite recruiter/partner logo marquee in a light card strip (CSS animation), grayscale → colour on hover, pause control. */
+export default function LogoMarquee({ items, rows, speed = 45, grayscale = true, ariaLabel = 'Our recruiters', label }: LogoMarqueeProps) {
   const [userPaused, setUserPaused] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: false, threshold: 0 });
@@ -93,6 +95,7 @@ export default function LogoMarquee({ items, rows, speed = 45, grayscale = true,
 
   return (
     <div ref={ref} className={clsx('logo-marquee', grayscale && 'logo-grayscale')} role="region" aria-label={ariaLabel}>
+      {label && <p className="logo-marquee-label">{label}</p>}
       {groups.map((g, i) => (
         <Row key={i} items={g} reverse={i === 1} speed={speed} paused={userPaused || !inView} />
       ))}

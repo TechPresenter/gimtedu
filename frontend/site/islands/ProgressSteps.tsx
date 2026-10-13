@@ -80,11 +80,11 @@ export default function ProgressSteps({ steps, orientation = 'auto', cta, theme 
         {steps.map((s, i) => (
           <li key={i} className={clsx('step', reached(i) && 'is-reached')} style={{ '--i': i } as CSSProperties}>
             <span className="step-icon">
-              {s.icon ? <Icon name={s.icon} className="h-6 w-6" /> : <span className="font-display text-lg font-extrabold">{i + 1}</span>}
+              {s.icon ? <Icon name={s.icon} className="h-6 w-6" /> : <span className="font-display text-lg font-medium">{i + 1}</span>}
               <span className="step-pulse" aria-hidden="true" />
             </span>
             <span className="step-body">
-              <span className="step-num">{String(i + 1).padStart(2, '0')}</span>
+              <span className="step-num">STEP {String(i + 1).padStart(2, '0')}</span>
               <span className="step-title">{s.title}</span>
               {s.text && <span className="step-text">{s.text}</span>}
             </span>

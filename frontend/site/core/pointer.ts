@@ -1,4 +1,4 @@
-import { $$, bindOnce, clamp, finePointer, numAttr, reducedMotion, within } from './dom';
+import { $$, bindOnce, clamp, finePointer, numAttr, reducedMotion, staticMode, within } from './dom';
 
 /* ------------------------------------------------------------------ Ripple */
 
@@ -92,7 +92,8 @@ export function initTilt(root: ParentNode = document): void {
  * never on touch devices or with reduced motion. `data-cursor-label="View"` on an element shows a label in the ring.
  */
 export function initCursor(): void {
-  if (!document.body.hasAttribute('data-cursor') || !finePointer() || reducedMotion()) return;
+  // never in automation / reduced motion / touch; invisible until the first real pointermove
+  if (!document.body.hasAttribute('data-cursor') || !finePointer() || reducedMotion() || staticMode()) return;
   const ring = document.createElement('div');
   ring.className = 'cursor-ring';
   ring.setAttribute('aria-hidden', 'true');
@@ -110,6 +111,7 @@ export function initCursor(): void {
   let rx = x;
   let ry = y;
   let running = false;
+  let idle = 0;
   const loop = () => {
     rx += (x - rx) * 0.2;
     ry += (y - ry) * 0.2;
@@ -127,6 +129,12 @@ export function initCursor(): void {
       dot.style.transform = `translate3d(${x}px, ${y}px, 0)`;
       ring.classList.add('is-active');
       dot.classList.add('is-active');
+      // fade out when the pointer rests so the ring is never left parked over an element
+      window.clearTimeout(idle);
+      idle = window.setTimeout(() => {
+        ring.classList.remove('is-active');
+        dot.classList.remove('is-active');
+      }, 2200);
       if (!running) {
         running = true;
         requestAnimationFrame(loop);

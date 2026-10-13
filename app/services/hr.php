@@ -77,7 +77,7 @@ function hr_person(string $type, int $id): ?array
 /** Can the current user see unmasked bank / PAN details? */
 function hr_can_see_sensitive(): bool
 {
-    return can('faculty', 'edit');
+    return function_exists('can') && can('faculty', 'edit');
 }
 
 /** Mask all but the last $visible characters: "123456789012" -> "•••• •••• 9012". */
@@ -104,19 +104,30 @@ function hr_mask_row(array $row): array
                 $row[$k] = $k === 'bank_account' ? $row['bank_account_masked'] : $row['pan_masked'];
             }
         }
+        // Salary is payroll data: only users who can edit HR records see the figure (same rule as the print view).
+        if (array_key_exists('salary', $row)) {
+            $row['salary_restricted'] = $row['salary'] !== null ? 1 : 0;
+            $row['salary'] = null;
+        }
     }
     return $row;
 }
 
-/** Next employee number: GIMT-F053 / GIMT-S031. */
+/**
+ * Next employee number: GIMT-F053 / GIMT-S031, issued by the atomic next_number() counter
+ * ("employee_faculty" / "employee_staff"). The counter is first lifted to the highest number already on file so
+ * IDs typed by hand or imported never collide.
+ */
 function hr_next_employee_id(string $type): string
 {
     $prefix = $type === 'faculty' ? 'GIMT-F' : 'GIMT-S';
-    $max = (int) db_value('SELECT MAX(CAST(SUBSTRING(employee_id, ?) AS UNSIGNED)) FROM ' . hr_type($type) . ' WHERE employee_id LIKE ?', [strlen($prefix) + 1, $prefix . '%']);
+    $seq = 'employee_' . hr_type($type);
+    $max = (int) db_value('SELECT MAX(CAST(SUBSTRING(employee_id, ?) AS UNSIGNED)) FROM ' . $type . ' WHERE employee_id LIKE ?', [strlen($prefix) + 1, $prefix . '%']);
+    db_exec('INSERT INTO sequences (name, current_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE current_value = GREATEST(current_value, ?)', [$seq, $max, $max]);
+    $guard = 0;
     do {
-        $max++;
-        $candidate = $prefix . str_pad((string) $max, 3, '0', STR_PAD_LEFT);
-    } while ((int) db_value('SELECT COUNT(*) FROM ' . $type . ' WHERE employee_id = ?', [$candidate]));
+        $candidate = next_number($seq, $prefix . '{n:3}');
+    } while ((int) db_value('SELECT COUNT(*) FROM ' . $type . ' WHERE employee_id = ?', [$candidate]) && ++$guard < 50);
     return $candidate;
 }
 
@@ -721,8 +732,11 @@ function hr_attendance(string $type, int $id, string $month): array
     }
     $marked = array_sum($summary);
     $presentish = $summary['present'] + $summary['late'] + 0.5 * $summary['half_day'];
+    // Days on approved leave are not absences: attendance % is measured over the days the employee was expected in.
+    $expected = $marked - $summary['leave'];
     $summary['marked'] = $marked;
-    $summary['percent'] = $marked ? round($presentish / $marked * 100, 1) : null;
+    $summary['expected'] = $expected;
+    $summary['percent'] = $expected > 0 ? round($presentish / $expected * 100, 1) : null;
     // Approved leaves this month (shown on the calendar even when attendance was not marked)
     $leaveDays = [];
     foreach (db_all("SELECT from_date, to_date, leave_type FROM employee_leaves WHERE employee_type = ? AND employee_id = ? AND status = 'approved' AND from_date <= ? AND to_date >= ?",
@@ -737,7 +751,7 @@ function hr_attendance(string $type, int $id, string $month): array
     $trend = [];
     for ($i = 5; $i >= 0; $i--) {
         $m = date('Y-m', strtotime($start . " -$i month"));
-        $r = db_row("SELECT SUM(r.status IN ('present', 'late')) + 0.5 * SUM(r.status = 'half_day') AS p, COUNT(*) AS n FROM attendance a
+        $r = db_row("SELECT SUM(r.status IN ('present', 'late')) + 0.5 * SUM(r.status = 'half_day') AS p, COALESCE(SUM(r.status <> 'leave'), 0) AS n FROM attendance a
                      JOIN attendance_records r ON r.attendance_id = a.id
                      WHERE a.type = ? AND r.person_type = ? AND r.person_id = ? AND a.attendance_date BETWEEN ? AND ?",
             [$type, $type, $id, $m . '-01', date('Y-m-t', strtotime($m . '-01'))]);
@@ -833,7 +847,8 @@ function hr_profile(string $type, int $id): ?array
     $upcoming = db_all("SELECT l.id, l.leave_type, lt.name AS leave_type_name, l.from_date, l.to_date, l.days, l.status FROM employee_leaves l LEFT JOIN leave_types lt ON lt.code = l.leave_type
                         WHERE l.employee_type = ? AND l.employee_id = ? AND l.status IN ('approved', 'pending') AND l.to_date >= ? ORDER BY l.from_date LIMIT 5", [$type, $id, $today]);
     $docs = db_row("SELECT COUNT(*) AS total, SUM(status = 'verified') AS verified, SUM(status = 'pending') AS pending FROM employee_documents WHERE employee_type = ? AND employee_id = ?", [$type, $id]);
-    $att = db_row("SELECT COUNT(*) AS n, SUM(r.status IN ('present', 'late')) + 0.5 * SUM(r.status = 'half_day') AS p FROM attendance a JOIN attendance_records r ON r.attendance_id = a.id
+    // Approved-leave days are excluded from the denominator (being on leave is not an absence).
+    $att = db_row("SELECT COALESCE(SUM(r.status <> 'leave'), 0) AS n, SUM(r.status IN ('present', 'late')) + 0.5 * SUM(r.status = 'half_day') AS p FROM attendance a JOIN attendance_records r ON r.attendance_id = a.id
                    WHERE a.type = ? AND r.person_type = ? AND r.person_id = ? AND a.attendance_date BETWEEN ? AND ?", [$type, $type, $id, $w['start'], $w['end']]);
     $account = !empty($p['user_id']) ? db_row('SELECT u.id, u.username, u.email, u.status, u.last_login_at, u.must_change_password, GROUP_CONCAT(r.name) AS roles
                                                FROM users u LEFT JOIN user_roles ur ON ur.user_id = u.id LEFT JOIN roles r ON r.id = ur.role_id WHERE u.id = ? GROUP BY u.id', [(int) $p['user_id']]) : null;
@@ -961,8 +976,10 @@ function hr_register_employee_routes(string $type): void
         api_require('faculty', 'edit');
         $person = hr_api_person($type, $p['id']);
         $v = api_validate(['status' => 'required|in:active,on_leave,resigned,retired,inactive']);
-        db_update($type, ['status' => $v['status']], 'id = ?', [(int) $p['id']]);
-        hr_sync_user($type, (int) $p['id']);
+        db_transaction(function () use ($type, $p, $v) {
+            db_update($type, ['status' => $v['status']], 'id = ?', [(int) $p['id']]);
+            hr_sync_user($type, (int) $p['id']);   // deactivates the linked login for resigned / retired / inactive
+        });
         log_activity('update', $type, (int) $p['id'], 'Changed status of ' . $person['full_name'] . ' from ' . label_from_key($person['status']) . ' to ' . label_from_key($v['status']));
         api_ok(['status' => $v['status']], $person['full_name'] . ' marked ' . strtolower(label_from_key($v['status'])) . '.');
     });

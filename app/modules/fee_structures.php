@@ -27,14 +27,14 @@ return [
     'search' => ['t.name', 'p.name', 'p.short_name', 't.description'],
     'order' => 'ses.start_date DESC, p.sort_order ASC, t.semester_no ASC, t.name ASC',
     'columns' => [
-        ['key' => 'name', 'label' => 'Structure', 'format' => 'title', 'sub' => 'program_name', 'sortable' => true],
-        ['key' => 'session_name', 'label' => 'Session', 'format' => 'text', 'sortable' => 'ses.start_date'],
-        ['key' => 'period_label', 'label' => 'Semester', 'format' => 'text', 'sortable' => 't.semester_no'],
-        ['key' => 'items_count', 'label' => 'Heads', 'format' => 'number', 'align' => 'center', 'sortable' => true],
+        ['key' => 'name', 'label' => 'Structure', 'format' => 'title', 'sub' => 'program_name', 'sortable' => true, 'link' => 'view', 'width' => '320px'],
+        ['key' => 'session_name', 'label' => 'Session', 'format' => 'text', 'sortable' => 'ses.start_date', 'hidden' => true],
+        ['key' => 'period_label', 'label' => 'Semester', 'format' => 'text', 'sortable' => 't.semester_no', 'hidden' => true],
+        ['key' => 'items_count', 'label' => 'Heads', 'format' => 'number', 'align' => 'center', 'sortable' => true, 'hidden' => true],
         ['key' => 'installments_count', 'label' => 'Installments', 'format' => 'number', 'align' => 'center', 'sortable' => true],
         ['key' => 'total_amount', 'label' => 'Total', 'format' => 'money', 'sortable' => true],
-        ['key' => 'invoiced_count', 'label' => 'Students invoiced', 'format' => 'number', 'align' => 'center', 'sortable' => true],
-        ['key' => 'collected_amount', 'label' => 'Collected', 'format' => 'money', 'sortable' => true, 'hidden' => true],
+        ['key' => 'invoiced_count', 'label' => 'Invoiced', 'format' => 'number', 'align' => 'center', 'sortable' => true],
+        ['key' => 'collected_amount', 'label' => 'Collected', 'format' => 'money', 'sortable' => true],
         ['key' => 'due_date', 'label' => 'Final due', 'format' => 'date', 'sortable' => true, 'hidden' => true],
         ['key' => 'late_fee_per_day', 'label' => 'Late fee / day', 'format' => 'money', 'hidden' => true],
         ['key' => 'status', 'label' => 'Status', 'format' => 'badge', 'sortable' => true],
@@ -44,6 +44,7 @@ return [
         ['key' => 'program_id', 'label' => 'Program', 'source' => 'programs'],
         ['key' => 'semester_no', 'label' => 'Semester', 'options' => $semesters],
         ['key' => 'status', 'label' => 'Status', 'options' => ['active' => 'Active', 'inactive' => 'Inactive']],
+        ['key' => 'fee_head_id', 'label' => 'Fee head', 'source' => 'fee_heads', 'sql' => 'EXISTS (SELECT 1 FROM fee_structure_items fhx WHERE fhx.fee_structure_id = t.id AND fhx.fee_head_id = ?)'],
         ['key' => 'invoiced', 'label' => 'Assignment', 'sql_map' => [
             'assigned' => "EXISTS (SELECT 1 FROM student_fees sfx WHERE sfx.fee_structure_id = t.id AND sfx.status <> 'cancelled')",
             'unassigned' => "NOT EXISTS (SELECT 1 FROM student_fees sfx WHERE sfx.fee_structure_id = t.id AND sfx.status <> 'cancelled')",
@@ -73,5 +74,13 @@ return [
             $n = (int) db_value("SELECT COUNT(*) FROM student_fees WHERE fee_structure_id = ? AND status <> 'cancelled'", [$id]);
             return $n ? '"' . $row['name'] . '" has been assigned to ' . $n . ' student(s). Mark it inactive instead.' : null;
         },
+        'summary' => function (string $from, array $args): array {
+            $row = db_row("SELECT COUNT(*) AS structures, SUM(t.status = 'active') AS active, COUNT(DISTINCT t.program_id) AS programs,
+                                  SUM(EXISTS (SELECT 1 FROM student_fees sfx WHERE sfx.fee_structure_id = t.id AND sfx.status <> 'cancelled')) AS assigned" . $from, $args) ?? [];
+            $inv = db_row("SELECT COUNT(*) AS invoices, COALESCE(SUM(sf.net_amount), 0) AS billed, COALESCE(SUM(sf.paid_amount), 0) AS collected
+                           FROM student_fees sf WHERE sf.status <> 'cancelled' AND sf.fee_structure_id IN (SELECT t.id" . $from . ')', $args) ?? [];
+            return $row + $inv;
+        },
+        'describe' => fn (array $row) => '"' . ($row['name'] ?? '') . '"',
     ],
 ];

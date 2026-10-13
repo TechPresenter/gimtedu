@@ -175,7 +175,8 @@ function DailyAttendance() {
         }),
       });
       toast.success(res.message);
-      await invalidate('attendance');
+      setInitial(entries);
+      void invalidate('attendance');
     } catch (err) {
       const e = err as ApiError;
       setErrors(e.errors ?? {});

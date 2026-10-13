@@ -20,8 +20,8 @@ return [
     'search' => ['p.short_name', 'p.name', 't.name', 'b.name', 'f.first_name', 'f.last_name', 'r.code'],
     'order' => 'p.sort_order ASC, t.semester_no ASC, t.name ASC',
     'columns' => [
-        ['key' => 'label', 'label' => 'Section', 'format' => 'title', 'sub' => 'batch_name', 'sortable' => "CONCAT(p.short_name, LPAD(t.semester_no, 2, '0'), t.name)", 'link' => 'view'],
-        ['key' => 'session_name', 'label' => 'Session', 'format' => 'text', 'sortable' => 's.start_date'],
+        ['key' => 'label', 'label' => 'Section', 'format' => 'title', 'sub' => 'batch_name', 'sortable' => "CONCAT(p.short_name, LPAD(t.semester_no, 2, '0'), t.name)", 'link' => 'view', 'width' => '220px'],
+        ['key' => 'session_name', 'label' => 'Session', 'format' => 'text', 'sortable' => 's.start_date', 'hidden' => true],
         ['key' => 'strength_label', 'label' => 'Strength', 'format' => 'text', 'align' => 'center', 'sortable' => 'strength'],
         ['key' => 'class_teacher', 'label' => 'Class Teacher', 'format' => 'person', 'image' => 'class_teacher_photo', 'sortable' => 'f.first_name'],
         ['key' => 'room_code', 'label' => 'Home Room', 'format' => 'code', 'sortable' => 'r.code'],
@@ -78,6 +78,15 @@ return [
             if ($pid && $sem && $name !== '' && db_value('SELECT COUNT(*) FROM sections WHERE program_id = ? AND semester_no = ? AND academic_session_id <=> ? AND name = ?' . ($id ? ' AND id <> ?' : ''),
                 $id ? [$pid, $sem, $sid, $name, $id] : [$pid, $sem, $sid, $name])) {
                 $errors['name'] = "Section $name already exists for this program, semester and session.";
+            }
+            $teacher = $data['class_teacher_id'] ?? ($old['class_teacher_id'] ?? null);
+            if ($teacher && $sid) {
+                $other = db_value("SELECT CONCAT(p.short_name, ' · Sem ', sc.semester_no, ' · Sec ', sc.name) FROM sections sc JOIN programs p ON p.id = sc.program_id
+                                   WHERE sc.class_teacher_id = ? AND sc.academic_session_id = ? AND sc.status = 'active'" . ($id ? ' AND sc.id <> ?' : '') . ' LIMIT 1',
+                    $id ? [(int) $teacher, (int) $sid, $id] : [(int) $teacher, (int) $sid]);
+                if ($other) {
+                    $errors['class_teacher_id'] = "This faculty member is already the class teacher of $other this session.";
+                }
             }
             $batch = $data['batch_id'] ?? ($old['batch_id'] ?? null);
             if ($batch && $pid && (int) db_value('SELECT program_id FROM batches WHERE id = ?', [$batch]) !== $pid) {

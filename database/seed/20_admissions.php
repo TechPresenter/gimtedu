@@ -396,6 +396,7 @@ return function (array $opts): void {
         $t1 = max($t0 + 3600, strtotime($a['stage_changed_at']));
         $n = count($path);
         $prev = null;
+        $stageAt = [];
         foreach ($path as $k => $to) {
             $at = $k === 0 ? $a['created_at'] : ($k === $n - 1 ? date('Y-m-d H:i:s', $t1) : $inHours(date('Y-m-d H:i:s', (int) ($t0 + ($t1 - $t0) * $k / max(1, $n - 1)) + mt_rand(0, 3600))));
             $remark = match (true) {
@@ -405,6 +406,7 @@ return function (array $opts): void {
                 $to === 'confirmed' && $a['fee_receipt_no'] => 'Admission fee received (' . $a['fee_receipt_no'] . '); admission confirmed.',
                 default => demo_pick($remarksFor[$to] ?? ['Moved to next stage.']),
             };
+            $stageAt[$to] = $at;
             $history[] = ['admission_id' => $id, 'from_stage' => $prev, 'to_stage' => $to, 'remarks' => $remark,
                 'changed_by' => $k === 0 && $a['source'] === 'website' ? null : (in_array($to, ['fee_payment', 'rejected', 'waitlisted'], true) ? ($a['approved_by'] ?: $admin) : $by), 'created_at' => $at];
             $prev = $to;
@@ -461,7 +463,10 @@ return function (array $opts): void {
             }
             file_put_contents(APP_ROOT . '/' . $rel, $content);
             $uploadedAt = date('Y-m-d H:i:s', strtotime($docBase) + $j * 120 + mt_rand(0, 600));
-            $verifiedAt = $status === 'pending' ? null : date('Y-m-d H:i:s', min($nowTs - 60, strtotime($uploadedAt) + mt_rand(1, 4) * 86400));
+            // verified while the application was in Document Verification (between entering it and moving on)
+            $dvFrom = max(strtotime($uploadedAt) + 1800, isset($stageAt['document_verification']) ? strtotime($stageAt['document_verification']) + 900 : strtotime($uploadedAt) + 86400);
+            $dvTo = isset($stageAt['entrance_interview']) ? strtotime($stageAt['entrance_interview']) - 900 : $nowTs - 120;
+            $verifiedAt = $status === 'pending' ? null : date('Y-m-d H:i:s', min($nowTs - 60, $dvTo > $dvFrom ? mt_rand($dvFrom, $dvTo) : $dvFrom));
             $docs[] = ['admission_id' => $id, 'doc_type' => $dt, 'file_path' => $rel, 'original_name' => str_replace(' ', '_', $docTypes[$dt]) . '_' . $a['first_name'] . '.' . $ext,
                 'mime' => $isPhoto ? 'image/png' : 'application/pdf', 'size_bytes' => strlen($content), 'status' => $status, 'remarks' => $remarks,
                 'verified_by' => $status === 'pending' ? null : $by, 'verified_at' => $verifiedAt, 'created_at' => $uploadedAt];
@@ -651,7 +656,8 @@ return function (array $opts): void {
         $last = demo_pick(demo_last_names());
         $created = $ago(max(0, (int) floor(($n - $k - 1) * 1.4)), max(0.4, ($n - $k - 1) * 1.4 + 1.2));
         $status = $k >= $n - 12 ? 'new' : (string) demo_weighted(['read' => 30, 'replied' => 40, 'closed' => 20, 'new' => 10]);
-        $replied = in_array($status, ['replied', 'closed'], true) && mt_rand(1, 100) <= 85;
+        // every "replied" message carries its reply; resolved ones were usually answered by email too
+        $replied = $status === 'replied' || ($status === 'closed' && mt_rand(1, 100) <= 75);
         $repliedAt = $replied ? date('Y-m-d H:i:s', min($nowTs - 120, strtotime($created) + mt_rand(2, 30) * 3600)) : null;
         $cmRows[] = [
             'name' => $first . ' ' . $last, 'email' => demo_email($first, $last, demo_pick(['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com']), mt_rand(1, 99)),
@@ -673,6 +679,16 @@ return function (array $opts): void {
     }
     array_multisort(array_column($cmRows, 'created_at'), SORT_ASC, $cmRows);
     demo_bulk_insert('contact_messages', $cmRows, 100);
+    // Email replies in the message log (the reading pane shows them as the reply thread)
+    $mailRows = [];
+    foreach (db_all("SELECT id, name, email, subject, reply, replied_at FROM contact_messages WHERE reply IS NOT NULL AND replied_at IS NOT NULL ORDER BY id") as $m) {
+        $mailRows[] = ['channel' => 'email', 'recipient' => $m['email'], 'subject' => 'Re: ' . ($m['subject'] ?: 'Your message to GIMT'),
+            'body' => '<p>Dear ' . e($m['name']) . ',</p>' . nl2br(e($m['reply'])) . '<p>Regards,<br>Admission Office<br>' . e(institute_name()) . '</p>',
+            'status' => 'sent', 'related_type' => 'contact_message', 'related_id' => (int) $m['id'], 'sent_at' => $m['replied_at'], 'created_at' => $m['replied_at']];
+    }
+    if ($mailRows) {
+        demo_bulk_insert('message_logs', $mailRows, 100);
+    }
 
     // ---------------------------------------------------------------- Feedback & complaints (~30)
     $fb = [
@@ -766,6 +782,9 @@ return function (array $opts): void {
     foreach ($seq as $name => $val) {
         db_exec('INSERT INTO sequences (name, current_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE current_value = VALUES(current_value)', [$name, $val]);
     }
+    // Record ids restart at 1 on every run: audit-log rows written before this point belong to the previous data set,
+    // so the profile / ticket timelines ignore activity older than this marker (see adm_log_since()).
+    save_setting('admissions_demo_seeded_at', date('Y-m-d H:i:s'), 'system');
     fwrite(STDOUT, sprintf("    admissions %d (converted %d), history %d, documents %d, follow-ups %d, enquiries %d, contact messages %d, feedback %d\n",
         count($apps), count($studentLinks), count($history), count($docs), count($followups) + count($enqFollow), count($enqRows), count($cmRows), count($fbRows)));
 };

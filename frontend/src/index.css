@@ -93,6 +93,12 @@
   .link { @apply font-medium text-brand-700 hover:text-brand-900 hover:underline dark:text-brand-300 dark:hover:text-white; }
   .divider { @apply border-t border-slate-100 dark:border-slate-800; }
   .kbd { @apply inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-slate-200 bg-white px-1 font-sans text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400; }
+  /* Footer credit: an overlay sweeps in behind the text on hover/focus */
+  .credit-link { @apply relative z-0 inline-block rounded px-1 transition-colors duration-200; }
+  .credit-link::before { content: ''; @apply absolute inset-0 -z-10 origin-left scale-x-0 rounded bg-brand-800 transition-transform duration-300 ease-out dark:bg-accent-600; }
+  .credit-link:hover, .credit-link:focus-visible { @apply text-white; }
+  .credit-link:hover::before, .credit-link:focus-visible::before { @apply scale-x-100; }
+  @media (prefers-reduced-motion: reduce) { .credit-link::before { transition: none; } }
 }
 
 @layer utilities {

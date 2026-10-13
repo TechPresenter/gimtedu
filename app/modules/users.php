@@ -76,8 +76,8 @@ return [
     ],
     'filters' => [
         ['key' => 'role', 'label' => 'Role', 'source' => 'roles', 'sql' => 'EXISTS (SELECT 1 FROM user_roles urf WHERE urf.user_id = t.id AND urf.role_id = ?)'],
-        ['key' => 'status', 'label' => 'Status', 'options' => ['active' => 'Active', 'inactive' => 'Inactive', 'locked' => 'Locked', 'never' => 'Never signed in', 'must_change' => 'Must change password'],
-            'sql_map' => ['active' => "t.status = 'active'", 'inactive' => "t.status = 'inactive'", 'locked' => 't.locked_until > NOW()', 'never' => 't.last_login_at IS NULL',
+        ['key' => 'status', 'label' => 'Status', 'options' => ['active' => 'Active', 'inactive' => 'Inactive', 'locked' => 'Locked', 'today' => 'Signed in today', 'never' => 'Never signed in', 'must_change' => 'Must change password'],
+            'sql_map' => ['active' => "t.status = 'active'", 'inactive' => "t.status = 'inactive'", 'locked' => 't.locked_until > NOW()', 'today' => 't.last_login_at >= CURDATE()', 'never' => 't.last_login_at IS NULL',
                 'must_change' => 't.must_change_password = 1']],
     ],
     'fields' => [

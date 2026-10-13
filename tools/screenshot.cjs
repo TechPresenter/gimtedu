@@ -54,6 +54,9 @@ for (const [label, width, height] of sizes) {
   page.on('response', (r) => r.status() >= 400 && !r.url().includes('favicon') && errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url()}`));
   if (!isPublic) {
     await page.goto(`${base}/admin/login`, { waitUntil: 'networkidle' });
+    // the SPA must hydrate before typing, otherwise React resets the fields and the login silently fails
+    await page.waitForSelector('#identifier', { state: 'visible', timeout: 30000 });
+    await page.waitForTimeout(1200);
     await page.fill('#identifier', user);
     await page.fill('#password', pass);
     await Promise.all([page.waitForURL((u) => !u.pathname.endsWith('/login'), { timeout: 15000 }).catch(() => null), page.click('button[type=submit]')]);

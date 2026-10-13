@@ -24,7 +24,7 @@ export default function CommunicationTab({ studentId }: TabProps) {
   const d = q.data!;
   return (
     <Card className="overflow-hidden">
-      <CardHeader title="Messages sent" subtitle="Emails, SMS and WhatsApp messages to the student and their parents" icon={MessageSquare}
+      <CardHeader className="flex-wrap gap-y-3" title="Messages sent" subtitle="Emails, SMS and WhatsApp messages to the student and their parents" icon={MessageSquare}
         actions={<Tabs variant="pills" value={channel} onChange={(c) => { setChannel(c); setPage(1); }} tabs={[{ key: 'all', label: 'All' }, { key: 'email', label: 'Email' }, { key: 'sms', label: 'SMS' }, { key: 'whatsapp', label: 'WhatsApp' }]} />} />
       {d.rows.length === 0 ? (
         <EmptyState icon={MessageSquare} title="No messages yet" description="Fee reminders, attendance alerts, notices and admission emails sent to this student or their parents will appear here." />

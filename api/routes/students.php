@@ -34,7 +34,7 @@ function stu_api_student(int $id): array
 function stu_api_print_views(): array
 {
     $out = [];
-    foreach (['receipt', 'invoice', 'fee-statement', 'marksheet', 'certificate', 'hall-ticket'] as $v) {
+    foreach (['fee-receipt', 'fee-invoice', 'fee-statement', 'marksheet', 'certificate', 'admit-card', 'timetable'] as $v) {
         $out[$v] = is_file(APP_ROOT . '/admin/print/' . $v . '.php');
     }
     return $out;
@@ -209,6 +209,32 @@ $docAction = function (array $p, string $status) {
     log_activity($status === 'verified' ? 'approve' : 'reject', 'students', $doc['id'], ($status === 'verified' ? 'Verified' : 'Rejected') . ' document "' . $doc['title'] . '" of ' . $who . ' (student #' . $doc['student_id'] . ')' . ($note ? ' — ' . $note : ''));
     api_ok(['id' => (int) $doc['id'], 'status' => $status], $status === 'verified' ? 'Document verified.' : 'Document rejected. The student can upload a corrected copy.');
 };
+/** Stream a student document (private file) by document id: inline for PDF/images, ?download=1 for an attachment. */
+route('GET', '/students/documents/{id:\d+}/file', function ($p) {
+    api_require('students', 'view');
+    $doc = db_row('SELECT id, student_id, title, file_path, original_name FROM student_documents WHERE id = ?', [(int) $p['id']]);
+    $path = (string) ($doc['file_path'] ?? '');
+    $abs = APP_ROOT . '/' . $path;
+    if (!$doc || !str_starts_with($path, 'storage/private/') || str_contains($path, '..') || !is_file($abs)) {
+        api_error('Document file not found. It may have been deleted.', 404);
+    }
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($abs) ?: 'application/octet-stream';
+    $ext = pathinfo($abs, PATHINFO_EXTENSION);
+    $name = preg_replace('/[^A-Za-z0-9._\- ]/', '_', (string) ($doc['original_name'] ?: ($doc['title'] . ($ext ? '.' . $ext : ''))));
+    $download = !empty($_GET['download']);
+    $inline = !$download && in_array($mime, ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif'], true);
+    if ($download) {
+        log_activity('download', 'students', $doc['id'], 'Downloaded document "' . $doc['title'] . '" (student #' . $doc['student_id'] . ')');
+    }
+    header('Content-Type: ' . $mime);
+    header('Content-Length: ' . filesize($abs));
+    header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . $name . '"');
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: private, no-store');
+    header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
+    readfile($abs);
+    exit;
+});
 route('POST', '/students/documents/{id:\d+}/verify', fn ($p) => $docAction($p, 'verified'));
 route('POST', '/students/documents/{id:\d+}/reject', fn ($p) => $docAction($p, 'rejected'));
 
@@ -354,7 +380,8 @@ route('GET', '/students/{id:\d+}/exams', function ($p) {
         $schedules = db_all('SELECT es.id, es.exam_id, e.name AS exam_name, sb.code AS subject_code, sb.name AS subject_name, es.exam_date, es.start_time, es.end_time, cr.name AS room_name, ea.status AS attendance_status
                              FROM exam_schedules es JOIN exams e ON e.id = es.exam_id JOIN subjects sb ON sb.id = es.subject_id LEFT JOIN classrooms cr ON cr.id = es.classroom_id
                              LEFT JOIN exam_attendance ea ON ea.exam_schedule_id = es.id AND ea.student_id = ?
-                             WHERE es.exam_id IN (' . implode(',', $examIds) . ') ORDER BY es.exam_date, es.start_time LIMIT 200', [$id]);
+                             WHERE es.exam_id IN (' . implode(',', $examIds) . ')
+                             ORDER BY CASE WHEN es.exam_date >= CURDATE() THEN 0 ELSE 1 END, CASE WHEN es.exam_date >= CURDATE() THEN es.exam_date END, es.exam_date DESC, es.start_time LIMIT 200', [$id]);
     }
     // Upcoming exams of the student's class that have not allocated students yet
     $upcoming = db_all("SELECT e.id, e.name, et.name AS type_name, e.start_date, e.end_date, e.status FROM exams e JOIN exam_types et ON et.id = e.exam_type_id
@@ -516,7 +543,9 @@ route('GET', '/students/{id:\d+}/communication', function ($p) {
                     WHERE $where ORDER BY ml.created_at DESC, ml.id DESC LIMIT {$pg['per_page']} OFFSET {$pg['offset']}", $args);
     foreach ($rows as &$r) {
         $r['id'] = (int) $r['id'];
-        $r['excerpt'] = str_limit(trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags((string) $r['body'])))), 220);
+        // block-level tags become spaces so "Title</h2><p>Body" does not run together
+        $text = preg_replace('#<(br|hr)\b[^>]*>|</(p|div|h[1-6]|li|tr|td|th|table|ul|ol|section|header|footer)>#i', ' ', (string) $r['body']);
+        $r['excerpt'] = str_limit(trim(preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8'))), 220);
         unset($r['body']);
     }
     unset($r);

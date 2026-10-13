@@ -64,3 +64,7 @@ ALTER TABLE expenses
   ADD COLUMN paid_at DATETIME NULL AFTER approved_at,
   ADD KEY idx_expenses_status (status),
   ADD KEY idx_expenses_category (category_id, expense_date);
+
+-- Vendor payment reference (UTR / cheque no) kept separately from the bill / invoice number.
+ALTER TABLE expenses
+  ADD COLUMN payment_reference VARCHAR(100) NULL AFTER payment_mode;

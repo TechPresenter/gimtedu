@@ -62,7 +62,6 @@ export default function TimetablePage() {
 
   const perms = { create: can('timetable', 'create'), edit: can('timetable', 'edit'), delete: can('timetable', 'delete'), publish: can('timetable', 'publish') };
   const s = meta.data?.summary;
-  const sessionName = academic.all.find((x) => x.id === sid)?.name;
 
   return (
     <>
@@ -96,7 +95,7 @@ export default function TimetablePage() {
       ) : (
         <Stagger className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" step={45}>
           {[
-            <StatTile key="a" label="Scheduled" value={s ? `${s.scheduled_sections}/${s.sections}` : '—'} icon={School} tone="navy" loading={meta.isLoading} sub={sessionName ? `Sections · ${sessionName}` : 'Sections'} />,
+            <StatTile key="a" label="Sections" value={s ? `${s.scheduled_sections}/${s.sections}` : '—'} icon={School} tone="navy" loading={meta.isLoading} sub="Timetabled" />,
             <StatTile key="b" label="Published" value={s?.published_sections ?? 0} icon={CalendarCheck} tone="green" loading={meta.isLoading} sub={s ? `${s.draft_sections} in draft` : undefined} />,
             <StatTile key="c" label="Periods" value={s?.periods ?? 0} icon={CalendarDays} tone="blue" loading={meta.isLoading} sub="Per week" />,
             <StatTile key="d" label="Faculty" value={s?.faculty ?? 0} icon={UserRound} tone="purple" loading={meta.isLoading} sub="Teaching" />,

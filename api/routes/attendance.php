@@ -182,8 +182,9 @@ att_route('GET', '/attendance/employees/register', function () {
             $totals[$k] += $person['totals'][$k];
         }
     }
+    $duty = $totals['marked'] - $totals['leave'];
     $data['summary'] = $totals + ['employees' => $p['total'],
-        'percent' => $totals['marked'] ? round(100 * ($totals['present'] + (att_late_counts() ? $totals['late'] : 0) + 0.5 * $totals['half_day']) / $totals['marked'], 1) : null];
+        'percent' => $duty > 0 ? round(100 * ($totals['present'] + (att_late_counts() ? $totals['late'] : 0) + 0.5 * $totals['half_day']) / $duty, 1) : null];
     $data['people'] = array_slice($data['people'], $p['offset'], $p['per_page']);
     api_ok($data);
 });

@@ -4,6 +4,7 @@ import { CalendarDays, Coffee, ExternalLink, MapPin, Printer } from 'lucide-reac
 import { printUrl } from '@/lib/config';
 import { Alert, Button, Card, CardHeader, EmptyState, PageLoader, Reveal } from '@/components/ui';
 import { useApi } from '@/lib/queries';
+import { useAuth } from '@/lib/auth';
 import { formatTime } from '@/lib/format';
 import type { ApiError } from '@/lib/api';
 import { WEEKDAYS } from '../../hr';
@@ -38,6 +39,8 @@ const typeStyle: Record<string, string> = {
 
 /** Weekly timetable grid of a faculty member (from the timetable module). */
 export default function TimetableTab({ id }: { id: number }) {
+  const { can } = useAuth();
+  const canTimetable = can('timetable', 'view');
   const { data, isLoading, error } = useApi<{ slots: Slot[]; periods: Period[]; can_manage: boolean }>(['hr-timetable', id], `faculty/${id}/timetable`);
   const byCell = useMemo(() => {
     const m = new Map<string, Period>();
@@ -53,7 +56,7 @@ export default function TimetableTab({ id }: { id: number }) {
           icon={CalendarDays}
           title="No classes scheduled"
           description="This faculty member has no periods in the published timetable for the current session."
-          action={<Button to="/timetable" icon={ExternalLink}>Open timetable</Button>}
+          action={canTimetable ? <Button to="/timetable" icon={ExternalLink}>Open timetable</Button> : undefined}
         />
       </Card>
     );
@@ -76,10 +79,12 @@ export default function TimetableTab({ id }: { id: number }) {
           subtitle={`${data.periods.length} periods per week · busiest day ${WEEKDAYS[perDay.indexOf(Math.max(...perDay))]}`}
           icon={CalendarDays}
           actions={
-            <div className="flex gap-2">
-              <Button size="sm" variant="secondary" icon={Printer} href={printUrl('timetable.php', { view: 'faculty', id })} target="_blank">Print</Button>
-              <Button size="sm" variant="secondary" icon={ExternalLink} to="/timetable">Full timetable</Button>
-            </div>
+            canTimetable ? (
+              <div className="flex gap-2">
+                <Button size="sm" variant="secondary" icon={Printer} href={printUrl('timetable.php', { view: 'faculty', id })} target="_blank">Print</Button>
+                <Button size="sm" variant="secondary" icon={ExternalLink} to="/timetable">Full timetable</Button>
+              </div>
+            ) : undefined
           }
         />
         {/* Desktop grid */}

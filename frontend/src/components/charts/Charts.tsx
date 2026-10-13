@@ -5,11 +5,15 @@ import {
 } from 'chart.js';
 import { Bar, Doughnut, Line, Radar } from 'react-chartjs-2';
 import { useTheme } from '@/lib/theme';
-import { formatNumber } from '@/lib/format';
+import { formatMoneyShort, formatNumber } from '@/lib/format';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, RadialLinearScale, Filler, Tooltip, Legend);
 ChartJS.defaults.font.family = 'Inter, ui-sans-serif, system-ui, sans-serif';
 ChartJS.defaults.font.size = 11;
+// Respect reduced-motion preferences (and keep automated screenshots deterministic).
+if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+  ChartJS.defaults.animation = false;
+}
 
 /** Brand-consistent categorical palette. */
 export const CHART_COLORS = ['#1D4ED8', '#22943F', '#F97316', '#8B5CF6', '#06B6D4', '#F43F5E', '#F59E0B', '#0B2A5B', '#10B981', '#64748B'];
@@ -21,7 +25,8 @@ function useAxisColors() {
 }
 
 function baseOptions(c: ReturnType<typeof useAxisColors>, opts: { stacked?: boolean; money?: boolean; legend?: boolean; horizontal?: boolean; percent?: boolean } = {}): ChartOptions<'bar' | 'line'> {
-  const fmt = (v: number | string) => (opts.money ? `₹${formatNumber(Number(v) >= 1e5 ? Number(v) / 1e5 : v)}${Number(v) >= 1e5 ? 'L' : ''}` : opts.percent ? `${v}%` : formatNumber(v));
+  // Money axis ticks: ₹45K / ₹28.4 L / ₹20 Cr
+  const fmt = (v: number | string) => (opts.money ? formatMoneyShort(v) : opts.percent ? `${v}%` : formatNumber(v));
   return {
     responsive: true,
     maintainAspectRatio: false,

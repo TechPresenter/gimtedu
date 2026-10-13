@@ -7,7 +7,7 @@ $root = dirname(__DIR__);
 $uri = urldecode(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/');
 
 // Block sensitive paths
-if (preg_match('#^/(config|database|storage|tools|app|frontend|node_modules|\.git)(/|$)#', $uri) || preg_match('#/\.(env|htaccess|git)#', $uri)) {
+if (preg_match('#^/(config|database|storage|tools|app|frontend|includes|node_modules|\.git)(/|$)#', $uri) || preg_match('#/\.(env|htaccess|git)#', $uri)) {
     http_response_code(403);
     echo 'Forbidden';
     return true;
@@ -41,10 +41,17 @@ if ($uri === '/admin' || str_starts_with($uri, '/admin/')) {
     require $root . '/admin/index.php';
     return true;
 }
+// Student & Faculty portal SPA: every non-file route under /portal is handled by portal/index.php
+if ($uri === '/portal' || str_starts_with($uri, '/portal/')) {
+    $_SERVER['SCRIPT_NAME'] = '/portal/index.php';
+    require $root . '/portal/index.php';
+    return true;
+}
 // Public website pretty URLs
 $routes = [
     '#^/verify-certificate/([A-Za-z0-9\-/]+)/?$#' => ['verify-certificate.php', 'no'],
     '#^/programs/([a-z0-9\-]+)/?$#' => ['program.php', 'slug'],
+    '#^/admissions-open/([a-z0-9\-]+)/?$#' => ['admissions-open.php', 'program'],
     '#^/blog/([a-z0-9\-]+)/?$#' => ['post.php', 'slug'],
     '#^/events/([a-z0-9\-]+)/?$#' => ['event.php', 'slug'],
     '#^/notices/([a-z0-9\-]+)/?$#' => ['notice.php', 'slug'],

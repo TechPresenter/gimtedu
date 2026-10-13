@@ -11,7 +11,10 @@
     "preview": "vite preview",
     "dev:site": "vite -c vite.site.config.ts",
     "build:site": "vite build -c vite.site.config.ts",
-    "typecheck:site": "tsc -p tsconfig.site.json --noEmit"
+    "typecheck:site": "tsc -p tsconfig.site.json --noEmit",
+    "dev:portal": "vite -c vite.portal.config.ts",
+    "build:portal": "vite build -c vite.portal.config.ts",
+    "typecheck:portal": "tsc -p tsconfig.portal.json --noEmit"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.10",

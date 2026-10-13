@@ -36,7 +36,8 @@ $td = fn (string $html, string $align = 'left') => '<td class="border-b border-s
 $docColors = ['verified' => 'bg-emerald-50 text-emerald-700 ring-emerald-200', 'pending' => 'bg-amber-50 text-amber-700 ring-amber-200', 'rejected' => 'bg-red-50 text-red-700 ring-red-200'];
 $photoDoc = null;
 foreach ($docs as $d) {
-    if ($d['doc_type'] === 'photo' && str_starts_with((string) $d['mime'], 'image/') && is_file(APP_ROOT . '/' . $d['file_path'])) {
+    if ($d['doc_type'] === 'photo' && in_array((string) $d['mime'], ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], true) && is_file(APP_ROOT . '/' . $d['file_path'])
+        && filesize(APP_ROOT . '/' . $d['file_path']) <= 3 * 1024 * 1024) {
         $photoDoc = $d;
     }
 }
@@ -70,7 +71,8 @@ print_layout_start('Application Form - ' . $a['application_no']);
   <?php if ($a['photo']): ?>
     <img src="<?= e(upload_url($a['photo'])) ?>" alt="" class="h-32 w-[100px] rounded-md object-cover ring-1 ring-slate-300">
   <?php elseif ($photoDoc): ?>
-    <img src="<?= e(base_url('api/files/download?path=' . rawurlencode($photoDoc['file_path']))) ?>" alt="" class="h-32 w-[100px] rounded-md object-cover ring-1 ring-slate-300">
+    <?php /* private file: embedded so the sheet prints/saves as PDF without another authenticated request */ ?>
+    <img src="data:<?= e((string) $photoDoc['mime']) ?>;base64,<?= base64_encode((string) file_get_contents(APP_ROOT . '/' . $photoDoc['file_path'])) ?>" alt="Applicant photograph" class="h-32 w-[100px] rounded-md object-cover ring-1 ring-slate-300">
   <?php else: ?>
     <div class="flex h-32 w-[100px] items-center justify-center rounded-md border border-dashed border-slate-300 text-center text-[10px] text-slate-400">Affix recent<br>passport-size<br>photograph</div>
   <?php endif; ?>

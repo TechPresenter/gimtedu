@@ -173,6 +173,30 @@ return function (array $opts): void {
         }
     }
 
+    // ---------------- Class teachers: one distinct teacher per section, from the program's department ----------------
+    // Keeps the existing teacher where valid; otherwise picks the department colleague who teaches the section most.
+    $usedTeachers = [];
+    foreach ($sections as $s) {
+        $pool = $facultyByDept[(int) $s['department_id']] ?? [];
+        $current = (int) db_value('SELECT class_teacher_id FROM sections WHERE id = ?', [$s['id']]);
+        if ($current && in_array($current, $pool, true) && !isset($usedTeachers[$current])) {
+            $usedTeachers[$current] = true;
+            continue;
+        }
+        $teaching = array_map('intval', db_column('SELECT faculty_id FROM faculty_subjects WHERE section_id = ? AND academic_session_id = ? GROUP BY faculty_id ORDER BY COUNT(*) DESC, faculty_id', [$s['id'], $sid]));
+        $pick = null;
+        foreach (array_merge($teaching, $pool) as $f) {
+            if (in_array($f, $pool, true) && !isset($usedTeachers[$f])) {
+                $pick = $f;
+                break;
+            }
+        }
+        if ($pick) {
+            $usedTeachers[$pick] = true;
+            db_exec('UPDATE sections SET class_teacher_id = ? WHERE id = ?', [$pick, $s['id']]);
+        }
+    }
+
     // ---------------- Timetable generation ----------------
     db_exec('DELETE FROM timetables');
     db_exec('ALTER TABLE timetables AUTO_INCREMENT = 1');

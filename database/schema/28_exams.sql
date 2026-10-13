@@ -43,3 +43,7 @@ ALTER TABLE marksheets
   ADD COLUMN revoked_at DATETIME NULL AFTER revoked_reason,
   ADD COLUMN last_printed_at DATETIME NULL AFTER printed_count,
   ADD KEY idx_marksheets_status (status);
+
+-- Re-issued marksheets keep their earlier (revoked) numbers so a scanned old copy reports "revoked / replaced"
+ALTER TABLE marksheets
+  ADD COLUMN previous_numbers VARCHAR(255) NULL COMMENT 'comma-separated earlier numbers of this marksheet (revoked on re-issue)' AFTER revoked_at;

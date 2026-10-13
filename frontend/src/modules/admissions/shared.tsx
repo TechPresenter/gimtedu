@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useLocation, useNavigationType } from 'react-router-dom';
 import clsx from 'clsx';
 import {
   Calendar, Footprints, Mail, MessageCircle, MessageSquareText, Phone, StickyNote, Users, type LucideIcon,
@@ -43,7 +44,7 @@ export function StageBadge({ stage, dot = true }: { stage: string | null | undef
 
 export const SOURCES: Record<string, string> = {
   website: 'Website', walk_in: 'Walk-in', phone: 'Phone Call', social_media: 'Social Media', referral: 'Referral',
-  campaign: 'Ad Campaign', education_fair: 'Education Fair', whatsapp: 'WhatsApp', other: 'Other',
+  campaign: 'Ad Campaign', education_fair: 'Education Fair', whatsapp: 'WhatsApp', chatbot: 'AI Chatbot', other: 'Other',
 };
 export const sourceLabel = (s: string | null | undefined) => (s ? SOURCES[s] ?? labelize(s) : '—');
 
@@ -139,6 +140,24 @@ export function plusDays(n: number): string {
   return isoDate(d);
 }
 
+/**
+ * Key that changes when the URL changes through a link, notification or back/forward navigation (not through the
+ * replace-updates a urlState CrudTable makes itself). Pass it as the CrudTable `key` so KPI cards that link to
+ * "?f.status=…" on the same page re-apply their filter.
+ */
+export function useExternalNavKey(): number {
+  const location = useLocation();
+  const navType = useNavigationType();
+  const [key, setKey] = useState(0);
+  const last = useRef(location.key);
+  useEffect(() => {
+    if (location.key === last.current) return;
+    last.current = location.key;
+    if (navType !== 'REPLACE') setKey((k) => k + 1);
+  }, [location.key, navType]);
+  return key;
+}
+
 /* ------------------------------------------------------------------ Follow-up logging */
 
 export interface FollowupTarget {
@@ -189,7 +208,8 @@ export function FollowupForm({ target, onSaved, showStatus, compact, submitLabel
       setOutcome('');
       setNext('');
       setStatus('');
-      await invalidate('adm-profile', 'adm-dashboard', 'adm-board', 'enq-detail', 'enq-summary', 'crud');
+      // refresh in the background so the modal / form is free immediately
+      void invalidate('adm-profile', 'adm-dashboard', 'adm-board', 'enq-detail', 'enq-summary', 'crud');
       onSaved?.();
     } catch (err) {
       const e2 = err as ApiError;

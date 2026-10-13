@@ -119,8 +119,9 @@ route('POST', '/contact-messages/{id:\d+}/reply', function ($p) {
 route('POST', '/contact-messages/{id:\d+}/convert', function ($p) {
     api_require('contact_messages', 'edit');
     api_require('enquiries', 'create');
-    $eid = contact_message_to_enquiry((int) $p['id']);
-    api_ok(['enquiry_id' => $eid], 'Enquiry #' . $eid . ' created from this message.');
+    $linked = false;
+    $eid = contact_message_to_enquiry((int) $p['id'], $linked);
+    api_ok(['enquiry_id' => $eid, 'linked' => $linked], $linked ? 'This sender already has an open enquiry — the message was added to enquiry #' . $eid . '.' : 'Enquiry #' . $eid . ' created from this message.');
 });
 
 route('POST', '/contact-messages/bulk', function () {

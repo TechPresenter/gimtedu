@@ -53,7 +53,7 @@ export function OverviewTab({ type, data, onTab, onCreateLogin }: { type: Employ
                   ].map((x) => (
                     <div key={x.k} className="rounded-xl bg-slate-50 px-3 py-2.5 dark:bg-slate-800/50">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{x.k}</p>
-                      <p className="mt-0.5 truncate text-sm font-medium text-slate-800 dark:text-slate-100" title={String(x.v ?? '')}>{x.v || '—'}</p>
+                      <p className="mt-0.5 line-clamp-2 break-words text-sm font-medium leading-snug text-slate-800 dark:text-slate-100" title={String(x.v ?? '')}>{x.v || '—'}</p>
                     </div>
                   ))}
                 </div>

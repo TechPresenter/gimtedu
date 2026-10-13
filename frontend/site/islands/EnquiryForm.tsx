@@ -25,6 +25,8 @@ export interface FormField {
   autocomplete?: string;
   help?: string;
   value?: string;
+  /** Fixed prefix shown before the input, e.g. '+91' for Indian mobile numbers. */
+  prefix?: string;
 }
 
 export interface EnquiryFormProps extends IslandBaseProps {
@@ -41,8 +43,30 @@ export interface EnquiryFormProps extends IslandBaseProps {
   hidden?: Record<string, string>;
   /** Required consent checkbox label (name "consent"). */
   consent?: string;
-  theme?: 'light' | 'dark' | 'glass';
+  /** light (white card) · dark (navy mesh) · glass · lead (campaign lead card) · plain (no card chrome). */
+  theme?: 'light' | 'dark' | 'glass' | 'lead' | 'plain';
   compact?: boolean;
+  /** Part of the title rendered in orange-red (lead card). */
+  titleHighlight?: string;
+  /** Small feature tags under the title (lead card), e.g. [{icon: 'wallet', label: 'Easy instalments'}]. */
+  tags?: { icon: string; label: string }[];
+  /** Copy utm_* / gclid / fbclid from the page URL into hidden fields (when not already provided). */
+  captureUtm?: boolean;
+}
+
+const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid'];
+
+function titleNode(title: string, highlight?: string) {
+  if (!highlight) return title;
+  const i = title.toLowerCase().indexOf(highlight.toLowerCase());
+  if (i < 0) return title;
+  return (
+    <>
+      {title.slice(0, i)}
+      <em>{title.slice(i, i + highlight.length)}</em>
+      {title.slice(i + highlight.length)}
+    </>
+  );
 }
 
 const PHONE = /^\+?[0-9\s\-()]{7,20}$/;
@@ -84,7 +108,19 @@ export default function EnquiryForm({
   consent,
   theme = 'light',
   compact = false,
+  titleHighlight,
+  tags = [],
+  captureUtm = false,
 }: EnquiryFormProps) {
+  const utm: Record<string, string> = {};
+  if (captureUtm) {
+    const q = new URLSearchParams(window.location.search);
+    UTM_KEYS.forEach((k) => {
+      const v = q.get(k);
+      if (v && !(k in hidden)) utm[k] = v.slice(0, 100);
+    });
+  }
+  const hiddenAll = { ...hidden, ...utm };
   const uid = useId();
   const formRef = useRef<HTMLFormElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -143,13 +179,23 @@ export default function EnquiryForm({
   return (
     <div className={clsx('enquiry', `enquiry-${theme}`, compact && 'enquiry-compact')}>
       {(title || icon) && (
-        <div className={clsx('mb-5', theme === 'dark' && 'text-center')}>
+        <div className={clsx('mb-5', (theme === 'dark' || theme === 'lead') && 'text-center')}>
           {icon && (
             <span className="enquiry-icon">
               <Icon name={icon} className="h-7 w-7" />
             </span>
           )}
-          {title && <h3 className="enquiry-title">{title}</h3>}
+          {title && <h3 className="enquiry-title">{titleNode(title, titleHighlight)}</h3>}
+          {tags.length > 0 && (
+            <p className="enquiry-tags">
+              {tags.map((t) => (
+                <span key={t.label}>
+                  <Icon name={t.icon} className="" />
+                  {t.label}
+                </span>
+              ))}
+            </p>
+          )}
           {subtitle && <p className="enquiry-subtitle">{subtitle}</p>}
         </div>
       )}
@@ -162,13 +208,13 @@ export default function EnquiryForm({
           </svg>
           <p className="mt-4 font-display text-xl font-bold">{successTitle}</p>
           <p className="mt-1 text-sm opacity-80">{message}</p>
-          <button type="button" className={clsx('btn btn-sm mt-5', theme === 'dark' ? 'btn-outline-light' : 'btn-secondary')} onClick={() => setStatus('idle')}>
+          <button type="button" className={clsx('btn btn-sm mt-5', theme === 'dark' || theme === 'lead' ? 'btn-outline-light' : 'btn-secondary')} onClick={() => setStatus('idle')}>
             Submit another enquiry
           </button>
         </div>
       ) : (
         <form ref={formRef} onSubmit={submit} noValidate className="grid grid-cols-2 gap-3.5" aria-busy={sending}>
-          {Object.entries(hidden).map(([k, v]) => (
+          {Object.entries(hiddenAll).map(([k, v]) => (
             <input key={k} type="hidden" name={k} value={v} />
           ))}
           <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
@@ -218,6 +264,18 @@ export default function EnquiryForm({
                       </select>
                     ) : f.type === 'textarea' ? (
                       <textarea {...common} rows={f.rows ?? 4} placeholder={f.placeholder ?? (compact ? `${f.label}${f.required ? ' *' : ''}` : undefined)} maxLength={f.maxLength} />
+                    ) : f.prefix ? (
+                      <div className="input-prefix">
+                        <span aria-hidden="true">{f.prefix}</span>
+                        <input
+                          {...common}
+                          type={f.type ?? 'text'}
+                          placeholder={f.placeholder ?? (compact ? `${f.label}${f.required ? ' *' : ''}` : undefined)}
+                          autoComplete={f.autocomplete}
+                          inputMode={f.type === 'tel' ? 'tel' : undefined}
+                          maxLength={f.maxLength}
+                        />
+                      </div>
                     ) : (
                       <input
                         {...common}
@@ -249,7 +307,7 @@ export default function EnquiryForm({
             <div className="col-span-2">
               <div className="flex items-start gap-2.5">
                 <input id={`${uid}-consent`} name="consent" type="checkbox" value="1" disabled={sending} className={clsx('form-check mt-0.5', errors.consent && 'is-invalid')} aria-invalid={errors.consent ? true : undefined} />
-                <label htmlFor={`${uid}-consent`} className="text-sm">
+                <label htmlFor={`${uid}-consent`} className="enquiry-consent text-sm">
                   {consent}
                 </label>
               </div>

@@ -228,7 +228,12 @@ export function EmployeeProfile({ type }: { type: EmployeeType }) {
               {stats.map((s) => (
                 <div key={s.label} className="rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-3 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-card dark:border-slate-800 dark:bg-slate-800/40 dark:hover:bg-slate-800">
                   <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{s.label}</dt>
-                  <dd className="mt-0.5 truncate font-display text-lg font-bold text-slate-900 dark:text-white">{s.value}</dd>
+                  <dd
+                    className={clsx('mt-0.5 truncate font-display font-bold text-slate-900 dark:text-white', typeof s.value === 'string' && s.value.length > 11 ? 'text-[15px] leading-7 sm:text-lg' : 'text-lg')}
+                    title={typeof s.value === 'string' ? s.value : undefined}
+                  >
+                    {s.value}
+                  </dd>
                   {s.hint && <dd className="truncate text-[11px] text-slate-500 dark:text-slate-400">{s.hint}</dd>}
                 </div>
               ))}

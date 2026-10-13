@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { useQueryClient } from '@tanstack/react-query';
@@ -52,13 +52,27 @@ export default function SecurityPage() {
   const { data: checklist, isLoading: clLoading } = useApi<Checklist>(['security-checklist'], 'security/checklist', undefined, { staleTime: 60_000 });
   const [blockKey, setBlockKey] = useState(0);
 
-  // Deep links such as /security?tab=logins (used by notifications) land on the tab panel.
+  // Deep links such as /security?tab=logins (used by notifications) land on the tab panel. Wait until the
+  // KPI, chart and checklist cards above have loaded, otherwise they grow after the scroll and push the tabs down.
+  const scrolled = useRef(false);
+  const aboveLoaded = !isLoading && !clLoading;
   useEffect(() => {
-    if (!params.get('tab')) return;
-    const t = setTimeout(() => document.getElementById('security-tabs')?.scrollIntoView({ block: 'start', behavior: 'auto' }), 300);
+    if (scrolled.current || !aboveLoaded || !params.get('tab')) return;
+    scrolled.current = true;
+    const t = setTimeout(() => document.getElementById('security-tabs')?.scrollIntoView({ block: 'start', behavior: 'auto' }), 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [aboveLoaded]);
+
+  // Phones: the tab strip scrolls sideways — keep the active tab visible (e.g. after a ?tab=policy deep link).
+  useEffect(() => {
+    const list = document.querySelector<HTMLElement>('#security-tabs [role=tablist]');
+    const active = list?.querySelector<HTMLElement>('[aria-selected=true]');
+    if (!list || !active || list.scrollWidth <= list.clientWidth) return;
+    const l = list.getBoundingClientRect();
+    const a = active.getBoundingClientRect();
+    list.scrollLeft += a.left - l.left - (l.width - a.width) / 2;
+  }, [tab]);
 
   const refreshAll = () => Promise.all([refetch(), qc.invalidateQueries({ queryKey: ['security-checklist'] }), qc.invalidateQueries({ queryKey: ['crud', 'login_logs'] }), qc.invalidateQueries({ queryKey: ['crud', 'blocked_ips'] }), qc.invalidateQueries({ queryKey: ['security-tokens'] })]);
   const goTab = (t: string) => setParams({ tab: t }, { replace: true });
@@ -87,7 +101,10 @@ export default function SecurityPage() {
   const k = ov?.kpis;
   const failTrend = k ? (k.failed_prev_7d ? Math.round(((k.failed_7d - k.failed_prev_7d) / k.failed_prev_7d) * 100) : null) : null;
   const score = checklist?.score ?? 0;
-  const scoreTone = score >= 80 ? 'green' : score >= 55 ? 'amber' : 'red';
+  // A single failed (critical) check caps the verdict at "Needs attention", whatever the overall score.
+  const critical = checklist?.counts.fail ?? 0;
+  const scoreTone = score >= 80 && !critical ? 'green' : score >= 55 ? 'amber' : 'red';
+  const verdict = score >= 80 && !critical ? 'Well protected' : score >= 55 ? 'Needs attention' : 'At risk';
   const circumference = 2 * Math.PI * 45;
 
   return (
@@ -141,8 +158,10 @@ export default function SecurityPage() {
                   </div>
                 </div>
                 <div className="min-w-0">
-                  <h2 className="font-display text-base font-bold text-slate-900 dark:text-white">{score >= 80 ? 'Well protected' : score >= 55 ? 'Needs attention' : 'At risk'}</h2>
-                  <p className="text-xs text-slate-500">Based on {checklist.items.length - checklist.counts.info} hardening checks.</p>
+                  <h2 className="font-display text-base font-bold text-slate-900 dark:text-white">{verdict}</h2>
+                  <p className="text-xs text-slate-500">
+                    Based on {checklist.items.length - checklist.counts.info} hardening checks.{critical > 0 && ` Fix the ${critical === 1 ? 'critical item' : `${critical} critical items`} below first.`}
+                  </p>
                   <div className="mt-2.5 flex flex-wrap gap-1.5">
                     <Badge color="green">{checklist.counts.pass} passed</Badge>
                     {checklist.counts.warn > 0 && <Badge color="amber">{checklist.counts.warn} warnings</Badge>}
@@ -327,7 +346,24 @@ export default function SecurityPage() {
                   Your current IP address is <code className="font-mono font-semibold">{ov.your_ip}</code> — it cannot be blocked. Expired blocks stop applying automatically.
                 </Alert>
               )}
-              <CrudTable key={blockKey} module="blocked_ips" bare title={false} addLabel="Block an IP" emptyTitle="No blocked IP addresses" emptyText="Block an address to refuse all sign-in attempts from it." onSaved={() => void refreshAll()} />
+              <CrudTable
+                key={blockKey}
+                module="blocked_ips"
+                bare
+                title={false}
+                addLabel="Block an IP"
+                emptyTitle="No blocked IP addresses"
+                emptyText="Block an address to refuse all sign-in attempts from it."
+                onSaved={() => void refreshAll()}
+                renderers={{
+                  ip_address: (r) => <span className="whitespace-nowrap font-mono text-xs font-semibold text-slate-800 dark:text-slate-100">{r.ip_address}</span>,
+                  reason: (r) => (
+                    <span className="block min-w-[14rem] max-w-sm truncate text-sm text-slate-600 dark:text-slate-300" title={r.reason ?? ''}>
+                      {r.reason || <span className="text-slate-400">—</span>}
+                    </span>
+                  ),
+                }}
+              />
             </div>
           )}
           {tab === 'sessions' && <SessionsPanel onChanged={() => void refreshAll()} />}

@@ -49,7 +49,8 @@ function acad_set_current_session(int $id): array
     }
     db_transaction(function () use ($id) {
         db_exec('UPDATE academic_sessions SET is_current = 0 WHERE id <> ? AND is_current = 1', [$id]);
-        db_exec("UPDATE academic_sessions SET is_current = 1, status = 'active' WHERE id = ?", [$id]);
+        // Keep an "upcoming" status (preparing next year is legitimate); only a completed session is re-opened.
+        db_exec("UPDATE academic_sessions SET is_current = 1, status = CASE WHEN status = 'completed' THEN 'active' ELSE status END WHERE id = ?", [$id]);
     });
     log_activity('update', 'academics', $id, 'Set academic session ' . $row['name'] . ' as the current session');
     notify('perm:academics', 'system', 'Academic session changed', 'Session ' . $row['name'] . ' is now the current academic session.', 'admin/academics?tab=sessions', 'calendar-range');

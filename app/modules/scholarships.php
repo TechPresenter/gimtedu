@@ -15,13 +15,13 @@ return [
     'search' => ['t.name', 't.code', 't.criteria'],
     'order' => 't.status ASC, t.name ASC',
     'columns' => [
-        ['key' => 'name', 'label' => 'Scheme', 'format' => 'title', 'sub' => 'code', 'sortable' => true, 'link' => 'view'],
+        ['key' => 'name', 'label' => 'Scheme', 'format' => 'title', 'sub' => 'code', 'sortable' => true, 'link' => 'view', 'width' => '280px'],
         ['key' => 'category', 'label' => 'Category', 'format' => 'badge', 'sortable' => true, 'colors' => ['merit' => 'blue', 'sports' => 'green', 'sibling' => 'purple', 'staff_ward' => 'cyan', 'scholarship' => 'navy', 'discount' => 'amber', 'waiver' => 'purple']],
         ['key' => 'value_label', 'label' => 'Benefit', 'format' => 'text', 'sortable' => 't.value'],
-        ['key' => 'max_amount', 'label' => 'Cap / student', 'format' => 'money', 'sortable' => true],
-        ['key' => 'criteria', 'label' => 'Eligibility criteria', 'format' => 'truncate', 'truncate' => 60],
+        ['key' => 'max_amount', 'label' => 'Cap', 'format' => 'money', 'sortable' => true],
+        ['key' => 'criteria', 'label' => 'Eligibility criteria', 'format' => 'truncate', 'truncate' => 60, 'hidden' => true],
         ['key' => 'awarded_count', 'label' => 'Students', 'format' => 'number', 'align' => 'center', 'sortable' => true],
-        ['key' => 'awarded_amount', 'label' => 'Total awarded', 'format' => 'money', 'sortable' => true],
+        ['key' => 'awarded_amount', 'label' => 'Awarded', 'format' => 'money', 'sortable' => true],
         ['key' => 'status', 'label' => 'Status', 'format' => 'badge', 'sortable' => true],
     ],
     'filters' => [

@@ -44,7 +44,7 @@ function admission_stage_label(?string $stage): string
 function admission_sources(): array
 {
     return ['website' => 'Website', 'walk_in' => 'Walk-in', 'phone' => 'Phone Call', 'social_media' => 'Social Media', 'referral' => 'Referral',
-        'campaign' => 'Ad Campaign', 'education_fair' => 'Education Fair', 'whatsapp' => 'WhatsApp', 'other' => 'Other'];
+        'campaign' => 'Ad Campaign', 'education_fair' => 'Education Fair', 'whatsapp' => 'WhatsApp', 'chatbot' => 'AI Chatbot', 'other' => 'Other'];
 }
 
 function admission_doc_types(): array
@@ -771,9 +771,14 @@ function contact_message_types(): array
     return ['admission' => 'Admission', 'academic' => 'Academic', 'placement' => 'Placement', 'general' => 'General', 'other' => 'Other'];
 }
 
-/** Convert a website contact message into an enquiry (once). Returns the enquiry id. */
-function contact_message_to_enquiry(int $id): int
+/**
+ * Convert a website contact message into an enquiry (once). When the sender already has an open enquiry (same mobile
+ * number) the message is linked to it and logged as a note instead of creating a duplicate lead.
+ * Returns the enquiry id; $linked is set to true when an existing enquiry was used.
+ */
+function contact_message_to_enquiry(int $id, ?bool &$linked = null): int
 {
+    $linked = false;
     $m = db_row('SELECT * FROM contact_messages WHERE id = ?', [$id]);
     if (!$m) {
         throw new CrudException('Message not found.');
@@ -783,6 +788,18 @@ function contact_message_to_enquiry(int $id): int
     }
     if (trim((string) $m['phone']) === '') {
         throw new CrudException('The message has no phone number — enquiries need a phone number to follow up.');
+    }
+    $existing = db_row('SELECT id, name, phone FROM enquiries WHERE ' . admission_phone_sql('phone') . " = ? AND status IN ('new','contacted','interested') ORDER BY id DESC LIMIT 1",
+        [admission_phone_key($m['phone'])]);
+    if ($existing) {
+        db_transaction(function () use ($m, $id, $existing) {
+            db_insert('admission_followups', ['enquiry_id' => (int) $existing['id'], 'type' => 'note',
+                'notes' => mb_substr('Website message: ' . trim(($m['subject'] ? $m['subject'] . ' — ' : '') . (string) $m['message']), 0, 2000), 'created_by' => user_id()]);
+            db_update('contact_messages', ['enquiry_id' => (int) $existing['id'], 'status' => $m['status'] === 'new' ? 'read' : $m['status'], 'read_at' => $m['read_at'] ?: date('Y-m-d H:i:s')], 'id = ?', [$id]);
+        });
+        log_activity('update', 'enquiries', $existing['id'], sprintf('Linked contact message #%d from %s to the open enquiry #%d', $id, $m['name'], $existing['id']));
+        $linked = true;
+        return (int) $existing['id'];
     }
     $enqId = db_transaction(function () use ($m, $id) {
         $programId = null;
@@ -874,7 +891,8 @@ function feedback_set_status(int $id, string $to, ?string $resolution = null, ?s
         throw new CrudException('The ticket is already ' . strtolower(feedback_statuses()[$to]) . '.');
     }
     if (!in_array($to, feedback_transitions($f['status']), true)) {
-        throw new CrudException('A ' . strtolower(feedback_statuses()[$f['status']]) . ' ticket cannot move to ' . strtolower(feedback_statuses()[$to]) . '. Allowed: '
+        $fromLabel = strtolower(feedback_statuses()[$f['status']] ?? $f['status']);
+        throw new CrudException((preg_match('/^[aeiou]/', $fromLabel) ? 'An ' : 'A ') . $fromLabel . ' ticket cannot move to ' . strtolower(feedback_statuses()[$to]) . '. Allowed: '
             . implode(', ', array_map(fn ($s) => feedback_statuses()[$s], feedback_transitions($f['status']))) . '.');
     }
     $resolution = trim((string) $resolution);
@@ -922,6 +940,18 @@ function feedback_set_status(int $id, string $to, ?string $resolution = null, ?s
 /* ------------------------------------------------------------------
  * Misc
  * ------------------------------------------------------------------ */
+
+/**
+ * Earliest activity-log timestamp that can belong to a record created at $createdAt. Ids restart when the demo data is
+ * re-seeded (and InnoDB may reuse the highest id after a delete), so older log rows with the same record_id describe
+ * a different record and must not appear on its timeline.
+ */
+function adm_log_since(?string $createdAt): string
+{
+    $seeded = (string) setting('admissions_demo_seeded_at', '');
+    $since = (string) $createdAt;
+    return $seeded !== '' && $seeded > $since ? $seeded : ($since !== '' ? $since : '1970-01-01 00:00:00');
+}
 
 /** Indian-system amount in words: 25000 -> "Twenty Five Thousand Rupees Only" */
 function adm_amount_in_words(float $amount): string

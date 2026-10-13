@@ -172,11 +172,24 @@ export function SubjectsTab() {
       urlState
       addLabel="Add Subject"
       emptyText="Add the subjects (papers) of each semester with credits and the marks scheme."
+      renderers={{ faculty_names: (row) => <FacultyNames value={row.faculty_names} /> }}
       rowMenu={(row) => [
         { label: 'Faculty assignments', icon: UserCheck, to: `/academics?tab=assignments&f.program_id=${row.program_id}&f.semester_no=${row.semester_no}` },
         { label: 'Sections of this semester', icon: Users, to: `/academics?tab=sections&f.program_id=${row.program_id}&f.semester_no=${row.semester_no}` },
       ]}
     />
+  );
+}
+
+/** Compact faculty list for the subjects table: first name + "+n more" (full list on hover). */
+function FacultyNames({ value }: { value: unknown }) {
+  const names = String(value ?? '').split(', ').filter(Boolean);
+  if (!names.length) return <span className="text-slate-400">—</span>;
+  return (
+    <div className="min-w-0 leading-tight" title={names.join(', ')}>
+      <div className="truncate text-sm text-slate-700 dark:text-slate-200">{names[0]}</div>
+      {names.length > 1 && <div className="text-xs text-slate-500 dark:text-slate-400">+{names.length - 1} more</div>}
+    </div>
   );
 }
 

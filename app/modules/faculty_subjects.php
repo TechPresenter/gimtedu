@@ -26,7 +26,7 @@ return [
     'columns' => [
         ['key' => 'faculty_name', 'label' => 'Faculty', 'format' => 'person', 'image' => 'faculty_photo', 'sub' => 'designation', 'sortable' => 'f.first_name'],
         ['key' => 'subject_name', 'label' => 'Subject', 'format' => 'title', 'sub' => 'subject_code', 'sortable' => 'sb.code'],
-        ['key' => 'class_label', 'label' => 'Class', 'format' => 'text', 'sortable' => "CONCAT(p.short_name, LPAD(sb.semester_no, 2, '0'), COALESCE(sc.name, ''))"],
+        ['key' => 'class_label', 'label' => 'Class', 'format' => 'text', 'sortable' => "CONCAT(p.short_name, LPAD(sb.semester_no, 2, '0'), COALESCE(sc.name, ''))", 'width' => '170px'],
         ['key' => 'students_count', 'label' => 'Students', 'format' => 'number', 'align' => 'center', 'sortable' => true],
         ['key' => 'hours', 'label' => 'Hrs/Week', 'format' => 'number', 'align' => 'center', 'sortable' => true],
         ['key' => 'scheduled_periods', 'label' => 'Timetabled', 'format' => 'number', 'align' => 'center', 'sortable' => true],

@@ -116,7 +116,10 @@ return [
         ['name' => 'guardian_phone', 'label' => 'Guardian phone', 'type' => 'tel', 'col' => 6, 'maxlength' => 20],
         ['type' => 'section', 'label' => 'Academic'],
         ['name' => 'department_id', 'label' => 'Department', 'type' => 'select', 'source' => 'departments', 'col' => 6],
-        ['name' => 'program_id', 'label' => 'Program', 'type' => 'select', 'source' => 'programs', 'required' => true, 'depends' => ['department_id' => 'department_id'], 'col' => 6],
+        // short-name labels so CSV/Excel imports can say "BBA" / "B.Tech (CSE)" instead of an id
+        ['name' => 'program_id', 'label' => 'Program', 'type' => 'select', 'required' => true, 'depends' => ['department_id' => 'department_id'], 'col' => 6,
+            'source' => ['table' => 'programs p', 'value' => 'p.id', 'label' => 'p.short_name', 'sub' => 'p.name', 'where' => "p.status = 'active'", 'order' => 'p.sort_order, p.name',
+                'search' => ['p.short_name', 'p.name', 'p.code'], 'filters' => ['department_id' => 'p.department_id']]],
         ['name' => 'course_id', 'label' => 'Specialization / course', 'type' => 'select', 'source' => 'courses', 'depends' => ['program_id' => 'program_id'], 'col' => 6],
         ['name' => 'batch_id', 'label' => 'Batch', 'type' => 'select', 'source' => 'batches', 'depends' => ['program_id' => 'program_id'], 'col' => 6],
         ['name' => 'current_semester', 'label' => 'Semester', 'type' => 'number', 'required' => true, 'default' => 1, 'min' => 1, 'max' => 12, 'col' => 4],
@@ -304,6 +307,11 @@ return [
                         $data['guardian_relation'] = 'Guardian';
                     }
                 }
+            }
+            // New enrolments without an admission session (imports / API) belong to the session of the admission date, else the current one
+            if ($id === null && empty($data['academic_session_id'])) {
+                $sid = !empty($data['admission_date']) ? db_value('SELECT id FROM academic_sessions WHERE ? BETWEEN start_date AND end_date ORDER BY start_date DESC LIMIT 1', [$data['admission_date']]) : null;
+                $data['academic_session_id'] = $sid ? (int) $sid : current_session_id();
             }
             // Auto-generate IDs from Settings > Academic formats
             $year = students_admission_year($data + ($old ?? []));

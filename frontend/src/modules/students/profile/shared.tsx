@@ -34,14 +34,14 @@ export function TabError({ error, onRetry }: { error: unknown; onRetry?: () => v
 /** Small KPI tile used inside tabs. */
 export function MiniStat({ label, value, sub, icon: Icon, tone = 'blue' }: { label: string; value: ReactNode; sub?: ReactNode; icon: LucideIcon; tone?: Tone }) {
   return (
-    <div className={clsx('h-full rounded-2xl border border-slate-200/70 p-4 dark:border-slate-800', toneClasses[tone].bg)}>
-      <div className="flex items-center gap-3">
-        <span className={clsx('inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', toneClasses[tone].icon)}>
+    <div className={clsx('h-full rounded-2xl border border-slate-200/70 p-3.5 sm:p-4 dark:border-slate-800', toneClasses[tone].bg)}>
+      <div className="flex items-center gap-2.5 sm:gap-3">
+        <span className={clsx('inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl sm:h-9 sm:w-9', toneClasses[tone].icon)}>
           <Icon className="h-[18px] w-[18px]" aria-hidden />
         </span>
         <div className="min-w-0">
           <p className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
-          <p className="truncate font-display text-xl font-bold text-slate-900 dark:text-white">{value}</p>
+          <p className="truncate font-display text-lg font-bold text-slate-900 sm:text-xl dark:text-white">{value}</p>
         </div>
       </div>
       {sub && <div className="mt-2 truncate text-xs text-slate-500 dark:text-slate-400">{sub}</div>}
@@ -56,7 +56,7 @@ export function TableCard<T extends Record<string, unknown>>({ title, subtitle, 
   return (
     <Reveal delay={delay}>
       <Card className="overflow-hidden">
-        <CardHeader title={title} subtitle={subtitle} icon={icon} actions={actions} />
+        <CardHeader title={title} subtitle={subtitle} icon={icon} actions={actions} className="flex-wrap gap-y-3" />
         {rows.length ? (
           <DataTable<T> columns={columns} rows={rows} dense caption={title} />
         ) : (

@@ -209,4 +209,62 @@
         .then(function () { if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); } });
     });
   });
+  /* Design v3 parity (no-bundle fallback) ------------------------------------------------------------------------- */
+  /* text-mask headings and scribbles: just show them */
+  $$('[data-text-reveal]').forEach(function (el) { el.classList.add('tm-ready', 'is-revealed', 'tm-done'); });
+  $$('.scribble[data-draw]').forEach(function (el) { el.classList.add('is-drawn', 'is-static'); });
+
+  /* Programs mega menu filters: <button data-mega-filter="all|level-ug|dept-3"> + <a data-mega-item="all level-ug dept-3"> */
+  $$('[data-mega]').forEach(function (mega) {
+    var filters = $$('[data-mega-filter]', mega), cards = $$('[data-mega-item]', mega), empty = $('[data-mega-empty]', mega);
+    filters.forEach(function (f) {
+      f.addEventListener('click', function (e) {
+        e.preventDefault();
+        var v = f.getAttribute('data-mega-filter'), shown = 0;
+        filters.forEach(function (b) { var on = b === f; b.classList.toggle('is-active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+        cards.forEach(function (c) { var ok = v === 'all' || (c.getAttribute('data-mega-item') || '').split(/\s+/).indexOf(v) !== -1; c.hidden = !ok; if (ok) shown++; });
+        if (empty) empty.classList.toggle('hidden', shown > 0);
+      });
+    });
+  });
+
+  /* Generic modals: [data-modal-open="#id"] → <div id class="modal hidden" data-modal> with [data-modal-close] */
+  document.addEventListener('click', function (e) {
+    var opener = e.target.closest ? e.target.closest('[data-modal-open]') : null;
+    if (opener) { var m = $(opener.getAttribute('data-modal-open')); if (m) { e.preventDefault(); layer(m, true); var f = m.querySelector('input,select,button'); if (f) f.focus(); } return; }
+    var closer = e.target.closest ? e.target.closest('[data-modal-close]') : null;
+    var modal = closer ? closer.closest('[data-modal]') : null;
+    if (modal) { e.preventDefault(); layer(modal, false); }
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $$('[data-modal].is-open').forEach(function (m) { layer(m, false); }); });
+
+  /* Dismissible bars: <div data-dismiss="key"> … <button data-dismiss-close> */
+  $$('[data-dismiss]').forEach(function (el) {
+    var key = el.getAttribute('data-dismiss');
+    try { if (localStorage.getItem(key) === '1') { el.classList.add('is-dismissed'); return; } } catch (x) {}
+    var b = $('[data-dismiss-close]', el);
+    if (b) b.addEventListener('click', function () { el.classList.add('is-dismissed'); try { localStorage.setItem(key, '1'); } catch (x) {} });
+  });
+
+  /* Listing view modes: <div data-view-toggle="key"> <button data-view-mode="grid"> + <div data-view-key="key" data-view> */
+  $$('[data-view-toggle]').forEach(function (t) {
+    var key = t.getAttribute('data-view-toggle');
+    $$('[data-view-mode]', t).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var mode = b.getAttribute('data-view-mode');
+        $$('[data-view-key="' + key + '"]').forEach(function (h) { h.setAttribute('data-view', mode); });
+        $$('[data-view-mode]', t).forEach(function (o) { var on = o === b; o.setAttribute('aria-checked', on ? 'true' : 'false'); o.classList.toggle('is-active', on); });
+        try { localStorage.setItem('gimt.view.' + key, mode); } catch (x) {}
+      });
+    });
+  });
+
+  /* Marquee pause toggles (announcement ticker) */
+  $$('[data-marquee-toggle]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var host = b.closest('[data-marquee-host]') || b.parentNode, p = b.getAttribute('aria-pressed') !== 'true';
+      b.setAttribute('aria-pressed', p ? 'true' : 'false');
+      $$('.marquee', host).forEach(function (m) { m.classList.toggle('is-paused', p); });
+    });
+  });
 })();

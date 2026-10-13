@@ -15,7 +15,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDate, formatDateTime, formatNumber, formatPercent, timeAgo } from '@/lib/format';
 import type { Row } from '@/lib/types';
 import type { BadgeColor } from '@/lib/status';
-import { DueChip, ENQUIRY_STATUSES, FollowupForm, FollowupModal, OUTCOMES, StageBadge, followupIcon, followupLabel, sourceLabel, type FollowupTarget } from './shared';
+import { DueChip, ENQUIRY_STATUSES, FollowupForm, FollowupModal, OUTCOMES, StageBadge, followupIcon, followupLabel, sourceLabel, useExternalNavKey, type FollowupTarget } from './shared';
 
 interface Summary {
   kpis: { total: number; new_count: number; open_count: number; due_today: number; overdue: number; converted: number; interested: number; last_30: number; prev_30: number; today: number; unassigned: number; conversion_rate: number; trend: number | null };
@@ -41,6 +41,7 @@ export default function EnquiriesPage() {
   const [followup, setFollowup] = useState<FollowupTarget | null>(null);
   const [assign, setAssign] = useState<{ ids: number[]; clear?: () => void; current?: string } | null>(null);
   const canConvert = can('admissions', 'create');
+  const navKey = useExternalNavKey();
   const convert = (r: Row) => (r.admission_id ? navigate(`/admissions/${r.admission_id}`) : navigate(`/admissions/new?enquiry=${r.id}`));
 
   return (
@@ -68,6 +69,7 @@ export default function EnquiriesPage() {
       </Stagger>
 
       <CrudTable
+        key={navKey}
         module="enquiries"
         urlState
         title="All enquiries"
@@ -77,9 +79,9 @@ export default function EnquiriesPage() {
         onView={(r) => setDrawer(Number(r.id))}
         renderers={{
           name: (r) => (
-            <div className="min-w-[10rem] whitespace-nowrap">
+            <button type="button" onClick={() => setDrawer(Number(r.id))} className="block min-w-[10rem] whitespace-nowrap rounded-lg text-left transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40" aria-label={`Open enquiry from ${String(r.name)}`}>
               <PersonCell name={String(r.name)} sub={<span className="font-mono">{String(r.phone)}</span>} />
-            </div>
+            </button>
           ),
           interest: (r) => (
             <div className="max-w-[12rem] leading-tight">
@@ -149,6 +151,11 @@ function AssignModal({ target, onClose }: { target: { ids: number[]; clear?: () 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const current = value ?? target?.current ?? '';
+  const close = () => {
+    setValue(null);
+    setError('');
+    onClose();
+  };
   const save = async () => {
     if (!target) return;
     setSaving(true);
@@ -157,9 +164,8 @@ function AssignModal({ target, onClose }: { target: { ids: number[]; clear?: () 
       const res = target.ids.length === 1 ? await api.post(`enquiries/${target.ids[0]}/assign`, { assigned_to: current || null }) : await api.post('crud/enquiries/bulk', { action: 'assign', ids: target.ids, value: current || 0 });
       toast.success(res.message);
       target.clear?.();
-      await invalidate('crud', 'enq-summary', 'enq-detail');
-      setValue(null);
-      onClose();
+      void invalidate('crud', 'enq-summary', 'enq-detail');
+      close();
     } catch (e) {
       setError((e as ApiError).message);
     } finally {
@@ -167,9 +173,9 @@ function AssignModal({ target, onClose }: { target: { ids: number[]; clear?: () 
     }
   };
   return (
-    <Modal open={!!target} onClose={() => { setValue(null); onClose(); }} static={saving} size="sm" title="Assign counsellor"
+    <Modal open={!!target} onClose={close} static={saving} size="sm" title="Assign counsellor"
       description={target ? `${target.ids.length} enquir${target.ids.length === 1 ? 'y' : 'ies'} selected. The counsellor is notified.` : undefined}
-      footer={<><Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button><Button onClick={save} loading={saving}>Assign</Button></>}>
+      footer={<><Button variant="secondary" onClick={close} disabled={saving}>Cancel</Button><Button onClick={save} loading={saving}>Assign</Button></>}>
       <Field label="Counsellor" error={error} htmlFor="assign-user">
         <Select id="assign-user" value={current} onChange={(e) => setValue(e.target.value)} options={users} placeholder="Unassigned" invalid={!!error} />
       </Field>

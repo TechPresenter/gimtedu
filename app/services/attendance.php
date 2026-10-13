@@ -346,9 +346,10 @@ function att_refresh_summaries(array $studentIds): void
 /** Full rebuild of sheet counts + student summaries (seeder / maintenance). */
 function att_rebuild_aggregates(): void
 {
+    // updated_at is assigned to itself so the maintenance rebuild does not look like an edit of every sheet
     db_exec("UPDATE attendance a JOIN (SELECT attendance_id, COUNT(*) AS t, SUM(status = 'present') AS p, SUM(status = 'absent') AS ab, SUM(status = 'late') AS l,
              SUM(status = 'leave') AS lv, SUM(status = 'half_day') AS hd FROM attendance_records GROUP BY attendance_id) c ON c.attendance_id = a.id
-             SET a.total_count = c.t, a.present_count = c.p, a.absent_count = c.ab, a.late_count = c.l, a.leave_count = c.lv, a.half_day_count = c.hd");
+             SET a.total_count = c.t, a.present_count = c.p, a.absent_count = c.ab, a.late_count = c.l, a.leave_count = c.lv, a.half_day_count = c.hd, a.updated_at = a.updated_at");
     db_exec('DELETE FROM attendance_summaries');
     db_exec("INSERT INTO attendance_summaries (student_id, academic_session_id, held, present, absent, late, on_leave, last_date)
              SELECT r.person_id, a.academic_session_id, COUNT(*), SUM(r.status = 'present'), SUM(r.status = 'absent'), SUM(r.status = 'late'), SUM(r.status = 'leave'), MAX(a.attendance_date)
@@ -702,6 +703,11 @@ function att_detect_threshold_crossings(array $marks, array $before, array $oldS
     $text = implode(', ', array_map(fn ($x) => $x['name'] . ' (' . $x['percent'] . '%)', $first)) . (count($list) > 3 ? ' and ' . (count($list) - 3) . ' more' : '');
     notify('perm:attendance', 'attendance', count($list) === 1 ? 'Low attendance alert' : count($list) . ' students below ' . $min . '% attendance',
         $text . ' in ' . $sec['label'] . ' fell below the minimum ' . $min . '% attendance.', 'attendance/reports?tab=defaulters&program_id=' . $sec['program_id'] . '&semester=' . $sec['semester_no'] . '&section_id=' . $sec['id'], 'user-x');
+    // Students with a portal account are told directly as well
+    foreach (db_pairs('SELECT id, user_id FROM students WHERE user_id IS NOT NULL AND id IN (' . implode(',', array_map('intval', $crossed)) . ')') as $sid => $uid) {
+        notify([(int) $uid], 'attendance', 'Your attendance is below ' . $min . '%',
+            'Your attendance is now ' . $after[(int) $sid]['percent'] . '%. Attend classes regularly to reach the minimum ' . $min . '% required for examinations.', null, 'user-x');
+    }
     return $list;
 }
 
@@ -935,8 +941,11 @@ function att_employee_register(string $month, string $type = 'all', ?int $depart
             $daily[$d][$st] = ($daily[$d][$st] ?? 0) + 1;
         }
         $marked = array_sum($t);
+        // Approved leave is not an absence: employee % is measured over the days the person was expected on duty
+        // (same rule as the Faculty & Staff profile in app/services/hr.php).
+        $duty = $marked - $t['leave'];
         $p['cells'] = (object) $cells;
-        $p['totals'] = $t + ['marked' => $marked, 'percent' => $marked ? round(100 * ($t['present'] + $late * $t['late'] + 0.5 * $t['half_day']) / $marked, 1) : null];
+        $p['totals'] = $t + ['marked' => $marked, 'duty' => $duty, 'percent' => $duty > 0 ? round(100 * ($t['present'] + $late * $t['late'] + 0.5 * $t['half_day']) / $duty, 1) : null];
     }
     unset($p);
     return ['month' => $month, 'from' => $from, 'to' => $to, 'days' => $days, 'people' => $people, 'daily' => (object) $daily];

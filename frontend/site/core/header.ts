@@ -37,8 +37,11 @@ export function initHeader(): void {
         header.querySelector('[data-open]') !== null ||
         header.querySelector(':focus-visible') !== null ||
         document.documentElement.classList.contains('scroll-locked');
-      if (y < 320 || busy || upDistance > 8) header.classList.remove('is-hidden');
-      else if (downDistance > 24 && header.dataset.autohide !== 'off') header.classList.add('is-hidden');
+      // data-autohide: "off" = always visible, "mobile" = hide on scroll down below lg only (Design v2), default = always
+      const mode = header.dataset.autohide;
+      const canHide = mode !== 'off' && (mode !== 'mobile' || window.innerWidth < 1024);
+      if (y < 320 || busy || upDistance > 8 || !canHide) header.classList.remove('is-hidden');
+      else if (downDistance > 24) header.classList.add('is-hidden');
     }
     if (bar) {
       bar.style.transform = `scaleX(${pct})`;

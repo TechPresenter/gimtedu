@@ -288,7 +288,7 @@ function DepartmentReport() {
                             {open.has(r.id) ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
                             <span className="leading-tight">
                               <span className="block font-semibold text-slate-900 dark:text-white">{r.name}</span>
-                              <span className="block text-xs text-slate-500">{r.code} · {r.programs.length} programs</span>
+                              <span className="block text-xs text-slate-500">{r.code} · {r.programs.length} program{r.programs.length === 1 ? '' : 's'}</span>
                             </span>
                           </button>
                         </td>
@@ -385,10 +385,11 @@ function SubjectReport() {
 /* ---------------------------------------------------------------- Monthly register */
 function MonthlyReport() {
   const [params, setParams] = useSearchParams();
-  const section = /^\d+$/.test(params.get('section_id') ?? '') ? Number(params.get('section_id')) : null;
+  const opts = useAttendanceOptions();
+  // Default to the first class the user may see so the register is never blank on arrival
+  const section = /^\d+$/.test(params.get('section_id') ?? '') ? Number(params.get('section_id')) : opts.data?.sections[0] ? Number(opts.data.sections[0].value) : null;
   const month = /^\d{4}-\d{2}$/.test(params.get('month') ?? '') ? (params.get('month') as string) : currentMonth();
   const subject = params.get('subject_id') ?? '';
-  const opts = useAttendanceOptions();
   const sectionOpt = opts.data?.sections.find((s) => s.value === section);
   const subjects = useLookup('subjects', { program_id: sectionOpt?.program_id, semester_no: sectionOpt?.semester_no }, !!sectionOpt);
   const set = (patch: Record<string, string | number | null>) => {
@@ -422,7 +423,7 @@ function MonthlyReport() {
   return (
     <div className="space-y-5">
       <Card className="p-4 sm:p-5">
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1.3fr)_auto_minmax(0,1fr)] md:items-end">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1.3fr)_auto_minmax(0,1fr)] md:items-end">
           <Field label="Class / section" htmlFor="mr-section">
             <SectionPicker id="mr-section" value={section} onChange={(v) => set({ section_id: v, subject_id: null })} />
           </Field>

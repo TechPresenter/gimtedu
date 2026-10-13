@@ -175,7 +175,7 @@ function Header({ data }: { data: AdmissionProfile }) {
         <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="font-mono text-slate-700 dark:text-slate-200">{String(a.application_no)}</span>
           <span aria-hidden>·</span>
-          <span>{String(a.program_name)}{a.course_name ? ` — ${a.course_name}` : ''}</span>
+          <span>{String(a.program_name)}{a.course_name ? ` — ${String(a.course_name).replace(/^.*? - /, '')}` : ''}</span>
           <span aria-hidden>·</span>
           <span>Session {String(a.session_name ?? '')}</span>
         </span>

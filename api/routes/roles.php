@@ -67,7 +67,11 @@ route('PUT', '/roles/{id:\d+}/permissions', function ($p) {
             api_error('You cannot grant permissions you do not have yourself: ' . implode(', ', array_slice($denied, 0, 6)) . (count($denied) > 6 ? '…' : '') . '.', 403);
         }
     }
-    [$added, $removed] = role_save_permissions((int) $role['id'], $keys);
+    try {
+        [$added, $removed] = role_save_permissions((int) $role['id'], $keys);
+    } catch (InvalidArgumentException $e) {
+        api_error($e->getMessage() . '. Reload the page and try again.', 422, ['permissions' => $e->getMessage()]);
+    }
     if ($added || $removed) {
         log_activity('update', 'roles', $role['id'], sprintf('Updated permissions of role %s (+%d / −%d)', $role['name'], count($added), count($removed)), 'success',
             ['added' => $added, 'removed' => $removed]);

@@ -32,6 +32,8 @@ export default function IdCardsPage() {
   const enabled = mode === 'class' ? !!(sel.program_id || sel.section_id || sel.batch_id) : picked.length > 0;
   const q = useApi<{ rows: IdCardRow[]; total: number; limit: number; institute?: InstituteInfo }>(['students', 'id-cards', query], 'students/id-cards', query, { enabled, staleTime: 30_000 });
   const rows = useMemo(() => (enabled ? q.data?.rows ?? [] : []), [enabled, q.data]);
+  // names for students preselected through ?ids= (the combobox only knows ids until it has searched)
+  const pickedOptions = useMemo<Option[]>(() => (mode === 'search' ? rows.map((r) => ({ value: r.id, label: r.full_name, sub: r.student_uid })) : []), [mode, rows]);
 
   useEffect(() => {
     setExcluded(new Set());
@@ -97,7 +99,7 @@ export default function IdCardsPage() {
               ) : (
                 <>
                   <Field label="Search students" hint="Name, student ID, roll or admission number.">
-                    <Combobox multiple source="students" value={picked.map((p) => p.value)} onChange={(vals) => setPicked((prev) => vals.map((v) => prev.find((p) => String(p.value) === String(v)) ?? { value: v, label: String(v) }))} placeholder="Type to search…" />
+                    <Combobox multiple source="students" initialOptions={pickedOptions} value={picked.map((p) => p.value)} onChange={(vals) => setPicked((prev) => vals.map((v) => prev.find((p) => String(p.value) === String(v)) ?? { value: v, label: String(v) }))} placeholder="Type to search…" />
                   </Field>
                   {picked.length > 0 && (
                     <button type="button" onClick={() => setPicked([])} className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-red-600">

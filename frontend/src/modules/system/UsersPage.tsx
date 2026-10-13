@@ -60,10 +60,10 @@ export default function UsersPage() {
   const kpis = [
     { label: 'Total users', value: stats?.total, icon: Users, tone: 'navy' as const, filter: '', hint: `${stats?.week ?? 0} active this week` },
     { label: 'Active accounts', value: stats?.active, icon: UserCheck, tone: 'green' as const, filter: 'active', hint: 'Can sign in' },
-    { label: 'Signed in today', value: stats?.today, icon: LogIn, tone: 'cyan' as const, filter: '', hint: 'Unique users' },
-    { label: 'Locked accounts', value: stats?.locked, icon: Lock, tone: 'red' as const, filter: 'locked', hint: 'Too many failed attempts' },
+    { label: 'Signed in today', value: stats?.today, icon: LogIn, tone: 'cyan' as const, filter: 'today', hint: 'Unique users' },
+    { label: 'Locked accounts', value: stats?.locked, icon: Lock, tone: 'red' as const, filter: 'locked', hint: 'Failed sign-ins' },
     { label: 'Inactive', value: stats?.inactive, icon: UserX, tone: 'slate' as const, filter: 'inactive', hint: `${stats?.never ?? 0} never signed in` },
-    { label: 'Must change password', value: stats?.must_change, icon: KeyRound, tone: 'amber' as const, filter: 'must_change', hint: 'At next sign-in' },
+    { label: 'Password resets', value: stats?.must_change, icon: KeyRound, tone: 'amber' as const, filter: 'must_change', hint: 'Change at next sign-in' },
   ];
 
   return (
@@ -88,7 +88,7 @@ export default function UsersPage() {
         }
       />
 
-      <Stagger className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 2xl:grid-cols-6">
+      <Stagger className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-6" itemClassName="h-full">
         {kpis.map((k) => (
           <div
             key={k.label}
@@ -96,10 +96,10 @@ export default function UsersPage() {
             tabIndex={k.filter ? 0 : undefined}
             onClick={k.filter ? () => quickFilter('status', k.filter) : undefined}
             onKeyDown={k.filter ? (e) => (e.key === 'Enter' || e.key === ' ') && quickFilter('status', k.filter) : undefined}
-            className={clsx(k.filter && 'cursor-pointer rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500')}
+            className={clsx('h-full', k.filter && 'cursor-pointer rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500')}
             aria-label={k.filter ? `Show ${k.label.toLowerCase()}` : undefined}
           >
-            <StatCard label={k.label} value={k.value ?? 0} icon={k.icon} tone={k.tone} loading={statsLoading} hint={k.hint} />
+            <StatCard label={k.label} value={k.value ?? 0} icon={k.icon} tone={k.tone} loading={statsLoading} hint={k.hint} className="h-full" />
           </div>
         ))}
       </Stagger>

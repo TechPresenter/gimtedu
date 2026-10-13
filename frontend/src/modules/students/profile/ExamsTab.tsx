@@ -1,6 +1,7 @@
-import { CalendarClock, ClipboardList, Ticket } from 'lucide-react';
+import { CalendarClock, ClipboardList, Printer, Ticket } from 'lucide-react';
 import { Badge, Button, Card, CardHeader, Reveal, StatusBadge, type Column } from '@/components/ui';
 import { useApi } from '@/lib/queries';
+import { printUrl } from '@/lib/config';
 import { formatDate, formatTime } from '@/lib/format';
 import { TabEmpty, TabError, TabLoading, TableCard, type TabProps } from './shared';
 
@@ -11,7 +12,7 @@ interface ExamRow extends Record<string, unknown> {
 interface ScheduleRow extends Record<string, unknown> {
   id: number; exam_id: number; exam_name: string; subject_code: string; subject_name: string; exam_date: string; start_time: string; end_time: string; room_name: string | null; attendance_status: string | null;
 }
-interface ExamsData { exams: ExamRow[]; schedules: ScheduleRow[]; upcoming: { id: number; name: string; type_name: string; start_date: string | null; end_date: string | null; status: string }[] }
+interface ExamsData { exams: ExamRow[]; schedules: ScheduleRow[]; upcoming: { id: number; name: string; type_name: string; start_date: string | null; end_date: string | null; status: string }[]; print_views: Record<string, boolean> }
 
 const range = (a: string | null, b: string | null) => (a ? `${formatDate(a)}${b && b !== a ? ` – ${formatDate(b)}` : ''}` : '—');
 
@@ -19,7 +20,7 @@ export default function ExamsTab({ studentId }: TabProps) {
   const q = useApi<ExamsData>(['students', studentId, 'exams'], `students/${studentId}/exams`);
   if (q.isLoading) return <TabLoading />;
   if (q.error) return <TabError error={q.error} onRetry={() => q.refetch()} />;
-  const { exams, schedules, upcoming } = q.data!;
+  const { exams, schedules, upcoming, print_views: pv } = q.data!;
   if (!exams.length && !upcoming.length) {
     return <TabEmpty icon={ClipboardList} title="No examinations yet" description="Exams appear here once the examination cell allocates this student to an exam." action={<Button variant="secondary" to="/examination">Open examinations</Button>} />;
   }
@@ -27,9 +28,16 @@ export default function ExamsTab({ studentId }: TabProps) {
   const examCols: Column<ExamRow>[] = [
     { key: 'name', header: 'Exam', render: (r) => <div className="leading-tight"><p className="font-semibold text-slate-900 dark:text-white">{r.name}</p><p className="text-xs text-slate-500">{r.type_name}{r.semester_no ? ` · Sem ${r.semester_no}` : ''}{r.session_name ? ` · ${r.session_name}` : ''}</p></div> },
     { key: 'start_date', header: 'Dates', render: (r) => <span className="whitespace-nowrap">{range(r.start_date, r.end_date)}</span> },
-    { key: 'hall_ticket_no', header: 'Hall ticket / seat', render: (r) => <span className="font-mono text-xs">{r.hall_ticket_no ?? '—'}{r.seat_no ? ` · ${r.seat_no}` : ''}{r.room_name ? <span className="block font-sans text-slate-500">{r.room_name}</span> : null}</span> },
+    { key: 'hall_ticket_no', header: 'Hall ticket / seat', render: (r) => <div className="whitespace-nowrap leading-tight"><p className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-100">{r.hall_ticket_no ?? '—'}</p>{(r.seat_no || r.room_name) && <p className="text-xs text-slate-500">{[r.seat_no ? `Seat ${r.seat_no}` : null, r.room_name].filter(Boolean).join(' · ')}</p>}</div> },
     { key: 'is_eligible', header: 'Eligibility', render: (r) => (r.is_eligible ? <Badge color="green" dot>Eligible</Badge> : <span title={r.ineligibility_reason ?? ''}><Badge color="red" dot>Not eligible</Badge></span>) },
     { key: 'status', header: 'Exam status', render: (r) => <StatusBadge status={r.status} /> },
+    ...(pv['admit-card']
+      ? [{ key: 'admit', header: '', align: 'right' as const, render: (r: ExamRow) => (r.is_eligible && r.hall_ticket_no ? (
+          <Button size="xs" variant="secondary" icon={Printer} href={printUrl('admit-card.php', { exam_id: r.id, student_id: studentId })} target="_blank" className="whitespace-nowrap" title={`Print admit card ${r.hall_ticket_no}`}>
+            Admit card
+          </Button>
+        ) : null) }]
+      : []),
   ];
   const schedCols: Column<ScheduleRow>[] = [
     { key: 'exam_date', header: 'Date', render: (r) => <span className={r.exam_date >= today ? 'whitespace-nowrap font-semibold text-brand-800 dark:text-brand-200' : 'whitespace-nowrap'}>{formatDate(r.exam_date)}</span> },

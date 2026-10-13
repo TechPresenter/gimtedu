@@ -64,7 +64,8 @@ return [
         ['name' => 'phone', 'label' => 'Mobile number', 'type' => 'tel', 'required' => true, 'col' => 6, 'placeholder' => '+91 98765 43210'],
         ['name' => 'email', 'label' => 'Email', 'type' => 'email', 'col' => 6],
         ['name' => 'city', 'label' => 'City', 'type' => 'text', 'col' => 6, 'maxlength' => 80],
-        ['name' => 'program_id', 'label' => 'Program of interest', 'type' => 'select', 'col' => 6, 'source' => 'programs'],
+        ['name' => 'program_id', 'label' => 'Program of interest', 'type' => 'select', 'col' => 6,
+            'source' => ['table' => 'programs p', 'value' => 'p.id', 'label' => 'p.short_name', 'sub' => 'p.name', 'where' => "p.status = 'active'", 'order' => 'p.sort_order, p.name', 'search' => ['p.short_name', 'p.name', 'p.code']]],
         ['name' => 'program_interest', 'label' => 'Other interest', 'type' => 'text', 'col' => 6, 'maxlength' => 190, 'placeholder' => 'When the program is not listed'],
         ['name' => 'source', 'label' => 'Source', 'type' => 'select', 'required' => true, 'col' => 4, 'default' => 'walk_in', 'options' => admission_sources()],
         ['name' => 'priority', 'label' => 'Priority', 'type' => 'select', 'required' => true, 'col' => 4, 'default' => 'medium', 'options' => ['high' => 'High', 'medium' => 'Medium', 'low' => 'Low']],
@@ -142,11 +143,12 @@ return [
             }
             $n = db_exec('UPDATE enquiries SET assigned_to = ? WHERE id IN (' . implode(',', array_map('intval', $ids)) . ')', [$uid ?: null]);
             $who = $uid ? (string) db_value('SELECT name FROM users WHERE id = ?', [$uid]) : 'nobody';
-            log_activity('update', 'enquiries', implode(',', array_slice($ids, 0, 20)), sprintf('Assigned %d enquiries to %s', count($ids), $who));
+            log_activity('update', 'enquiries', implode(',', array_slice($ids, 0, 20)), $uid ? sprintf('Assigned %d enquiries to %s', count($ids), $who) : sprintf('Removed the counsellor from %d enquiries', count($ids)));
             if ($uid && $uid !== (int) user_id()) {
                 notify($uid, 'enquiry', count($ids) . ' enquiries assigned to you', 'Open the enquiries list to follow up.', 'admin/enquiries?f.assigned_to=' . $uid, 'message-circle');
             }
-            return ['updated' => $n, 'message' => sprintf('%d enquir%s assigned to %s.', count($ids), count($ids) === 1 ? 'y' : 'ies', $who)];
+            $label = sprintf('%d enquir%s', count($ids), count($ids) === 1 ? 'y' : 'ies');
+            return ['updated' => $n, 'message' => $uid ? sprintf('%s assigned to %s.', $label, $who) : $label . ' unassigned.'];
         },
         'describe' => fn (array $row) => '"' . ($row['name'] ?? '') . '" (' . ($row['phone'] ?? '') . ')',
     ],

@@ -41,7 +41,8 @@ return function (array $opts): void {
         ["$y1-09-14", null, 'holiday', 'Ganesh Chaturthi', 'Restricted holiday observed by the institute.'],
         ["$y1-09-25", "$y1-09-26", 'event', 'Techno-Vision ' . $y1 . ' (Annual Tech Fest)', 'Classes run as per timetable; participants are marked on duty leave.'],
         ["$y1-10-02", null, 'holiday', 'Gandhi Jayanti', 'National holiday.'],
-        ["$y1-10-12", "$y1-10-17", 'exam_break', 'Mid-Semester Examinations', 'Regular classes suspended during mid-semester examinations.'],
+        // Mid-term examinations are scheduled program-wise by the Examination module (classes continue for other
+        // programs), so they are not an institute-wide exam break here.
         ["$y1-10-20", null, 'holiday', 'Dussehra (Vijayadashami)', 'Gazetted holiday.'],
         ["$y1-11-07", "$y1-11-11", 'vacation', 'Diwali Break', 'Deepawali, Govardhan Puja and Bhai Dooj.'],
         ["$y1-11-24", null, 'holiday', 'Guru Nanak Jayanti', 'Gazetted holiday.'],

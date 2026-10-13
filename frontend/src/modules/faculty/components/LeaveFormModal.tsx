@@ -41,12 +41,15 @@ export function LeaveFormModal({ open, onClose, leaveId, preset, onSaved }: Prop
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  /** The application being edited, as stored (its own pending days must not count twice in the balance preview). */
+  const [orig, setOrig] = useState<{ leave_type: string; days: number; status: string } | null>(null);
   const { data: typesData } = useApi<{ rows: LeaveType[] }>(['leave-types'], 'leaves/types', undefined, { enabled: open, staleTime: 60_000 });
 
   useEffect(() => {
     if (!open) return;
     setErrors({});
     setFormError(null);
+    setOrig(null);
     if (leaveId) {
       setLoading(true);
       api
@@ -57,6 +60,7 @@ export function LeaveFormModal({ open, onClose, leaveId, preset, onSaved }: Prop
             employee_ref: String(l.employee_ref), leave_type: String(l.leave_type), from_date: String(l.from_date), to_date: String(l.to_date),
             is_half_day: Number(l.is_half_day) === 1, reason: String(l.reason ?? ''),
           });
+          setOrig({ leave_type: String(l.leave_type), days: Number(l.days) || 0, status: String(l.status) });
           if (d.employee) setInitialLabel([{ value: String(l.employee_ref), label: `${d.employee.name} (${d.employee.code})`, sub: d.employee.designation }]);
         })
         .catch((e: ApiError) => setFormError(e.message))
@@ -129,7 +133,8 @@ export function LeaveFormModal({ open, onClose, leaveId, preset, onSaved }: Prop
       const res = leaveId
         ? await api.post(`crud/employee_leaves/${leaveId}`, body)
         : await api.post('crud/employee_leaves', { ...body, employee_ref: values.employee_ref });
-      toast.success(leaveId ? 'Leave application updated.' : res.message || 'Leave application submitted for approval.');
+      const days = (res.data as { row?: { days?: number } } | null)?.row?.days ?? preview?.days;
+      toast.success(leaveId ? 'Leave application updated.' : `Leave application submitted for approval${days ? ` (${daysLabel(days)})` : ''}.`);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['crud', 'employee_leaves'] }),
         qc.invalidateQueries({ queryKey: ['leaves-summary'] }),
@@ -153,7 +158,8 @@ export function LeaveFormModal({ open, onClose, leaveId, preset, onSaved }: Prop
 
   const single = values.from_date && values.from_date === values.to_date;
   const bal = preview?.balance;
-  const after = bal && !bal.unlimited && bal.available !== null ? bal.available - bal.pending - (preview?.days ?? 0) : null;
+  const ownPending = orig && orig.status === 'pending' && orig.leave_type === values.leave_type ? orig.days : 0;
+  const after = bal && !bal.unlimited && bal.available !== null ? bal.available - Math.max(0, bal.pending - ownPending) - (preview?.days ?? 0) : null;
 
   return (
     <Modal
@@ -246,7 +252,7 @@ export function LeaveFormModal({ open, onClose, leaveId, preset, onSaved }: Prop
                         {after !== null ? `${after < 0 ? 0 : after} left after this` : '—'}
                       </p>
                       <p className="text-slate-500">
-                        {bal.used} used · {bal.pending} pending · {bal.quota} / session
+                        {bal.used} used · {Math.max(0, bal.pending - ownPending)} other pending · {bal.quota} / session
                       </p>
                     </>
                   )}

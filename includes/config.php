@@ -12,6 +12,7 @@
  * site_assets_head()/site_assets_footer() below, includes/components.php and docs/WEBSITE.md).
  */
 require_once __DIR__ . '/../app/init.php';
+require_once __DIR__ . '/errors.php';   // branded 500 page + logging for public pages (production)
 require_once __DIR__ . '/../app/auth.php';     // starts the session (CSRF for public forms); no login required
 require_once __DIR__ . '/components.php';      // reusable website render helpers (program_card, feature_tile, cta_band …)
 
@@ -147,6 +148,215 @@ function social_links(): array
         }
     }
     return $out;
+}
+
+/* ------------------------------------------------------------------ Design v2 data helpers (DB first, graceful fallbacks) */
+
+/**
+ * Active website programs with their department (cached per request), ordered like the admin sort order.
+ * Each row = programs.* + department_name, department_code, department_label (name without "Department of"),
+ * dept_index (0-5, stable per department → pastel colour .dept-N).
+ */
+function site_programs(): array
+{
+    static $rows = null;
+    if ($rows !== null) {
+        return $rows;
+    }
+    $rows = [];
+    try {
+        $rows = db_all("SELECT p.*, d.name AS department_name, d.code AS department_code FROM programs p LEFT JOIN departments d ON d.id = p.department_id
+                        WHERE p.status = 'active' AND p.show_on_website = 1 ORDER BY p.sort_order, p.name");
+    } catch (Throwable $e) {
+        $rows = [];
+    }
+    $deptIds = array_values(array_unique(array_map(fn ($p) => (int) ($p['department_id'] ?? 0), $rows)));
+    foreach ($rows as &$p) {
+        $p['department_label'] = site_department_label((string) ($p['department_name'] ?? ''));
+        $p['dept_index'] = max(0, (int) array_search((int) ($p['department_id'] ?? 0), $deptIds, true)) % 6;
+    }
+    unset($p);
+    return $rows;
+}
+
+/** "Department of Management Studies" → "Management Studies"; "School of X" stays. */
+function site_department_label(string $name): string
+{
+    return trim((string) preg_replace('/^Department of\s+/i', '', $name));
+}
+
+/** Departments that have website programs: [['id', 'name', 'label', 'index', 'count'], …] in program order. */
+function site_program_departments(): array
+{
+    $out = [];
+    foreach (site_programs() as $p) {
+        $id = (int) ($p['department_id'] ?? 0);
+        if (!$id) {
+            continue;
+        }
+        $out[$id] ??= ['id' => $id, 'name' => (string) $p['department_name'], 'label' => $p['department_label'], 'index' => $p['dept_index'], 'count' => 0];
+        $out[$id]['count']++;
+    }
+    return array_values($out);
+}
+
+/** Program levels present on the website (key => label) in a fixed order. */
+function site_program_levels(): array
+{
+    $present = array_unique(array_map(fn ($p) => (string) ($p['level'] ?? ''), site_programs()));
+    $map = ['UG' => 'Undergraduate', 'PG' => 'Postgraduate', 'PhD' => 'Doctoral', 'Diploma' => 'Diploma', 'Certificate' => 'Certificate'];
+    return array_filter($map, fn ($k) => in_array($k, $present, true), ARRAY_FILTER_USE_KEY);
+}
+
+/** Specialisations (courses) per program id: [program_id => [course rows]] — empty when the table is unavailable. */
+function site_program_courses(): array
+{
+    static $map = null;
+    if ($map !== null) {
+        return $map;
+    }
+    $map = [];
+    try {
+        foreach (db_all("SELECT id, program_id, name FROM courses WHERE status = 'active' ORDER BY program_id, name") as $c) {
+            $map[(int) $c['program_id']][] = $c;
+        }
+    } catch (Throwable $e) {
+    }
+    return $map;
+}
+
+/** tel: href for a display phone number. */
+function site_tel(string $phone): string
+{
+    return 'tel:' . preg_replace('/[^0-9+]/', '', $phone);
+}
+
+/** wa.me link for the configured WhatsApp number (setting whatsapp_number) or null. */
+function site_whatsapp_url(string $text = 'Hello GIMT, I would like to know more about admissions.'): ?string
+{
+    $n = preg_replace('/\D/', '', (string) setting('whatsapp_number', ''));
+    return $n !== '' ? 'https://wa.me/' . $n . '?text=' . rawurlencode($text) : null;
+}
+
+/**
+ * Approvals / affiliations shown as generic emblems (no real logos). Source: setting `approvals_list` (JSON array of
+ * {label, title, icon}) → else the `affiliation` setting split on "•", "|" or "," → else empty.
+ * icon = emblem name (seal|laurel|shield|pillars|globe|book|medal) rendered by emblem().
+ */
+function site_approvals(): array
+{
+    static $list = null;
+    if ($list !== null) {
+        return $list;
+    }
+    $list = [];
+    $json = json_decode((string) setting('approvals_list', ''), true);
+    if (is_array($json)) {
+        foreach ($json as $i => $a) {
+            $title = trim((string) ($a['title'] ?? $a['label'] ?? ''));
+            if ($title !== '') {
+                $list[] = ['label' => trim((string) ($a['label'] ?? $title)), 'title' => $title, 'text' => trim((string) ($a['text'] ?? '')), 'icon' => (string) ($a['icon'] ?? ['seal', 'pillars', 'shield', 'laurel', 'globe', 'book'][$i % 6])];
+            }
+        }
+    }
+    if (!$list) {
+        $parts = preg_split('/\s*[•|,·]\s*|\s+\?\s+/u', (string) setting('affiliation', '')) ?: [];
+        foreach (array_values(array_filter(array_map('trim', $parts))) as $i => $title) {
+            $list[] = ['label' => $title, 'title' => $title, 'text' => '', 'icon' => ['pillars', 'seal', 'shield', 'laurel', 'globe', 'book'][$i % 6]];
+        }
+    }
+    return $list;
+}
+
+/**
+ * Real application deadline: setting `admissions_deadline` (Y-m-d or Y-m-d H:i), else the admissions page's
+ * `admission_last_date` (end of that day). Returns a timestamp or null when unset/invalid/past.
+ */
+function site_admissions_deadline(): ?int
+{
+    foreach (['admissions_deadline', 'admission_last_date'] as $key) {
+        $v = trim((string) setting($key, ''));
+        if ($v === '' || !($ts = strtotime($v))) {
+            continue;
+        }
+        if (!preg_match('/\d{1,2}:\d{2}/', $v)) {
+            $ts = strtotime(date('Y-m-d 23:59:59', $ts));
+        }
+        return $ts > time() ? $ts : null;
+    }
+    return null;
+}
+
+/**
+ * Real seats-filled percentage for the current admission session: confirmed admissions (or converted to students) vs
+ * the summed intake capacity of active website programs. null when it cannot be computed (no session/intake data),
+ * or when setting landing_show_seats = 0.
+ */
+function site_seats_filled(): ?int
+{
+    static $pct = false;
+    if ($pct !== false) {
+        return $pct;
+    }
+    $pct = null;
+    if (setting('landing_show_seats', '1') !== '1') {
+        return $pct;
+    }
+    try {
+        $session = db_row("SELECT id FROM academic_sessions WHERE admissions_open = 1 ORDER BY is_current DESC, start_date DESC LIMIT 1")
+            ?: db_row('SELECT id FROM academic_sessions WHERE is_current = 1 LIMIT 1');
+        $intake = (int) db_value("SELECT COALESCE(SUM(intake_capacity), 0) FROM programs WHERE status = 'active' AND show_on_website = 1");
+        if ($session && $intake > 0) {
+            $filled = (int) db_value("SELECT COUNT(*) FROM admissions WHERE academic_session_id = ? AND (stage = 'confirmed' OR student_id IS NOT NULL)", [(int) $session['id']]);
+            $pct = (int) max(0, min(100, round($filled * 100 / $intake)));
+        }
+    } catch (Throwable $e) {
+        $pct = null;
+    }
+    return $pct;
+}
+
+/** Highest active merit/sports/general scholarship percentage (for "Scholarships up to X%") or null. */
+function site_max_scholarship(): ?int
+{
+    try {
+        $v = db_value("SELECT MAX(value) FROM scholarships WHERE status = 'active' AND type = 'percentage' AND category IN ('merit','sports','scholarship')");
+        return $v !== null && (float) $v > 0 ? (int) round((float) $v) : null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/**
+ * Announcement strip items (plain text + optional link): announcements of type "topbar" (falls back to "ticker"),
+ * else setting announcement_strip_text ("A | B | C"), else the admissions-open line.
+ * @return array<int, array{text: string, url: ?string}>
+ */
+function site_announcement_items(?string $override = null): array
+{
+    $items = [];
+    if ($override !== null && trim($override) !== '') {
+        foreach (preg_split('/\s*\|\s*/', trim($override)) as $t) {
+            if ($t !== '') {
+                $items[] = ['text' => $t, 'url' => null];
+            }
+        }
+        return $items;
+    }
+    foreach (site_announcements('topbar') ?: site_announcements('ticker') as $a) {
+        $items[] = ['text' => (string) $a['title'], 'url' => !empty($a['link']) ? cms_link($a['link']) : null];
+    }
+    if (!$items) {
+        foreach (preg_split('/\s*\|\s*/', (string) setting('announcement_strip_text', '')) as $t) {
+            if (trim($t) !== '') {
+                $items[] = ['text' => trim($t), 'url' => null];
+            }
+        }
+    }
+    if (!$items) {
+        $items[] = ['text' => (string) setting('admissions_open_text', 'Admissions Open for 2026-27'), 'url' => site_url('admissions')];
+    }
+    return array_slice($items, 0, 8);
 }
 
 /* ------------------------------------------------------------------ Website bundle: React islands + TS enhancements */
@@ -302,15 +512,21 @@ function island(string $name, array $props = [], string $fallback = '', array $a
     return $html . '>' . $fallback . '</' . $tag . '>';
 }
 
+
 /* ------------------------------------------------------------------ Layout */
 
 /**
- * Output <head>, top bar and header.
+ * Output <head>, announcement strip and the floating header (Design v2).
  * $page keys: title, description, active (nav key or URL path), image (OG), seo => [type, id] or ['route', '/path'],
  *             canonical, robots, schema (array JSON-LD), body_class, transparent_header (bool),
  *             cursor (bool, custom cursor ring — default setting site_cursor = 1), motion (false = no entrance
  *             animations on this page), loader (false = never show the first-visit loading screen), preload (array of
- *             image URLs to <link rel=preload as=image>, e.g. the LCP hero image)
+ *             image URLs — or ['href' => url, 'media' => '(min-width: 1280px)'] — to <link rel=preload as=image>,
+ *             e.g. the LCP hero image),
+ *             header ('full' default | 'minimal' = logo · phone · Apply Now, for campaign landing pages),
+ *             header_cta (['label', 'url'] overrides the Apply Now button), announce (bool — thin announcement
+ *             marquee above the header; default setting show_topbar = 1 — or a "A | B | C" string of items),
+ *             chat (bool — floating WhatsApp "Chat" tab + round call button; default on when whatsapp_number is set)
  */
 function site_header(array $page = []): void
 {
@@ -318,6 +534,14 @@ function site_header(array $page = []): void
     include __DIR__ . '/header.php';
 }
 
+/**
+ * Close <main>, render the CTA band + footer + floating helpers and the bundle scripts.
+ * $opts: cta (bool, default true), cta_title, cta_text, cta_primary [label,url], cta_secondary [label,url,icon],
+ *        cta_image, cta_highlight (word of cta_title to circle), footer ('full' default | 'minimal' = copyright bar for
+ *        campaign pages), directory (bool, default true — expandable "All Programs" directory in the footer card),
+ *        mobile_cta (bool | ['call' => phone, 'apply' => ['label', 'url']] — sticky Call · Apply bar on phones;
+ *        default setting site_mobile_cta = 1, off on /apply)
+ */
 function site_footer(array $opts = []): void
 {
     $GLOBALS['__site_footer'] = $opts;
@@ -325,84 +549,228 @@ function site_footer(array $opts = []): void
 }
 
 /**
- * Inner page hero banner with breadcrumbs (About, Programs, Contact ... style).
+ * Inner page hero with breadcrumbs (About, Programs, Contact … style). Design v3 variants:
+ *   light (default, setting page_hero_variant): warm mesh + faint navy grid, bold Plus Jakarta headline revealed line by
+ *         line (text mask) with a hand-drawn orange-red ellipse around one word, layered photo composition on the right
+ *         (arch-cut main photo with a clip-path reveal, inset secondary photo, gradient ring, glass badge, morphing blob,
+ *         floating geometric shapes);
+ *   dark:  navy mesh band with a grid, same composition in white;
+ *   photo: legacy full-bleed photo with a navy overlay (glass chips).
  *
  *   page_hero('Academic Programs', 'Future-Ready Programs for a Brighter Tomorrow', ['Programs'],
  *       'assets/images/site/students-laptop.jpg', 'Explore our wide range of …',
  *       [['icon' => 'briefcase-business', 'label' => 'Industry Relevant Curriculum'], …],
- *       ['script' => 'Learn Grow Innovate Succeed', 'actions' => button_link('Apply Now', '/apply', 'accent')]);
+ *       ['script' => 'Learn Grow Innovate Succeed', 'actions' => button_link('Apply Now', '/apply', 'accent'),
+ *        'highlight' => 'Programs']);
  *
  * $breadcrumbs: ['Label' => '/url', 'Current page'] (string keys = links, numeric = current page).
- * $features:    [['icon' => lucide name, 'label' => text], …] shown as glass chips.
- * $opts (all optional): parallax (bool, default true — image drifts on scroll, desktop only), pattern (bool,
- *       default true — animated dot pattern), glass (bool, default true — glass feature chips), eyebrow (string),
- *       script (string — decorative handwritten-style words on the right; use spaces between words), actions
- *       (HTML buttons), size ('md'|'lg'), align ('left'|'center'), id (section id), image_alt (string).
+ * $features:    [['icon' => lucide name, 'label' => text], …] shown as pill chips.
+ * $image:       '' = no photo (text only).
+ * $opts (all optional): variant (light|dark|photo), highlight (word/phrase of $title to circle; default the last word
+ *       of 3+ letters; false = none), parallax (bool, default true — photo drifts inside its frame, desktop only),
+ *       pattern (bool, default true), glass (bool, photo variant chips), eyebrow (string), eyebrow_icon (lucide name),
+ *       script (string — sticker tag on the photo, e.g. "Learn Grow Succeed"), actions (HTML buttons), size
+ *       ('md'|'lg'), align ('left'|'center'), id (section id), image_alt (string), image2 (inset secondary photo path;
+ *       default a different campus photo; false = none), badge (['icon', 'text'] glass badge on the photo; default the
+ *       admissions_open_text setting; false = none).
  */
 function page_hero(string $title, string $subtitle = '', array $breadcrumbs = [], string $image = 'assets/images/site/campus-building.jpg', string $text = '', array $features = [], array $opts = []): void
 {
-    $img = site_image($image);
-    $parallax = $opts['parallax'] ?? true;
-    $pattern = $opts['pattern'] ?? true;
-    $glass = $opts['glass'] ?? true;
+    $variant = $opts['variant'] ?? (string) setting('page_hero_variant', 'light');
+    $variant = in_array($variant, ['light', 'dark', 'photo'], true) ? $variant : 'light';
     $center = ($opts['align'] ?? 'left') === 'center';
-    $pad = ($opts['size'] ?? 'md') === 'lg' ? 'py-20 sm:py-28 lg:py-32' : 'py-14 sm:py-20';
-    echo '<section class="page-hero"' . (!empty($opts['id']) ? ' id="' . e($opts['id']) . '"' : '') . '>';
-    echo '<div class="page-hero-media"><img src="' . e($img) . '" alt="' . e($opts['image_alt'] ?? '') . '" class="' . ($parallax ? 'parallax-media' : '') . '"'
-        . ($parallax ? ' data-parallax="0.12"' : '') . ' fetchpriority="high" decoding="async"></div>';
-    echo '<div class="absolute inset-0 -z-[1] bg-hero-overlay"></div>';
-    if ($pattern) {
-        echo '<div class="pointer-events-none absolute inset-y-0 left-0 -z-[1] w-2/3 pattern-dots-light pattern-fade animate-pattern-drift opacity-60" aria-hidden="true"></div>';
-        echo '<div class="blob -left-24 -top-24 -z-[1] h-72 w-72 bg-accent-500/20" aria-hidden="true"></div>';
-    }
-    echo '<div class="container-site relative ' . $pad . ($center ? ' text-center' : '') . '">';
-    if ($breadcrumbs) {
-        echo '<nav aria-label="Breadcrumb" class="mb-5 animate-fade-down"><ol class="flex flex-wrap items-center gap-1.5 text-sm text-white/70' . ($center ? ' justify-center' : '') . '">';
-        echo '<li><a href="' . e(site_url('')) . '" class="underline-grow hover:text-white">Home</a></li>';
-        foreach ($breadcrumbs as $label => $url) {
-            echo '<li aria-hidden="true">' . icon('chevron-right', 'h-3.5 w-3.5') . '</li>';
-            echo is_string($label) ? '<li><a class="underline-grow hover:text-white" href="' . e(cms_link($url)) . '">' . e($label) . '</a></li>' : '<li class="font-medium text-white" aria-current="page">' . e($url) . '</li>';
+    $idAttr = !empty($opts['id']) ? ' id="' . e($opts['id']) . '"' : '';
+    $highlight = array_key_exists('highlight', $opts) ? $opts['highlight'] : null;
+    $crumbs = function () use ($breadcrumbs, $center): string {
+        if (!$breadcrumbs) {
+            return '';
         }
-        echo '</ol></nav>';
+        $h = '<nav aria-label="Breadcrumb" class="animate-fade-down"><ol class="page-hero-crumbs' . ($center ? ' justify-center' : '') . '">';
+        $h .= '<li><a href="' . e(site_url('')) . '" class="underline-grow">Home</a></li>';
+        foreach ($breadcrumbs as $label => $url) {
+            $h .= '<li aria-hidden="true">' . icon('chevron-right', 'h-3.5 w-3.5 opacity-60') . '</li>';
+            $h .= is_string($label) ? '<li><a class="underline-grow" href="' . e(cms_link($url)) . '">' . e($label) . '</a></li>' : '<li class="font-medium" aria-current="page">' . e($url) . '</li>';
+        }
+        return $h . '</ol></nav>';
+    };
+    $eyebrow = !empty($opts['eyebrow'])
+        ? '<p class="page-hero-eyebrow animate-fade-up"><span class="page-hero-eyebrow-icon">' . icon($opts['eyebrow_icon'] ?? 'sparkles', 'h-4 w-4') . '</span>' . e($opts['eyebrow']) . '</p>'
+        : '';
+    $chips = function (string $chipClass) use ($features, $center): string {
+        if (!$features) {
+            return '';
+        }
+        $h = '<ul class="mt-8 flex flex-wrap gap-2.5' . ($center ? ' justify-center' : '') . '">';
+        foreach (array_values($features) as $i => $f) {
+            $h .= '<li class="page-hero-chip ' . $chipClass . ' animate-fade-up" style="animation-delay:' . (350 + $i * 90) . 'ms"><span class="page-hero-chip-icon">' . icon($f['icon'] ?? 'check', 'h-4 w-4') . '</span>' . e($f['label'] ?? '') . '</li>';
+        }
+        return $h . '</ul>';
+    };
+
+    if ($variant === 'photo') {
+        $img = site_image($image !== '' ? $image : 'assets/images/site/campus-building.jpg');
+        $parallax = $opts['parallax'] ?? true;
+        $pad = ($opts['size'] ?? 'md') === 'lg' ? 'py-20 sm:py-28 lg:py-32' : 'py-14 sm:py-20';
+        echo '<section class="page-hero page-hero-photo"' . $idAttr . '>';
+        echo '<div class="page-hero-media"><img src="' . e($img) . '" alt="' . e($opts['image_alt'] ?? '') . '" class="' . ($parallax ? 'parallax-media' : '') . '"'
+            . ($parallax ? ' data-parallax="0.12"' : '') . ' fetchpriority="high" decoding="async"></div>';
+        echo '<div class="absolute inset-0 -z-[1] bg-hero-overlay"></div>';
+        if ($opts['pattern'] ?? true) {
+            echo '<div class="pointer-events-none absolute inset-y-0 left-0 -z-[1] w-2/3 pattern-grid-light pattern-fade opacity-70" aria-hidden="true"></div>';
+        }
+        echo '<div class="container-site relative ' . $pad . ($center ? ' text-center' : '') . '">' . $crumbs() . $eyebrow;
+        echo '<h1 class="page-hero-title max-w-3xl animate-fade-up' . ($center ? ' mx-auto' : '') . '">' . scribble_text($title, $highlight, 'light') . '</h1>';
+        if ($subtitle !== '') {
+            echo '<p class="page-hero-subtitle animate-fade-up delay-1">' . e($subtitle) . '</p>';
+        }
+        if ($text !== '') {
+            echo '<p class="page-hero-text animate-fade-up delay-2' . ($center ? ' mx-auto' : '') . '">' . e($text) . '</p>';
+        }
+        if (!empty($opts['actions'])) {
+            echo '<div class="mt-8 flex flex-wrap gap-3 animate-fade-up delay-3' . ($center ? ' justify-center' : '') . '">' . $opts['actions'] . '</div>';
+        }
+        echo $chips(($opts['glass'] ?? true) ? 'glass-light' : '') . '</div>';
+        if (!empty($opts['script'])) {
+            echo '<p class="page-hero-script float-slow" aria-hidden="true">' . implode('<br>', array_map('e', preg_split('/\s+/', trim($opts['script'])))) . '</p>';
+        }
+        echo '</section>';
+        return;
     }
-    if (!empty($opts['eyebrow'])) {
-        echo '<p class="eyebrow mb-3 !text-accent-400 animate-fade-up">' . e($opts['eyebrow']) . '</p>';
+
+    $dark = $variant === 'dark';
+    $img = $image !== '' ? site_image($image) : null;
+    $split = $img && !$center;
+    $parallax = $opts['parallax'] ?? true;
+    $pad = ($opts['size'] ?? 'md') === 'lg' ? 'py-12 sm:py-16 lg:py-24' : 'py-10 sm:py-12 lg:py-16';
+    $backdrop = preg_match('/^(lavender|sky|aqua|sand|cream|blush|pistachio|sun)$/', (string) ($opts['backdrop'] ?? '')) ? $opts['backdrop'] : 'sky';
+    $ink = $dark ? 'text-white/80' : 'text-brand-900';
+    echo '<section class="page-hero page-hero-' . $variant . '"' . $idAttr . '>';
+    if (!$dark && ($opts['pattern'] ?? true)) {
+        echo '<div class="page-hero-paper" aria-hidden="true"></div>';
     }
-    echo '<h1 class="' . ($center ? 'mx-auto ' : '') . 'max-w-3xl font-display text-4xl font-extrabold leading-tight tracking-tight text-white sm:text-5xl lg:text-[3.4rem] animate-fade-up">' . e($title) . '</h1>';
+    echo geo_shapes('hero');
+    echo '<div class="container-site relative grid items-center gap-10 ' . $pad . ($split ? ' lg:grid-cols-12 lg:gap-12' : '') . '">';
+    echo '<div class="' . ($split ? 'lg:col-span-7' : ($center ? 'mx-auto max-w-3xl text-center' : 'max-w-3xl')) . '">' . $crumbs() . $eyebrow;
+    echo '<h1 class="page-hero-title' . ($center ? ' mx-auto' : '') . '" data-text-reveal>' . scribble_text($title, $highlight, $dark ? 'light' : 'orange') . '</h1>';
     if ($subtitle !== '') {
-        echo '<p class="mt-2 font-display text-xl font-bold text-accent-400 sm:text-2xl animate-fade-up delay-1">' . e($subtitle) . '</p>';
+        echo '<p class="page-hero-subtitle animate-fade-up delay-1">' . e($subtitle) . '</p>';
     }
     if ($text !== '') {
-        echo '<p class="mt-4 ' . ($center ? 'mx-auto ' : '') . 'max-w-2xl text-base leading-relaxed text-white/85 sm:text-lg animate-fade-up delay-2">' . e($text) . '</p>';
+        echo '<p class="page-hero-text animate-fade-up delay-2' . ($center ? ' mx-auto' : '') . '">' . e($text) . '</p>';
     }
     if (!empty($opts['actions'])) {
-        echo '<div class="mt-7 flex flex-wrap gap-3 animate-fade-up delay-3' . ($center ? ' justify-center' : '') . '">' . $opts['actions'] . '</div>';
+        echo '<div class="mt-8 flex flex-wrap gap-3 animate-fade-up delay-3' . ($center ? ' justify-center' : '') . '">' . $opts['actions'] . '</div>';
     }
-    if ($features) {
-        echo '<ul class="mt-8 flex flex-wrap gap-3' . ($glass ? '' : ' gap-x-8 gap-y-4') . ($center ? ' justify-center' : '') . '">';
-        foreach (array_values($features) as $i => $f) {
-            $style = ' style="animation-delay:' . (350 + $i * 90) . 'ms"';
-            echo $glass
-                ? '<li class="page-hero-chip glass-light animate-fade-up"' . $style . '><span class="page-hero-chip-icon">' . icon($f['icon'] ?? 'check', 'h-5 w-5') . '</span>' . e($f['label'] ?? '') . '</li>'
-                : '<li class="flex items-center gap-2.5 text-sm font-medium text-white animate-fade-up"' . $style . '><span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-accent-400 ring-1 ring-white/20">' . icon($f['icon'] ?? 'check', 'h-5 w-5') . '</span>' . e($f['label'] ?? '') . '</li>';
+    echo $chips($dark ? 'glass-light' : '') . '</div>';
+    if ($split) {
+        $pool = ['assets/images/site/students-lawn.jpg', 'assets/images/site/facility-library.jpg', 'assets/images/site/campus-main.jpg', 'assets/images/site/facility-labs.jpg'];
+        $inset = $opts['image2'] ?? null;
+        if ($inset === null) {
+            foreach ($pool as $cand) {
+                if (!str_contains($image, basename($cand))) {
+                    $inset = $cand;
+                    break;
+                }
+            }
         }
-        echo '</ul>';
+        $badge = $opts['badge'] ?? ['icon' => 'calendar-check', 'text' => (string) setting('admissions_open_text', 'Admissions Open for 2026-27')];
+        echo '<div class="page-hero-visual lg:col-span-5 lg:pl-6">';
+        echo '<span class="page-hero-ring" aria-hidden="true"></span>';
+        echo blob('-left-16 -top-14 h-[125%] w-[125%]', $dark ? 'navy' : 'flame');
+        echo '<div class="page-hero-frame clip-in"><img src="' . e($img) . '" alt="' . e($opts['image_alt'] ?? '') . '"' . ($parallax ? ' class="parallax-media" data-parallax="0.06"' : '') . ' fetchpriority="high" decoding="async" width="800" height="672"></div>';
+        if ($inset) {
+            echo '<div class="page-hero-inset"' . reveal_attr('zoom-in', 300) . '><img src="' . e(site_image($inset)) . '" alt="" loading="lazy" decoding="async" width="300" height="300"></div>';
+        }
+        if ($badge && !empty($badge['text'])) {
+            echo '<div class="page-hero-badge glass-panel"' . reveal_attr('fade-up', 450) . '><span class="page-hero-badge-icon">' . icon($badge['icon'] ?? 'sparkles', 'h-5 w-5') . '</span><span>' . e($badge['text']) . '</span></div>';
+        }
+        echo '<span class="geo geo-dots -bottom-8 right-6 h-20 w-24" style="--d:1s" aria-hidden="true"></span>';
+        echo '<span class="geo geo-square -right-2 top-[62%] h-3.5 w-3.5" style="--d:2s;--rot:20deg" aria-hidden="true"></span>';
+        if (!empty($opts['script'])) {
+            echo '<span class="absolute -top-4 left-6 z-[3]">' . sticker(implode(' · ', preg_split('/\s+/', trim($opts['script']))), ['color' => 'white', 'rotate' => -6, 'size' => 'sm']) . '</span>';
+        }
+        echo '</div>';
     }
-    echo '</div>';
-    if (!empty($opts['script'])) {
-        echo '<p class="page-hero-script float-slow" aria-hidden="true">' . implode('<br>', array_map('e', preg_split('/\s+/', trim($opts['script'])))) . '</p>';
-    }
-    echo '</section>';
+    echo '</div></section>';
 }
 
-/** Section heading block. */
-function section_heading(string $title, string $lead = '', string $eyebrow = '', string $align = 'left', string $action = ''): string
+/**
+ * Section heading block (bold Plus Jakarta title; optional hand-drawn ellipse around a word, sticker tag, action link).
+ *   echo section_heading('Top Programs', 'Choose from …', 'Academics', 'left', button_link('View all', '/programs', 'outline'),
+ *                        ['highlight' => 'Programs', 'sticker' => ['text' => 'Future ready', 'color' => 'blush']]);
+ * @param array $o highlight (word/phrase of $title to circle), sticker (string | ['text', 'color', 'rotate']),
+ *                 tag (h2|h1|h3, default h2), class (extra wrapper classes), lead_class, scribble ('orange'|'light'|'ink'),
+ *                 reveal (bool, default true — text-mask line reveal of the title)
+ */
+function section_heading(string $title, string $lead = '', string $eyebrow = '', string $align = 'left', string $action = '', array $o = []): string
 {
     $center = $align === 'center';
-    return '<div class="mb-10 flex flex-col gap-4 ' . ($center ? 'items-center text-center' : 'sm:flex-row sm:items-end sm:justify-between') . '">'
-        . '<div class="' . ($center ? 'mx-auto max-w-2xl' : 'max-w-2xl') . '">'
-        . ($eyebrow !== '' ? '<p class="eyebrow mb-2">' . e($eyebrow) . '</p>' : '')
-        . '<h2 class="section-title">' . e($title) . '</h2>'
-        . ($lead !== '' ? '<p class="section-lead ' . ($center ? 'mx-auto' : '') . '">' . e($lead) . '</p>' : '')
+    $tag = in_array($o['tag'] ?? 'h2', ['h1', 'h2', 'h3'], true) ? ($o['tag'] ?? 'h2') : 'h2';
+    $sticker = '';
+    if (!empty($o['sticker'])) {
+        $st = is_array($o['sticker']) ? $o['sticker'] : ['text' => (string) $o['sticker']];
+        $sticker = ' <span class="ml-2 inline-block align-middle">' . sticker((string) ($st['text'] ?? ''), ['color' => $st['color'] ?? 'blush', 'rotate' => $st['rotate'] ?? -12, 'size' => 'sm']) . '</span>';
+    }
+    $titleHtml = !empty($o['highlight']) ? scribble_text($title, (string) $o['highlight'], $o['scribble'] ?? 'orange') : e($title);
+    return '<div class="mb-10 flex flex-col gap-5 ' . ($center ? 'items-center text-center' : 'sm:flex-row sm:items-end sm:justify-between') . (!empty($o['class']) ? ' ' . e($o['class']) : '') . '">'
+        . '<div class="' . ($center ? 'mx-auto max-w-3xl' : 'max-w-3xl') . '">'
+        . ($eyebrow !== '' ? '<p class="eyebrow mb-3">' . e($eyebrow) . '</p>' : '')
+        . '<' . $tag . ' class="section-title"' . (($o['reveal'] ?? true) ? ' data-text-reveal' : '') . '>' . $titleHtml . $sticker . '</' . $tag . '>'
+        . ($lead !== '' ? '<p class="section-lead' . ($center ? ' mx-auto' : '') . (!empty($o['lead_class']) ? ' ' . e($o['lead_class']) : '') . '">' . e($lead) . '</p>' : '')
         . '</div>' . ($action !== '' && !$center ? '<div class="shrink-0">' . $action . '</div>' : '') . '</div>';
+}
+
+/* ------------------------------------------------------------------ Colour map: program levels, departments, tags */
+
+/**
+ * Single source of the website's accent colour coding (Design v3: navy + orange-red base, these hues as accents only).
+ * Keys map to CSS classes `.hue-{key}` (assets/css/src/style.css: --hue strong colour ≥ 4.5:1 on white and with white
+ * text, --tint pastel background, --ink dark text ≥ 7:1 on the tint) and to frontend/site/lib/hues.ts for islands.
+ *   levels:      UG = ug (sky) · PG/PhD = pg (violet) · Diploma = diploma (teal) · Certificate = cert (amber)
+ *   departments: by departments.code — MGT = mgt (orange-red) · CSE = tech (blue) · DCA = ca (purple) · COM = com
+ *                (emerald) · SCI = sci (cyan) · PSD = skill (rose); unknown codes fall back to the program category, then other (indigo)
+ *   tags:        popular (yellow) · featured (orange-red tint)
+ */
+function site_hues(): array
+{
+    return [
+        'levels' => ['UG' => 'ug', 'PG' => 'pg', 'PhD' => 'pg', 'Diploma' => 'diploma', 'Certificate' => 'cert'],
+        'departments' => ['MGT' => 'mgt', 'CSE' => 'tech', 'DCA' => 'ca', 'COM' => 'com', 'SCI' => 'sci', 'PSD' => 'skill'],
+        'categories' => ['management' => 'mgt', 'technology' => 'tech', 'computer-applications' => 'ca', 'commerce' => 'com', 'science' => 'sci', 'diploma' => 'skill', 'certificate' => 'skill'],
+    ];
+}
+
+/** CSS hue class for a program level code ('UG' → 'hue-ug'). */
+function level_hue(?string $level): string
+{
+    return 'hue-' . (site_hues()['levels'][(string) $level] ?? 'other');
+}
+
+/** CSS hue class for a program's department (by department code, then category). */
+function dept_hue(array $p): string
+{
+    $h = site_hues();
+    $code = strtoupper((string) ($p['department_code'] ?? ''));
+    if ($code === '' && isset($p['department_id'])) {
+        foreach (site_programs() as $sp) {
+            if ((int) $sp['department_id'] === (int) $p['department_id']) {
+                $code = strtoupper((string) $sp['department_code']);
+                break;
+            }
+        }
+    }
+    return 'hue-' . ($h['departments'][$code] ?? $h['categories'][slugify((string) ($p['category'] ?? ''))] ?? 'other');
+}
+
+/** Real tags of a program from DB flags (omitted when there is no data): [['key' => 'popular', 'label' => 'Most Popular'], …]. */
+function program_tags(array $p): array
+{
+    $tags = [];
+    if (!empty($p['is_popular'])) {
+        $tags[] = ['key' => 'popular', 'label' => 'Most Popular'];
+    }
+    if (!empty($p['is_featured'])) {
+        $tags[] = ['key' => 'featured', 'label' => 'Featured'];
+    }
+    return $tags;
 }

@@ -108,7 +108,11 @@ print_layout_start($t['title'], true, 'landscape');
   <p class="mt-2 text-[10px] text-slate-500"><?= e($t['legend']) ?></p>
 <?php endif; ?>
 <p class="mt-1 text-[10px] text-slate-500">
-  Attendance % = (present<?= att_late_counts() ? ' + late' : '' ?><?= $report === 'employees' ? ' + ½ half days' : '' ?>) ÷ classes marked × 100. Minimum required attendance: <?= e((string) att_min_percent()) ?>%.
+  <?php if ($report === 'employees'): ?>
+    Attendance % = (present<?= att_late_counts() ? ' + late' : '' ?> + ½ half days) ÷ working days marked, excluding approved leave × 100.
+  <?php else: ?>
+    Attendance % = (present<?= att_late_counts() ? ' + late' : '' ?>) ÷ classes marked × 100. Minimum required attendance: <?= e((string) att_min_percent()) ?>%.
+  <?php endif; ?>
 </p>
 
 <div class="mt-12 grid grid-cols-3 gap-10 text-center text-xs text-slate-600">

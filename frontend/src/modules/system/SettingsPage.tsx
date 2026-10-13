@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { useQueryClient } from '@tanstack/react-query';
@@ -76,6 +76,16 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState<string | null>(null);
 
   const tab = params.get('tab') ?? 'general';
+  // Phones/tablets: keep the active section pill in view (e.g. /settings?tab=social deep links).
+  const pillsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const list = pillsRef.current;
+    const active = list?.querySelector<HTMLElement>('[aria-current=page]');
+    if (!list || !active || list.scrollWidth <= list.clientWidth) return;
+    const l = list.getBoundingClientRect();
+    const a = active.getBoundingClientRect();
+    list.scrollLeft += a.left - l.left - (l.width - a.width) / 2;
+  }, [tab, data]);
   const group = data?.groups.find((g) => g.key === tab) ?? data?.groups[0];
   const readOnly = !data?.can_edit;
   const val = (g: SettingGroup, k: string) => drafts[k] ?? g.values[k] ?? '';
@@ -153,7 +163,7 @@ export default function SettingsPage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
           {/* Section navigation */}
           <nav aria-label="Settings sections" className="lg:sticky lg:top-20 lg:h-fit">
-            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none sm:mx-0 sm:px-0 lg:hidden">
+            <div ref={pillsRef} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none sm:mx-0 sm:px-0 lg:hidden">
               {(data?.groups ?? []).map((g) => {
                 const Icon = icons[g.icon] ?? Building2;
                 return (
@@ -340,7 +350,10 @@ function SessionBlock({ data, readOnly, onChanged }: { data: Payload; readOnly: 
   const [busy, setBusy] = useState(false);
   const current = data.sessions.find((s) => s.id === data.current_session_id) ?? null;
   const chosen = data.sessions.find((s) => String(s.id) === sel) ?? null;
+  const confirm = useConfirm();
   const apply = async () => {
+    if (!chosen) return;
+    if (!(await confirm({ title: `Make ${chosen.name} the current session?`, message: 'Fees, attendance, examinations, dashboards and reports will default to this session for every user.', confirmText: 'Make current' }))) return;
     setBusy(true);
     try {
       const res = await api.post('settings/academic-session', { id: Number(sel) });
@@ -353,37 +366,45 @@ function SessionBlock({ data, readOnly, onChanged }: { data: Payload; readOnly: 
     }
   };
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto] md:items-end">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] md:items-end">
         <Field label="Current academic session" htmlFor="s-session">
           <Select id="s-session" value={sel} onChange={(e) => setSel(e.target.value)} options={data.sessions.map((s) => ({ value: String(s.id), label: `${s.name}${s.is_current ? ' (current)' : ''}` }))} disabled={readOnly} />
         </Field>
-        <div className="rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm dark:border-slate-700">
+        <div className="flex min-h-[42px] min-w-0 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2 text-sm dark:border-slate-700 dark:bg-slate-800/30">
           {chosen ? (
             <>
-              <p className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
-                <CalendarCheck className="h-4 w-4 text-brand-700 dark:text-brand-300" /> {chosen.name}
-                <StatusBadge status={chosen.status} />
-                {chosen.admissions_open && <Badge color="green">Admissions open</Badge>}
-              </p>
-              <p className="mt-0.5 text-xs text-slate-500">
-                {formatDate(chosen.start_date)} – {formatDate(chosen.end_date)}
-              </p>
+              <CalendarCheck className="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300" />
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="whitespace-nowrap font-semibold text-slate-900 dark:text-white">{chosen.name}</span>
+                  <StatusBadge status={chosen.status} />
+                  {chosen.admissions_open && <Badge color="green">Admissions open</Badge>}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {formatDate(chosen.start_date)} – {formatDate(chosen.end_date)}
+                </p>
+              </div>
             </>
           ) : (
             <p className="text-slate-500">No sessions defined yet.</p>
           )}
         </div>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {!readOnly && (
-          <Button variant="success" icon={CheckCircle2} onClick={apply} loading={busy} disabled={!sel || String(current?.id ?? '') === sel}>
-            Make current
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="min-w-0 text-xs text-slate-500">
+          {current ? `${current.name} drives fees, attendance, exams and reports.` : 'No session is marked current yet.'} Switching it affects every user.
+        </p>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {!readOnly && (
+            <Button size="sm" variant="success" icon={CheckCircle2} onClick={apply} loading={busy} disabled={!sel || String(current?.id ?? '') === sel}>
+              Make current
+            </Button>
+          )}
+          <Button size="sm" variant="secondary" iconRight={ArrowRight} to="/academics?tab=sessions">
+            Manage sessions
           </Button>
-        )}
-        <Button variant="secondary" iconRight={ArrowRight} to="/academics?tab=sessions">
-          Manage sessions
-        </Button>
+        </div>
       </div>
     </div>
   );

@@ -1,22 +1,23 @@
 import clsx from 'clsx';
-import { Award, BookCheck, LineChart as LineIcon, ListOrdered, Medal, Trophy, XCircle } from 'lucide-react';
+import { Award, BookCheck, LineChart as LineIcon, ListOrdered, Medal, Printer, Trophy, XCircle } from 'lucide-react';
 import { Badge, Button, Card, CardBody, CardHeader, Reveal, StatusBadge, Stagger, type Column } from '@/components/ui';
 import { LineChart } from '@/components/charts';
 import { useApi } from '@/lib/queries';
 import { formatNumber } from '@/lib/format';
+import { printUrl } from '@/lib/config';
 import type { GpaStats } from '../types';
 import { MiniStat, TabEmpty, TabError, TabLoading, TableCard, type TabProps } from './shared';
 
 interface ResultRow extends Record<string, unknown> {
   id: number; exam_name: string; session_name: string | null; semester_no: number | null; total_marks: string | null; max_marks: string | null; percentage: string | null;
   credits_registered: string | null; credits_earned: string | null; sgpa: string | null; cgpa: string | null; result_status: string; backlog_count: number; class_rank: number | null;
-  division: string | null; is_published: boolean; marksheet_no: string | null;
+  division: string | null; is_published: boolean; marksheet_id: number | null; marksheet_no: string | null; is_final: number | boolean;
 }
 interface MarkRow extends Record<string, unknown> {
   code: string; name: string; credits: string; internal_marks: string | null; external_marks: string | null; practical_marks: string | null; total_marks: string | null; max_marks: string | null;
   grade: string | null; grade_point: string | null; is_absent: number; is_pass: number | null;
 }
-interface ResultsData { results: ResultRow[]; trend: { semester: number; sgpa: number; cgpa: number | null }[]; trend_source: string; latest: ResultRow | null; latest_marks: MarkRow[]; gpa: GpaStats }
+interface ResultsData { results: ResultRow[]; trend: { semester: number; sgpa: number; cgpa: number | null }[]; trend_source: string; latest: ResultRow | null; latest_marks: MarkRow[]; gpa: GpaStats; print_views: Record<string, boolean> }
 
 const n2 = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : Number(v).toFixed(2));
 
@@ -24,7 +25,7 @@ export default function ResultsTab({ studentId }: TabProps) {
   const q = useApi<ResultsData>(['students', studentId, 'results'], `students/${studentId}/results`);
   if (q.isLoading) return <TabLoading />;
   if (q.error) return <TabError error={q.error} onRetry={() => q.refetch()} />;
-  const { results, trend, trend_source: source, latest, latest_marks: marks, gpa } = q.data!;
+  const { results, trend, trend_source: source, latest, latest_marks: marks, gpa, print_views: pv } = q.data!;
   if (!results.length && !trend.length) {
     return <TabEmpty icon={Trophy} title="No results declared yet" description="SGPA, CGPA and subject marks appear after the examination cell publishes results." action={<Button variant="secondary" to="/results">Open results</Button>} />;
   }
@@ -37,6 +38,15 @@ export default function ResultsTab({ studentId }: TabProps) {
     { key: 'cgpa', header: 'CGPA', align: 'right', render: (r) => <span className="font-semibold tabular-nums text-brand-800 dark:text-brand-200">{n2(r.cgpa)}</span> },
     { key: 'result_status', header: 'Result', render: (r) => <div className="flex flex-wrap items-center gap-1"><StatusBadge status={r.result_status} />{r.backlog_count > 0 && <Badge color="red">{r.backlog_count} backlog</Badge>}</div> },
     { key: 'is_published', header: 'Published', render: (r) => (r.is_published ? <Badge color="green">Published</Badge> : <Badge color="amber">Draft</Badge>) },
+    ...(pv.marksheet
+      ? [{ key: 'marksheet', header: '', align: 'right' as const, render: (r: ResultRow) => (r.is_published && r.result_status !== 'WITHHELD' ? (
+          <Button size="xs" variant="secondary" icon={Printer} target="_blank" className="whitespace-nowrap"
+            href={r.marksheet_id ? printUrl('marksheet.php', { id: r.marksheet_id }) : printUrl('marksheet.php', { result_id: r.id })}
+            title={r.marksheet_no ? `Marksheet ${r.marksheet_no}` : 'Provisional statement of marks'}>
+            {r.marksheet_id ? 'Marksheet' : 'Statement'}
+          </Button>
+        ) : null) }]
+      : []),
   ];
   const markCols: Column<MarkRow>[] = [
     { key: 'name', header: 'Subject', render: (r) => <span><span className="mr-1.5 font-mono text-xs text-slate-500">{r.code}</span>{r.name}</span> },
@@ -63,7 +73,7 @@ export default function ResultsTab({ studentId }: TabProps) {
           <CardBody>
             {trend.length ? (
               <LineChart height={260} labels={trend.map((t) => `Sem ${t.semester}`)} series={[
-                { label: 'SGPA', data: trend.map((t) => t.sgpa), color: '#1D4ED8', fill: true },
+                { label: 'SGPA', data: trend.map((t) => t.sgpa), color: '#1D4ED8' },
                 { label: 'CGPA', data: trend.map((t) => t.cgpa ?? 0), color: '#22943F', dashed: true },
               ]} />
             ) : (

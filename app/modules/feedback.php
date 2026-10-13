@@ -115,13 +115,19 @@ return [
             if ($uid && !db_value("SELECT COUNT(*) FROM users WHERE id = ? AND status = 'active'", [$uid])) {
                 throw new CrudException('Select a valid staff member.');
             }
-            $n = db_exec('UPDATE feedback SET assigned_to = ? WHERE id IN (' . implode(',', array_map('intval', $ids)) . ')', [$uid ?: null]);
+            $in = implode(',', array_map('intval', $ids));
+            $n = db_exec('UPDATE feedback SET assigned_to = ? WHERE id IN (' . $in . ')', [$uid ?: null]);
+            if ($uid) {
+                // same rule as a single assignment: open tickets move to In Progress
+                db_exec("UPDATE feedback SET status = 'in_progress', started_at = COALESCE(started_at, NOW()) WHERE status = 'open' AND id IN (" . $in . ')');
+            }
             $who = $uid ? (string) db_value('SELECT name FROM users WHERE id = ?', [$uid]) : 'nobody';
             log_activity('update', 'feedback', implode(',', array_slice($ids, 0, 20)), sprintf('Assigned %d tickets to %s', count($ids), $who));
             if ($uid && $uid !== (int) user_id()) {
                 notify($uid, 'feedback', count($ids) . ' tickets assigned to you', 'Open Feedback & Complaints to respond.', 'admin/feedback', 'message-square');
             }
-            return ['updated' => $n, 'message' => sprintf('%d ticket%s assigned to %s.', count($ids), count($ids) === 1 ? '' : 's', $who)];
+            $label = sprintf('%d ticket%s', count($ids), count($ids) === 1 ? '' : 's');
+            return ['updated' => $n, 'message' => $uid ? sprintf('%s assigned to %s.', $label, $who) : $label . ' unassigned.'];
         },
         'transform_row' => function (array $r): array {
             if (!empty($r['is_anonymous'])) {

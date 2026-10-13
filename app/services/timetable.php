@@ -143,7 +143,8 @@ function tt_conflicts(array $e, ?int $excludeId = null): array
     if (!empty($e['classroom_id'])) {
         $clash = db_row(tt_entry_select() . " WHERE $base AND t.classroom_id = ? LIMIT 1", array_merge($args, [(int) $e['classroom_id']]));
         if ($clash) {
-            $errors['classroom_id'] = sprintf('Room clash: %s is already booked for %s (%s, %s) on %s.', $clash['room_code'] . ' ' . $clash['room_name'], $clash['section_label'], $clash['subject_code'], $clash['faculty_name'] ?: 'no faculty', $when);
+            $room = $clash['room_name'] && $clash['room_name'] !== 'Room ' . $clash['room_code'] ? $clash['room_code'] . ' (' . $clash['room_name'] . ')' : 'Room ' . $clash['room_code'];
+            $errors['classroom_id'] = sprintf('Room clash: %s is already booked for %s (%s, %s) on %s.', $room, $clash['section_label'], $clash['subject_code'], $clash['faculty_name'] ?: 'no faculty', $when);
         }
     }
     return $errors;
@@ -203,8 +204,12 @@ function tt_validate_entry(array $in, ?int $id = null, ?array $old = null): arra
     } elseif ((int) $section['academic_session_id'] && (int) $section['academic_session_id'] !== $d['academic_session_id']) {
         $errors['section_id'] = $section['label'] . ' belongs to session ' . $section['session_name'] . '. Pick a section of the selected session.';
     }
+    $lastDay = count(tt_days());
     if ($d['day_of_week'] < 1 || $d['day_of_week'] > 7) {
         $errors['day_of_week'] = 'Select a valid day.';
+    } elseif ($d['day_of_week'] > $lastDay) {
+        // Periods outside the working week would never show in the grid, print or attendance sheets.
+        $errors['day_of_week'] = 'Classes can only be scheduled from Monday to ' . tt_day_name($lastDay) . '.';
     }
     $slot = $d['time_slot_id'] ? db_row('SELECT * FROM time_slots WHERE id = ?', [$d['time_slot_id']]) : null;
     if (!$slot) {
@@ -380,19 +385,30 @@ function tt_copy(int $fromId, int $toId, string $mode = 'replace', ?int $session
     }
     $assign = db_pairs('SELECT subject_id, faculty_id FROM faculty_subjects WHERE section_id = ? AND (academic_session_id = ? OR academic_session_id IS NULL) ORDER BY is_primary DESC', [$toId, $sid]);
     $report = ['copied' => 0, 'skipped' => 0, 'without_faculty' => 0, 'without_room' => 0, 'notes' => []];
-    db_transaction(function () use ($source, $to, $toId, $sid, $mode, $assign, &$report) {
+    // Merge only tops a subject up to the number of periods it has in the source (never over-schedules it).
+    $sourceCount = array_count_values(array_map(fn ($s) => (int) $s['subject_id'], $source));
+    $codes = db_pairs('SELECT id, code FROM subjects WHERE program_id = ? AND semester_no = ?', [(int) $to['program_id'], (int) $to['semester_no']]);
+    db_transaction(function () use ($source, $to, $toId, $sid, $mode, $assign, $sourceCount, $codes, &$report) {
         if ($mode === 'replace') {
             db_exec('DELETE FROM timetables WHERE section_id = ? AND academic_session_id = ?', [$toId, $sid]);
         }
+        $targetCount = array_map('intval', db_pairs('SELECT subject_id, COUNT(*) FROM timetables WHERE section_id = ? AND academic_session_id = ? GROUP BY subject_id', [$toId, $sid]));
         $status = tt_section_status($toId, $sid);
         foreach ($source as $s) {
             $cell = ['academic_session_id' => $sid, 'section_id' => $toId, 'day_of_week' => (int) $s['day_of_week'], 'time_slot_id' => (int) $s['time_slot_id']];
             $when = tt_day_name((int) $s['day_of_week']) . ' ' . db_value('SELECT name FROM time_slots WHERE id = ?', [(int) $s['time_slot_id']]);
+            $subjectId = (int) $s['subject_id'];
             if (tt_conflicts($cell)['section_id'] ?? null) {
                 $report['skipped']++;
                 $report['notes'][] = "$when: target already has a class - skipped.";
                 continue;
             }
+            if (($targetCount[$subjectId] ?? 0) >= ($sourceCount[$subjectId] ?? 0)) {
+                $report['skipped']++;
+                $report['notes'][] = "$when: " . ($codes[$subjectId] ?? 'subject') . ' already has all its periods - skipped.';
+                continue;
+            }
+            $targetCount[$subjectId] = ($targetCount[$subjectId] ?? 0) + 1;
             $faculty = isset($assign[$s['subject_id']]) ? (int) $assign[$s['subject_id']] : ($s['faculty_id'] ? (int) $s['faculty_id'] : null);
             // Lectures move to the target's home room; labs keep the source lab.
             $room = $s['type'] !== 'lab' && $to['classroom_id'] ? (int) $to['classroom_id'] : ($s['classroom_id'] ? (int) $s['classroom_id'] : null);

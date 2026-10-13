@@ -429,6 +429,27 @@ function settings_extra_keys(string $group): array
     return $out;
 }
 
+/**
+ * Field definition for a setting another module stored in one of these groups (no schema entry). The control is
+ * inferred from the key and current value: secrets are masked, 0/1 flags become toggles, JSON / long text a textarea.
+ */
+function settings_extra_field(string $key, $value): array
+{
+    $value = (string) ($value ?? '');
+    $base = ['key' => $key, 'label' => label_from_key($key), 'secret' => false, 'col' => 6, 'rules' => 'max:2000'];
+    if (settings_is_secret_key($key)) {
+        return ['type' => 'password', 'secret' => true] + $base;
+    }
+    if (($value === '0' || $value === '1') && !preg_match('/(days|count|max|min|limit|percent|grace|attempts|backlogs|amount|_no$|number|year)/', $key)) {
+        return ['type' => 'toggle', 'rules' => ''] + $base;
+    }
+    $trim = ltrim($value);
+    if (mb_strlen($value) > 90 || (($trim[0] ?? '') === '[' || ($trim[0] ?? '') === '{')) {
+        return ['type' => 'textarea', 'col' => 12, 'rules' => 'max:20000'] + $base;
+    }
+    return ['type' => 'text'] + $base;
+}
+
 /** Full payload for the settings dashboard (values masked for secrets). */
 function settings_payload(): array
 {
@@ -461,8 +482,10 @@ function settings_payload(): array
         if ($extra) {
             $fields = [];
             foreach ($extra as $k => $v) {
-                $secret = settings_is_secret_key($k);
-                $fields[] = ['key' => $k, 'label' => label_from_key($k), 'type' => $secret ? 'password' : 'text', 'secret' => $secret, 'col' => 6, 'required' => false];
+                $field = settings_extra_field($k, $v);
+                $secret = $field['secret'];
+                unset($field['rules']);
+                $fields[] = $field + ['required' => false];
                 if ($secret) {
                     $secrets[$k] = $v !== '' && $v !== null;
                     $v = '';
@@ -491,8 +514,7 @@ function settings_save_group(string $group, array $input, array $files = []): ar
     }
     $fields = settings_fields($group);
     foreach (settings_extra_keys($group) as $k => $v) {
-        $secret = settings_is_secret_key($k);
-        $fields[$k] = ['key' => $k, 'label' => label_from_key($k), 'type' => $secret ? 'password' : 'text', 'secret' => $secret, 'rules' => 'max:2000', 'group' => $group];
+        $fields[$k] = settings_extra_field($k, $v) + ['group' => $group];
     }
     $errors = [];
     $save = [];

@@ -35,6 +35,7 @@ export default function AdmissionsPipelinePage() {
   const { can } = useAuth();
   const { data, isLoading, error, refetch } = useApi<Dashboard>(['adm-dashboard', sessionId], 'admissions/dashboard', { session_id: sessionId ?? undefined });
   const k = data?.kpis;
+  const programRows = (data?.programs ?? []).filter((p) => p.total > 0);
   const trendDir = k?.new_trend === null || k?.new_trend === undefined ? 'flat' : k.new_trend > 0 ? 'up' : k.new_trend < 0 ? 'down' : 'flat';
 
   return (
@@ -59,13 +60,13 @@ export default function AdmissionsPipelinePage() {
           </Stagger>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-12">
-            <Reveal className="lg:col-span-7">
+            <Reveal className="min-w-0 lg:col-span-7">
               <Card className="h-full">
                 <CardHeader title="Admission funnel" subtitle="Applications that reached each stage this session" icon={ListChecks} />
                 <div className="card-body">{isLoading || !data ? <FunnelSkeleton /> : <Funnel steps={data.funnel} />}</div>
               </Card>
             </Reveal>
-            <Reveal className="lg:col-span-5" delay={80}>
+            <Reveal className="min-w-0 lg:col-span-5" delay={80}>
               <FollowupsDue data={data} loading={isLoading} sessionId={sessionId} />
             </Reveal>
           </div>
@@ -83,7 +84,7 @@ export default function AdmissionsPipelinePage() {
           </Reveal>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-12">
-            <Reveal className="lg:col-span-5">
+            <Reveal className="min-w-0 lg:col-span-5">
               <Card className="h-full">
                 <CardHeader title="Applications by source" subtitle="Where applicants are coming from" />
                 <div className="card-body">
@@ -95,20 +96,14 @@ export default function AdmissionsPipelinePage() {
                 </div>
               </Card>
             </Reveal>
-            <Reveal className="lg:col-span-7" delay={80}>
+            <Reveal className="min-w-0 lg:col-span-7" delay={80}>
               <Card className="h-full">
-                <CardHeader title="Program-wise admissions" subtitle="Applications vs confirmed admissions" />
+                <CardHeader title="Program-wise admissions" subtitle="Applications received and admissions confirmed per program" />
                 <div className="card-body">
-                  {isLoading || !data ? <Skeleton className="h-64 w-full" /> : (
-                    <BarChart
-                      horizontal
-                      height={Math.max(240, data.programs.length * 26)}
-                      labels={data.programs.map((p) => p.program)}
-                      series={[
-                        { label: 'Applications', data: data.programs.map((p) => p.total), color: '#1D4ED8' },
-                        { label: 'Confirmed', data: data.programs.map((p) => p.confirmed), color: '#22943F' },
-                      ]}
-                    />
+                  {isLoading || !data ? <Skeleton className="h-64 w-full" /> : programRows.length === 0 ? (
+                    <EmptyState icon={FilePlus2} title="No applications yet" description="Program-wise numbers appear once applications are received for this session." />
+                  ) : (
+                    <ProgramBars rows={programRows} />
                   )}
                 </div>
               </Card>
@@ -116,7 +111,7 @@ export default function AdmissionsPipelinePage() {
           </div>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-12">
-            <Reveal className="lg:col-span-8">
+            <Reveal className="min-w-0 lg:col-span-8">
               <Card className="h-full">
                 <CardHeader title="Admission trend" subtitle="Applications received vs admissions confirmed (last 8 months)" />
                 <div className="card-body">
@@ -127,7 +122,7 @@ export default function AdmissionsPipelinePage() {
                 </div>
               </Card>
             </Reveal>
-            <Reveal className="lg:col-span-4" delay={80}>
+            <Reveal className="min-w-0 lg:col-span-4" delay={80}>
               <Card className="h-full">
                 <CardHeader title="Counsellor performance" subtitle="Confirmed admissions per counsellor" />
                 <div className="card-body">
@@ -196,6 +191,41 @@ function PageHeaderBlock({ data, canCreate, canEnquiries }: { data?: Dashboard; 
         </>
       }
     />
+  );
+}
+
+/* ------------------------------------------------------------------ Program-wise bars */
+
+/** Every program on its own row (a chart axis would auto-skip labels once there are more than a handful of programs). */
+function ProgramBars({ rows }: { rows: Dashboard['programs'] }) {
+  const max = Math.max(1, ...rows.map((p) => p.total));
+  return (
+    <div>
+      <ul className="space-y-3" aria-label="Applications by program">
+        {rows.map((p) => {
+          const fill = p.intake > 0 ? Math.round((p.confirmed / p.intake) * 100) : null;
+          return (
+            <li key={p.id} className="grid grid-cols-[7.5rem_1fr_auto] items-center gap-3 sm:grid-cols-[9.5rem_1fr_auto]">
+              <Link to={`/admissions/list?f.program_id=${p.id}`} className="truncate text-right text-xs font-medium text-slate-700 hover:text-brand-700 dark:text-slate-200 dark:hover:text-brand-300" title={p.program}>
+                {p.program}
+              </Link>
+              <div className="relative h-5 overflow-hidden rounded-md bg-slate-100 dark:bg-slate-800" role="img" aria-label={`${p.program}: ${p.total} applications, ${p.confirmed} confirmed`}>
+                <div className="absolute inset-y-0 left-0 rounded-md bg-brand-600/85 transition-all duration-500 dark:bg-brand-500/80" style={{ width: `${(p.total / max) * 100}%` }} />
+                <div className="absolute inset-y-0 left-0 rounded-md bg-accent-600 transition-all duration-500" style={{ width: `${(p.confirmed / max) * 100}%` }} />
+              </div>
+              <span className="w-24 text-right text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+                <span className="font-semibold text-slate-800 dark:text-slate-100">{formatNumber(p.total)}</span> · {formatNumber(p.confirmed)} conf.
+                {fill !== null && <span className="block text-[10px] text-slate-400">{fill}% of {formatNumber(p.intake)} seats</span>}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="mt-4 flex items-center justify-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-brand-600" aria-hidden />Applications</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-accent-600" aria-hidden />Confirmed</span>
+      </div>
+    </div>
   );
 }
 

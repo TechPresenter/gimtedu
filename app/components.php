@@ -229,16 +229,21 @@ function activity_timeline(array $rows, string $emptyText = 'No activity yet.'):
     return $html . '</ol>';
 }
 
-/** Standalone A4 print page shell with institute letterhead. Use print_layout_start(...) ... print_layout_end(). */
+/**
+ * Standalone A4 print page shell with institute letterhead. Use print_layout_start(...) ... print_layout_end().
+ * Links assets/css/print.css — the same component library as the website but compiled with the original navy/green
+ * GIMT theme (tailwind.print.config.cjs), so printed documents keep their look while the website uses Design v2.
+ */
 function print_layout_start(string $title, bool $letterhead = true, string $orientation = 'portrait'): void
 {
     $name = institute_name();
+    $css = is_file(APP_ROOT . '/assets/css/print.css') ? 'assets/css/print.css' : 'assets/css/style.css';
     echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
         . '<title>' . e($title) . ' - ' . e($name) . '</title>'
         . '<link rel="icon" href="' . e(asset('assets/images/favicon.svg')) . '">'
-        . '<link rel="stylesheet" href="' . e(asset('assets/css/style.css')) . '">'
+        . '<link rel="stylesheet" href="' . e(asset($css)) . '">'
         . '<style>@page{size:A4 ' . $orientation . ';margin:12mm}body{background:#eef2f7}@media print{body{background:#fff}.no-print{display:none!important}.print-sheet{box-shadow:none!important;margin:0!important;width:auto!important;min-height:0!important;padding:0!important}}</style>'
-        . '</head><body class="font-sans text-slate-800 antialiased">'
+        . '</head><body class="print-doc font-sans text-slate-800 antialiased">'
         . '<div class="no-print sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-200 px-4 py-2 flex items-center justify-between">'
         . '<span class="text-sm font-semibold text-slate-700">' . e($title) . '</span><div class="flex gap-2">'
         . '<button type="button" onclick="history.length>1?history.back():window.close()" class="btn btn-secondary btn-sm">' . icon('arrow-left', 'w-4 h-4') . 'Back</button>'

@@ -116,6 +116,8 @@ export interface Person {
   joining_date: string | null;
   employment_type: string;
   salary: string | number | null;
+  /** 1 when a salary is on record but hidden from the current user (no HR edit right). */
+  salary_restricted?: number;
   bank_name: string | null;
   bank_account: string | null;
   bank_ifsc: string | null;

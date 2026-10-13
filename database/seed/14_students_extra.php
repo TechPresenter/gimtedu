@@ -159,6 +159,14 @@ return function (array $opts): void {
     }
     demo_bulk_insert('student_academic', $history);
     demo_bulk_insert('student_academic', $missingStudying);
+    // Keep the history consistent with published end-semester results when the exams unit has already seeded them
+    // (same rule as exam_sync_student_academic(): published final results win over the generated SGPA/CGPA).
+    db_exec("UPDATE student_academic sa
+             JOIN results r ON r.student_id = sa.student_id AND r.semester_no = sa.semester_no AND r.academic_session_id = sa.academic_session_id
+             JOIN exams e ON e.id = r.exam_id
+             JOIN exam_types et ON et.id = e.exam_type_id
+             SET sa.sgpa = r.sgpa, sa.cgpa = r.cgpa
+             WHERE et.is_final = 1 AND r.is_published = 1 AND r.result_status <> 'WITHHELD' AND r.sgpa IS NOT NULL AND sa.status <> 'studying'");
 
     /* ---------------- Documents (private files) ---------------- */
     // only the seeded demo files are rebuilt; documents uploaded through the UI are kept

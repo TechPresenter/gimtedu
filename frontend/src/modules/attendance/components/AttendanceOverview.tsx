@@ -49,13 +49,13 @@ export function AttendanceOverview({ date, onMark, onDevice }: Props) {
           <StatCard key="pct" label="Present today" icon={Percent} tone="green" loading={loading} value={k?.percent !== null && k?.percent !== undefined ? `${k.percent.toFixed(1)}%` : '—'} hint={k?.session_percent ? `Session average ${k.session_percent.toFixed(1)}%` : 'No classes marked yet'} />,
           <StatCard key="present" label="Students present" icon={UserCheck} tone="blue" loading={loading} value={k?.present ?? 0} hint={k ? `${formatNumber(k.students_marked)} of ${formatNumber(k.students_total)} marked` : ''} />,
           <StatCard key="absent" label="Absent (full day)" icon={UserX} tone="red" loading={loading} value={k?.absent ?? 0} hint={k ? `${formatNumber(k.period_absences)} period absences` : ''} />,
-          <StatCard key="late" label="Late arrivals" icon={Clock3} tone="amber" loading={loading} value={k?.late ?? 0} hint="Late in at least one class" />,
-          <StatCard key="leave" label="On leave" icon={UserMinus} tone="purple" loading={loading} value={k?.leave ?? 0} hint="Approved leave for the day" />,
-          <StatCard key="classes" label={k?.scheduled_source === 'timetable' ? 'Classes marked' : 'Sections marked'} icon={BookOpenCheck} tone="navy" loading={loading} value={scheduledLabel} hint={closed ? d?.day.holiday?.title ?? 'Weekly off' : k ? (k.scheduled_source === 'timetable' ? `${k.sessions_marked} sessions marked in total` : `${k.sessions_marked} class sessions`) : ''} />,
+          <StatCard key="late" label="Late arrivals" icon={Clock3} tone="amber" loading={loading} value={k?.late ?? 0} hint="Late in ≥ 1 class" />,
+          <StatCard key="leave" label="On leave" icon={UserMinus} tone="purple" loading={loading} value={k?.leave ?? 0} hint="Leave for the whole day" />,
+          <StatCard key="classes" label={k?.scheduled_source === 'timetable' ? 'Classes marked' : 'Sections marked'} icon={BookOpenCheck} tone="navy" loading={loading} value={scheduledLabel} hint={closed ? d?.day.holiday?.title ?? 'Weekly off' : k ? (k.scheduled_source === 'timetable' ? `${k.sessions_marked} sessions in all` : `${k.sessions_marked} class sessions`) : ''} />,
         ]}
       </Stagger>
 
-      <div className="grid gap-5 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <Reveal className="xl:col-span-2">
           <Card className="h-full">
             <CardHeader title="Attendance trend" subtitle="Daily student attendance over the last 14 class days" icon={TrendingUp} actions={d && <PercentPill value={d.kpis.session_percent} min={d.min_percent} />} />
@@ -97,7 +97,7 @@ export function AttendanceOverview({ date, onMark, onDevice }: Props) {
         </Reveal>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <Reveal className="xl:col-span-2">
           <Schedule data={d} loading={loading} onMark={onMark} mine={mine ?? false} setMine={isFaculty ? (v) => setMine(v) : undefined} />
         </Reveal>
@@ -133,7 +133,7 @@ export function AttendanceOverview({ date, onMark, onDevice }: Props) {
         </Reveal>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <Reveal className="xl:col-span-2">
           <Card className="h-full">
             <CardHeader title="Recently marked" subtitle="Latest class sessions" icon={BookOpenCheck} actions={<Link to="/attendance?tab=sessions" className="link inline-flex items-center gap-1 text-xs">All sessions <ArrowRight className="h-3 w-3" /></Link>} />

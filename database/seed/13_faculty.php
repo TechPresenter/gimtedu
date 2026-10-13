@@ -152,6 +152,22 @@ return function (array $opts): void {
         db_update('staff', ['status' => 'on_leave'], 'id = ?', [$messId]);
     }
 
+    // New joiners of the current session (shown as "joined this session" and on the profile service timeline).
+    // Dates stay on or before 15 July so the enrichment pass above leaves them untouched on a re-run.
+    $sessionStart = hr_session_window()['start'];
+    $hods = db_column('SELECT hod_faculty_id FROM departments WHERE hod_faculty_id IS NOT NULL');
+    $newFaculty = array_values(array_filter(db_column("SELECT id FROM faculty WHERE status = 'active' AND employment_type <> 'visiting' ORDER BY joining_date DESC, id DESC LIMIT 4"),
+        fn ($id) => !in_array($id, $hods)));
+    $newFaculty = array_map('intval', array_slice($newFaculty, 0, 2));
+    sort($newFaculty);   // stable assignment on re-runs
+    foreach ($newFaculty as $k => $fid) {
+        db_update('faculty', ['joining_date' => min('2026-07-15', date('Y-m-d', strtotime($sessionStart . ' +' . (1 + $k * 8) . ' days'))), 'employment_type' => 'probation'], 'id = ?', [(int) $fid]);
+    }
+    $newStaff = (int) db_value("SELECT id FROM staff WHERE status = 'active' AND employment_type = 'permanent' AND category IN ('administration', 'it') ORDER BY joining_date DESC, id DESC LIMIT 1");
+    if ($newStaff) {
+        db_update('staff', ['joining_date' => min('2026-07-15', date('Y-m-d', strtotime($sessionStart . ' +5 days'))), 'employment_type' => 'probation'], 'id = ?', [$newStaff]);
+    }
+
     // ---------------- Leaves ----------------
     $adminId = (int) (db_value("SELECT id FROM users WHERE username = 'admin'") ?: db_value('SELECT MIN(id) FROM users'));
     $approverId = (int) (db_value("SELECT id FROM users WHERE username = 'administrator'") ?: $adminId);
@@ -169,17 +185,20 @@ return function (array $opts): void {
     $rejectRemarks = ['Mid-semester examinations scheduled on these dates.', 'Insufficient staff coverage during admission week. Please reschedule.', 'Overlaps with NAAC peer team visit.', 'Apply for casual leave instead; earned leave needs 15 days notice.'];
     $approveRemarks = [null, null, 'Approved. Arrange substitute classes.', 'Approved. Hand over pending work to the section.', 'Approved.', null];
     $people = [];
-    foreach (db_all("SELECT id, user_id, gender, status FROM faculty WHERE status IN ('active', 'on_leave') ORDER BY id") as $r) {
-        $people[] = ['faculty', (int) $r['id'], $r['user_id'] ? (int) $r['user_id'] : null, $r['gender'], $r['status']];
+    foreach (db_all("SELECT id, user_id, gender, status, joining_date FROM faculty WHERE status IN ('active', 'on_leave') ORDER BY id") as $r) {
+        $people[] = ['faculty', (int) $r['id'], $r['user_id'] ? (int) $r['user_id'] : null, $r['gender'], $r['status'], $r['joining_date']];
     }
-    foreach (db_all("SELECT id, user_id, gender, status FROM staff WHERE status IN ('active', 'on_leave') ORDER BY id") as $r) {
-        $people[] = ['staff', (int) $r['id'], $r['user_id'] ? (int) $r['user_id'] : null, $r['gender'], $r['status']];
+    foreach (db_all("SELECT id, user_id, gender, status, joining_date FROM staff WHERE status IN ('active', 'on_leave') ORDER BY id") as $r) {
+        $people[] = ['staff', (int) $r['id'], $r['user_id'] ? (int) $r['user_id'] : null, $r['gender'], $r['status'], $r['joining_date']];
     }
     $rows = [];
     $taken = [];      // [ref][type] => days (pending + approved)
     $ranges = [];     // [ref] => [[from, to], ...]
     $addLeave = function (array $p, string $type, string $from, string $to, ?string $status = null, bool $half = false) use (&$rows, &$taken, &$ranges, $quota, $today, $reasons, $rejectRemarks, $approveRemarks, $adminId, $approverId): bool {
         $ref = $p[0] . $p[1];
+        if (!empty($p[5]) && $from < $p[5]) {
+            return false;   // no leave before the joining date
+        }
         foreach ($ranges[$ref] ?? [] as [$a, $b]) {
             if ($from <= $b && $to >= $a) {
                 return false;

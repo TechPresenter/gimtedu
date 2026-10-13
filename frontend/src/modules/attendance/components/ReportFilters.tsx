@@ -103,7 +103,7 @@ export function ReportFilterBar({ filters: f, set, clear, patch, show = {}, defa
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))]">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]">
         <label className="min-w-0">
           <span className="mb-1 block text-[11px] font-medium text-slate-500">From</span>
           <Input type="date" inputSize="sm" value={f.from ?? ''} max={f.to || today} onChange={(e) => set('from', e.target.value)} aria-label="From date" />
@@ -114,26 +114,26 @@ export function ReportFilterBar({ filters: f, set, clear, patch, show = {}, defa
         </label>
         <label className="min-w-0">
           <span className="mb-1 block text-[11px] font-medium text-slate-500">Department</span>
-          <Select inputSize="sm" options={(depts.data ?? []).map((o) => ({ value: o.value, label: o.label }))} placeholder="All departments" value={f.department_id ?? ''} onChange={(e) => set('department_id', e.target.value)} />
+          <Select inputSize="sm" options={(depts.data ?? []).map((o) => ({ value: o.value, label: o.label }))} placeholder="All" value={f.department_id ?? ''} onChange={(e) => set('department_id', e.target.value)} />
         </label>
         <label className="min-w-0">
           <span className="mb-1 block text-[11px] font-medium text-slate-500">Program</span>
-          <Select inputSize="sm" options={(programs.data ?? []).map((o) => ({ value: o.value, label: o.label.split(' — ')[0] }))} placeholder="All programs" value={f.program_id ?? ''} onChange={(e) => set('program_id', e.target.value)} />
+          <Select inputSize="sm" options={(programs.data ?? []).map((o) => ({ value: o.value, label: o.label.split(' — ')[0] }))} placeholder="All" value={f.program_id ?? ''} onChange={(e) => set('program_id', e.target.value)} />
         </label>
         <label className="min-w-0">
           <span className="mb-1 block text-[11px] font-medium text-slate-500">Semester</span>
-          <Select inputSize="sm" options={SEMESTERS} placeholder="All semesters" value={f.semester ?? ''} onChange={(e) => set('semester', e.target.value)} />
+          <Select inputSize="sm" options={SEMESTERS} placeholder="All" value={f.semester ?? ''} onChange={(e) => set('semester', e.target.value)} />
         </label>
         {show.section !== false && (
           <label className="min-w-0">
             <span className="mb-1 block text-[11px] font-medium text-slate-500">Section</span>
-            <Select inputSize="sm" options={(sections.data ?? []).map((o) => ({ value: o.value, label: o.label }))} placeholder={f.program_id ? 'All sections' : 'Pick program'} disabled={!f.program_id} value={f.section_id ?? ''} onChange={(e) => set('section_id', e.target.value)} />
+            <Select inputSize="sm" options={(sections.data ?? []).map((o) => ({ value: o.value, label: o.label }))} placeholder={f.program_id ? 'All' : 'Pick prog.'} title={f.program_id ? undefined : 'Choose a program first'} disabled={!f.program_id} value={f.section_id ?? ''} onChange={(e) => set('section_id', e.target.value)} />
           </label>
         )}
         {show.subject && (
           <label className="min-w-0">
             <span className="mb-1 block text-[11px] font-medium text-slate-500">Subject</span>
-            <Select inputSize="sm" options={(subjects.data ?? []).map((o) => ({ value: o.value, label: o.label }))} placeholder={f.semester ? 'All subjects' : 'Pick semester'} disabled={!f.program_id || !f.semester} value={f.subject_id ?? ''} onChange={(e) => set('subject_id', e.target.value)} />
+            <Select inputSize="sm" options={(subjects.data ?? []).map((o) => ({ value: o.value, label: o.label }))} placeholder={f.program_id && f.semester ? 'All' : 'Select sem.'} title={f.program_id && f.semester ? undefined : 'Choose a program and semester first'} disabled={!f.program_id || !f.semester} value={f.subject_id ?? ''} onChange={(e) => set('subject_id', e.target.value)} />
           </label>
         )}
         {show.threshold && (

@@ -32,7 +32,7 @@ $att = can('attendance', 'view') ? students_attendance_stats($id) : null;
 $fees = can('fees', 'view') ? students_fee_stats($id) : null;
 $invoices = $fees ? db_all("SELECT invoice_no, title, net_amount, paid_amount, balance_amount, due_date, status FROM student_fees WHERE student_id = ? AND status <> 'cancelled' ORDER BY created_at DESC LIMIT 8", [$id]) : [];
 $gpa = can('results', 'view') || can('examination', 'view') ? students_gpa($id) : null;
-$results = can('results', 'view') ? db_all('SELECT e.name AS exam_name, r.semester_no, r.percentage, r.sgpa, r.cgpa, r.result_status FROM results r JOIN exams e ON e.id = r.exam_id WHERE r.student_id = ? ORDER BY r.semester_no, r.id', [$id]) : [];
+$results = can('results', 'view') ? db_all('SELECT e.name AS exam_name, r.semester_no, r.percentage, r.sgpa, r.cgpa, r.result_status FROM results r JOIN exams e ON e.id = r.exam_id WHERE r.student_id = ? AND r.is_published = 1 ORDER BY r.semester_no, r.id', [$id]) : [];
 $hostel = can('hostel', 'view') ? students_hostel_current($id) : null;
 $transport = can('transport', 'view') ? students_transport_current($id) : null;
 $docStats = students_document_stats($id);

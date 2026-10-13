@@ -89,10 +89,11 @@ interface StatCardProps {
   to?: string;
   loading?: boolean;
   hint?: ReactNode;
+  className?: string;
 }
 
 /** Tinted KPI card (dashboard style). */
-export function StatCard({ label, value, icon: Icon, tone = 'blue', trend, to, loading, hint }: StatCardProps) {
+export function StatCard({ label, value, icon: Icon, tone = 'blue', trend, to, loading, hint, className }: StatCardProps) {
   const t = toneClasses[tone];
   const dir = trend?.dir ?? 'up';
   const good = trend?.positive ?? dir !== 'down';
@@ -115,7 +116,7 @@ export function StatCard({ label, value, icon: Icon, tone = 'blue', trend, to, l
       {hint && !trend && <p className="mt-1.5 truncate text-xs text-slate-500 dark:text-slate-400">{hint}</p>}
     </>
   );
-  const cls = clsx('block rounded-2xl border border-slate-200/70 p-4 transition dark:border-slate-800', t.bg, 'duration-200 hover:-translate-y-0.5 hover:shadow-card');
+  const cls = clsx('block rounded-2xl border border-slate-200/70 p-4 transition dark:border-slate-800', t.bg, 'duration-200 hover:-translate-y-0.5 hover:shadow-card', className);
   return to ? (
     <Link to={to} className={cls}>
       {body}

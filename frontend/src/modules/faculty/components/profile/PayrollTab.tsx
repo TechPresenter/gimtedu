@@ -9,6 +9,7 @@ export default function PayrollTab({ type, data, onEdit }: { type: EmployeeType;
   const p = data.person;
   const [reveal, setReveal] = useState(false);
   const salary = toNumber(p.salary);
+  const restricted = !data.can.sensitive && Number(p.salary_restricted ?? 0) === 1;
   const lopDays = data.lop.reduce((a, r) => a + r.days, 0);
   const perDay = salary ? salary / 30 : 0;
   const show = (raw: string | null, masked: string | null) => (reveal && data.can.sensitive ? raw : masked);
@@ -18,9 +19,9 @@ export default function PayrollTab({ type, data, onEdit }: { type: EmployeeType;
         Salary processing and payslips are handled by Accounts. Figures below are the monthly gross on record and leave-without-pay days for session {data.session.name}.
       </Alert>
       <Stagger className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Monthly gross" value={salary ? <CountUp value={salary} format={(n) => formatMoney(n)} /> : '—'} icon={IndianRupee} tone="navy" sub="Gross on record" />
-        <StatTile label="Annual (12 months)" value={salary ? <CountUp value={salary * 12} format={formatMoneyShort} /> : '—'} icon={Wallet} tone="green" sub="Before deductions" />
-        <StatTile label="LOP days (session)" value={<CountUp value={lopDays} />} icon={CalendarMinus} tone={lopDays ? 'red' : 'slate'} sub={lopDays && perDay ? `≈ ${formatMoney(lopDays * perDay)} deduction` : 'No unpaid leave'} />
+        <StatTile label="Monthly gross" value={restricted ? 'Restricted' : salary ? <CountUp value={salary} format={(n) => formatMoney(n)} /> : '—'} icon={IndianRupee} tone="navy" sub={restricted ? 'Visible to HR editors only' : 'Gross on record'} />
+        <StatTile label="Annual (12 months)" value={restricted ? 'Restricted' : salary ? <CountUp value={salary * 12} format={formatMoneyShort} /> : '—'} icon={Wallet} tone="green" sub="Before deductions" />
+        <StatTile label="LOP days (session)" value={<CountUp value={lopDays} />} icon={CalendarMinus} tone={lopDays ? 'red' : 'slate'} sub={lopDays ? (perDay ? `≈ ${formatMoney(lopDays * perDay)} deduction` : 'Unpaid leave days') : 'No unpaid leave'} />
         <StatTile label="Employment" value={labelize(p.employment_type)} icon={Building} tone="purple" sub={p.joining_date ? `Since ${new Date(`${p.joining_date}T00:00:00`).getFullYear()}` : undefined} />
       </Stagger>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

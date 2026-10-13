@@ -148,6 +148,17 @@ Print pages use website CSS: run `bash tools/build-css.sh` after adding new clas
 
 ## Website (React islands + CSS3 motion)
 Full reference: `docs/WEBSITE.md`; live examples of every island/effect/helper: `/site-kit.php` (dev only — copy from it).
+- **Design v3** (`docs/WEBSITE.md` §0, owner of the direction: `docs/DESIGN.md`): navy `#0B2A5B` (`brand-900`, `navy`) +
+  orange-red (`accent-500` `#F05A28` decorative/large text, `accent-600` `#D03E16` filled buttons, `flame-text` `#C93C14`
+  small text on white) + white + warm greys (`warm` `#F5F2EE` sections, `warm-2` `#EDE8E2` cards), body text `#4A5568`;
+  yellow = urgency only, `#25D366` = WhatsApp only (`icon('whatsapp-brand')`). Tokens = CSS custom properties on `:root`
+  (`--c-*`, structured for a future `[data-theme="dark"]` map) + Tailwind tokens. Sans-serif only: Plus Jakarta Sans
+  700/800 headings, Inter body (no serif). Colour map for programs: `level_hue()` / `dept_hue()` → `.hue-*` classes
+  (`site_hues()` in PHP, `frontend/site/lib/hues.ts`). CTA system = `button_link()` variants `apply` (orange-red),
+  `explore` (navy), `brochure` (outline), `callback` (soft tint); every `.btn` has the colour-overlay sweep. Layout
+  patterns follow the Online Manipal reference — **never copy their logos, photos, text, university names or rankings;
+  no invented rankings or fake urgency numbers**. Print views keep navy/green via `assets/css/print.css`
+  (`tailwind.print.config.cjs`, built by `tools/build-css.sh`) — never link style.css from print views.
 - **Architecture**: PHP renders every page (SEO, instant paint); `frontend/site` (React 18 + TS, built by
   `frontend/vite.site.config.ts` → `assets/site`) enhances it. Entry `site/main.tsx` (~11 KB gzip, no React) runs the
   vanilla enhancements in `site/core/*` on every page and mounts **islands**: `<div data-island="Name"
@@ -159,17 +170,21 @@ Full reference: `docs/WEBSITE.md`; live examples of every island/effect/helper: 
   `npm run typecheck:site`. Styles live only in `assets/css/src/style.css` → run `bash tools/build-css.sh` after adding
   classes in PHP **or** `frontend/site/**` (it also appends `assets/css/src/keyframes-webkit.css`).
 - **PHP helpers** (`includes/config.php`, `includes/components.php`): `island($name, $props, $fallbackHtml,
-  ['eager'=>true,'tag'=>'span',...])`; `page_hero(..., $features, $opts)` (`parallax`, `pattern`, `glass`, `script`,
-  `actions`, `eyebrow`, `size`, `align`); `site_header` keys `cursor`, `motion`, `loader`, `preload`; blocks
-  `section_open/section_close`, `reveal_attr`, `button_link`, `program_card`, `feature_tile`, `stat_card`, `cta_band`,
-  `overlay_card`, `check_list`, `glass_chip`; island wrappers that render fallback + island in one call:
+  ['eager'=>true,'tag'=>'span',...])`; `page_hero(..., $features, $opts)` (`variant` light|dark|photo, `highlight`, `image2`, `badge`,
+  `parallax`, `pattern`, `glass`, `script`, `actions`, `eyebrow`, `size`, `align`); `section_heading(..., $o)` (`highlight`,
+  `sticker`, `reveal`); `site_header` keys `header` (full|minimal), `header_cta`, `announce`, `admission_bar`, `cursor`,
+  `motion`, `loader`, `preload`; `site_footer` keys `footer` (full|minimal), `directory`, `mobile_cta`, `enquiry_tab`, `chat`;
+  blocks `section_open/section_close`, `reveal_attr`, `button_link`, `program_card`, `feature_tile`, `stat_card`, `cta_band`,
+  `overlay_card`, `check_list`, `glass_chip`, `scribble`, `geo_shapes`, `blob`, `sticker`, `approvals_card`, `dept_chip`,
+  `countdown`, `enquiry_modal`, `view_mode_toggle/view_mode_open/view_mode_close` (Grid/List/Compact/Detailed); island wrappers that render fallback + island in one call:
   `hero_slider`, `program_explorer`, `carousel`, `testimonial_slider`, `logo_marquee`, `stat_counter`, `typing_text`,
   `faq_accordion`, `content_tabs`, `video_lightbox`, `gallery_grid`, `enquiry_form`, `skeleton_list`,
   `auto_scroll_cards`, `progress_steps`. Fallback children of `[data-slot="x"]` reach the island as `slots.x`.
 - **Data attributes** (vanilla, any page): `data-reveal="fade-up|zoom-in|slide-left|…"` + `data-reveal-delay`,
   `data-stagger="80"`, `data-parallax="0.15"`, `data-magnetic`, `data-tilt`, `data-count` (+prefix/suffix/decimals),
   `data-progress`, `data-lightbox[="group"]`, `data-modal-open="#id"`/`data-modal`/`data-modal-close`,
-  `data-accordion` on `<details>`, `data-filter`/`data-filter-item`, `data-slider`, `data-marquee`, `form data-ajax-form`.
+  `data-accordion` on `<details>`, `data-filter`/`data-filter-item`, `data-slider`, `data-marquee`, `form data-ajax-form`,
+  `data-text-reveal` (heading text-mask reveal), `data-reveal="clip"`, `data-spotlight`, `data-dismiss`, `data-view-toggle`.
 - **CSS utilities**: `.glass(-dark|-light) .bg-animated-gradient .pattern-dots|grid(-light) .animate-pattern-drift
   .float-slow .float-rotate .blob .glow .pulse-ring .img-zoom .overlay-gradient .text-gradient .card-lift .btn-shine
   .underline-grow .tilt-hover .skeleton .typing-dots .progress-track/.progress-fill .animate-fade-up …` (each keyframe
@@ -192,8 +207,10 @@ Full reference: `docs/WEBSITE.md`; live examples of every island/effect/helper: 
   the mysql CLI. Keep FKs and indexes consistent with the existing style (InnoDB, utf8mb4_unicode_ci).
 - Demo data: your own seeder `database/seed/NN_<unit>.php` (number assigned) returning `function (array $opts): void`.
   Deterministic (`require_once __DIR__ . '/lib/demo_data.php'; demo_seed(<int>)`), realistic Indian institute data
-  tied to existing students/faculty/programs, dates around the 2026-27 session (today is 2026-10-07), bulk inserts
-  (`demo_bulk_insert`). Must be re-runnable: first delete rows of the tables it owns (children before parents).
+  tied to existing students/faculty/programs, dates around the 2026-27 session. Anchor "recent" data on the day the
+  seeder runs (`$today = date('Y-m-d')`, e.g. attendance for the last 8 weeks up to today, payments this month,
+  upcoming exams/events after today) — never on a hard-coded day — so dashboards look live whenever it is installed.
+  Bulk inserts (`demo_bulk_insert`). Must be re-runnable: first delete rows of the tables it owns (children before parents).
   Volumes: enough for charts/pagination to look real, not millions of rows.
 - **Never** run `tools/install.php` (it drops every table) and never truncate tables you don't own.
 
@@ -211,3 +228,18 @@ Every button works against the real backend (no fake buttons, no placeholders, n
 search/filter/sort/export/import/print paths exercised via `tools/api.php` and screenshots; validation errors shown
 inline; permissions enforced server-side; activity logged; empty/loading/error states; desktop + mobile + dark mode
 look right; zero console errors; `php -l` clean; type-check clean for your files.
+
+## Visitor counter (footer)
+`app/services/visitors.php` + `api/routes/visit.php` (`POST /api/visit` beacon from `assets/js/visit.js`, same-origin
+only, bots/admins/DNT excluded; `GET /api/visit/totals`; `GET /api/visit/stats?days=` for reports) +
+`includes/partials/visitor_counter.php` (`visitor_counter()` rendered in the footer). Tables `site_visitors`
+(hashed random first-party id) and `site_visit_daily`; cookies `gimt_vid` (1 year, anonymous visitor id) and
+`gimt_vs` (30-min visit session) — list them in the Cookie Policy. Settings `visitor_counter_*` (seed 06).
+
+## Recruiter logos
+`companies.logo` holds the official logo for real recruiter companies (`assets/images/recruiters/*.svg|png`, set by
+`database/seed/95_recruiter_logos.php`; sources in `assets/images/recruiters/SOURCES.md`; admins can upload their own).
+Every public or admin view that lists recruiters must render the logo image when set (`site_image($logo)` in PHP,
+`appUrl()` in the SPA) with the company name as alt text, and fall back to a text wordmark when NULL. Show only
+`is_recruiter = 1` companies; never invent a recruiter list. Keep wide logos readable (fixed height ~28–36 px, width
+auto, max ~170 px).

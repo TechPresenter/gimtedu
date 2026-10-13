@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import clsx from 'clsx';
 import {
   Activity, ArchiveRestore, BadgeCheck, Ban, Check, CircleAlert, CircleCheck, CircleX, Copy, Download, Eye, EyeOff, Info, KeyRound, LockOpen, LogIn, LogOut,
-  Megaphone, Pencil, Plus, Send, ShieldCheck, ShieldX, Trash2, Upload, Wand2, type LucideIcon,
+  Megaphone, Pencil, Plus, Printer, Send, ShieldCheck, ShieldX, Trash2, Upload, Wand2, type LucideIcon,
 } from 'lucide-react';
 import { Badge, Input, toneClasses, useToast, type Tone } from '@/components/ui';
 import type { BadgeColor } from '@/lib/status';
@@ -60,6 +60,9 @@ const actionMap: Record<string, { icon: LucideIcon; tone: Tone }> = {
   view: { icon: Eye, tone: 'slate' },
   verify: { icon: ShieldCheck, tone: 'green' },
   test_email: { icon: Send, tone: 'cyan' },
+  test_sms: { icon: Send, tone: 'cyan' },
+  test_whatsapp: { icon: Send, tone: 'cyan' },
+  print: { icon: Printer, tone: 'purple' },
 };
 
 export function actionMeta(action: string, status?: string): { icon: LucideIcon; tone: Tone } {

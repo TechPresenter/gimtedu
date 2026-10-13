@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Plus, Search, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { Fragment, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useDebounced } from '../lib/hooks';
 import type { IslandBaseProps } from '../lib/types';
@@ -123,7 +123,9 @@ export default function Accordion({ items, mode = 'single', defaultOpen = 0, sea
                     >
                       <span>{highlight(item.q, q)}</span>
                       <span className="acc-icon" aria-hidden="true">
-                        <Plus className="h-4 w-4" />
+                        <svg viewBox="0 0 10 6" className="h-[6px] w-[10px]" focusable="false">
+                          <path d="M0 0h10L5 6z" fill="currentColor" />
+                        </svg>
                       </span>
                     </button>
                   </h3>

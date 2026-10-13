@@ -42,7 +42,7 @@ return [
             'colors' => ['permanent' => 'navy', 'contract' => 'cyan', 'probation' => 'amber', 'outsourced' => 'purple', 'part_time' => 'slate']],
         ['key' => 'joining_date', 'label' => 'Joined', 'format' => 'date', 'hidden' => true, 'sortable' => true],
         ['key' => 'qualification', 'label' => 'Qualification', 'hidden' => true],
-        ['key' => 'salary', 'label' => 'Monthly Salary', 'format' => 'money', 'hidden' => true, 'sortable' => true],
+        ...(hr_can_see_sensitive() ? [['key' => 'salary', 'label' => 'Monthly Salary', 'format' => 'money', 'hidden' => true, 'sortable' => true]] : []),   // payroll data: editors only
         ['key' => 'bank_account_masked', 'label' => 'Bank A/c', 'format' => 'code', 'hidden' => true],
         ['key' => 'city', 'label' => 'City', 'hidden' => true],
         ['key' => 'has_login', 'label' => 'Login', 'format' => 'boolean', 'hidden' => true],

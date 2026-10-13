@@ -153,6 +153,10 @@ route('POST', '/timetable/copy', function () {
         'to_section_id' => 'required|integer|exists:sections,id',
         'mode' => 'required|in:replace,merge',
     ], null, ['from_section_id' => 'Source section', 'to_section_id' => 'Target section', 'mode' => 'Copy mode']);
+    if ($in['mode'] === 'replace') {
+        // Replacing wipes the target's existing periods first.
+        api_require('timetable', 'delete');
+    }
     $report = tt_copy((int) $in['from_section_id'], (int) $in['to_section_id'], $in['mode'], tt_request_session());
     $msg = sprintf('Copied %d period%s.', $report['copied'], $report['copied'] === 1 ? '' : 's');
     if ($report['without_faculty'] || $report['without_room'] || $report['skipped']) {

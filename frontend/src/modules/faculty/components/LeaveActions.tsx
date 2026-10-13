@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, CalendarClock, Check, CheckCircle2, Pencil, Sun, X, XCircle } from 'lucide-react';
 import { Alert, Avatar, Button, DescriptionList, Field, Modal, PageLoader, StatusBadge, Textarea, Timeline, useToast, type DropdownItem } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
-import { formatDate, formatDateTime } from '@/lib/format';
+import { formatDate, formatDateTime, isoDate } from '@/lib/format';
 import type { Row } from '@/lib/types';
 import { daysLabel, leaveChip, leaveTone, profilePath, type BalanceRow, type EmployeeType } from '../hr';
 
@@ -132,17 +132,18 @@ export function LeaveDetailModal({ id, onClose, onEdit }: { id: number | null; o
         footer={
           data ? (
             <>
-              <Button variant="secondary" onClick={onClose}>
+              {/* On phones the header X closes the dialog and secondary actions are icon-only, so the footer stays on one row. */}
+              <Button variant="secondary" onClick={onClose} className="hidden sm:inline-flex">
                 Close
               </Button>
               {data.can.edit && onEdit && (
-                <Button variant="secondary" icon={Pencil} onClick={() => onEdit(Number(l?.id))}>
-                  Edit
+                <Button variant="secondary" icon={Pencil} onClick={() => onEdit(Number(l?.id))} aria-label="Edit application" title="Edit application">
+                  <span className="hidden sm:inline">Edit</span>
                 </Button>
               )}
               {data.can.cancel && (
-                <Button variant="secondary" icon={Ban} onClick={() => setDecision('cancel')}>
-                  Cancel leave
+                <Button variant="secondary" icon={Ban} onClick={() => setDecision('cancel')} aria-label="Cancel leave" title="Cancel leave">
+                  <span className="hidden sm:inline">Cancel leave</span>
                 </Button>
               )}
               {data.can.approve && (
@@ -257,7 +258,7 @@ export function leaveRowMenu(row: Row, can: (a: 'approve' | 'edit') => boolean, 
     items.push({ label: 'Approve', icon: Check, onClick: () => open('approve', row) });
     items.push({ label: 'Reject', icon: X, danger: true, onClick: () => open('reject', row) });
   }
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoDate();
   if (can('edit') && (row.status === 'pending' || (row.status === 'approved' && String(row.to_date) >= today))) {
     items.push({ label: 'Cancel leave', icon: Ban, onClick: () => open('cancel', row) });
   }

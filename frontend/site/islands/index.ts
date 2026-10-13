@@ -28,4 +28,13 @@ export const islandRegistry: Record<string, IslandLoader> = {
   SkeletonList: () => import('./SkeletonList'),
   AutoScrollCards: () => import('./AutoScrollCards'),
   ProgressSteps: () => import('./ProgressSteps'),
+  Countdown: () => import('./Countdown'),
+  ApplyWizard: () => import('./ApplyWizard'),
+  CourseFinder: () => import('./CourseFinder'),
+  ScholarshipAssistant: () => import('./ScholarshipAssistant'),
+  StudentLifeSlider: () => import('./StudentLifeSlider'),
+  CampusExplorer: () => import('./CampusExplorer'),
+  AcademicCalendar: () => import('./AcademicCalendar'),
+  SmartEnquiry: () => import('./SmartEnquiry'),
+  ChatWidget: () => import('./ChatWidget'),
 };

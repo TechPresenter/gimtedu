@@ -19,14 +19,15 @@ export interface StatItem {
 
 export interface StatCounterProps extends IslandBaseProps {
   items: StatItem[];
-  /** cards (icon + number), rings (circular progress), bars (horizontal progress) or inline (big numbers). */
-  variant?: 'cards' | 'rings' | 'bars' | 'inline';
+  /** cards (icon + number), rings (circular progress), bars (horizontal progress), inline (big numbers) or divided
+   *  (big numbers separated by thin dividers — use on navy bands with theme dark). */
+  variant?: 'cards' | 'rings' | 'bars' | 'inline' | 'divided';
   theme?: 'light' | 'dark';
   /** Grid classes (default responsive 2 → 4 columns). */
   gridClass?: string;
 }
 
-const TINTS = ['tint-blue', 'tint-green', 'tint-cyan', 'tint-amber', 'tint-violet', 'tint-rose'];
+const TINTS = ['tint-navy', 'tint-orange'];
 
 /** Animated statistics: count-up numbers with optional progress rings/bars, staggered reveal. */
 export default function StatCounter({ items, variant = 'cards', theme = 'light', gridClass }: StatCounterProps) {
@@ -38,7 +39,7 @@ export default function StatCounter({ items, variant = 'cards', theme = 'light',
   const pct = (s: StatItem) => Math.max(0, Math.min(100, s.progress ?? (s.suffix?.includes('%') ? s.value : 100)));
 
   return (
-    <ul ref={ref} className={clsx('stat-group grid gap-5', gridClass ?? (variant === 'bars' ? 'sm:grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'), dark && 'stat-dark', on && 'is-on')}>
+    <ul ref={ref} className={clsx('stat-group grid gap-x-5 gap-y-8', gridClass ?? (variant === 'bars' ? 'sm:grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'), dark && 'stat-dark', on && 'is-on')}>
       {items.map((s, i) => (
         <li key={s.label} className={clsx('stat-item', `stat-${variant}`)} style={{ '--i': i } as CSSProperties}>
           {variant === 'rings' ? (
@@ -76,7 +77,7 @@ export default function StatCounter({ items, variant = 'cards', theme = 'light',
               <span>
                 <CountUp className="stat-value" value={s.value} prefix={s.prefix} suffix={s.suffix} decimals={s.decimals} start={on} />
                 <span className="stat-label">{s.label}</span>
-                {s.caption && <span className="stat-caption">{s.caption}</span>}
+                {s.caption && variant !== 'cards' && <span className="stat-caption">{s.caption}</span>}
               </span>
             </>
           )}

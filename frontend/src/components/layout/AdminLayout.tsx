@@ -46,8 +46,22 @@ export function AdminLayout() {
             </Suspense>
           </ErrorBoundary>
         </main>
-        <footer className="border-t border-slate-200/70 px-6 py-4 text-center text-xs text-slate-500 dark:border-slate-800">
-          © {new Date().getFullYear()} {session.app.institute_name} · GIMT SmartCampus Admin v{session.app.version}
+        <footer className="flex flex-col items-center gap-1 border-t border-slate-200/70 px-6 py-4 text-center text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400 sm:flex-row sm:justify-between sm:text-left">
+          <span>
+            © {new Date().getFullYear()} {session.app.institute_name}
+          </span>
+          <span>
+            Build By{' '}
+            <a
+              href="https://appsgain.in"
+              target="_blank"
+              rel="noopener"
+              aria-label="Appsgain Technologies (opens appsgain.in in a new tab)"
+              className="credit-link font-semibold text-slate-700 dark:text-slate-200"
+            >
+              Appsgain Technologies
+            </a>
+          </span>
         </footer>
       </div>
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />

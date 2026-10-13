@@ -89,7 +89,7 @@ export default function DocumentsTab({ profile, studentId, refresh }: TabProps) 
       toast.error((e as ApiError).message);
     }
   };
-  const fileUrl = (d: Row, download = false) => apiUrl('files/download', { path: String(d.file_path), name: String(d.original_name ?? d.title), download: download ? 1 : undefined });
+  const fileUrl = (d: Row, download = false) => apiUrl(`students/documents/${d.id}/file`, { download: download ? 1 : undefined });
 
   if (list.isLoading) return <TabLoading />;
   if (list.error) return <TabError error={list.error} onRetry={() => list.refetch()} />;

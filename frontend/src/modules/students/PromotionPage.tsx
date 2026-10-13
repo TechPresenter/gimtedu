@@ -123,10 +123,9 @@ export default function PromotionPage() {
     { key: 'name', header: 'Student', render: (s) => (
       <div className="flex items-center gap-3">
         <Avatar name={s.name} src={s.photo} size="sm" />
-        <div className="min-w-0 leading-tight"><p className="truncate font-semibold text-slate-900 dark:text-white">{s.name}</p><p className="text-xs text-slate-500">{s.student_uid}{s.roll_no ? ` · ${s.roll_no}` : ''}</p></div>
+        <div className="min-w-0 leading-tight"><p className="truncate font-semibold text-slate-900 dark:text-white">{s.name}</p><p className="text-xs text-slate-500">{s.student_uid}{s.roll_no ? ` · ${s.roll_no}` : ''}{s.section_name ? ` · Sec ${s.section_name}` : ''}</p></div>
       </div>
     ) },
-    { key: 'section_name', header: 'Section', align: 'center', render: (s) => s.section_name ?? '—' },
     { key: 'attendance_percent', header: 'Attendance', align: 'right', render: (s) => (s.attendance_percent === null ? <span className="text-slate-400">—</span> : <span className={clsx('font-semibold tabular-nums', s.flags.includes('low_attendance') ? 'text-red-600 dark:text-red-400' : 'text-slate-800 dark:text-slate-100')}>{s.attendance_percent.toFixed(1)}%</span>) },
     { key: 'cgpa', header: 'CGPA', align: 'right', render: (s) => (s.cgpa === null ? <span className="text-slate-400">—</span> : <span className="font-semibold tabular-nums">{s.cgpa.toFixed(2)}</span>) },
     { key: 'flags', header: 'Flags', render: (s) => (
@@ -137,7 +136,7 @@ export default function PromotionPage() {
       </div>
     ) },
     { key: 'action', header: 'Action', render: (s) => (
-      <Select inputSize="sm" aria-label={`Action for ${s.name}`} value={actions[s.id] ?? s.suggested_action} onChange={(e) => setActions((a) => ({ ...a, [s.id]: e.target.value as Action }))} className="!w-32"
+      <Select inputSize="sm" aria-label={`Action for ${s.name}`} value={actions[s.id] ?? s.suggested_action} onChange={(e) => setActions((a) => ({ ...a, [s.id]: e.target.value as Action }))} className="!w-[8.5rem]"
         options={(isFinal ? ['pass_out', 'detain', 'skip'] : ['promote', 'detain', 'skip']).map((a) => ({ value: a, label: ACTION_LABEL[a as Action] }))} />
     ) },
   ];
@@ -279,6 +278,7 @@ export default function PromotionPage() {
 
           <Card className="min-w-0 overflow-hidden">
             <CardHeader
+              className="flex-wrap gap-y-3"
               title={p ? `${p.program.short_name} · Semester ${p.semester}` : 'Students'}
               subtitle={p ? `${formatNumber(p.students.length)} active student${p.students.length === 1 ? '' : 's'} · minimum attendance ${p.min_attendance}%` : 'Choose a program and semester to load the class'}
               icon={Users}

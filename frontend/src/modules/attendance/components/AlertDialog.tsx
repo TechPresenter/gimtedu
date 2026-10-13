@@ -71,7 +71,7 @@ export function AlertDialog({ open, onClose, students, total, threshold, query, 
         {error && <Alert variant="error">{error}</Alert>}
         <fieldset>
           <legend className="form-label">Channels</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {CHANNELS.map((c) => (
               <label key={c.key} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-brand-300 has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50/50 dark:border-slate-700 dark:has-[:checked]:bg-brand-500/10">
                 <Checkbox checked={channels.includes(c.key)} onChange={() => toggle(c.key)} aria-label={c.label} />

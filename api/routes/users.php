@@ -165,8 +165,8 @@ route('POST', '/users/bulk-status', function () {
     $skipped = [];
     foreach ($ids as $id) {
         $u = db_row('SELECT * FROM users WHERE id = ?', [$id]);
-        if (!$u) {
-            continue;
+        if (!$u || $u['status'] === $in['status']) {
+            continue; // missing or already in the requested state: nothing to change
         }
         if (!is_super_admin() && system_user_is_super($id)) {
             $skipped[] = $u['name'] . ': only a Super Admin can change this account';
@@ -178,7 +178,8 @@ route('POST', '/users/bulk-status', function () {
         }
         $done++;
     }
-    $msg = "$done user(s) " . ($in['status'] === 'active' ? 'activated' : 'deactivated') . '.' . ($skipped ? ' ' . count($skipped) . ' skipped.' : '');
+    $verb = $in['status'] === 'active' ? 'activated' : 'deactivated';
+    $msg = ($done ? "$done user(s) $verb." : "No users needed to be $verb.") . ($skipped ? ' ' . count($skipped) . ' skipped: ' . implode('; ', array_slice($skipped, 0, 3)) . (count($skipped) > 3 ? '…' : '') : '');
     api_ok(['updated' => $done, 'skipped' => $skipped], $msg);
 });
 

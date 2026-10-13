@@ -16,6 +16,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDateTime, formatNumber, formatPercent, labelize, timeAgo, toNumber } from '@/lib/format';
 import type { Row } from '@/lib/types';
 import type { BadgeColor } from '@/lib/status';
+import { useExternalNavKey } from './shared';
 
 interface Summary {
   kpis: { total: number; open_count: number; in_progress: number; resolved: number; closed: number; breached: number; high_open: number; complaints: number; last_30: number;
@@ -87,6 +88,7 @@ export default function FeedbackPage() {
   const { can } = useAuth();
   const [params, setParams] = useSearchParams();
   const openId = Number(params.get('id')) || null;
+  const navKey = useExternalNavKey();
   const { data, isLoading } = useApi<Summary>(['fb-summary'], 'feedback/summary');
   const k = data?.kpis;
   const [assign, setAssign] = useState<{ ids: number[]; clear?: () => void; current?: string } | null>(null);
@@ -112,6 +114,7 @@ export default function FeedbackPage() {
       </Stagger>
 
       <CrudTable
+        key={navKey}
         module="feedback"
         urlState
         title="Tickets"
@@ -146,7 +149,7 @@ export default function FeedbackPage() {
       />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-12">
-        <Reveal className="lg:col-span-8">
+        <Reveal className="min-w-0 lg:col-span-8">
           <Card className="h-full">
             <CardHeader title="By category" subtitle="All tickets vs still open" icon={MessageSquare} />
             <div className="card-body">
@@ -157,7 +160,7 @@ export default function FeedbackPage() {
             </div>
           </Card>
         </Reveal>
-        <Reveal className="lg:col-span-4" delay={80}>
+        <Reveal className="min-w-0 lg:col-span-4" delay={80}>
           <Card className="h-full">
             <CardHeader title="By type" subtitle={k ? `${formatNumber(k.last_30)} received in the last 30 days` : undefined} />
             <div className="card-body">
@@ -196,7 +199,7 @@ function AssignModal({ target, onClose }: { target: { ids: number[]; clear?: () 
       const res = target.ids.length === 1 ? await api.post(`feedback/${target.ids[0]}/assign`, { assigned_to: current || null }) : await api.post('crud/feedback/bulk', { action: 'assign', ids: target.ids, value: current || 0 });
       toast.success(res.message);
       target.clear?.();
-      await invalidate('crud', 'fb-summary', 'fb-detail');
+      void invalidate('crud', 'fb-summary', 'fb-detail');
       close();
     } catch (e) {
       setError((e as ApiError).message);

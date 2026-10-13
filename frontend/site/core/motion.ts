@@ -50,6 +50,34 @@ export function initReveal(root: ParentNode = document): void {
   targets.forEach((el) => revealObserver!.observe(el));
 }
 
+/* ------------------------------------------------------------------ Scribbles (hand-drawn ellipse around a word) */
+
+/**
+ * <span class="scribble" data-draw>Word<svg class="scribble-svg">…</svg></span>  (scribble() in includes/components.php)
+ * The ellipse draws itself (stroke-dashoffset) once the word scrolls into view; static mode shows it immediately.
+ * Without JS the ellipse is simply visible (the hidden state only applies under html.js).
+ */
+let scribbleObserver: IntersectionObserver | null = null;
+
+export function initScribbles(root: ParentNode = document): void {
+  const els = within('.scribble[data-draw]', root).filter((el) => !el.classList.contains('is-drawn'));
+  if (!els.length) return;
+  if (staticMode() || !('IntersectionObserver' in window)) {
+    els.forEach((el) => el.classList.add('is-drawn', 'is-static'));
+    return;
+  }
+  scribbleObserver ??= new IntersectionObserver(
+    (entries) =>
+      entries.forEach((en) => {
+        if (!en.isIntersecting) return;
+        en.target.classList.add('is-drawn');
+        scribbleObserver?.unobserve(en.target);
+      }),
+    { rootMargin: '0px 0px -8% 0px', threshold: 0.6 },
+  );
+  els.forEach((el) => scribbleObserver!.observe(el));
+}
+
 /* ------------------------------------------------------------------ Animated counters */
 
 /**

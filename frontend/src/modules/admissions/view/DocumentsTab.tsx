@@ -124,7 +124,7 @@ export function DocumentsTab({ data }: { data: AdmissionProfile }) {
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {data.documents.map((d) => {
               const isImg = (d.mime ?? '').startsWith('image/');
-              const view = apiUrl('files/download', { path: d.file_path, name: d.original_name ?? d.label });
+              const view = apiUrl(`admissions/documents/${d.id}/file`);
               return (
                 <li key={d.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
                   <span className={clsx('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl', d.status === 'verified' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : d.status === 'rejected' ? 'bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800')}>
@@ -146,7 +146,7 @@ export function DocumentsTab({ data }: { data: AdmissionProfile }) {
                     {d.exists && (
                       <>
                         <a href={view} target="_blank" rel="noreferrer" className="btn btn-secondary btn-xs"><Eye className="h-3.5 w-3.5" />View</a>
-                        <a href={apiUrl('files/download', { path: d.file_path, name: d.original_name ?? d.label, download: 1 })} className="btn-icon !h-7 !w-7" aria-label={`Download ${d.label}`} title="Download"><Download className="h-4 w-4" /></a>
+                        <a href={apiUrl(`admissions/documents/${d.id}/file`, { download: 1 })} className="btn-icon !h-7 !w-7" aria-label={`Download ${d.label}`} title="Download"><Download className="h-4 w-4" /></a>
                       </>
                     )}
                     {canEdit && d.status !== 'verified' && (

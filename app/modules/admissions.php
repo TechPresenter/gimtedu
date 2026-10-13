@@ -10,6 +10,11 @@ $counsellors = [
     'where' => "u.status = 'active' AND EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id LEFT JOIN role_permissions rp ON rp.role_id = r.id
                 LEFT JOIN permissions pm ON pm.id = rp.permission_id WHERE ur.user_id = u.id AND (r.is_super = 1 OR (pm.module = 'admissions' AND pm.action IN ('edit','manage'))))",
 ];
+// Programs by short name (as shown everywhere in the unit and in exports) so spreadsheets re-import with "BBA", "MBA"...
+$programSource = [
+    'table' => 'programs p', 'value' => 'p.id', 'label' => 'p.short_name', 'sub' => 'p.name', 'where' => "p.status = 'active'", 'order' => 'p.sort_order, p.name',
+    'search' => ['p.short_name', 'p.name', 'p.code'],
+];
 $stageColors = ['enquiry' => 'slate', 'application' => 'blue', 'document_verification' => 'cyan', 'entrance_interview' => 'purple', 'approval' => 'amber',
     'fee_payment' => 'navy', 'confirmed' => 'green', 'waitlisted' => 'amber', 'rejected' => 'red', 'withdrawn' => 'slate'];
 $fullName = "TRIM(CONCAT_WS(' ', t.first_name, t.middle_name, t.last_name))";
@@ -118,9 +123,9 @@ return [
 
         ['type' => 'section', 'label' => 'Program choice', 'name' => 'sec_program'],
         ['name' => 'academic_session_id', 'label' => 'Academic session', 'type' => 'select', 'required' => true, 'col' => 6, 'source' => 'sessions', 'default' => current_session_id()],
-        ['name' => 'program_id', 'label' => 'Program applied for', 'type' => 'select', 'required' => true, 'col' => 6, 'source' => 'programs'],
+        ['name' => 'program_id', 'label' => 'Program applied for', 'type' => 'select', 'required' => true, 'col' => 6, 'source' => $programSource],
         ['name' => 'course_id', 'label' => 'Specialisation', 'type' => 'select', 'col' => 6, 'source' => 'courses', 'depends' => ['program_id' => 'program_id']],
-        ['name' => 'second_program_id', 'label' => 'Second preference', 'type' => 'select', 'col' => 6, 'source' => 'programs'],
+        ['name' => 'second_program_id', 'label' => 'Second preference', 'type' => 'select', 'col' => 6, 'source' => $programSource],
         ['name' => 'category', 'label' => 'Category', 'type' => 'select', 'required' => true, 'col' => 4, 'default' => 'General', 'options' => admission_categories()],
         ['name' => 'quota', 'label' => 'Admission quota', 'type' => 'select', 'required' => true, 'col' => 4, 'default' => 'general', 'options' => admission_quotas()],
         ['name' => 'hostel_required', 'label' => 'Hostel required', 'type' => 'toggle', 'col' => 2],

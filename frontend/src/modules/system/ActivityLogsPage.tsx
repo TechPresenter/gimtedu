@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { Activity, AlertTriangle, CalendarDays, Download, FileSpreadsheet, FileText, FilterX, History, List, Printer, RefreshCw, Rows3, Trash2, Users } from 'lucide-react';
@@ -45,6 +45,26 @@ function dayLabel(d: string) {
   return new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+/** "Ravi Agarwal collected ₹45,000 …" — avoids repeating the name when the description already starts with it. */
+function TimelineSentence({ name, text }: { name?: string | null; text: string | null }) {
+  const body = text ?? '';
+  if (name && body.startsWith(name)) {
+    return (
+      <>
+        <strong className="font-semibold">{name}</strong>
+        <span className="text-slate-600 dark:text-slate-300">{body.slice(name.length)}</span>
+      </>
+    );
+  }
+  return (
+    <>
+      {name && <strong className="font-semibold">{name}</strong>}
+      {name && ' · '}
+      <span className="text-slate-600 dark:text-slate-300">{body || '—'}</span>
+    </>
+  );
+}
+
 export default function ActivityLogsPage() {
   const { can } = useAuth();
   const qc = useQueryClient();
@@ -60,7 +80,14 @@ export default function ActivityLogsPage() {
   const [purgeOpen, setPurgeOpen] = useState(false);
   const dq = useDebounce(q, 350);
 
-  useEffect(() => setPage(1), [dq, filters, perPage]);
+  // Back to page 1 when the search or filters change — but not on the first render, so ?page=N deep links work.
+  const criteria = JSON.stringify([dq, filters, perPage]);
+  const lastCriteria = useRef(criteria);
+  useEffect(() => {
+    if (lastCriteria.current === criteria) return;
+    lastCriteria.current = criteria;
+    setPage(1);
+  }, [criteria]);
   useEffect(() => {
     const next = new URLSearchParams();
     if (dq) next.set('q', dq);
@@ -195,13 +222,13 @@ export default function ActivityLogsPage() {
         }
       />
 
-      <Stagger className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+      <Stagger className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4" itemClassName="h-full">
         {[
-          <StatCard key="t" label="Events today" value={stats?.today ?? 0} icon={Activity} tone="navy" loading={statsLoading}
+          <StatCard key="t" className="h-full" label="Events today" value={stats?.today ?? 0} icon={Activity} tone="navy" loading={statsLoading}
             trend={trend !== null ? { value: `${Math.abs(trend)}%`, dir: trend > 0 ? 'up' : trend < 0 ? 'down' : 'flat', label: 'vs yesterday', positive: true } : undefined} hint="No events yesterday" />,
-          <StatCard key="w" label="Last 7 days" value={stats?.week ?? 0} icon={CalendarDays} tone="blue" loading={statsLoading} hint={stats ? `${formatNumber(stats.total)} entries in total` : undefined} />,
-          <StatCard key="f" label="Failed / denied (7 days)" value={stats?.failed_week ?? 0} icon={AlertTriangle} tone={stats?.failed_week ? 'red' : 'green'} loading={statsLoading} hint="Permission denials and errors" />,
-          <StatCard key="u" label="Active users today" value={stats?.users_today ?? 0} icon={Users} tone="green" loading={statsLoading} hint={stats?.oldest ? `Logging since ${formatDate(stats.oldest)}` : undefined} />,
+          <StatCard key="w" className="h-full" label="Last 7 days" value={stats?.week ?? 0} icon={CalendarDays} tone="blue" loading={statsLoading} hint={stats ? `${formatNumber(stats.total)} entries in total` : undefined} />,
+          <StatCard key="f" className="h-full" label="Failed (7 days)" value={stats?.failed_week ?? 0} icon={AlertTriangle} tone={stats?.failed_week ? 'red' : 'green'} loading={statsLoading} hint="Denials and errors" />,
+          <StatCard key="u" className="h-full" label="Active users today" value={stats?.users_today ?? 0} icon={Users} tone="green" loading={statsLoading} hint={stats?.oldest ? `Logging since ${formatDate(stats.oldest)}` : undefined} />,
         ]}
       </Stagger>
 
@@ -328,7 +355,7 @@ export default function ActivityLogsPage() {
                         </span>
                         <span className="min-w-0 flex-1 pt-0.5">
                           <span className="block text-sm text-slate-800 group-hover:text-brand-800 dark:text-slate-100 dark:group-hover:text-white">
-                            {r.user_name && <strong className="font-semibold">{r.user_name}</strong>} <span className="text-slate-600 dark:text-slate-300">{r.description}</span>
+                            <TimelineSentence name={r.user_name} text={r.description} />
                           </span>
                           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
                             <span>{r.module_label}</span>

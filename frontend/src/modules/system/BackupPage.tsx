@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   Alert, Badge, Button, Card, CardHeader, DataTable, EmptyState, Field, IconButton, Input, Modal, PageHeader, Pagination, Reveal, SearchInput, Select, Skeleton, Stagger, StatTile,
-  StatusBadge, Textarea, useConfirm, useToast, type Column,
+  StatusBadge, Textarea, useConfirm, useToast, type Column, type SortState,
 } from '@/components/ui';
 import { api, ApiError, downloadFile } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -53,8 +53,9 @@ export default function BackupPage() {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const dq = useDebounce(q, 350);
-  useEffect(() => setPage(1), [dq, type, status]);
-  const { data: list, isLoading, isFetching, error } = useCrudList<BackupRow>('backups', { page, per_page: 10, q: dq || undefined, f: { type: type || undefined, status: status || undefined } });
+  const [sort, setSort] = useState<SortState>({ key: 'created_at', dir: 'desc' });
+  useEffect(() => setPage(1), [dq, type, status, sort]);
+  const { data: list, isLoading, isFetching, error } = useCrudList<BackupRow>('backups', { page, per_page: 10, q: dq || undefined, sort: sort.key, dir: sort.dir, f: { type: type || undefined, status: status || undefined } });
   const [createType, setCreateType] = useState<'database' | 'files' | null>(null);
   const [restoreOf, setRestoreOf] = useState<BackupRow | null>(null);
   const [verifyOf, setVerifyOf] = useState<BackupRow | null>(null);
@@ -73,33 +74,68 @@ export default function BackupPage() {
 
   const columns: Column<BackupRow>[] = [
     {
-      key: 'filename', header: 'Backup',
+      key: 'created_at', header: 'Date', sortable: true,
       render: (b) => (
-        <div className="flex min-w-0 items-center gap-3">
-          <span className={clsx('kpi-icon !h-9 !w-9 shrink-0', b.type === 'files' ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300' : 'bg-brand-100 text-brand-800 dark:bg-brand-500/20 dark:text-brand-200')}>
+        <div className="min-w-[11rem] leading-tight">
+          <p className="whitespace-nowrap text-sm font-semibold text-slate-800 dark:text-slate-100">{formatDateTime(b.created_at)}</p>
+          <p className="max-w-[16rem] truncate font-mono text-[11px] text-slate-500" title={b.filename}>{b.filename}</p>
+          {b.notes && <p className="max-w-[16rem] truncate text-xs text-slate-500" title={b.notes}>{b.notes}</p>}
+        </div>
+      ),
+    },
+    {
+      key: 'type', header: 'Type', sortable: true,
+      render: (b) => (
+        <div className="flex items-center gap-2.5">
+          <span className={clsx('kpi-icon !h-8 !w-8 shrink-0', b.type === 'files' ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300' : 'bg-brand-100 text-brand-800 dark:bg-brand-500/20 dark:text-brand-200')}>
             {b.type === 'files' ? <FolderArchive className="h-4 w-4" /> : <Database className="h-4 w-4" />}
           </span>
-          <div className="min-w-0">
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-slate-800 dark:text-slate-100">
-              <span className="whitespace-nowrap">{formatDateTime(b.created_at)}</span>
-              <Badge color={b.source === 'auto' ? 'cyan' : b.source === 'pre-restore' ? 'amber' : b.source === 'seed' ? 'purple' : 'slate'} dot={false} className="!px-1.5 !py-0 text-[10px]">{sourceLabel[b.source] ?? b.source}</Badge>
-              <StatusBadge status={b.status} />
-            </p>
-            <p className="max-w-[20rem] truncate font-mono text-[11px] text-slate-500" title={b.filename}>{b.filename}</p>
-            <p className="max-w-[20rem] truncate text-xs text-slate-500">
-              {b.type === 'files' ? `${formatNumber(b.meta?.files)} files` : `${formatNumber(b.meta?.tables)} tables · ${formatNumber(b.meta?.rows)} rows`}
-              {b.created_by_name ? ` · by ${b.created_by_name}` : ' · system'}
-              {b.notes ? ` · ${b.notes}` : ''}
-            </p>
-            {b.restore_count > 0 && <p className="text-[11px] text-amber-700 dark:text-amber-300">Restored ×{b.restore_count}{b.restored_at ? ` · last ${formatDateTime(b.restored_at)}${b.restored_by_name ? ` by ${b.restored_by_name}` : ''}` : ''}</p>}
-            {b.status === 'completed' && !b.file_exists && <p className="text-[11px] text-red-600">File missing from storage/backups</p>}
-            {b.error && <p className="max-w-[20rem] truncate text-xs text-red-600" title={b.error}>{b.error}</p>}
+          <div className="leading-tight">
+            <p className="whitespace-nowrap text-sm font-medium text-slate-800 dark:text-slate-100">{b.type === 'files' ? 'Files' : 'Database'}</p>
+            <Badge color={b.source === 'auto' ? 'cyan' : b.source === 'pre-restore' ? 'amber' : b.source === 'seed' ? 'purple' : 'slate'} dot={false} className="!px-1.5 !py-0 text-[10px]">{sourceLabel[b.source] ?? b.source}</Badge>
           </div>
         </div>
       ),
     },
-    { key: 'size_bytes', header: 'Size', align: 'right', render: (b) => <span className="whitespace-nowrap font-medium tabular-nums">{b.status === 'completed' ? humanFileSize(b.size_bytes) : '—'}</span> },
+    {
+      key: 'size_bytes', header: 'Size', align: 'right', sortable: true,
+      render: (b) => (
+        <div className="leading-tight">
+          <p className="whitespace-nowrap font-medium tabular-nums text-slate-800 dark:text-slate-100">{b.status === 'completed' ? humanFileSize(b.size_bytes) : '—'}</p>
+          {b.status === 'completed' && (
+            <p className="whitespace-nowrap text-[11px] text-slate-500">{b.type === 'files' ? `${formatNumber(b.meta?.files)} files` : `${formatNumber(b.meta?.tables)} tables · ${formatNumber(b.meta?.rows)} rows`}</p>
+          )}
+        </div>
+      ),
+    },
+    { key: 'created_by_name', header: 'Created by', render: (b) => <span className="whitespace-nowrap text-sm">{b.created_by_name ?? <span className="text-slate-500">System</span>}</span> },
+    {
+      key: 'status', header: 'Status', sortable: true,
+      render: (b) => (
+        <div className="max-w-[14rem] space-y-0.5 leading-tight">
+          <StatusBadge status={b.status} />
+          {b.restore_count > 0 && <p className="text-[11px] text-amber-700 dark:text-amber-300" title={b.restored_at ? `Last restored ${formatDateTime(b.restored_at)}${b.restored_by_name ? ` by ${b.restored_by_name}` : ''}` : undefined}>Restored ×{b.restore_count}{b.restored_at ? ` · ${timeAgo(b.restored_at)}` : ''}</p>}
+          {b.status === 'completed' && !b.file_exists && <p className="text-[11px] text-red-600">File missing from storage</p>}
+          {b.error && <p className="truncate text-[11px] text-red-600" title={b.error}>{b.error}</p>}
+        </div>
+      ),
+    },
   ];
+
+  const emptyNode =
+    q || type || status ? (
+      <EmptyState icon={FilterX} title="No matching backups" description="Clear the search or filters." action={<Button variant="secondary" onClick={() => { setQ(''); setType(''); setStatus(''); }}>Clear filters</Button>} />
+    ) : (
+      <EmptyState icon={DatabaseBackup} title="No backups yet" description="A backup is a compressed copy of every table you can download or restore later." action={can('backup', 'create') ? <Button icon={DatabaseBackup} onClick={() => setCreateType('database')}>Create database backup</Button> : undefined} />
+    );
+  const rowActions = (b: BackupRow) => (
+    <div className="flex items-center justify-start gap-0.5 md:justify-end">
+      {can('backup', 'create') && b.status === 'completed' && b.file_exists && <IconButton size="sm" icon={Download} label="Download" tone="primary" onClick={() => downloadFile(`backup/${b.id}/download`)} />}
+      {b.status === 'completed' && <IconButton size="sm" icon={ShieldCheck} label="Verify integrity" tone="primary" onClick={() => setVerifyOf(b)} />}
+      {can('backup', 'manage') && b.status === 'completed' && b.file_exists && <IconButton size="sm" icon={ArchiveRestore} label="Restore" onClick={() => setRestoreOf(b)} className="hover:!bg-amber-50 hover:!text-amber-700 dark:hover:!bg-amber-500/10" />}
+      {can('backup', 'delete') && b.status !== 'running' && <IconButton size="sm" icon={Trash2} label="Delete" tone="danger" onClick={() => remove(b)} />}
+    </div>
+  );
 
   const health = ov ? healthMeta[ov.health] : null;
   const HealthIcon = health?.icon ?? Database;
@@ -182,12 +218,12 @@ export default function BackupPage() {
         ]}
       </Stagger>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <Card className="overflow-hidden xl:col-span-2">
+      <div className="space-y-6">
+        <Card className="overflow-hidden">
           <div className="flex flex-col gap-3 border-b border-slate-100 p-4 dark:border-slate-800">
             <div>
               <h2 className="card-title">Backup history</h2>
-              <p className="card-subtitle">{list ? `${formatNumber(list.total)} backup${list.total === 1 ? '' : 's'}` : 'Loading…'} · newest first</p>
+              <p className="card-subtitle">{list ? `${formatNumber(list.total)} backup${list.total === 1 ? '' : 's'}` : 'Loading…'} · stored in storage/backups</p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <SearchInput value={q} onChange={setQ} placeholder="Search file name or notes…" className="w-full sm:max-w-xs" />
@@ -199,36 +235,64 @@ export default function BackupPage() {
           {error ? (
             <div className="p-5"><Alert variant="error">{(error as ApiError).message}</Alert></div>
           ) : (
-            <DataTable<BackupRow>
-              columns={columns}
-              rows={list?.rows ?? []}
-              loading={isLoading || isFetching}
-              skeletonRows={5}
-              caption="Backups"
-              empty={
-                q || type || status ? (
-                  <EmptyState icon={FilterX} title="No matching backups" description="Clear the search or filters." action={<Button variant="secondary" onClick={() => { setQ(''); setType(''); setStatus(''); }}>Clear filters</Button>} />
+            <>
+              <div className="hidden md:block">
+                <DataTable<BackupRow>
+                  columns={columns}
+                  rows={list?.rows ?? []}
+                  loading={isLoading || isFetching}
+                  sort={sort}
+                  onSort={setSort}
+                  skeletonRows={5}
+                  caption="Backups"
+                  empty={emptyNode}
+                  actions={rowActions}
+                />
+              </div>
+              {/* Phones: stacked cards so every detail and action stays visible without horizontal scrolling. */}
+              <div className={clsx('md:hidden', isFetching && !isLoading && 'opacity-60 transition-opacity')}>
+                {isLoading ? (
+                  <div className="space-y-3 p-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}</div>
+                ) : !list?.rows.length ? (
+                  emptyNode
                 ) : (
-                  <EmptyState icon={DatabaseBackup} title="No backups yet" description="A backup is a compressed copy of every table you can download or restore later." action={can('backup', 'create') ? <Button icon={DatabaseBackup} onClick={() => setCreateType('database')}>Create database backup</Button> : undefined} />
-                )
-              }
-              actions={(b) => (
-                <div className="flex items-center justify-end gap-0.5">
-                  {can('backup', 'create') && b.status === 'completed' && b.file_exists && <IconButton size="sm" icon={Download} label="Download" tone="primary" onClick={() => downloadFile(`backup/${b.id}/download`)} />}
-                  {b.status === 'completed' && <IconButton size="sm" icon={ShieldCheck} label="Verify integrity" tone="primary" onClick={() => setVerifyOf(b)} />}
-                  {can('backup', 'manage') && b.status === 'completed' && b.file_exists && <IconButton size="sm" icon={ArchiveRestore} label="Restore" onClick={() => setRestoreOf(b)} className="hover:!bg-amber-50 hover:!text-amber-700 dark:hover:!bg-amber-500/10" />}
-                  {can('backup', 'delete') && b.status !== 'running' && <IconButton size="sm" icon={Trash2} label="Delete" tone="danger" onClick={() => remove(b)} />}
-                </div>
-              )}
-            />
+                  <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {list.rows.map((b) => (
+                      <li key={b.id} className="space-y-2 p-4">
+                        <div className="flex items-start gap-3">
+                          <span className={clsx('kpi-icon !h-9 !w-9 shrink-0', b.type === 'files' ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300' : 'bg-brand-100 text-brand-800 dark:bg-brand-500/20 dark:text-brand-200')}>
+                            {b.type === 'files' ? <FolderArchive className="h-4 w-4" /> : <Database className="h-4 w-4" />}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{formatDateTime(b.created_at)}</p>
+                            <p className="truncate font-mono text-[11px] text-slate-500">{b.filename}</p>
+                          </div>
+                          <StatusBadge status={b.status} />
+                        </div>
+                        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                          <Badge color={b.source === 'auto' ? 'cyan' : b.source === 'pre-restore' ? 'amber' : b.source === 'seed' ? 'purple' : 'slate'} dot={false} className="!px-1.5 !py-0 text-[10px]">{sourceLabel[b.source] ?? b.source}</Badge>
+                          <span>{b.type === 'files' ? 'Files' : 'Database'}</span>
+                          {b.status === 'completed' && <span>· {humanFileSize(b.size_bytes)}</span>}
+                          <span>· {b.created_by_name ?? 'System'}</span>
+                          {b.restore_count > 0 && <span className="text-amber-700 dark:text-amber-300">· restored ×{b.restore_count}</span>}
+                        </p>
+                        {b.notes && <p className="text-xs text-slate-500">{b.notes}</p>}
+                        {b.error && <p className="text-xs text-red-600">{b.error}</p>}
+                        <div className="-ml-1.5">{rowActions(b)}</div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
           )}
           {list && list.total > list.per_page && <Pagination className="border-t border-slate-100 dark:border-slate-800" page={list.page} pages={list.pages} total={list.total} perPage={list.per_page} onPage={setPage} />}
         </Card>
 
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <ScheduleCard ov={ov} loading={ovLoading} onSaved={() => void refetchOv()} />
-          <Reveal delay={100}>
-            <Card className="p-5">
+          <Reveal delay={100} className="h-full">
+            <Card className="h-full p-5">
               <h3 className="card-title">How backups work</h3>
               <ul className="mt-3 space-y-2.5 text-sm text-slate-600 dark:text-slate-300">
                 {[
@@ -305,8 +369,8 @@ function ScheduleCard({ ov, loading, onSaved }: { ov?: Overview; loading: boolea
     }
   };
   return (
-    <Reveal delay={60}>
-      <Card>
+    <Reveal delay={60} className="h-full">
+      <Card className="h-full">
         <CardHeader title="Schedule & retention" subtitle="Automatic database backups" icon={CalendarClock} />
         <div className="space-y-4 p-5">
           {loading || !ov ? (

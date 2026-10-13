@@ -57,7 +57,13 @@ export default function AcademicsPage() {
           ) : undefined
         }
       >
-        <Tabs tabs={TABS.map(({ key, label, icon }) => ({ key, label, icon }))} value={active.key} onChange={select} />
+        {/* Ten tabs: icons only from 2xl so every tab (incl. Assignments) fits a 1366-1440px desktop without hidden overflow. */}
+        <Tabs
+          tabs={TABS.map(({ key, label, icon }) => ({ key, label, icon }))}
+          value={active.key}
+          onChange={select}
+          className="[&_.tab>svg]:hidden [&_.tab]:px-3 2xl:[&_.tab>svg]:block 2xl:[&_.tab]:px-3.5"
+        />
       </PageHeader>
       <div key={active.key} className="motion-safe:animate-fade-in">
         <Suspense

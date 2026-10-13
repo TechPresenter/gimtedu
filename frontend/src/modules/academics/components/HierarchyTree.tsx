@@ -205,27 +205,25 @@ function SemesterNode({ sem, open, onToggle }: { sem: TreeSemester; open: boolea
         )}
       </div>
       {open && (
-        <div className="mb-2 ml-9 overflow-x-auto rounded-xl border border-slate-200 motion-safe:animate-fade-in dark:border-slate-800">
+        <div className="mb-2 ml-1 overflow-hidden rounded-xl border border-slate-200 motion-safe:animate-fade-in sm:ml-9 dark:border-slate-800">
           {sem.subjects.length === 0 ? (
             <p className="px-4 py-4 text-sm text-slate-500">
               No subjects yet. <Link to="/academics?tab=subjects" className="link">Add subjects</Link>
             </p>
           ) : (
-            <table className="w-full min-w-[640px] text-sm">
-              <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
-                <tr>
-                  <th className="px-3 py-2">Subject</th>
-                  <th className="px-3 py-2">Type</th>
-                  <th className="px-3 py-2 text-center">Credits</th>
-                  <th className="px-3 py-2">Faculty → Students</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <>
+              <div className={clsx(SUBJECT_GRID, 'hidden bg-slate-50 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 md:grid dark:bg-slate-800/60 dark:text-slate-400')} aria-hidden>
+                <span>Subject</span>
+                <span>Type</span>
+                <span className="text-center">Credits</span>
+                <span>Faculty → Students</span>
+              </div>
+              <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
                 {sem.subjects.map((s) => (
                   <SubjectRow key={s.id} s={s} hasSections={sem.sections.length > 0} />
                 ))}
-              </tbody>
-            </table>
+              </ul>
+            </>
           )}
         </div>
       )}
@@ -233,29 +231,29 @@ function SemesterNode({ sem, open, onToggle }: { sem: TreeSemester; open: boolea
   );
 }
 
+/** Columns of the subject rows (md+); below md each row stacks. */
+const SUBJECT_GRID = 'px-3 md:grid-cols-[minmax(0,1.15fr)_96px_56px_minmax(0,1.6fr)] md:gap-x-3';
+
 function SubjectRow({ s, hasSections }: { s: TreeSubject; hasSections: boolean }) {
   return (
-    <tr className="align-top">
-      <td className="px-3 py-2.5">
-        <div className="flex items-start gap-2">
-          {s.type === 'lab' ? <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" /> : <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />}
-          <div className="min-w-0">
-            <p className="font-medium text-slate-900 dark:text-white">{s.name}</p>
-            <p className="text-xs text-slate-500">
-              {s.code}
-              {s.course && <> · {s.course}</>}
-            </p>
-          </div>
+    <li className={clsx(SUBJECT_GRID, 'grid grid-cols-1 gap-y-2 py-2.5 md:items-start')}>
+      <div className="flex min-w-0 items-start gap-2">
+        {s.type === 'lab' ? <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" /> : <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />}
+        <div className="min-w-0">
+          <p className="font-medium text-slate-900 dark:text-white">{s.name}</p>
+          <p className="text-xs text-slate-500">
+            {s.code}
+            {s.course && <> · {s.course}</>}
+            <span className="md:hidden"> · {s.credits} credits</span>
+          </p>
         </div>
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="flex flex-wrap gap-1">
-          <Badge color={s.type === 'lab' ? 'purple' : s.type === 'project' ? 'amber' : 'blue'}>{s.type}</Badge>
-          {s.elective && <Badge color="cyan">Elective</Badge>}
-        </div>
-      </td>
-      <td className="px-3 py-2.5 text-center tabular-nums">{s.credits}</td>
-      <td className="px-3 py-2.5">
+      </div>
+      <div className="flex flex-wrap gap-1 pl-6 md:pl-0">
+        <Badge color={s.type === 'lab' ? 'purple' : s.type === 'project' ? 'amber' : 'blue'}>{s.type}</Badge>
+        {s.elective && <Badge color="cyan">Elective</Badge>}
+      </div>
+      <div className="hidden text-center tabular-nums md:block">{s.credits}</div>
+      <div className="min-w-0 pl-6 md:pl-0">
         {s.faculty.length === 0 ? (
           hasSections ? (
             <Link to="/academics?tab=assignments" className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:underline dark:text-amber-300">
@@ -270,13 +268,13 @@ function SubjectRow({ s, hasSections }: { s: TreeSubject; hasSections: boolean }
               <span
                 key={`${f.faculty_id}-${f.section_id}-${i}`}
                 title={f.section ? `${f.name} teaches Section ${f.section}${f.students !== null ? ` (${f.students} students)` : ''}` : f.name}
-                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-slate-200 bg-white py-0.5 pl-0.5 pr-2 text-xs dark:border-slate-700 dark:bg-slate-900"
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-white py-0.5 pl-0.5 pr-2 text-xs dark:border-slate-700 dark:bg-slate-900"
               >
                 <Avatar name={f.name} src={f.photo} size="xs" />
-                <span className="font-medium text-slate-700 dark:text-slate-200">{f.name}</span>
+                <span className="truncate font-medium text-slate-700 dark:text-slate-200">{f.name}</span>
                 {f.section && (
-                  <span className="inline-flex items-center gap-0.5 text-slate-400">
-                    · {f.section}
+                  <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap text-slate-400">
+                    · Sec {f.section}
                     {f.students !== null && (
                       <>
                         <Users className="ml-0.5 h-3 w-3" aria-hidden />
@@ -290,7 +288,7 @@ function SubjectRow({ s, hasSections }: { s: TreeSubject; hasSections: boolean }
             {s.missing_sections > 0 && <Meta tone="amber">{s.missing_sections} section{s.missing_sections > 1 ? 's' : ''} unassigned</Meta>}
           </div>
         )}
-      </td>
-    </tr>
+      </div>
+    </li>
   );
 }
