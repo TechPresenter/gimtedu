@@ -16,3 +16,13 @@
 **"We will be back shortly" दिखे तो:** database का नाम/यूज़र/पासवर्ड गलत है — hPanel में database user का पासवर्ड reset करके वही `pwf-config.php` में डालें। `install.php` पर सही error दिखेगा।
 
 **Razorpay:** merchant account approve होने के बाद ही keys डालें (पहले test keys)। Webhook URL: `https://preritwelfarefoundation.org/payment-webhook.php`।
+
+## पहले वाला package लगा चुके हैं? (अपडेट कैसे करें)
+
+अगर आपने पहले वाला `prerit-website-v2.zip` लगा दिया था और **अभी तक असली डेटा नहीं डाला है**:
+
+1. File Manager में `public_html` की सारी फ़ाइलें हटाकर नया `public_html-upload.zip` अपलोड करें और Extract करें (`pwf-config.php` public_html के बाहर है, उसे न हटाएँ)।
+2. phpMyAdmin → वही database → **Import** → नया `database.sql` → Go (यह पुरानी tables अपने-आप हटाकर नई बना देता है)।
+3. `pwf-config.php` में `INSTALL_KEY` फिर से भरें, `https://preritwelfarefoundation.org/install.php` खोलकर admin दोबारा बनाएँ, फिर `INSTALL_KEY` खाली करें और `install.php` डिलीट करें।
+
+अगर आपने **असली डेटा डाल दिया है** (donations, applications, users), तो `database.sql` दोबारा import **न करें** — पहले बताइए, उसके लिए अलग upgrade script दी जाएगी।
