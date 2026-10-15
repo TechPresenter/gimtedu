@@ -1,0 +1,113 @@
+/* =====================================================================
+   Prerit Welfare Foundation - responsive rules
+   ===================================================================== */
+
+@media (min-width: 1280px) {
+    .brand-text { display: none; }
+}
+
+@media (max-width: 1199px) {
+    .nav-item > a { padding: 10px 9px; font-size: .9rem; }
+    .footer-grid { grid-template-columns: 1fr 1fr 1fr; }
+    .footer-about { grid-column: 1 / -1; display: grid; grid-template-columns: 110px 1fr; gap: 20px; align-items: start; }
+    .footer-about img { margin: 0; }
+}
+
+/* ---------- Tablet & mobile navigation ---------- */
+@media (max-width: 1080px) {
+    :root { --header-h: 76px; }
+    .brand img { width: 60px; height: 60px; }
+    .brand-text { display: flex; }
+    .nav-toggle { display: inline-flex; }
+    .main-nav {
+        position: fixed; top: 0; right: 0; bottom: 0; width: min(360px, 88vw); background: #fff; z-index: 200;
+        flex-direction: column; align-items: stretch; gap: 0; padding: 90px 18px 24px; overflow-y: auto;
+        transform: translateX(100%); transition: transform .3s ease, visibility .3s; visibility: hidden; margin: 0;
+    }
+    .nav-open .main-nav { transform: translateX(0); visibility: visible; box-shadow: -20px 0 40px rgba(0,0,0,.12); }
+    .nav-open::after { content: ""; position: fixed; inset: 0; background: rgba(10, 30, 20, .45); z-index: 90; }
+    .nav-open .nav-toggle { position: fixed; top: 16px; right: 16px; z-index: 210; background: #fff; }
+    .nav-list { flex-direction: column; align-items: stretch; gap: 0; }
+    .nav-item { flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+    .nav-item > a { flex: 1; padding: 14px 6px; font-size: 1rem; }
+    .nav-item.active > a::after { display: none; }
+    .dropdown-toggle { padding: 12px; }
+    .dropdown { position: static; width: 100%; opacity: 1; visibility: visible; transform: none; box-shadow: none; border: 0; padding: 0 0 10px 10px; display: none; min-width: 0; }
+    .has-dropdown:hover > .dropdown, .has-dropdown:focus-within > .dropdown { display: none; }
+    .has-dropdown.open > .dropdown { display: block; }
+    .has-dropdown:hover .dropdown-toggle .icon { transform: none; }
+    .has-dropdown.open .dropdown-toggle .icon { transform: rotate(180deg); }
+    .nav-mobile-only { display: flex; }
+    .nav-donate { margin-top: 20px; }
+    body.nav-open { overflow: hidden; }
+}
+
+@media (max-width: 991px) {
+    .section { padding: 64px 0; }
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3 { grid-template-columns: repeat(2, 1fr); }
+    .photo-tiles { grid-template-columns: repeat(2, 1fr); }
+    .hero-slide { grid-template-columns: 1fr; gap: 0; }
+    .hero-content { padding: 60px 0 20px; text-align: center; margin: 0 auto; }
+    .hero p { margin-left: auto; margin-right: auto; }
+    .hero-actions { justify-content: center; }
+    .hero-art { padding: 0 0 70px; }
+    .hero-art img { max-width: 260px; }
+    .hero-arrow { display: none; }
+    .program-layout, .detail-layout, .donate-layout { grid-template-columns: 1fr; }
+    .program-aside, .sticky-card, .donate-summary { position: static; }
+    .split, .split-reverse { grid-template-columns: 1fr; }
+    .member-layout { grid-template-columns: 1fr; }
+    .member-nav { position: static; }
+    .member-nav ul { grid-template-columns: repeat(2, 1fr); }
+    .cta-band { grid-template-columns: 1fr; padding: 36px; text-align: center; }
+    .cta-actions { justify-content: center; }
+}
+
+@media (max-width: 767px) {
+    body { font-size: 15px; }
+    .topbar { font-size: .75rem; }
+    .topbar-inner { justify-content: center; text-align: center; }
+    .topbar-welcome, .hide-sm { display: none !important; }
+    .section { padding: 52px 0; }
+    .section-head { margin-bottom: 28px; }
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    .form-grid, .form-grid-3 { grid-template-columns: 1fr; }
+    .form-card { padding: 22px 18px; border-radius: var(--radius); }
+    .auth-wrap .form-card { padding: 26px 20px; }
+    .amount-options { grid-template-columns: repeat(2, 1fr); }
+    .page-banner { padding: 40px 0 36px; }
+    .contact-band-inner { flex-direction: column; padding: 22px; gap: 16px; }
+    .footer-grid { grid-template-columns: 1fr 1fr; gap: 28px; }
+    .footer-about { grid-template-columns: 1fr; }
+    .footer-contact { grid-column: 1 / -1; }
+    .detail-list { grid-template-columns: 1fr; gap: 2px; }
+    .detail-list dd { margin-bottom: 10px; }
+    .table th, .table td { padding: 10px 12px; }
+    .receipt-head, .receipt-foot { flex-direction: column; align-items: flex-start; }
+    .receipt-title { text-align: left; }
+    .receipt-head, .receipt-body, .receipt-foot { padding-left: 18px; padding-right: 18px; }
+    .certificate { padding: 36px 22px; border-width: 8px; outline-offset: -16px; }
+    .certificate h1 { font-size: 1.5rem; }
+    .certificate .cert-name { font-size: 1.4rem; }
+    .cert-foot { flex-direction: column; align-items: center; text-align: center; }
+    .lightbox { padding: 60px 10px; }
+    .lightbox-prev, .lightbox-next { top: auto; bottom: 14px; transform: none; }
+    .raise-grid { grid-template-columns: repeat(3, 1fr); }
+    .member-nav ul { grid-template-columns: 1fr 1fr; }
+    .floating-actions { right: 12px; bottom: 12px; }
+    .float-btn { width: 46px; height: 46px; }
+}
+
+@media (max-width: 480px) {
+    .container { padding: 0 16px; }
+    .brand-text strong { font-size: .92rem; }
+    .brand-text small { font-size: .74rem; }
+    .brand img { width: 52px; height: 52px; }
+    .hero-track { min-height: 0; }
+    .hero-content { padding-top: 44px; }
+    .btn-lg { padding: .9em 1.5em; }
+    .footer-grid { grid-template-columns: 1fr; }
+    .member-nav ul { grid-template-columns: 1fr; }
+    .search-bar input, .search-bar select, .search-bar .btn { min-width: 100%; }
+}

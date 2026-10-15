@@ -1,21 +1,15 @@
-# Local configuration
-config/local.php
-storage/installed.lock
+# Private configuration kept outside public_html (never commit secrets)
+pwf-config.php
 
-# Runtime data
-storage/backups/*
-storage/logs/*
-storage/cache/*
-storage/private/*
-storage/tmp/*
-!storage/**/.gitkeep
-assets/uploads/*
-!assets/uploads/.htaccess
-!assets/uploads/.gitkeep
+# User uploads (keep folder structure and protection files only)
+public_html/uploads/**/*
+!public_html/uploads/**/
+!public_html/uploads/**/.htaccess
+!public_html/uploads/**/index.html
 
-# Node / build tooling (admin/build is committed so production needs no Node)
-node_modules/
-frontend/node_modules/
-tools/.cache/
+# OS / editor files
 .DS_Store
+Thumbs.db
 *.log
+.idea/
+.vscode/

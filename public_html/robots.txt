@@ -1,0 +1,15 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /uploads/documents/
+Disallow: /uploads/certificates/
+Disallow: /process-
+Disallow: /payment-webhook.php
+Disallow: /donation-receipt.php
+Disallow: /donation-success.php
+Disallow: /donation-failed.php
+Disallow: /member-dashboard.php
+Disallow: /member-profile.php
+Disallow: /my-
+Disallow: /reset-password.php
+
+Sitemap: https://preritwelfarefoundation.org/sitemap.xml

@@ -1,0 +1,73 @@
+# =====================================================================
+# Prerit Welfare Foundation - Apache / LiteSpeed configuration
+# =====================================================================
+
+Options -Indexes
+DirectoryIndex index.php
+ServerSignature Off
+
+# ---------------------------------------------------------------------
+# Block direct access to include files, configuration and data files
+# ---------------------------------------------------------------------
+<FilesMatch "^(config|database|functions|header|footer|auth|mail|validation|csrf)\.php$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "\.(sql|md|log|ini|bak|old|orig|swp|dist|env|json|lock|sh|yml|yaml)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Force HTTPS (uncomment once an SSL certificate is active - Hostinger provides free SSL)
+    # RewriteCond %{HTTPS} off
+    # RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Force the non-www domain (optional)
+    # RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+    # RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+
+    # Block access to hidden files/folders such as .git
+    RewriteRule (^|/)\.(?!well-known/) - [F,L]
+</IfModule>
+
+# ---------------------------------------------------------------------
+# Security headers (PHP also sends these for every page)
+# ---------------------------------------------------------------------
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header unset X-Powered-By
+</IfModule>
+
+# ---------------------------------------------------------------------
+# Error pages
+# ---------------------------------------------------------------------
+ErrorDocument 403 "Forbidden"
+
+# ---------------------------------------------------------------------
+# Compression & browser caching for static files
+# ---------------------------------------------------------------------
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript text/javascript image/svg+xml application/json text/plain
+</IfModule>
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType text/javascript "access plus 1 month"
+    ExpiresByType image/png "access plus 6 months"
+    ExpiresByType image/jpeg "access plus 6 months"
+    ExpiresByType image/webp "access plus 6 months"
+    ExpiresByType image/svg+xml "access plus 6 months"
+    ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
+<IfModule mod_mime.c>
+    AddType font/woff2 .woff2
+    AddType image/webp .webp
+</IfModule>

@@ -1,0 +1,8 @@
+# Public PDF reports and registration certificates published by the admin.
+Require all granted
+<FilesMatch "\.(?!pdf$)[^.]+$">
+    Require all denied
+</FilesMatch>
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>

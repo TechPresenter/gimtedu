@@ -1,0 +1,3 @@
+# PRIVATE: resumes, scholarship documents and help-request documents.
+# Files here are only delivered through authenticated PHP pages.
+Require all denied
