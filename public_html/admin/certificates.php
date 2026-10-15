@@ -33,9 +33,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         ], ['recipient_email' => 'Recipient account email', 'recipient_name' => 'Name on the certificate', 'certificate_type' => 'Certificate type']);
         $user = null;
         if (!$errors) {
-            $user = db_row('SELECT id, name, email, status FROM users WHERE email = ?', [$data['recipient_email']]);
+            $user = db_row('SELECT id, name, email, status, email_verified_at FROM users WHERE email = ?', [$data['recipient_email']]);
             if (!$user || $user['status'] !== 'active') {
                 $errors['recipient_email'] = 'No active website account uses this email address. The recipient needs an account to receive certificates.';
+            } elseif (empty($user['email_verified_at'])) {
+                $errors['recipient_email'] = 'The website account for this email has not verified its address yet. Certificates can only be issued to verified accounts.';
             }
         }
         if (!$errors && ($data['issue_date'] > date('Y-m-d') || $data['issue_date'] < '2000-01-01')) {

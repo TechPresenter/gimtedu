@@ -40,10 +40,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         'accept_terms'          => 'accepted',
         'communication_consent' => 'in:1',
     ], [
-        'account_type' => 'Account type', 'accept_terms' => 'I agree to the Privacy Policy and Terms & Conditions',
+        'account_type' => 'Account type', 'accept_terms' => 'I am 18 years or older and agree to the Privacy Policy and Terms & Conditions',
         'communication_consent' => 'Communication preference', 'mobile' => 'Mobile number',
     ]);
-    $password = (string) ($_POST['password'] ?? '');
+    $password = post_str('password');
     $mobile = normalize_mobile($data['mobile']);
     if (!isset($errors['mobile']) && (strlen($mobile) < 8 || strlen($mobile) > 15)) {
         $errors['mobile'] = 'Please enter a valid mobile number.';
@@ -51,10 +51,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if ($password === '') {
         $errors['password'] = 'Password is required.';
     } elseif ($problem = password_problem($password, $data['name'], $data['email'])) {
-        $errors['password'] = $problem;
-    } elseif (strlen($password) > 72) {
-        $errors['password'] = 'Password may not be longer than 72 characters.';
-    } elseif ($password !== (string) ($_POST['password_confirm'] ?? '')) {
+        $errors['password'] = $problem;   // includes the 72-byte limit
+    } elseif ($password !== post_str('password_confirm')) {
         $errors['password_confirm'] = 'The two passwords do not match.';
     }
     if ($errors) {
@@ -107,8 +105,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 }
 
 $sent = isset($_GET['sent']);
-$typeIcons = ['member' => 'id-card', 'registered_volunteer' => 'users', 'donor' => 'heart', 'beneficiary_applicant' => 'life-buoy'];
-$selectedType = (string) old('account_type', in_array('member', $roleSlugs, true) ? 'member' : ($roleSlugs[0] ?? ''));
+$typeIcons = ['member' => 'id-card', 'registered_volunteer' => 'users', 'donor' => 'heart', 'beneficiary_applicant' => 'life-buoy', 'supporter' => 'user'];
+// Nothing implies an approved role: preselect the neutral "supporter" type (else donor); membership and volunteer
+// roles are added only when an application is approved.
+$selectedType = (string) old('account_type', in_array('supporter', $roleSlugs, true) ? 'supporter' : (in_array('donor', $roleSlugs, true) ? 'donor' : ''));
 
 page_header($page, [
     'title'            => $sent ? 'Check your email' : 'Create an account',
@@ -175,6 +175,7 @@ page_header($page, [
                                 <?php endforeach; ?>
                             </div>
                             <?= field_error('account_type') ?>
+                            <p class="acc-fine"><?= icon('info') ?><span>Want to volunteer or become a member? Create your account, then apply on the <a href="<?= e(page_url('become-a-volunteer')) ?>">Volunteer</a> or <a href="<?= e(page_url('membership')) ?>">Membership</a> page. The role is added to your account when your application is approved.</span></p>
                         </fieldset>
 
                         <div class="form-grid">
@@ -200,7 +201,7 @@ page_header($page, [
 
                         <div class="acc-consents">
                             <label class="checkbox"><input type="checkbox" name="accept_terms" value="1" required<?= old('accept_terms') === '1' ? ' checked' : '' ?>>
-                                <span>I have read and agree to the <a href="<?= e(page_url('privacy-policy')) ?>" target="_blank" rel="noopener">Privacy Policy</a> and the <a href="<?= e(page_url('terms-conditions')) ?>" target="_blank" rel="noopener">Terms &amp; Conditions</a>.<span class="req">*</span></span></label>
+                                <span>I am 18 years or older and I have read and agree to the <a href="<?= e(page_url('privacy-policy')) ?>" target="_blank" rel="noopener">Privacy Policy</a> and the <a href="<?= e(page_url('terms-conditions')) ?>" target="_blank" rel="noopener">Terms &amp; Conditions</a>.<span class="req">*</span></span></label>
                             <?= field_error('accept_terms') ?>
                             <label class="checkbox"><input type="checkbox" name="communication_consent" value="1"<?= old('communication_consent') === '1' ? ' checked' : '' ?>>
                                 <span>Keep me informed by email about events, campaigns and volunteering opportunities (optional - you can change this any time).</span></label>

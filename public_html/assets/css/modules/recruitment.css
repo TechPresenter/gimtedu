@@ -88,9 +88,10 @@
 .rc-lookup-card h2 { font-size: 1.4rem; margin-bottom: 6px; }
 .rc-one-col { grid-template-columns: minmax(0, 1fr); }
 .rc-ref-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
-.rc-ref-list li { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: .86rem; padding-bottom: 8px; border-bottom: 1px dashed var(--line); }
+.rc-ref-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: baseline; font-size: .86rem; padding-bottom: 8px; border-bottom: 1px dashed var(--line); }
 .rc-ref-list code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 700; color: var(--green-700); background: var(--green-50); padding: 1px 6px; border-radius: 6px; }
-.rc-ref-list span { color: var(--muted); }
+.rc-ref-list span { color: var(--muted); text-align: right; }
+.rc-ref-list code { white-space: nowrap; }
 
 .rc-result-wrap { max-width: 860px; margin: 0 auto; }
 .rc-result { padding: 24px 18px; }
@@ -159,7 +160,7 @@
     .rc-status-layout { grid-template-columns: minmax(0, 1fr) 340px; }
     .rc-form-card { padding: 36px 38px; }
     .rc-apply-grid.rc-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .rc-apply-grid.rc-cols-4, .rc-apply-grid.rc-cols-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .rc-apply-grid.rc-cols-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }   /* rc-cols-4 stays 2 + 2 until 1200px */
     .rc-next .steps { --step-cols: 4; }
 }
 @media (min-width: 1200px) {

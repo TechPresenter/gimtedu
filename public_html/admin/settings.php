@@ -84,7 +84,7 @@ $val = function (string $key, array $def) {
                     <li><span>Key ID</span><code><?= $keyId !== '' ? e(substr($keyId, 0, 9) . str_repeat('•', 6)) : 'not set' ?></code></li>
                     <li><span>Webhook secret set</span><strong><?= (string) RAZORPAY_WEBHOOK_SECRET !== '' ? 'Yes' : 'No' ?></strong></li>
                     <li><span>Webhook URL (enter in the Razorpay dashboard)</span><span><code><?= e(abs_url('payment-webhook.php')) ?></code> <button type="button" class="btn btn-ghost btn-sm" data-copy-text="<?= e(abs_url('payment-webhook.php')) ?>"><?= icon('copy') ?><span>Copy</span></button></span></li>
-                    <li><span>Webhook events</span><span>payment.captured, payment.failed, order.paid, refund.processed</span></li>
+                    <li><span>Webhook events</span><span>payment.captured, payment.authorized, payment.failed, order.paid, refund.processed</span></li>
                 </ul>
                 <p class="help mt-2 mb-0">The keys are kept in the configuration file (pwf-config.php or config.php) on the server - never in the database or this panel. Use test keys (rzp_test_…) until the foundation's merchant account is approved, then replace them with live keys.<?= $mode === 'test mode' ? ' In test mode no real money is collected and donation pages show a "test mode" notice.' : '' ?></p>
             </section>

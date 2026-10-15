@@ -16,6 +16,7 @@ if (!defined('PWF_APP')) {
 
 const REMEMBER_COOKIE = 'pwf_remember';
 const REMEMBER_DAYS = 30;
+const STAFF_PASSWORD_MIN = 12;
 
 // ---------------------------------------------------------------------
 // Current user
@@ -35,12 +36,16 @@ function current_user(bool $refresh = false): ?array
     if (!empty($_SESSION['uid'])) {
         $row = db_row('SELECT * FROM users WHERE id = ?', [(int) $_SESSION['uid']]);
         if ($row && $row['status'] === 'active' && (int) $row['session_version'] === (int) ($_SESSION['uver'] ?? 0)) {
+            // Accounts with two-step login are signed in only after the 6-digit code (admin/login.php step 2).
+            if (!empty($row['totp_enabled']) && !empty($_SESSION['totp_pending']) && empty($_SESSION['totp_ok']) && !defined('PWF_TOTP_STEP')) {
+                return null;
+            }
             $user = public_user_fields($row);
         } else {
             unset($_SESSION['uid'], $_SESSION['uver'], $_SESSION['roles'], $_SESSION['perms']);
         }
     }
-    if ($user === null && !empty($_COOKIE[REMEMBER_COOKIE])) {
+    if ($user === null && !empty($_COOKIE[REMEMBER_COOKIE]) && is_string($_COOKIE[REMEMBER_COOKIE])) {
         $user = login_from_remember_cookie();
     }
     return $user;
@@ -142,6 +147,30 @@ function user_can(string $permission, ?int $userId = null): bool
     return is_administrator($userId) || in_array($permission, user_permissions($userId), true);
 }
 
+/**
+ * Staff permission on PUBLIC pages (receipts by reference, draft previews): the same conditions as the admin panel -
+ * a password sign-in in this session (not a remember-me cookie), the 2-step code when enabled, and no inactivity
+ * timeout. Read-only: it does not extend the admin session.
+ */
+function staff_session_can(string $permission): bool
+{
+    $u = current_user();
+    if (!$u || empty($_SESSION['staff_auth']) || !empty($_SESSION['remembered'])) {
+        return false;
+    }
+    if (!is_staff((int) $u['id'])) {
+        return false;
+    }
+    if (!empty($u['totp_enabled']) && empty($_SESSION['totp_ok'])) {
+        return false;
+    }
+    $last = (int) ($_SESSION['admin_last_activity'] ?? 0);
+    if ($last === 0 || time() - $last > ADMIN_SESSION_TIMEOUT) {
+        return false;
+    }
+    return user_can($permission, (int) $u['id']);
+}
+
 /** Does the user hold any staff role (may open /admin/)? */
 function is_staff(?int $userId = null): bool
 {
@@ -208,14 +237,20 @@ function find_user_by_login(string $login): ?array
     return strlen($mobile) === 10 ? db_row('SELECT * FROM users WHERE mobile = ?', [$mobile]) : null;
 }
 
-/** Password policy: 8+ characters with at least one letter and one number. */
-function password_problem(string $password, string $name = '', string $email = ''): ?string
+/**
+ * Password policy: 8+ characters with at least one letter and one number; staff accounts ($userId holding a staff
+ * role) need at least STAFF_PASSWORD_MIN characters. Passwords are limited to 72 bytes (bcrypt uses no more).
+ */
+function password_problem(string $password, string $name = '', string $email = '', ?int $userId = null): ?string
 {
     if (mb_strlen($password) < 8) {
         return 'Password must be at least 8 characters long.';
     }
-    if (mb_strlen($password) > 128) {
-        return 'Password is too long.';
+    if ($userId !== null && mb_strlen($password) < STAFF_PASSWORD_MIN && is_staff($userId)) {
+        return 'Staff passwords must be at least ' . STAFF_PASSWORD_MIN . ' characters long.';
+    }
+    if (mb_strlen($password) > 128 || strlen($password) > 72) {
+        return 'Password is too long (maximum 72 bytes).';
     }
     if (!preg_match('/[A-Za-z]/', $password) || !preg_match('/\d/', $password)) {
         return 'Password must contain at least one letter and one number.';
@@ -294,12 +329,16 @@ function login_user(array $user, bool $remember = false): void
 {
     $userId = (int) $user['id'];
     session_regenerate_id(true);
-    $row = db_row('SELECT id, session_version, last_login_at, email FROM users WHERE id = ?', [$userId]);
+    $row = db_row('SELECT id, session_version, last_login_at, email, totp_enabled FROM users WHERE id = ?', [$userId]);
     $_SESSION['uid'] = $userId;
     $_SESSION['uver'] = (int) $row['session_version'];
     $_SESSION['login_at'] = time();
     $_SESSION['last_seen'] = time();
-    unset($_SESSION['totp_ok']);
+    unset($_SESSION['totp_ok'], $_SESSION['totp_pending']);
+    if (!empty($row['totp_enabled'])) {
+        $_SESSION['totp_pending'] = 1;   // cleared by admin/login.php after a valid code
+        $remember = false;               // never skip the second step with a remember-me cookie
+    }
 
     // Genuine security signal: failed sign-in attempts on this account since the last successful login
     $since = $row['last_login_at'] ?: date('Y-m-d H:i:s', time() - 30 * 86400);
@@ -321,8 +360,8 @@ function login_user(array $user, bool $remember = false): void
 /** End this session (and forget this device). */
 function logout_user(): void
 {
-    if (!empty($_COOKIE[REMEMBER_COOKIE])) {
-        [$selector] = array_pad(explode(':', (string) $_COOKIE[REMEMBER_COOKIE], 2), 2, '');
+    if (!empty($_COOKIE[REMEMBER_COOKIE]) && is_string($_COOKIE[REMEMBER_COOKIE])) {
+        [$selector] = array_pad(explode(':', $_COOKIE[REMEMBER_COOKIE], 2), 2, '');
         db_query('DELETE FROM remember_tokens WHERE selector = ?', [$selector]);
         clear_remember_cookie();
     }
@@ -390,7 +429,8 @@ function clear_remember_cookie(): void
 /** Restore a session from a valid remember-me cookie (rotates the token). */
 function login_from_remember_cookie(): ?array
 {
-    [$selector, $validator] = array_pad(explode(':', (string) $_COOKIE[REMEMBER_COOKIE], 2), 2, '');
+    $cookie = $_COOKIE[REMEMBER_COOKIE] ?? '';
+    [$selector, $validator] = array_pad(explode(':', is_string($cookie) ? $cookie : '', 2), 2, '');
     if (!preg_match('/^[a-f0-9]{24}$/', $selector) || !preg_match('/^[a-f0-9]{64}$/', $validator)) {
         clear_remember_cookie();
         return null;
@@ -405,7 +445,7 @@ function login_from_remember_cookie(): ?array
     }
     $user = db_row("SELECT * FROM users WHERE id = ? AND status = 'active'", [$token['user_id']]);
     db_query('DELETE FROM remember_tokens WHERE id = ?', [$token['id']]);
-    if (!$user) {
+    if (!$user || !empty($user['totp_enabled'])) {
         clear_remember_cookie();
         return null;
     }
@@ -432,10 +472,11 @@ function create_email_verification(int $userId): string
     return $token;
 }
 
-function send_verification_email(array $user): void
+/** Email a verification link. Returns whether the email was sent. */
+function send_verification_email(array $user): bool
 {
     $link = abs_url('verify-email/?token=' . create_email_verification((int) $user['id']));
-    send_mail($user['email'], 'Verify your email - ' . site_name(),
+    return send_mail($user['email'], 'Verify your email - ' . site_name(),
         '<p>Dear ' . e($user['name']) . ',</p><p>Thank you for creating an account with ' . e(site_name()) . '. Please confirm your email address:</p>'
         . '<p><a class="btn" href="' . e($link) . '">Verify my email</a></p><p>This link is valid for 48 hours. If you did not create an account, you can ignore this email.</p>');
 }
@@ -456,9 +497,15 @@ function verify_email_token(string $token): ?int
     return (int) $row['user_id'];
 }
 
-function create_password_reset(int $userId): string
+/** Cancel every outstanding password-reset / invitation link of an account (e.g. after its email address changed). */
+function invalidate_password_resets(int $userId): void
 {
     db_query('UPDATE password_resets SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL', [$userId]);
+}
+
+function create_password_reset(int $userId): string
+{
+    invalidate_password_resets($userId);
     $token = bin2hex(random_bytes(32));
     db_insert('password_resets', [
         'user_id' => $userId, 'token_hash' => hash('sha256', $token),

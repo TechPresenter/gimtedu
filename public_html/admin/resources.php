@@ -11,7 +11,7 @@ require_permission('resources.manage');
 $whereShown = [
     'certification' => ['Certificates', 'certifications'], 'annual_report' => ['Impact Reports', 'impact-reports'],
     'impact_report' => ['Impact Reports', 'impact-reports'], 'financial_statement' => ['Financial Transparency', 'financial-transparency'],
-    'utilization_report' => ['Utilization Reports', 'utilization-reports'], 'digital_resource' => ['Digital Resources', 'digital-resources'],
+    'utilization_report' => ['Utilisation Reports', 'utilization-reports'], 'digital_resource' => ['Digital Resources', 'digital-resources'],
     'press_kit' => ['Media / Press Releases', 'media'],
 ];
 
@@ -124,7 +124,7 @@ admin_page_start('Certificates & Reports', [['label' => 'Add document', 'url' =>
     <?php endforeach; ?>
 </nav>
 
-<div class="admin-grid-main">
+<div<?= $showForm ? ' class="admin-grid-main"' : '' ?>>
     <section class="panel">
         <?php admin_filter_bar([], ['placeholder' => 'Search title or description', 'hidden' => $cat !== '' ? ['category' => $cat] : []]); ?>
         <?php if (!$rows): ?>
@@ -160,12 +160,9 @@ admin_page_start('Certificates & Reports', [['label' => 'Add document', 'url' =>
         </ul>
     </section>
 
+    <?php if ($showForm): $d = $edit ?: []; ?>
     <section class="panel">
         <div class="panel-head"><h2><?= $edit ? 'Edit document' : 'Add a document' ?></h2><?php if ($edit): ?><a class="btn btn-ghost btn-sm" href="<?= e(admin_url('resources.php')) ?>">Cancel</a><?php endif; ?></div>
-        <?php if (!$showForm): ?>
-            <p class="muted">Choose <strong>Add document</strong> or the edit icon next to a document.</p>
-            <a class="btn btn-primary btn-sm" href="<?= e(admin_url('resources.php?new=1')) ?>"><?= icon('plus') ?>Add document</a>
-        <?php else: $d = $edit ?: []; ?>
             <form method="post" enctype="multipart/form-data" class="form-grid">
                 <?= csrf_field() ?><input type="hidden" name="action" value="save"><input type="hidden" name="id" value="<?= (int) ($d['id'] ?? 0) ?>">
                 <div class="form-group full"><label for="category">Category</label><select id="category" name="category"><?= options_html(RESOURCE_CATEGORIES, (string) old('category', $d['category'] ?? ($cat ?: 'certification')), true, '') ?></select><?= field_error('category') ?></div>
@@ -183,8 +180,8 @@ admin_page_start('Certificates & Reports', [['label' => 'Add document', 'url' =>
                 <div class="form-group"><label for="status">Status</label><select id="status" name="status"><?= options_html(['published' => 'Published', 'hidden' => 'Hidden'], (string) old('status', $d['status'] ?? 'published'), true, '') ?></select></div>
                 <div class="form-actions full" style="grid-column:1/-1"><button class="btn btn-primary" type="submit"><?= icon('upload') ?>Save document</button></div>
             </form>
-        <?php endif; ?>
     </section>
+    <?php endif; ?>
 </div>
 <?php
 admin_page_end();

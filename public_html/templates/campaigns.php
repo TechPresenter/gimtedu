@@ -19,7 +19,7 @@ $catCounts = [];
 foreach (db_rows("SELECT c.category, COUNT(*) AS n FROM campaigns c WHERE $statusWhere GROUP BY c.category") as $r) {
     $catCounts[$r['category']] = (int) $r['n'];
 }
-$category = (string) ($_GET['category'] ?? '');
+$category = get_str('category');
 if (!isset($catCounts[$category])) {
     $category = '';
 }
@@ -120,6 +120,10 @@ render_sections($page, function () use ($status, $q, $category, $catCounts, $tab
                         <p>No <?= $status === 'active' ? 'active' : 'completed' ?> campaigns match your search. Try another cause or clear the filters.</p>
                         <div class="btn-row center"><a class="btn btn-outline" href="<?= e(page_url('campaigns', $status === 'completed' ? ['status' => 'completed'] : [])) ?>">Show all campaigns</a>
                             <a class="btn btn-donate" href="<?= e(donate_url()) ?>"><?= icon('heart') ?>Make a general donation</a></div>
+                    <?php elseif ($status === 'active' && !(online_donations_available() || bank_transfer_details())): ?>
+                        <p><strong>There are no open fundraising campaigns right now.</strong><br>To support our programmes, write to us and our team will share the current ways to donate.</p>
+                        <div class="btn-row center"><a class="btn btn-donate" href="<?= e(page_url('contact')) ?>"><?= icon('mail') ?>Ask how to donate</a>
+                            <a class="btn btn-outline" href="<?= e(page_url('start-a-fundraiser')) ?>"><?= icon('flag') ?>Propose a fundraiser</a></div>
                     <?php elseif ($status === 'active'): ?>
                         <p><strong>There are no open fundraising campaigns right now.</strong><br>You can still support our programmes with a general donation - it is used where it is needed most, and you receive a receipt once it is verified.</p>
                         <div class="btn-row center"><a class="btn btn-donate" href="<?= e(donate_url()) ?>"><?= icon('heart') ?>Make a general donation</a>

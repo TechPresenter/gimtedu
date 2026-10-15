@@ -21,8 +21,8 @@ $org = ['@id' => abs_url('#organization')];
 // ---------------------------------------------------------------------
 if ($param === '') {
     $cats = scheme_categories();
-    $cat = (string) ($_GET['category'] ?? '');
-    $q = trim((string) ($_GET['q'] ?? ''));
+    $cat = get_str('category');
+    $q = trim(get_str('q'));
     $opts = [];
     if (isset($cats[$cat])) {
         $opts['meta_title'] = ($page['meta_title'] ?: $page['title']) . ': ' . $cats[$cat];

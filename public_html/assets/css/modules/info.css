@@ -17,7 +17,10 @@
 details.team-bio summary { list-style: none; cursor: pointer; }
 details.team-bio summary::-webkit-details-marker { display: none; }
 details.team-bio summary em { font-style: normal; color: var(--green-600); font-weight: 600; white-space: nowrap; }
-details.team-bio[open] summary { display: none; }
+details.team-bio .bio-less, details.team-bio[open] .bio-more, details.team-bio[open] .bio-excerpt { display: none; }
+details.team-bio[open] .bio-less { display: inline; }
+details.team-bio[open] summary { margin-bottom: 4px; }
+details.team-bio summary:focus-visible { outline: 3px solid var(--gold-500); outline-offset: 3px; border-radius: 4px; }
 details.team-bio p { margin: 0; }
 .team-link { margin-top: auto; padding-top: 10px; display: inline-flex; gap: 6px; align-items: center; font-size: .85rem; font-weight: 600; color: var(--blue-600); }
 .team-link .icon { width: 17px; height: 17px; }
@@ -131,13 +134,19 @@ fieldset.radio-set legend, .star-field legend { font-weight: 600; font-size: .88
 fieldset.star-field { border: 0; padding: 0; margin: 0 0 22px; min-width: 0; }
 .star-rating { display: inline-flex; gap: 4px; }
 .star-rating input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
-.star-rating label { cursor: pointer; color: #cfd8d2; padding: 2px; border-radius: 8px; line-height: 0; transition: color .15s, transform .15s; }
-.star-rating label .icon { width: 36px; height: 36px; fill: currentColor; stroke: #b9a24a; stroke-width: 1; }
+/* state is shown by shape as well as colour: hollow (outline 6.5:1) vs filled gold */
+.star-rating label { cursor: pointer; color: transparent; padding: 2px; border-radius: 8px; line-height: 0; transition: color .15s, transform .15s; }
+.star-rating label .icon { width: 36px; height: 36px; fill: currentColor; stroke: #7a5800; stroke-width: 1.5; stroke-linejoin: round; }
 .star-rating input:checked + label { color: var(--gold-500); }
 .star-rating:has(input:checked) label { color: var(--gold-500); }
-.star-rating input:checked + label ~ label { color: #cfd8d2; }
+.star-rating input:checked + label ~ label { color: transparent; }
 .star-rating:hover > label { color: var(--gold-500) !important; }
-.star-rating > label:hover ~ label { color: #cfd8d2 !important; }
+.star-rating > label:hover ~ label { color: transparent !important; }
+@media (forced-colors: active) {
+    .star-rating label .icon { stroke: CanvasText; }
+    .star-rating input:checked + label, .star-rating:has(input:checked) label { color: Highlight; }
+    .star-rating input:checked + label ~ label { color: transparent; }
+}
 .star-rating label:hover { transform: scale(1.12); }
 .star-rating input:focus-visible + label { outline: 3px solid var(--green-500); outline-offset: 2px; }
 .star-hint { display: block; margin-top: 4px; }

@@ -430,7 +430,24 @@ function insights_chart(array $data, bool $money = false, string $label = ''): s
     if ($label !== '') {
         $chart = str_replace('aria-label="Bar chart"', 'aria-label="' . e($label) . '"', $chart);
     }
-    return '<div class="insights-chart' . (count($data) > 14 ? ' chart-dense' : '') . '">' . $chart . '</div>';
+    $dense = count($data) > 14;
+    // a wide chart scrolls: make the scroll area keyboard-reachable and add a one-line text summary of real values
+    $html = '<div class="insights-chart' . ($dense ? ' chart-dense' : '') . '"' . ($dense ? ' tabindex="0" role="region" aria-label="' . e(($label !== '' ? $label : 'Chart') . ' (scrollable)') . '"' : '') . '>' . $chart . '</div>';
+    if ($dense && $data) {
+        $fmt = function ($v) use ($money): string {
+            return $money ? money($v) : number_format((float) $v);
+        };
+        $total = array_sum(array_map('floatval', $data));
+        if ($total <= 0) {
+            $html .= '<p class="chart-summary small muted">No activity in this period.</p>';
+        } else {
+            $peakLabel = array_search(max(array_map('floatval', $data)), array_map('floatval', $data), true);
+            $lastLabel = array_key_last($data);
+            $html .= '<p class="chart-summary small muted">Total ' . e($fmt($total)) . ' · Highest: ' . e($fmt($data[$peakLabel])) . ' on ' . e((string) $peakLabel)
+                . ' · Latest (' . e((string) $lastLabel) . '): ' . e($fmt($data[$lastLabel])) . '</p>';
+        }
+    }
+    return $html;
 }
 
 /** Percentage text. */
@@ -527,8 +544,11 @@ function insights_setup_checklist(): array
             'hint' => 'Enter the verified registration number and PAN (12A/80G/CSR-1 when available). Blank values are never shown publicly.', 'url' => 'settings.php'],
         ['done' => RAZORPAY_KEY_ID !== '' && RAZORPAY_KEY_SECRET !== '' && RAZORPAY_WEBHOOK_SECRET !== '', 'label' => 'Online payments (Razorpay)',
             'hint' => 'Add the Razorpay key id, key secret and webhook secret in pwf-config.php.', 'url' => 'security.php'],
-        ['done' => SMTP_HOST !== '', 'label' => 'Email delivery (SMTP)',
-            'hint' => 'Set SMTP_HOST, SMTP_USER and SMTP_PASS in pwf-config.php so receipts and replies are delivered reliably.', 'url' => 'security.php'],
+        ['done' => MAIL_ENABLED && SMTP_HOST !== '', 'label' => 'Email delivery (SMTP)',
+            'hint' => MAIL_ENABLED
+                ? 'Set SMTP_HOST, SMTP_USER and SMTP_PASS in pwf-config.php so receipts and replies are delivered reliably.'
+                : 'Email sending is switched off (MAIL_ENABLED = false in pwf-config.php): no verification links, receipts or replies are delivered. Remove that line, then set SMTP_HOST, SMTP_USER and SMTP_PASS.',
+            'url' => 'security.php'],
         ['done' => !insights_admins_without_2fa(), 'label' => 'Two-step login for administrators',
             'hint' => 'Every administrator should turn on two-step login (My Profile).', 'url' => 'profile.php#two-step'],
         ['done' => !is_file(ROOT_PATH . '/install.php'), 'label' => 'Installer removed',
@@ -580,8 +600,13 @@ function security_health_checks(): array
     }
     $add(RAZORPAY_WEBHOOK_SECRET !== '' ? 'ok' : 'warn', 'Payment webhook secret', RAZORPAY_WEBHOOK_SECRET !== '' ? 'Webhook secret is set (payments are confirmed even if the donor closes the browser).' : 'No webhook secret configured.',
         RAZORPAY_WEBHOOK_SECRET !== '' ? '' : 'In the Razorpay dashboard add the webhook ' . abs_url('payment-webhook.php') . ' and put its secret in RAZORPAY_WEBHOOK_SECRET.');
-    $add(SMTP_HOST !== '' ? 'ok' : 'warn', 'Email delivery (SMTP)', SMTP_HOST !== '' ? 'SMTP server ' . SMTP_HOST . ' is configured.' : 'Emails are sent with PHP mail(), which often lands in spam.',
-        SMTP_HOST !== '' ? '' : 'Create a mailbox in hPanel and set SMTP_HOST, SMTP_USER and SMTP_PASS in pwf-config.php.');
+    if (!MAIL_ENABLED) {
+        $add('bad', 'Email sending switched on', 'MAIL_ENABLED is false in pwf-config.php, so no email is sent: verification links, password resets, receipts, replies and notifications are not delivered, and new members cannot verify their accounts.',
+            'Remove define(\'MAIL_ENABLED\', false) from pwf-config.php (or set it to true). Until then, untick "Require email verification" in Settings or mark new accounts verified in Users.');
+    } else {
+        $add(SMTP_HOST !== '' ? 'ok' : 'warn', 'Email delivery (SMTP)', SMTP_HOST !== '' ? 'SMTP server ' . SMTP_HOST . ' is configured.' : 'Emails are sent with PHP mail(), which often lands in spam.',
+            SMTP_HOST !== '' ? '' : 'Create a mailbox in hPanel and set SMTP_HOST, SMTP_USER and SMTP_PASS in pwf-config.php.');
+    }
     $no2fa = insights_admins_without_2fa();
     $add($no2fa ? 'bad' : 'ok', 'Two-step login for administrators', $no2fa ? 'Without two-step login: ' . implode(', ', array_column($no2fa, 'name')) . '.' : 'Every administrator uses two-step login.',
         $no2fa ? 'Each administrator should open My Profile > Two-step login and scan the key with an authenticator app.' : '');
@@ -724,6 +749,11 @@ function retention_preview(): array
             'count' => $apps],
         'enquiries' => ['label' => 'Resolved / closed enquiries', 'detail' => 'Older than ' . $d['enquiries'] . ' days - deleted',
             'count' => (int) db_value("SELECT COUNT(*) FROM contact_enquiries WHERE status IN ('resolved','closed') AND COALESCE(updated_at, created_at) < NOW() - INTERVAL ? DAY", [$d['enquiries']])],
+        'feedback' => ['label' => 'Resolved / closed feedback', 'detail' => 'Older than ' . $d['enquiries'] . ' days - deleted',
+            'count' => (int) db_value("SELECT COUNT(*) FROM feedback WHERE status IN ('actioned','closed') AND COALESCE(updated_at, created_at) < NOW() - INTERVAL ? DAY", [$d['enquiries']])],
+        'newsletter' => ['label' => 'Unsubscribed newsletter records', 'detail' => 'More than 30 days after unsubscribing - name and IP address removed (the email address and the opt-out are kept so we never email it again)',
+            'count' => (int) db_value("SELECT COUNT(*) FROM newsletter_subscribers WHERE status = 'unsubscribed' AND (name IS NOT NULL OR ip_address IS NOT NULL)
+                                       AND COALESCE(updated_at, created_at) < NOW() - INTERVAL 30 DAY")],
         'analytics' => ['label' => 'Website analytics page views', 'detail' => 'Older than ' . $d['analytics'] . ' days - deleted',
             'count' => (int) db_value('SELECT COUNT(*) FROM page_views WHERE created_at < NOW() - INTERVAL ? DAY', [$d['analytics']])],
         'tokens' => ['label' => 'Expired sign-in tokens', 'detail' => 'Expired remember-me and email verification tokens, password reset links older than 30 days - deleted',
@@ -731,6 +761,35 @@ function retention_preview(): array
                 + (int) db_value('SELECT COUNT(*) FROM email_verifications WHERE expires_at < NOW()')
                 + (int) db_value('SELECT COUNT(*) FROM password_resets WHERE created_at < NOW() - INTERVAL 30 DAY')],
     ];
+}
+
+/**
+ * Run the clean-up once a day automatically (from an admin page load) - the privacy policy promises it, so it must not
+ * depend on someone remembering to press the button. Returns the run result, or null when it was not due.
+ */
+function retention_auto_run(): ?array
+{
+    $last = setting('retention_last_run');
+    if ($last !== '' && strtotime($last) > time() - 86400) {
+        return null;
+    }
+    try {
+        $done = retention_run();
+    } catch (Throwable $e) {
+        error_log('Automatic retention clean-up failed: ' . $e->getMessage());
+        return null;
+    }
+    save_setting('retention_last_run', date('Y-m-d H:i:s'));
+    if (function_exists('admin_log')) {
+        $parts = [];
+        foreach ($done as $k => $n) {
+            if ($n) {
+                $parts[] = $k . ': ' . $n;
+            }
+        }
+        admin_log('retention_cleanup', 'Automatic data clean-up' . ($parts ? ' - ' . implode(', ', $parts) : ' - nothing to remove'));
+    }
+    return $done;
 }
 
 /** Run the clean-up. Returns [key => affected rows]. */
@@ -755,6 +814,9 @@ function retention_run(): array
         }
     }
     $done['enquiries'] = db_query("DELETE FROM contact_enquiries WHERE status IN ('resolved','closed') AND COALESCE(updated_at, created_at) < NOW() - INTERVAL ? DAY", [$d['enquiries']])->rowCount();
+    $done['feedback'] = db_query("DELETE FROM feedback WHERE status IN ('actioned','closed') AND COALESCE(updated_at, created_at) < NOW() - INTERVAL ? DAY", [$d['enquiries']])->rowCount();
+    $done['newsletter'] = db_query("UPDATE newsletter_subscribers SET name = NULL, ip_address = NULL WHERE status = 'unsubscribed' AND (name IS NOT NULL OR ip_address IS NOT NULL)
+                                    AND COALESCE(updated_at, created_at) < NOW() - INTERVAL 30 DAY")->rowCount();
     $done['analytics'] = db_query('DELETE FROM page_views WHERE created_at < NOW() - INTERVAL ? DAY', [$d['analytics']])->rowCount();
     $done['tokens'] = db_query('DELETE FROM remember_tokens WHERE expires_at < NOW()')->rowCount()
         + db_query('DELETE FROM email_verifications WHERE expires_at < NOW()')->rowCount()

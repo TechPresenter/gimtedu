@@ -67,10 +67,14 @@ if ($isNew) {
         foreach ($chosen as $slug) {
             assign_role($newId, $slug, $meId);
         }
-        member_send_reset_link(db_row('SELECT id, name, email FROM users WHERE id = ?', [$newId]), 48, true);
+        $invited = member_send_reset_link(db_row('SELECT id, name, email FROM users WHERE id = ?', [$newId]), 48, true);
         add_notification($newId, 'Welcome to the team', 'Your staff account has been created. Choose your password with the link we emailed you, then turn on two-step login in the admin panel.', null, 'info');
         admin_log('staff_user_created', 'Created staff user #' . $newId . ' (' . $data['email'] . ') with roles: ' . implode(', ', $chosen));
-        flash('success', 'Staff account created. A link to choose a password (valid for 48 hours) has been emailed to ' . $data['email'] . '.');
+        if ($invited) {
+            flash('success', 'Staff account created. A link to choose a password (valid for 48 hours) has been emailed to ' . $data['email'] . '.');
+        } else {
+            flash('warning', 'Staff account created, but the email with the link to choose a password could not be sent (check Settings > Email delivery). Use "Send password reset link" once email works.');
+        }
         admin_redirect('user-view.php?id=' . $newId);
     }
 
@@ -126,6 +130,11 @@ if (!$user) {
 }
 $self = $id === $meId;
 $targetIsAdmin = is_administrator($id);
+$targetIsStaff = is_staff($id);
+// A non-administrator may change another STAFF account only when they may manage users and hold every permission
+// that account has - otherwise a members.manage holder could take over a better-privileged colleague's account.
+$outranks = $iAmAdmin || (!$targetIsAdmin && admin_can('users.manage') && !array_diff(user_permissions($id), $myPerms));
+$staffGuarded = $targetIsStaff && !$self && !$outranks;
 $back = 'user-view.php?id=' . $id;
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
@@ -137,6 +146,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     };
     if ($targetIsAdmin && !$iAmAdmin && $action !== 'send_reset') {
         $deny('Only administrators can change an administrator account.');
+    }
+    if ($staffGuarded && in_array($action, ['profile', 'status', 'send_reset', 'logout_everywhere', 'require_password_change', 'mark_verified', 'resend_verification'], true)) {
+        admin_log('access_denied', 'Tried "' . $action . '" on staff user #' . $id . ' without holding all of its permissions');
+        $deny('You can only change staff accounts whose permissions you also hold. Please ask an administrator.');
     }
 
     switch ($action) {
@@ -162,6 +175,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 'city' => $data['city'] !== '' ? $data['city'] : null, 'state' => $data['state'] !== '' ? $data['state'] : null,
             ] + ($emailChanged ? ['email_verified_at' => null] : []), 'id = :id', ['id' => $id]);
             if ($emailChanged) {
+                // links already sent to the old address (password reset, staff invitation) must stop working
+                invalidate_password_resets($id);
+                logout_everywhere($id);
                 send_verification_email(['id' => $id, 'name' => $data['name'], 'email' => $data['email']]);
                 send_mail((string) $user['email'], 'Your account email address was changed - ' . site_name(),
                     '<p>Dear ' . e($user['name']) . ',</p><p>Our team changed the email address of your ' . e(site_name()) . ' account to <strong>' . e(member_mask_email($data['email'])) . '</strong>.'
@@ -169,7 +185,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 add_notification($id, 'Email address changed', 'Our team changed your account email to ' . $data['email'] . '. Please verify it with the link we sent.', '/dashboard/profile/', 'security');
             }
             admin_log('user_updated', 'Updated profile of user #' . $id . ($emailChanged ? ' (email changed from ' . $user['email'] . ' to ' . $data['email'] . ')' : ''));
-            flash('success', 'Profile saved.' . ($emailChanged ? ' A verification link was sent to the new address.' : ''));
+            flash('success', 'Profile saved.' . ($emailChanged ? ' A verification link was sent to the new address. Any outstanding password or invitation links were cancelled and the account was signed out; send a new link from this page if needed.' : ''));
             break;
 
         case 'status':
@@ -197,9 +213,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         case 'resend_verification':
             require_permission('members.manage');
             if (empty($user['email_verified_at'])) {
-                send_verification_email($user);
-                admin_log('verification_resent', 'Sent a verification email to user #' . $id);
-                flash('success', 'A new verification link has been emailed to ' . $user['email'] . '.');
+                if (send_verification_email($user)) {
+                    admin_log('verification_resent', 'Sent a verification email to user #' . $id);
+                    flash('success', 'A new verification link has been emailed to ' . $user['email'] . '.');
+                } else {
+                    admin_log('verification_resend_failed', 'Verification email to user #' . $id . ' could not be sent');
+                    flash('warning', 'The verification email could not be sent' . (MAIL_ENABLED ? ' (check Settings > Email delivery)' : ' because email sending is switched off on this website') . '. You can use "Mark email as verified" after confirming the address with the user.');
+                }
             }
             break;
 
@@ -215,9 +235,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             if ($user['status'] !== 'active') {
                 $deny('Reactivate the account before sending a password reset link.');
             }
-            member_send_reset_link($user);
-            admin_log('password_reset_sent', 'Sent a password reset link to user #' . $id);
-            flash('success', 'A password reset link (valid for 1 hour) has been emailed to ' . $user['email'] . '.');
+            if (member_send_reset_link($user)) {
+                admin_log('password_reset_sent', 'Sent a password reset link to user #' . $id);
+                flash('success', 'A password reset link (valid for 1 hour) has been emailed to ' . $user['email'] . '.');
+            } else {
+                admin_log('password_reset_failed', 'Password reset email to user #' . $id . ' could not be sent');
+                flash('warning', 'The password reset email could not be sent (check Settings > Email delivery).');
+            }
             break;
 
         case 'logout_everywhere':
@@ -289,7 +313,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 $userRoles = array_column(db_rows('SELECT r.slug FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = ?', [$id]), 'slug');
 $roleNames = member_role_names($id);
 $staff = is_staff($id);
-$canManage = admin_can('members.manage') && (!$targetIsAdmin || $iAmAdmin);
+$canManage = admin_can('members.manage') && (!$targetIsAdmin || $iAmAdmin) && !$staffGuarded;
 $canRoles = admin_can('users.manage') && (!$targetIsAdmin || $iAmAdmin);
 $showIp = admin_can('security.manage');
 
@@ -468,6 +492,8 @@ admin_page_start($user['name'], [['label' => 'All users', 'url' => admin_url('us
                 </div>
             <?php elseif ($targetIsAdmin && !$iAmAdmin): ?>
                 <p class="small muted mt-2">Only administrators can change an administrator account.</p>
+            <?php elseif ($staffGuarded && admin_can('members.manage')): ?>
+                <p class="small muted mt-2">Only an administrator, or someone who holds all of this account's permissions, can change this staff account.</p>
             <?php endif; ?>
             <p class="small muted mt-2">Passwords and two-step secrets are never displayed. Reset links are single use and expire after 1 hour.</p>
         </section>

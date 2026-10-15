@@ -22,10 +22,10 @@ $user = current_user();
 // POST handlers (before any output)
 // ---------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = (string) ($_POST['action'] ?? 'create');
+    $action = post_str('action', 'create');
 
     if ($action === 'verify' || $action === 'failed') {
-        $donation = donation_by_ref_token((string) ($_POST['ref'] ?? ''), (string) ($_POST['token'] ?? ''));
+        $donation = donation_by_ref_token(post_str('ref'), post_str('token'));
         if (!$donation) {
             not_found();
         }
@@ -44,9 +44,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($donation['status'] === 'success') {
             redirect(donation_success_url($donation));
         }
-        $paymentId = (string) ($_POST['razorpay_payment_id'] ?? '');
-        $orderId = (string) ($_POST['razorpay_order_id'] ?? '');
-        $signature = (string) ($_POST['razorpay_signature'] ?? '');
+        $paymentId = post_str('razorpay_payment_id');
+        $orderId = post_str('razorpay_order_id');
+        $signature = post_str('razorpay_signature');
         if ($donation['status'] === 'refunded' || $orderId === '' || $orderId !== (string) $donation['gateway_order_id']
             || !preg_match('/^pay_[A-Za-z0-9]{6,40}$/', $paymentId) || !razorpay_checkout_signature_valid($orderId, $paymentId, $signature)) {
             log_activity('payment_signature_invalid', 'Donation ' . $donation['donation_ref'] . ' - checkout response rejected');
@@ -71,7 +71,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect($self);
     }
     if (!online_donations_available()) {
-        flash('error', 'Online donations are not available at the moment. Please see the other ways to donate below.');
+        flash('error', bank_transfer_details()
+            ? 'Online donations are not available at the moment. Please see the other ways to donate below.'
+            : 'Online donations are not available at the moment. Please contact us and our team will share the current ways to donate.');
         redirect($self);
     }
     if (form_rate_limited('donation', 15)) {
@@ -89,9 +91,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'donor_pan'     => 'pan',
         'donor_address' => 'min:5|max:255',
         'message'       => 'text|max:500',
+        'citizen_declaration' => 'accepted',
         'consent'       => 'accepted',
     ], ['amount' => 'Amount', 'campaign_id' => 'Cause', 'donor_name' => 'Full name', 'donor_email' => 'Email', 'donor_phone' => 'Mobile number',
-        'donor_pan' => 'PAN', 'donor_address' => 'Address', 'consent' => 'agreement to the Privacy Policy and the Donation & Refund Policy']);
+        'donor_pan' => 'PAN', 'donor_address' => 'Address', 'citizen_declaration' => 'declaration that you are an Indian citizen donating from your own funds',
+        'consent' => 'agreement to the Privacy Policy and the Donation & Refund Policy']);
 
     $campaign = null;
     if (!isset($errors['campaign_id']) && $data['campaign_id'] !== '' && (int) $data['campaign_id'] > 0) {
@@ -124,6 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'payment_method' => 'online',
         'gateway'        => 'razorpay',
         'status'         => 'pending',
+        'admin_notes'    => '[' . date('d M Y H:i') . '] Donor declared: Indian citizen, own funds, Indian payment method (no foreign contribution).',
         'ip_address'     => client_ip(),
     ]);
     track_conversion('donation_started', $donationId);
@@ -145,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Step 2: payment page for a donation that already has a gateway order
 // ---------------------------------------------------------------------
 if (isset($_GET['pay'])) {
-    $donation = donation_by_ref_token((string) $_GET['pay'], (string) ($_GET['token'] ?? ''));
+    $donation = donation_by_ref_token(get_str('pay'), get_str('token'));
     if (!$donation) {
         not_found();
     }
@@ -259,6 +264,11 @@ foreach ($campaigns as $c) {
 $requestedAmount = (int) ($_GET['amount'] ?? 0);
 $amount = (string) old('amount', ($requestedAmount >= $min && $requestedAmount <= DONATION_MAX_AMOUNT) ? (string) $requestedAmount : (string) ($presets[1] ?? $presets[0]));
 $reg80g = setting('reg_80g_number');
+$fcra = trim((string) setting('fcra_number'));
+// Who may donate (Foreign Contribution (Regulation) Act, 2010) - never claims a registration status that is not entered
+$whoCanDonate = $fcra === ''
+    ? 'We can accept donations only from Indian citizens, including Indian citizens living abroad. We cannot accept donations from foreign nationals (including OCI card holders), foreign companies or other foreign sources.'
+    : 'Foreign contributions can be received only in our FCRA-designated bank account and not through this form - please contact us.';
 $address = trim(implode(', ', array_filter([$user['address'] ?? '', $user['city'] ?? '', $user['state'] ?? '', $user['pincode'] ?? ''])));
 $contactEmail = setting('contact_email');
 
@@ -272,11 +282,11 @@ page_header($page, [
     'schema' => [[
         '@context' => 'https://schema.org', '@type' => 'WebPage', 'name' => $page['title'], 'url' => abs_page_url('donate'),
         'description' => (string) $page['meta_description'],
-        'potentialAction' => ['@type' => 'DonateAction', 'target' => abs_page_url('donate'), 'recipient' => ['@type' => 'NGO', 'name' => site_name(), 'url' => abs_url('')]],
+        'potentialAction' => ['@type' => 'DonateAction', 'target' => abs_page_url('donate'), 'recipient' => ['@type' => 'NGO', '@id' => abs_url('#organization'), 'name' => site_name(), 'url' => abs_url('')]],
     ]],
 ]);
 
-render_sections($page, function () use ($online, $bank, $min, $presets, $campaigns, $selectedCampaign, $selectedTitle, $requestedCampaign, $amount, $reg80g, $user, $address, $contactEmail, $self, $program) {
+render_sections($page, function () use ($online, $bank, $min, $presets, $campaigns, $selectedCampaign, $selectedTitle, $requestedCampaign, $amount, $reg80g, $whoCanDonate, $user, $address, $contactEmail, $self, $program) {
     ?>
     <section class="section" id="donation-form">
         <div class="container donate-layout">
@@ -284,7 +294,9 @@ render_sections($page, function () use ($online, $bank, $min, $presets, $campaig
                 <?php if (!$online): ?>
                     <h2 class="form-section-title"><?= icon('heart') ?>Ways to donate</h2>
                     <div class="notice notice-gold mb-3" role="status"><?= icon('info') ?><div><strong>Online donations are not available on this website at the moment.</strong>
-                        <?= $bank ? 'You can donate by bank transfer or UPI using the details below.' : 'Please write to us and our team will share the current ways to donate.' ?></div></div>
+                        <?= $bank ? 'You can donate by bank transfer or UPI using the details below.' : 'Please write to us and our team will share the current ways to donate.' ?>
+                        <?php if ($selectedTitle !== ''): ?><br>You chose to support <strong><?= e($selectedTitle) ?></strong><?= $bank ? '.' : ' - please mention it when you write to us.' ?><?php endif; ?></div></div>
+                    <p class="small muted"><?= icon('info') ?> <?= e($whoCanDonate) ?></p>
                     <?php if ($bank): ?>
                         <div class="kv-grid fr-bank">
                             <?php foreach ($bank as $label => $value): ?>
@@ -292,7 +304,7 @@ render_sections($page, function () use ($online, $bank, $min, $presets, $campaig
                                     <button type="button" class="fr-copy" data-copy="<?= e($value) ?>" aria-label="Copy <?= e($label) ?>"><?= icon('copy') ?></button></div>
                             <?php endforeach; ?>
                         </div>
-                        <p class="small muted mt-2">After transferring, please email the transaction reference, your full name, address and PAN (optional) to
+                        <p class="small muted mt-2">Bank transfers and UPI payments are accepted only from Indian citizens. After transferring, please email the transaction reference, your full name, address, PAN (optional)<?= $selectedTitle !== '' ? ' and the name of the campaign you are supporting (' . e($selectedTitle) . ')' : '' ?> to
                             <?php if ($contactEmail): ?><a href="mailto:<?= e($contactEmail) ?>"><?= e($contactEmail) ?></a><?php else: ?>us<?php endif; ?>.
                             Your donation is added to our verified totals and a receipt is issued once our finance team has matched it with the bank statement.</p>
                     <?php endif; ?>
@@ -377,6 +389,9 @@ render_sections($page, function () use ($online, $bank, $min, $presets, $campaig
                             </div>
                             <div class="form-group full">
                                 <label class="checkbox"><input type="checkbox" name="is_anonymous" value="1"<?= old('is_anonymous') ? ' checked' : '' ?>> <span>Keep my donation anonymous - do not show my name in the public list of supporters.</span></label>
+                                <label class="checkbox"><input type="checkbox" name="citizen_declaration" value="1" required aria-describedby="citizen-help"<?= old('citizen_declaration') ? ' checked' : '' ?>> <span>I confirm that I am an Indian citizen and that this donation is from my own funds through an Indian bank account, card or UPI (not from a foreign source).<span class="req">*</span></span></label>
+                                <span class="help" id="citizen-help"><?= e($whoCanDonate) ?></span>
+                                <?= field_error('citizen_declaration') ?>
                                 <label class="checkbox"><input type="checkbox" name="consent" value="1" required<?= old('consent') ? ' checked' : '' ?>> <span>I agree to the <a href="<?= e(page_url('privacy-policy')) ?>" target="_blank" rel="noopener">Privacy Policy</a> and the <a href="<?= e(page_url('donation-refund-policy')) ?>" target="_blank" rel="noopener">Donation &amp; Refund Policy</a>.<span class="req">*</span></span></label>
                                 <?= field_error('consent') ?>
                             </div>
@@ -419,7 +434,7 @@ render_sections($page, function () use ($online, $bank, $min, $presets, $campaig
                         <dl>
                             <?php foreach ($bank as $label => $value): ?><dt><?= e($label) ?></dt><dd><?= e($value) ?></dd><?php endforeach; ?>
                         </dl>
-                        <p>Email the transaction reference<?= $contactEmail ? ' to ' . e($contactEmail) : '' ?> so that we can verify it and issue your receipt.</p>
+                        <p>Bank transfers and UPI payments are accepted only from Indian citizens. Email the transaction reference<?= $contactEmail ? ' to ' . e($contactEmail) : '' ?> so that we can verify it and issue your receipt.</p>
                     </details>
                 <?php endif; ?>
                 <p class="fr-summary-help"><?= icon('help-circle') ?><span>Questions? <a href="<?= e(page_url('contact')) ?>">Contact us</a> · <a href="<?= e(page_url('donation-refund-policy')) ?>">Refund policy</a></span></p>

@@ -8,8 +8,8 @@ if (!defined('PWF_APP')) {
 }
 
 $page = current_page_row();
-$ref = (string) ($_GET['ref'] ?? '');
-$d = donation_by_ref_token($ref, (string) ($_GET['token'] ?? ''));
+$ref = get_str('ref');
+$d = donation_by_ref_token($ref, get_str('token'));
 if (!$d && $ref !== '' && is_logged_in()) {
     $d = db_row('SELECT * FROM donations WHERE donation_ref = ? AND user_id = ?', [$ref, current_user_id()]);
 }

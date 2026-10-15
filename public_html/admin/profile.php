@@ -26,11 +26,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         if (!password_verify($current, $me['password_hash'])) {
             back_with_errors(['current_password' => 'Your current password is not correct.'], 'admin/profile.php');
         }
-        if ($p = password_problem($new, $me['name'], $me['email'])) {
+        if ($p = password_problem($new, $me['name'], $me['email'], (int) $me['id'])) {   // includes the 12-character staff minimum
             back_with_errors(['password' => $p], 'admin/profile.php');
-        }
-        if (mb_strlen($new) < 12) {
-            back_with_errors(['password' => 'Staff passwords must be at least 12 characters long.'], 'admin/profile.php');
         }
         if ($new !== (string) ($_POST['password_confirm'] ?? '')) {
             back_with_errors(['password_confirm' => 'The passwords do not match.'], 'admin/profile.php');
@@ -78,7 +75,7 @@ admin_page_start('My profile');
         <form method="post" class="form-grid">
             <?= csrf_field() ?><input type="hidden" name="action" value="profile">
             <div class="form-group full"><label for="name">Name</label><input id="name" name="name" required maxlength="120" value="<?= e(old('name', $me['name'])) ?>"><?= field_error('name') ?></div>
-            <div class="form-group"><label>Email</label><input value="<?= e($me['email']) ?>" disabled><span class="help">Ask an administrator to change your sign-in email.</span></div>
+            <div class="form-group"><label for="me_email">Email</label><input id="me_email" type="email" value="<?= e($me['email']) ?>" disabled aria-describedby="me_email_help"><span class="help" id="me_email_help">Ask an administrator to change your sign-in email.</span></div>
             <div class="form-group"><label for="mobile">Mobile</label><input id="mobile" name="mobile" maxlength="15" value="<?= e(old('mobile', (string) $me['mobile'])) ?>"><?= field_error('mobile') ?></div>
             <div class="form-group full"><label>Roles</label><p><?= e(current_admin()['role_name']) ?></p></div>
             <div class="form-actions full"><button class="btn btn-primary" type="submit"><?= icon('check') ?>Save profile</button></div>

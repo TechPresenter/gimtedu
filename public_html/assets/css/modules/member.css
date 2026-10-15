@@ -155,7 +155,8 @@
 .md-welcome-meta .is-ok { color: var(--green-700); background: var(--green-100); }
 .md-welcome-meta .is-warn { color: #7a5800; background: var(--gold-100); }
 
-.md-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; margin-bottom: 22px; }
+/* 6 cards (7 when the member has open tasks): 3 columns so rows fill evenly; 4 columns for 7 cards on wide screens */
+.md-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 22px; }
 .md-stat { display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: 16px; background: #fff; border: 1px solid var(--line); color: var(--ink); box-shadow: var(--shadow-sm); transition: transform .2s var(--ease), box-shadow .2s, border-color .2s; min-width: 0; }
 .md-stat:hover { transform: translateY(-3px); box-shadow: var(--shadow); border-color: #cfe3d6; color: var(--ink); }
 .md-stat > span:last-child { min-width: 0; }
@@ -320,6 +321,13 @@
 .md-contact-list .icon { color: var(--green-600); }
 
 /* ---------- Responsive ---------- */
+@media (min-width: 1200px) {
+    .md-stats:has(> .md-stat:nth-child(7)) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 1199px) {
+    /* a lone 7th card in the 3- or 2-column grid spans the row instead of leaving empty slots */
+    .md-stat:nth-child(7):last-child { grid-column: 1 / -1; }
+}
 @media (max-width: 1100px) {
     .md-cols, .md-cols-wide { grid-template-columns: minmax(0, 1fr); }
 }
@@ -334,12 +342,13 @@
     .md-side { position: static; padding: 14px; border-radius: 18px; }
     .md-user { padding: 0 4px 12px; margin-bottom: 10px; }
     .md-nav { margin: 0 -14px; }
-    .md-nav ul { display: flex; gap: 6px; overflow-x: auto; padding: 2px 14px 8px; scroll-snap-type: x proximity; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+    .md-nav ul { display: flex; gap: 6px; overflow-x: auto; padding: 2px 14px 8px; scroll-snap-type: x proximity; scroll-padding-inline: 14px; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
     .md-nav li { flex: 0 0 auto; scroll-snap-align: start; }
     .md-nav a { white-space: nowrap; padding: 8px 12px; background: rgba(255, 255, 255, .08); }
     .md-side-foot { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-top: 6px; padding-top: 8px; }
 }
 @media (max-width: 767px) {
+    .md-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .md-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .md-table, .md-table tbody, .md-table tr, .md-table td { display: block; width: 100%; }
     .md-table tr { padding: 10px 14px; border-bottom: 1px solid var(--line); }
@@ -367,6 +376,7 @@
     .md-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .md-stat { flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px; }
     .md-stat strong { font-size: 1.15rem; }
+    .md-stat:nth-child(7):last-child { flex-direction: row; align-items: center; }
     .md-quick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .md-summary-cta { margin-left: 0; width: 100%; }
     .md-summary-cta .btn { width: 100%; }

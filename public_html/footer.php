@@ -30,7 +30,7 @@ $regBits = array_filter([
         <div class="container footer-cta-inner">
             <div>
                 <p class="footer-cta-title"><?= e(setting('site_tagline_en', 'Together, let us build a better tomorrow')) ?></p>
-                <p class="hindi footer-cta-hindi"><?= e(setting('site_tagline')) ?></p>
+                <p class="hindi footer-cta-hindi" lang="hi"><?= e(setting('site_tagline')) ?></p>
             </div>
             <div class="btn-row">
                 <a class="btn btn-donate btn-3d" href="<?= e(page_url('donate')) ?>"><?= icon('heart') ?>Donate Now</a>
@@ -74,12 +74,12 @@ $regBits = array_filter([
                 <h2 class="footer-title">Contact</h2>
                 <ul class="footer-contact-list">
                     <?php if (setting('contact_address')): ?><li><?= icon('map-pin') ?><span><?= e(setting('contact_address')) ?></span></li><?php endif; ?>
-                    <?php if ($contactEmail): ?><li><?= icon('mail') ?><a href="mailto:<?= e($contactEmail) ?>"><?= e($contactEmail) ?></a></li><?php endif; ?>
+                    <?php if ($contactEmail): ?><li><?= icon('mail') ?><a href="mailto:<?= e($contactEmail) ?>"><?= str_replace('@', '<wbr>@', e($contactEmail)) ?></a></li><?php endif; ?>
                     <?php if ($contactPhone): ?><li><?= icon('phone') ?><a href="tel:<?= e(preg_replace('/[^\d+]/', '', $contactPhone)) ?>"><?= e($contactPhone) ?></a></li><?php endif; ?>
                     <?php if (setting('office_hours')): ?><li><?= icon('clock') ?><span><?= e(setting('office_hours')) ?></span></li><?php endif; ?>
                 </ul>
             <?php endif; ?>
-            <?php if (setting('newsletter_enabled', '1') === '1' && setting('footer_show_newsletter', '1') === '1'): ?>
+            <?php if (setting('newsletter_enabled', '1') === '1' && setting('footer_show_newsletter', '1') === '1' && empty($GLOBALS['newsletter_section_rendered'])): ?>
                 <form class="newsletter-form" method="post" action="<?= e(page_url('newsletter')) ?>">
                     <?= csrf_field() ?><?= honeypot_field() ?>
                     <input type="hidden" name="source" value="footer">
@@ -98,7 +98,9 @@ $regBits = array_filter([
         <div class="container footer-bottom-inner">
             <p><?= e(str_replace('{year}', date('Y'), setting('footer_copyright', '© {year} ' . site_name() . '. All Rights Reserved.'))) ?></p>
             <?php if (setting('footer_bottom_links', '1') === '1'): ?>
-                <nav aria-label="Legal"><a href="<?= e(page_url('privacy-policy')) ?>">Privacy</a><a href="<?= e(page_url('terms-conditions')) ?>">Terms</a><a href="<?= e(page_url('donation-refund-policy')) ?>">Refunds</a><a href="<?= e(page_url('report-fraud')) ?>">Report fraud</a><a href="<?= e(page_url('sitemap')) ?>">Sitemap</a></nav>
+                <nav aria-label="Legal"><a href="<?= e(page_url('privacy-policy')) ?>">Privacy</a><a href="<?= e(page_url('terms-conditions')) ?>">Terms</a><a href="<?= e(page_url('donation-refund-policy')) ?>">Refunds</a><a href="<?= e(page_url('report-fraud')) ?>">Report fraud</a><a href="<?= e(page_url('sitemap')) ?>">Sitemap</a><?php if (ga_enabled()): ?><button type="button" class="link-button" data-consent-reset hidden>Cookie settings</button><?php endif; ?></nav>
+            <?php elseif (ga_enabled()): ?>
+                <nav aria-label="Legal"><button type="button" class="link-button" data-consent-reset hidden>Cookie settings</button></nav>
             <?php endif; ?>
         </div>
     </div>

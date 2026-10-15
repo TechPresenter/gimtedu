@@ -12,6 +12,7 @@ $status = (string) ($_GET['status'] ?? '');
 $verified = (string) ($_GET['verified'] ?? '');
 $roles = db_rows('SELECT id, name, slug, is_staff FROM roles ORDER BY sort_order, name');
 $roleSlugs = array_column($roles, 'slug');
+$roleById = array_column($roles, null, 'id');
 
 $where = ' WHERE 1 = 1';
 $params = [];
@@ -49,7 +50,8 @@ if ($verified === 'yes') {
 }
 
 $select = "SELECT u.id, u.name, u.email, u.mobile, u.status, u.email_verified_at, u.city, u.state, u.communication_consent, u.totp_enabled,
-                  u.last_login_at, u.created_at, GROUP_CONCAT(r.name ORDER BY r.sort_order SEPARATOR ', ') AS role_names, MAX(r.is_staff) AS staff
+                  u.last_login_at, u.created_at, GROUP_CONCAT(r.name ORDER BY r.sort_order SEPARATOR ', ') AS role_names,
+                  GROUP_CONCAT(r.id ORDER BY r.sort_order, r.name) AS role_ids
              FROM users u LEFT JOIN user_roles ur ON ur.user_id = u.id LEFT JOIN roles r ON r.id = ur.role_id" . $where . ' GROUP BY u.id';
 
 if (isset($_GET['export'])) {
@@ -110,19 +112,21 @@ admin_page_start('Users & Roles', $actions);
         <?= empty_state('No accounts match these filters.') ?>
     <?php else: ?>
         <div class="table-wrap"><table class="table">
-            <thead><tr><th>User</th><th>Mobile</th><th>Roles</th><th>Status</th><th>Email</th><th>Last sign-in</th><th>Joined</th><th class="actions-cell">Actions</th></tr></thead>
+            <thead><tr><th>User</th><th>Mobile</th><th>Roles</th><th>Status</th><th>Email</th><th>Last sign-in</th><th class="actions-cell">Actions</th></tr></thead>
             <tbody>
             <?php foreach ($users as $u): ?>
                 <tr>
-                    <td><div style="display:flex;gap:10px;align-items:center;min-width:220px">
+                    <td><div style="display:flex;gap:10px;align-items:center;min-width:200px">
                         <span class="avatar" style="width:38px;height:38px;flex-shrink:0" aria-hidden="true"><?= e(mb_strtoupper(mb_substr($u['name'], 0, 1))) ?></span>
-                        <span><a href="<?= e(admin_url('user-view.php?id=' . (int) $u['id'])) ?>"><strong><?= e($u['name']) ?></strong></a><br><small class="muted"><?= e($u['email']) ?></small></span></div></td>
+                        <span><a href="<?= e(admin_url('user-view.php?id=' . (int) $u['id'])) ?>"><strong><?= e($u['name']) ?></strong></a><br><small class="muted" style="overflow-wrap:anywhere"><?= e($u['email']) ?></small>
+                            <br><small class="muted">Joined <?= e(format_date($u['created_at'])) ?></small></span></div></td>
                     <td class="nowrap"><?= e($u['mobile'] ?: '-') ?></td>
-                    <td><?php if ($u['role_names']): ?><span class="badge <?= $u['staff'] ? 'badge-blue' : 'badge-gray' ?>" style="white-space:normal"><?= e($u['role_names']) ?></span><?php else: ?><span class="muted small">None</span><?php endif; ?></td>
+                    <td><?php if ($u['role_ids']): ?><div class="role-badges" style="display:flex;flex-wrap:wrap;gap:4px;max-width:200px">
+                        <?php foreach (explode(',', $u['role_ids']) as $rid): $rr = $roleById[(int) $rid] ?? null; if (!$rr) { continue; } ?><span class="badge <?= $rr['is_staff'] ? 'badge-blue' : 'badge-gray' ?>"><?= e($rr['name']) ?></span><?php endforeach; ?>
+                    </div><?php else: ?><span class="muted small">None</span><?php endif; ?></td>
                     <td><?= member_status_badge($u['status']) ?></td>
                     <td><?= member_status_badge($u['email_verified_at'] ? 'verified' : 'unverified') ?></td>
-                    <td class="nowrap"><?= e(format_date($u['last_login_at'], 'd M Y, h:i A')) ?></td>
-                    <td class="nowrap"><?= e(format_date($u['created_at'])) ?></td>
+                    <td class="nowrap"><?php if (format_date($u['last_login_at']) === '-'): ?>-<?php else: ?><?= e(format_date($u['last_login_at'], 'd M Y')) ?><br><small class="muted"><?= e(format_date($u['last_login_at'], 'h:i A')) ?></small><?php endif; ?></td>
                     <td class="actions-cell"><a class="icon-btn" href="<?= e(admin_url('user-view.php?id=' . (int) $u['id'])) ?>" aria-label="Open <?= e($u['name']) ?>" title="Open"><?= icon('eye') ?></a></td>
                 </tr>
             <?php endforeach; ?>

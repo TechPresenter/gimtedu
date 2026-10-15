@@ -9,8 +9,8 @@ if (!defined('PWF_APP')) {
 }
 
 $page = current_page_row();
-$ref = (string) ($_GET['ref'] ?? '');
-$d = donation_by_ref_token($ref, (string) ($_GET['token'] ?? ''));
+$ref = get_str('ref');
+$d = donation_by_ref_token($ref, get_str('token'));
 if (!$d && $ref !== '' && is_logged_in()) {
     $d = db_row('SELECT * FROM donations WHERE donation_ref = ? AND user_id = ?', [$ref, current_user_id()]);   // the signed-in donor
 }
@@ -36,7 +36,7 @@ page_header($page, ['title' => $titles[$d['status']] ?? 'Donation status', 'bann
                 <span class="result-icon success"><?= icon('check-circle') ?></span>
                 <h1>Thank you, <?= e(strtok($d['donor_name'], ' ') ?: $d['donor_name']) ?>!</h1>
                 <p class="lead">Your donation of <strong><?= e(money($d['amount'], true)) ?></strong> has been received and verified.</p>
-                <p class="hindi fr-tagline"><?= e(setting('site_tagline')) ?></p>
+                <p class="hindi fr-tagline" lang="hi"><?= e(setting('site_tagline')) ?></p>
                 <div class="pay-summary text-left">
                     <?php if ($receipt): ?><div><span>Receipt number</span><strong><?= e($receipt['receipt_no']) ?></strong></div><?php endif; ?>
                     <div><span>Donation reference</span><strong><?= e($d['donation_ref']) ?></strong></div>

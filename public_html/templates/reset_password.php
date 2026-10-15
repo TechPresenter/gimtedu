@@ -10,7 +10,7 @@ if (!defined('PWF_APP')) {
 }
 
 $page = current_page_row();
-$token = (string) ($_POST['token'] ?? $_GET['token'] ?? '');
+$token = post_str('token', get_str('token'));
 $token = preg_match('/^[a-f0-9]{64}$/', $token) ? $token : '';
 $self = '/reset-password/' . ($token !== '' ? '?token=' . $token : '');
 $reset = $token !== '' ? find_password_reset($token) : null;
@@ -25,13 +25,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         flash('error', 'This password reset link is invalid or has expired. Please request a new one.');
         redirect('/forgot-password/');
     }
-    $password = (string) ($_POST['password'] ?? '');
+    $password = post_str('password');
     $errors = [];
-    if ($problem = password_problem($password, (string) $resetUser['name'], (string) $resetUser['email'])) {
-        $errors['password'] = $problem;
-    } elseif (strlen($password) > 72) {
-        $errors['password'] = 'Password may not be longer than 72 characters.';
-    } elseif ($password !== (string) ($_POST['password_confirm'] ?? '')) {
+    if ($problem = password_problem($password, (string) $resetUser['name'], (string) $resetUser['email'], (int) $resetUser['id'])) {
+        $errors['password'] = $problem;   // 72-byte limit and the 12-character staff minimum included
+    } elseif ($password !== post_str('password_confirm')) {
         $errors['password_confirm'] = 'The two passwords do not match.';
     }
     if ($errors) {
@@ -86,10 +84,11 @@ page_header($page, [
                     <form class="acc-form" method="post" action="<?= e(url($self)) ?>" data-acc-form>
                         <?= csrf_field() ?>
                         <input type="hidden" name="token" value="<?= e($token) ?>">
-                        <?= account_password_field('password', 'password', ['label' => 'New password', 'required' => true, 'autocomplete' => 'new-password', 'meter' => true]) ?>
+                        <?php $pwMin = is_staff((int) $resetUser['id']) ? STAFF_PASSWORD_MIN : 8; ?>
+                        <?= account_password_field('password', 'password', ['label' => 'New password', 'required' => true, 'autocomplete' => 'new-password', 'meter' => true, 'minlength' => $pwMin]) ?>
                         <?= account_password_field('password_confirm', 'password_confirm', ['label' => 'Confirm new password', 'required' => true, 'autocomplete' => 'new-password', 'match' => 'password']) ?>
                         <button class="btn btn-primary btn-block btn-lg" type="submit"><?= icon('check') ?>Save new password</button>
-                        <p class="acc-fine"><?= icon('info') ?><span>Use at least 8 characters with letters and numbers. A longer phrase is stronger and easier to remember.</span></p>
+                        <p class="acc-fine"><?= icon('info') ?><span>Use at least <?= (int) $pwMin ?> characters with letters and numbers<?= $pwMin > 8 ? ' (staff accounts)' : '' ?>. A longer phrase is stronger and easier to remember.</span></p>
                     </form>
                 <?php endif; ?>
             </div>

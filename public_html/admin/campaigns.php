@@ -89,7 +89,7 @@ admin_filter_bar($statuses, ['placeholder' => 'Search title, slug, location or o
             <?php foreach ($rows as $c): $pct = campaign_percent($c); ?>
                 <tr>
                     <td>
-                        <div style="display:flex;gap:10px;align-items:center">
+                        <div style="display:flex;gap:12px;align-items:center;min-width:240px">
                             <img class="thumb" src="<?= e(campaign_image($c)) ?>" alt="">
                             <div><a href="<?= e(admin_url('campaign-view.php?id=' . (int) $c['id'])) ?>"><strong><?= e($c['title']) ?></strong></a><br>
                                 <small class="muted"><?= e(campaign_category_label($c['category'])) ?><?= $c['location'] ? ' · ' . e($c['location']) : '' ?></small></div>

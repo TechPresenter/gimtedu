@@ -59,7 +59,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             admin_redirect($self . '#info-request');
         }
         $messages = recruitment_change_status($type, $row, 'info_requested', $message, true, true, ['info_request' => $message]);
-        flash('success', 'Information requested and the applicant emailed.');
+        flash('success', 'Information requested.');
     } elseif ($action === 'interview') {
         [$data, $errors] = validate($_POST, [
             'interview_at' => 'required|datetime',
@@ -138,8 +138,15 @@ $account = null;
 if (!empty($row['user_id'])) {
     $account = db_row('SELECT id, name, email, status FROM users WHERE id = ?', [(int) $row['user_id']]);
 }
+$unverifiedAccount = null;
 if (!$account) {
-    $account = db_row('SELECT id, name, email, status FROM users WHERE email = ?', [mb_strtolower((string) $row['email'])]);
+    // an account with the same email is linked only once that address is verified (see recruitment_link_account)
+    $byEmail = db_row('SELECT id, name, email, status, email_verified_at FROM users WHERE email = ?', [mb_strtolower((string) $row['email'])]);
+    if ($byEmail && empty($byEmail['email_verified_at'])) {
+        $unverifiedAccount = $byEmail;
+    } else {
+        $account = $byEmail;
+    }
 }
 $accountRoles = $account ? array_column(db_rows('SELECT r.name, r.slug FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = ?', [$account['id']]), 'name', 'slug') : [];
 $roleName = (string) db_value('SELECT name FROM roles WHERE slug = ?', [$t['role']]);
@@ -165,7 +172,8 @@ $personal = [
     'Reference' => $row['application_no'],
     'Email' => ['<a href="mailto:' . e($row['email']) . '">' . e($row['email']) . '</a>'],
     'Mobile' => ['<a href="tel:' . e($row['phone']) . '">' . e($row['phone']) . '</a>'],
-    'Date of birth' => $row['date_of_birth'] ? format_date($row['date_of_birth']) . ($age !== null ? ' (' . $age . ' years)' : '') : '',
+    'Date of birth' => $row['date_of_birth'] ? [e(format_date($row['date_of_birth'])) . ($age !== null ? ' (' . $age . ' years)' : '')
+        . ($age !== null && $age < 18 ? '<br><span class="badge badge-gold">Under 18</span> <small>Written parent / guardian consent is needed before any activity (Volunteer Policy).</small>' : '')] : '',
     'Gender' => GENDERS[$row['gender']] ?? '',
     'Address' => $address,
     'Website account' => $account
@@ -240,7 +248,7 @@ echo recruitment_admin_css();
 
     <div>
         <?php if ($canManage): ?>
-            <section class="panel" id="status">
+            <section class="panel" id="update-status">
                 <div class="panel-head"><h2>Update status</h2></div>
                 <form method="post" class="rc-stack">
                     <?= csrf_field() ?><input type="hidden" name="action" value="status">
@@ -321,6 +329,8 @@ echo recruitment_admin_css();
                 <?php if ($canManage && isset($accountRoles[$t['role']])): ?>
                     <a class="btn btn-ghost btn-sm mt-2" href="<?= e(admin_url('tasks.php?user_id=' . (int) $account['id'])) ?>#new-task"><?= icon('check-circle') ?>Assign a task</a>
                 <?php endif; ?>
+            <?php elseif ($unverifiedAccount): ?>
+                <p class="muted small">A website account uses <?= e($row['email']) ?> but its email address is not verified, so it will not be linked. Once the owner verifies the address, the account can be linked and certificates or tasks shared.</p>
             <?php else: ?>
                 <p class="muted small">No website account uses <?= e($row['email']) ?>. Certificates and tasks need an account - the applicant can register with this email address.</p>
             <?php endif; ?>

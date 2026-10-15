@@ -10,7 +10,7 @@ if (!defined('PWF_APP')) {
 
 $page = current_page_row();
 $slug = $page['slug'];
-$consents = ['privacy', 'child', 'conduct', 'verify'];
+$consents = ['privacy', 'child', 'conduct', 'verify', 'adult'];
 $required = ['name', 'email', 'phone', 'city', 'state'];
 $subjects = recruitment_options('subjects');
 $classes = ['Primary (1-5)', 'Middle (6-8)', 'Secondary (9-10)', 'Senior Secondary (11-12)', 'Adult learners'];

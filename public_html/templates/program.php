@@ -13,7 +13,7 @@ if (!defined('PWF_APP')) {
 
 $page = current_page_row();
 $program = program_for_page((int) $page['id']);
-if ($program && $program['status'] !== 'published' && !user_can('programs.manage') && !user_can('pages.manage')) {
+if ($program && $program['status'] !== 'published' && !staff_session_can('programs.manage') && !staff_session_can('pages.manage')) {
     not_found();
 }
 

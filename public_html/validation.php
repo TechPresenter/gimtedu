@@ -235,7 +235,8 @@ function field_error(string $key): string
         $errors = $_SESSION['_errors'] ?? [];
         unset($_SESSION['_errors']);
     }
-    return isset($errors[$key]) ? '<span class="field-error">' . e($errors[$key]) . '</span>' : '';
+    // the id lets script.js / form-validation.js link the message to its field (aria-describedby + aria-invalid)
+    return isset($errors[$key]) ? '<span class="field-error" id="err-' . e(preg_replace('/[^A-Za-z0-9_-]/', '', $key)) . '">' . e($errors[$key]) . '</span>' : '';
 }
 
 /** Is a value selected / checked in old input? */
@@ -326,6 +327,15 @@ function handle_upload(string $field, string $kind, string $folder, bool $requir
         return ['error' => 'The file could not be saved. Please try again.'];
     }
     @chmod($target, 0644);
+    // Smaller copies for cards and galleries (srcset); only for public image folders, never private documents
+    $top = strtok(trim($folder, '/'), '/');
+    if ($kind === 'image' && !in_array($top, ['documents', 'certificates'], true)) {
+        try {
+            make_image_variants($target);
+        } catch (Throwable $e) {
+            error_log('Image variants failed for ' . $name . ': ' . $e->getMessage());
+        }
+    }
 
     return ['path' => 'uploads/' . trim($folder, '/') . '/' . $name];
 }
@@ -388,7 +398,58 @@ function reencode_image(string $source, string $target, string $mime): bool
     return $ok;
 }
 
-/** Delete a previously uploaded file (only inside uploads/). */
+/** Widths of the resized copies written next to a public uploaded image: photo.jpg -> photo-640.jpg, photo-1080.jpg. */
+const IMAGE_VARIANT_WIDTHS = [640, 1080];
+
+/** Path of the resized copy of an image ('uploads/x/a.jpg', 640 -> 'uploads/x/a-640.jpg'). */
+function image_variant_path(string $path, int $width): string
+{
+    return (string) preg_replace('/(\.[A-Za-z0-9]+)$/', '-' . $width . '$1', $path);
+}
+
+/**
+ * Write the resized copies of an image file (absolute path) that is wider than each variant width.
+ * Existing copies are kept. Quality: JPEG / WebP 80, PNG level 6 (alpha kept).
+ */
+function make_image_variants(string $fullPath): void
+{
+    if (!function_exists('imagecreatetruecolor') || !is_file($fullPath)) {
+        return;
+    }
+    $info = @getimagesize($fullPath);
+    if (!$info || !in_array($info['mime'] ?? '', ['image/jpeg', 'image/png', 'image/webp'], true)) {
+        return;
+    }
+    [$w, $h] = $info;
+    $todo = array_values(array_filter(IMAGE_VARIANT_WIDTHS, function ($vw) use ($w, $fullPath) {
+        return $w > $vw && !is_file(image_variant_path($fullPath, $vw));
+    }));
+    if (!$todo) {
+        return;
+    }
+    $mime = $info['mime'];
+    $img = $mime === 'image/jpeg' ? @imagecreatefromjpeg($fullPath) : ($mime === 'image/png' ? @imagecreatefrompng($fullPath)
+        : (function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($fullPath) : false));
+    if (!$img) {
+        return;
+    }
+    foreach ($todo as $vw) {
+        $vh = max(1, (int) round($h * $vw / $w));
+        $res = imagecreatetruecolor($vw, $vh);
+        imagealphablending($res, false);
+        imagesavealpha($res, true);
+        imagecopyresampled($res, $img, 0, 0, 0, 0, $vw, $vh, $w, $h);
+        $target = image_variant_path($fullPath, $vw);
+        $ok = $mime === 'image/jpeg' ? imagejpeg($res, $target, 80) : ($mime === 'image/png' ? imagepng($res, $target, 6) : imagewebp($res, $target, 80));
+        imagedestroy($res);
+        if ($ok) {
+            @chmod($target, 0644);
+        }
+    }
+    imagedestroy($img);
+}
+
+/** Delete a previously uploaded file (only inside uploads/), with its resized copies. */
 function delete_upload(?string $path): void
 {
     if (!$path || strpos($path, 'uploads/') !== 0 || strpos($path, '..') !== false) {
@@ -397,5 +458,13 @@ function delete_upload(?string $path): void
     $full = ROOT_PATH . '/' . $path;
     if (is_file($full)) {
         @unlink($full);
+    }
+    if (preg_match('/\.(jpe?g|png|webp)$/i', $path)) {
+        foreach (IMAGE_VARIANT_WIDTHS as $vw) {
+            $variant = ROOT_PATH . '/' . image_variant_path($path, $vw);
+            if (is_file($variant)) {
+                @unlink($variant);
+            }
+        }
     }
 }

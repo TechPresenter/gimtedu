@@ -12,8 +12,8 @@ header('X-Robots-Tag: noindex, nofollow');
 header('Cache-Control: no-store');
 
 $admin = current_admin();
-$adminSelf = basename($_SERVER['PHP_SELF']);
-$adminIsAction = ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET' || strpos($_SERVER['PHP_SELF'], '/actions/') !== false;
+$adminSelf = basename($_SERVER['SCRIPT_NAME']);
+$adminIsAction = ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET' || strpos($_SERVER['SCRIPT_NAME'], '/actions/') !== false;
 
 $adminFail = function (string $message) use ($adminIsAction): void {
     if ($adminIsAction) {
@@ -56,9 +56,9 @@ function require_permission(string $permission): void
     if (admin_can($permission)) {
         return;
     }
-    admin_log('access_denied', 'Tried to access ' . basename($_SERVER['PHP_SELF']) . ' without "' . $permission . '" permission');
+    admin_log('access_denied', 'Tried to access ' . basename($_SERVER['SCRIPT_NAME']) . ' without "' . $permission . '" permission');
     http_response_code(403);
-    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' || strpos($_SERVER['PHP_SELF'], '/actions/') !== false) {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' || strpos($_SERVER['SCRIPT_NAME'], '/actions/') !== false) {
         flash('error', 'You do not have permission to perform this action.');
         admin_redirect('dashboard.php');
     }

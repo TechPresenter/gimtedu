@@ -12,15 +12,15 @@ if (!defined('PWF_APP')) {
 }
 
 $page = current_page_row();
-$ref = (string) ($_GET['ref'] ?? '');
-$token = (string) ($_GET['token'] ?? '');
+$ref = get_str('ref');
+$token = get_str('token');
 $d = preg_match('/^[A-Z0-9]{6,40}$/', $ref) ? db_row('SELECT d.*, r.receipt_no, r.issued_at, r.financial_year, r.status AS receipt_status, c.title AS campaign_title
              FROM donations d
              JOIN donation_receipts r ON r.donation_id = d.id
              LEFT JOIN campaigns c ON c.id = d.campaign_id
              WHERE d.donation_ref = ?', [$ref]) : null;
 
-$isStaff = user_can('donations.view');
+$isStaff = staff_session_can('donations.view');
 $allowed = false;
 if ($d) {
     $owner = ($token !== '' && hash_equals($d['access_token'], $token)) || ($d['user_id'] && current_user_id() === (int) $d['user_id']);
@@ -42,6 +42,9 @@ if (!$allowed) {
 }
 
 $cancelled = $d['status'] === 'refunded' || $d['receipt_status'] === 'cancelled';
+// Section 80G(5D): cash donations exceeding ₹2,000 are not deductible
+$cashOver80gLimit = ($d['payment_method'] ?? '') === 'cash' && (float) $d['amount'] > 2000;
+$partiallyRefunded = strpos((string) ($d['admin_notes'] ?? ''), 'Partial refund:') !== false;
 $orgLines = array_filter([
     setting('contact_address'),
     trim(setting('contact_email') . (setting('contact_phone') ? ' · ' . setting('contact_phone') : ''), ' ·'),
@@ -98,15 +101,21 @@ page_header($page, ['title' => 'Receipt ' . $d['receipt_no'], 'banner' => false,
                     <?php if ($d['donor_address']): ?><tr><th scope="row">Address</th><td><?= e($d['donor_address']) ?></td></tr><?php endif; ?>
                     <tr><th scope="row">Email / Mobile</th><td class="fr-break"><?= e($d['donor_email']) ?><?= $d['donor_phone'] ? ' / ' . e($d['donor_phone']) : '' ?></td></tr>
                     <?php if ($d['donor_pan']): ?><tr><th scope="row">Donor PAN</th><td><?= e(donation_mask_pan($d['donor_pan'])) ?></td></tr><?php endif; ?>
-                    <tr><th scope="row">Amount</th><td><span class="receipt-amount"><?= e(money($d['amount'], true)) ?></span><br><small><?= e(amount_in_words($d['amount'])) ?></small></td></tr>
+                    <tr><th scope="row">Amount</th><td><span class="receipt-amount"><?= e(money($d['amount'], true)) ?></span><br><small><?= e(amount_in_words($d['amount'])) ?></small><?php if ($partiallyRefunded): ?><br><small>Revised after a partial refund: this is the amount the foundation kept.</small><?php endif; ?></td></tr>
                     <tr><th scope="row">Purpose</th><td><?= e($d['campaign_title'] ? 'Donation towards: ' . $d['campaign_title'] : 'General donation (where it is needed most)') ?></td></tr>
                     <tr><th scope="row">Mode of payment</th><td><?= e(donation_method_label($d)) ?></td></tr>
                     <?php if ($d['gateway_payment_id']): ?><tr><th scope="row">Transaction ID</th><td class="fr-break"><?= e($d['gateway_payment_id']) ?></td></tr><?php endif; ?>
+                    <?php if (!empty($d['offline_reference'])): ?><tr><th scope="row"><?= $d['payment_method'] === 'cheque' ? 'Cheque no. / reference' : ($d['payment_method'] === 'cash' ? 'Cash receipt / deposit reference' : 'Transaction / UTR reference') ?></th><td class="fr-break"><?= e($d['offline_reference']) ?></td></tr><?php endif; ?>
                     <tr><th scope="row">Donation reference</th><td><?= e($d['donation_ref']) ?></td></tr>
                 </table>
-                <?php if (setting('reg_80g_number') !== '' && !$cancelled): ?>
-                    <p class="small">This donation is eligible for deduction under Section 80G of the Income Tax Act, 1961, subject to the conditions of the Act.
-                        80G Registration No. <strong><?= e(setting('reg_80g_number')) ?></strong>.</p>
+                <?php if (setting('reg_80g_number') !== '' && !$cancelled && $cashOver80gLimit): ?>
+                    <p class="small">Cash donations exceeding ₹2,000 are not eligible for deduction under Section 80G of the Income Tax Act, 1961 (Section 80G(5D)).</p>
+                <?php elseif (setting('reg_80g_number') !== '' && !$cancelled): ?>
+                    <p class="small">This donation may qualify for deduction under Section 80G of the Income Tax Act, 1961 (80G Registration No. <strong><?= e(setting('reg_80g_number')) ?></strong>), subject to the conditions and limits of the Act.
+                        The deduction is allowed on the basis of the certificate in Form 10BE, which the foundation issues after filing its statement of donations in Form 10BD.</p>
+                    <?php if (empty($d['donor_pan'])): ?>
+                        <p class="small">No PAN was provided. To have this donation reported in Form 10BD and receive a Form 10BE certificate, please send your PAN to us.</p>
+                    <?php endif; ?>
                 <?php endif; ?>
                 <?php if ($cancelled): ?>
                     <p class="small fr-cancelled"><strong>This receipt has been cancelled<?= $d['status'] === 'refunded' ? ' because the donation was refunded' : '' ?>.</strong></p>
@@ -114,7 +123,7 @@ page_header($page, ['title' => 'Receipt ' . $d['receipt_no'], 'banner' => false,
                 <?php if (setting('receipt_footer_note') !== ''): ?><p class="small muted"><?= e(setting('receipt_footer_note')) ?></p><?php endif; ?>
             </div>
             <footer class="receipt-foot">
-                <div>Thank you for supporting <?= e(site_name()) ?>.<br><span class="hindi"><?= e(setting('site_tagline')) ?></span></div>
+                <div>Thank you for supporting <?= e(site_name()) ?>.<br><span class="hindi" lang="hi"><?= e(setting('site_tagline')) ?></span></div>
                 <div class="signature"><span><?= e(setting('receipt_signatory', 'Authorised Signatory')) ?></span><small><?= e(setting('legal_name', site_name())) ?></small></div>
             </footer>
         </article>

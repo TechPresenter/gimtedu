@@ -95,7 +95,7 @@ if (isset($_GET['id'])) {
                         <div class="form-group"><label for="review_notes">Note to the organiser</label><textarea id="review_notes" name="review_notes" rows="4" maxlength="2000"><?= e(old('review_notes')) ?></textarea><span class="help">Emailed to the organiser. Required when rejecting.</span><?= field_error('review_notes') ?></div>
                         <div class="form-actions">
                             <button class="btn btn-primary" type="submit" name="action" value="approve"><?= icon('check') ?>Approve as draft</button>
-                            <button class="btn btn-danger" type="submit" name="action" value="reject" formnovalidate><?= icon('x') ?>Reject</button>
+                            <button class="btn btn-danger" type="submit" name="action" value="reject" formnovalidate data-confirm-click="Reject this proposal and notify the organiser by email? This cannot be undone."><?= icon('x') ?>Reject</button>
                         </div>
                     </form>
                 </section>

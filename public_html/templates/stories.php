@@ -26,7 +26,7 @@ if ($segments) {
     $story = db_row('SELECT * FROM success_stories WHERE slug = ?', [$slug]);
     $visible = $story && $story['status'] === 'published' && (int) $story['consent_confirmed'] === 1
         && (!$story['published_at'] || strtotime($story['published_at']) <= time());
-    $preview = $story && !$visible && user_can('stories.manage');
+    $preview = $story && !$visible && staff_session_can('stories.manage');
     if (!$story || (!$visible && !$preview)) {
         not_found();
     }

@@ -144,7 +144,7 @@ page_header($page);
 
 render_sections($page, function () use ($form, $user, $page) {
     $host = preg_replace('/^www\./', '', (string) parse_url(BASE_URL, PHP_URL_HOST));
-    $typePrefill = in_array((string) ($_GET['type'] ?? ''), ['contact', 'partnership', 'media'], true) ? (string) $_GET['type'] : 'contact';
+    $typePrefill = in_array(get_str('type'), ['contact', 'partnership', 'media'], true) ? get_str('type') : 'contact';
     ?>
     <section class="section contact-section" id="form">
         <div class="container">

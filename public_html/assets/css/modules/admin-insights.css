@@ -39,6 +39,10 @@
 .chart-dense .chart-bars { gap: 3px; min-width: 400px; }
 .chart-dense .chart-bar em { opacity: 0; transition: opacity .15s; position: relative; z-index: 2; background: #fff; padding: 1px 4px; border-radius: 4px; box-shadow: var(--shadow-sm); }
 .chart-dense .chart-bar:hover em, .chart-dense .chart-bar:focus-within em { opacity: 1; }
+/* the highest and the latest non-zero values are always visible (every value is also in the list for screen readers) */
+.chart-dense .chart-bar.has-value.is-peak em, .chart-dense .chart-bar.has-value.is-last em { opacity: 1; }
+.chart-summary { margin: 8px 0 0; }
+.insights-chart:focus-visible { outline: 2px solid var(--green-500); outline-offset: 2px; }
 .chart-dense .chart-bar small { font-size: .62rem; writing-mode: vertical-rl; transform: rotate(180deg); height: 3.6em; }
 .chart-dense .chart-bar span.bar { border-radius: 3px 3px 0 0; }
 .chart-bar:hover span.bar { background: linear-gradient(180deg, var(--gold-500), var(--green-600)); }

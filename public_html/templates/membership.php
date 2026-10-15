@@ -43,6 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ] + $consentRules, $consentLabels + ['membership_type' => 'Membership type', 'date_of_birth' => 'Date of birth', 'areas_of_interest' => 'Areas of interest', 'motivation' => 'Why you want to become a member']);
     if (empty($errors['date_of_birth']) && $data['date_of_birth'] < date('Y-m-d', strtotime('-110 years'))) {
         $errors['date_of_birth'] = 'Please check your date of birth.';
+    } elseif (empty($errors['date_of_birth']) && $data['date_of_birth'] > date('Y-m-d', strtotime('-18 years'))) {
+        $errors['date_of_birth'] = 'Membership is open to adults (18 years or older).';
     }
     if ($errors) {
         back_with_errors($errors, page_url($slug) . '#apply', $_POST);

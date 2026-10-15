@@ -263,7 +263,10 @@ unset($_SESSION['site_section_draft']);
 $openId = (int) ($_GET['open'] ?? 0);
 
 $actions = [['label' => 'All pages', 'url' => admin_url('pages.php'), 'icon' => 'chevron-left', 'style' => 'ghost']];
-if ($page['status'] === 'published') {
+$linkless = in_array($page['template'], LINKLESS_TEMPLATES, true);   // opens only from a private donation link
+if ($linkless) {
+    // no View / Preview button: the bare address shows "not found"
+} elseif ($page['status'] === 'published') {
     // a published page looks exactly like its preview, so link the real address (no duplicate ?preview URL)
     $actions[] = ['label' => 'View page', 'url' => $viewUrl, 'icon' => 'external', 'style' => 'primary'];
 } else {
@@ -276,7 +279,11 @@ $editor = site_user_name($page['updated_by'] ? (int) $page['updated_by'] : null)
 <div class="site-admin">
 <div class="site-page-meta">
     <span><?= status_badge($page['status']) ?></span>
-    <span><?= icon('link') ?><a href="<?= e($page['status'] === 'published' ? $viewUrl : $previewUrl) ?>" target="_blank" rel="noopener"><?= e(abs_page_url($page['slug'])) ?></a></span>
+    <?php if ($linkless): ?>
+        <span><?= icon('link') ?><?= e(abs_page_url($page['slug'])) ?> <small class="muted">(opens only from a donation link)</small></span>
+    <?php else: ?>
+        <span><?= icon('link') ?><a href="<?= e($page['status'] === 'published' ? $viewUrl : $previewUrl) ?>" target="_blank" rel="noopener"><?= e(abs_page_url($page['slug'])) ?></a></span>
+    <?php endif; ?>
     <span><?= icon('layers') ?><?= e(TEMPLATE_LABELS[$page['template']] ?? humanize($page['template'])) ?><?= $isSystem ? ' · built-in page' : '' ?></span>
     <span><?= icon('clock') ?>Last updated <?= e(format_date($page['updated_at'] ?: $page['created_at'], 'd M Y, h:i A')) ?><?= $editor !== '' ? ' by ' . e($editor) : '' ?></span>
 </div>

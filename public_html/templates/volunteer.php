@@ -10,7 +10,7 @@ if (!defined('PWF_APP')) {
 
 $page = current_page_row();
 $slug = $page['slug'];
-$consents = ['privacy', 'child', 'conduct'];
+$consents = ['privacy', 'child', 'conduct', 'adult'];
 $required = ['name', 'email', 'phone', 'city', 'state'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

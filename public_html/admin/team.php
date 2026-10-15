@@ -90,7 +90,7 @@ admin_page_start('Team & Management', [['label' => 'Add member', 'url' => admin_
     <?php endforeach; ?>
 </nav>
 
-<div class="admin-grid-main">
+<div<?= $showForm ? ' class="admin-grid-main"' : '' ?>>
     <section class="panel">
         <?php admin_filter_bar([], ['placeholder' => 'Search name or designation', 'hidden' => $group !== '' ? ['group' => $group] : []]); ?>
         <?php if (!$rows): ?>
@@ -120,12 +120,9 @@ admin_page_start('Team & Management', [['label' => 'Add member', 'url' => admin_
         <?php endif; ?>
     </section>
 
+    <?php if ($showForm): $m = $edit ?: []; ?>
     <section class="panel">
         <div class="panel-head"><h2><?= $edit ? 'Edit member' : 'Add a member' ?></h2><?php if ($edit): ?><a class="btn btn-ghost btn-sm" href="<?= e(admin_url('team.php')) ?>">Cancel</a><?php endif; ?></div>
-        <?php if (!$showForm): ?>
-            <p class="muted">Choose <strong>Add member</strong> or the edit icon next to a person.</p>
-            <a class="btn btn-primary btn-sm" href="<?= e(admin_url('team.php?new=1')) ?>"><?= icon('plus') ?>Add member</a>
-        <?php else: $m = $edit ?: []; ?>
             <form method="post" enctype="multipart/form-data" class="form-grid" data-validate>
                 <?= csrf_field() ?><input type="hidden" name="action" value="save"><input type="hidden" name="id" value="<?= (int) ($m['id'] ?? 0) ?>">
                 <div class="form-group full"><label for="name">Full name</label><input type="text" id="name" name="name" required maxlength="120" value="<?= e(old('name', $m['name'] ?? '')) ?>"><?= field_error('name') ?></div>
@@ -140,8 +137,8 @@ admin_page_start('Team & Management', [['label' => 'Add member', 'url' => admin_
                 <div class="form-group"><label for="status">Status</label><select id="status" name="status"><?= options_html(['published' => 'Published', 'hidden' => 'Hidden'], (string) old('status', $m['status'] ?? 'published'), true, '') ?></select></div>
                 <div class="form-actions full" style="grid-column:1/-1"><button class="btn btn-primary" type="submit"><?= icon('check') ?>Save member</button></div>
             </form>
-        <?php endif; ?>
     </section>
+    <?php endif; ?>
 </div>
 <?php
 admin_page_end();

@@ -22,7 +22,7 @@ if (count($segments) > 2 || (count($segments) === 2 && !$wantIcs) || !preg_match
 }
 $event = db_row("SELECT e.*, p.title AS program_title FROM events e LEFT JOIN programs p ON p.id = e.program_id WHERE e.slug = ?", [$slug]);
 $public = $event && in_array($event['status'], ['published', 'cancelled'], true);
-$preview = $event && !$public && user_can('events.manage');
+$preview = $event && !$public && staff_session_can('events.manage');
 if (!$event || (!$public && !$preview)) {
     not_found();
 }
@@ -131,11 +131,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         . '<p>Add it to your calendar: <a href="' . e(abs_url('event-details/' . $event['slug'] . '/ics/')) . '">download the calendar file (.ics)</a>.</p>'
         . '<p>If you can no longer attend, please reply to this email so that we can offer your place to someone else.</p>'
         . '<p>Regards,<br>' . e(site_name()) . '</p>';
-    send_mail($data['email'], 'Registration confirmed: ' . $event['title'], $body, setting('contact_email') ?: null);
+    $sent = send_mail($data['email'], 'Registration confirmed: ' . $event['title'], $body, setting('contact_email') ?: null);
     if (current_user_id()) {
         add_notification((int) current_user_id(), 'Event registration confirmed', 'You are registered for ' . $event['title'] . ' (' . event_when($event) . ').', $self, 'event');
     }
-    flash('success', 'You are registered for ' . $event['title'] . '. A confirmation has been sent to ' . $data['email'] . '.');
+    flash('success', 'You are registered for ' . $event['title'] . '.' . ($sent
+        ? ' A confirmation has been sent to ' . $data['email'] . '.'
+        : ' We could not send a confirmation email just now - please note the event details on this page' . (current_user_id() ? ' (also saved in your account notifications)' : '') . '.'));
     redirect($self . '#register');
 }
 
@@ -145,8 +147,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $user = current_user();
 $myRegistration = null;
 if ($user) {
-    $myRegistration = db_row("SELECT * FROM event_registrations WHERE event_id = ? AND (user_id = ? OR email = ?) AND status <> 'cancelled' ORDER BY id LIMIT 1",
-        [$event['id'], $user['id'], $user['email']]);
+    // a registration made with the account's email counts only when that address is verified
+    $myRegistration = !empty($user['email_verified_at'])
+        ? db_row("SELECT * FROM event_registrations WHERE event_id = ? AND (user_id = ? OR email = ?) AND status <> 'cancelled' ORDER BY id LIMIT 1", [$event['id'], $user['id'], $user['email']])
+        : db_row("SELECT * FROM event_registrations WHERE event_id = ? AND user_id = ? AND status <> 'cancelled' ORDER BY id LIMIT 1", [$event['id'], $user['id']]);
 }
 $canonical = abs_url('event-details/' . $event['slug'] . '/');
 $isAwareness = $event['event_type'] === 'awareness_day';
@@ -256,7 +260,7 @@ page_header($page, [
                         <div class="ev-closed mt-3"><?= icon('info') ?><span><?= e($state['reason']) ?></span></div>
                     <?php endif; ?>
                     <?php if ($isAwareness): ?>
-                        <p class="small muted mt-2">An awareness day observed across India and around the world - not an event organised by <?= e(site_name()) ?>.</p>
+                        <p class="small muted mt-2">A national or international awareness day - not an event organised by <?= e(site_name()) ?>.</p>
                     <?php endif; ?>
                 </div>
             </aside>

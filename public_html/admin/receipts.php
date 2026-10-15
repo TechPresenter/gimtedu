@@ -49,7 +49,7 @@ $q = mb_substr(clean_string($_GET['q'] ?? ''), 0, 100);
 $fy = preg_match('/^\d{4}-\d{2}$/', (string) ($_GET['fy'] ?? '')) ? (string) $_GET['fy'] : '';
 $status = in_array($_GET['status'] ?? '', ['issued', 'cancelled'], true) ? (string) $_GET['status'] : '';
 $params = [];
-$where = 'WHERE 1=1' . search_where(['r.receipt_no', 'd.donation_ref', 'd.donor_name', 'd.donor_email', 'd.donor_pan'], $q, $params);
+$where = 'WHERE 1=1' . search_where(['r.receipt_no', 'd.donation_ref', 'd.donor_name', 'd.donor_email', 'd.donor_pan', 'd.offline_reference'], $q, $params);
 if ($fy !== '') {
     $where .= ' AND r.financial_year = ?';
     $params[] = $fy;
@@ -60,11 +60,11 @@ if ($status !== '') {
 }
 if (isset($_GET['export'])) {
     require_permission('exports.run');
-    $rows = db_rows("SELECT r.receipt_no, r.financial_year, r.issued_at, r.status, d.donation_ref, d.paid_at, d.donor_name, d.donor_email, d.donor_pan, d.donor_address,
-                            d.amount, d.payment_method, d.gateway_payment_id, c.title
+    $rows = db_rows("SELECT r.receipt_no, r.financial_year, r.issued_at, r.status AS receipt_status, d.donation_ref, d.paid_at, d.donor_name, d.donor_email, d.donor_pan, d.donor_address,
+                            d.amount, d.payment_method, d.gateway_payment_id, d.offline_reference, c.title AS campaign
                      FROM donation_receipts r JOIN donations d ON d.id = r.donation_id LEFT JOIN campaigns c ON c.id = d.campaign_id $where ORDER BY r.id DESC", $params);
     admin_log('receipts_exported', count($rows) . ' rows');
-    send_csv('receipts-' . date('Ymd-His') . '.csv', ['Receipt No', 'FY', 'Issued', 'Status', 'Donation Ref', 'Paid on', 'Donor', 'Email', 'PAN', 'Address', 'Amount', 'Method', 'Payment ID', 'Campaign'], $rows);
+    send_csv('receipts-' . date('Ymd-His') . '.csv', ['Receipt No', 'FY', 'Issued', 'Status', 'Donation Ref', 'Paid on', 'Donor', 'Email', 'PAN', 'Address', 'Amount', 'Method', 'Payment ID', 'Transaction / cheque ref', 'Campaign'], $rows);
 }
 $totals = db_row("SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN r.status = 'issued' THEN d.amount END), 0) AS issued_total, SUM(r.status = 'issued' AND r.emailed_at IS NULL) AS not_emailed
                   FROM donation_receipts r JOIN donations d ON d.id = r.donation_id $where", $params);

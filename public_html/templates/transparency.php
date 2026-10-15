@@ -12,7 +12,7 @@ if (!defined('PWF_APP')) {
 $page = current_page_row();
 page_header($page, ['schema' => [[
     '@context' => 'https://schema.org', '@type' => 'WebPage', 'name' => $page['title'], 'url' => abs_page_url('financial-transparency'),
-    'description' => (string) $page['meta_description'], 'publisher' => ['@type' => 'NGO', 'name' => site_name(), 'url' => abs_url('')],
+    'description' => (string) $page['meta_description'], 'publisher' => ['@type' => 'NGO', '@id' => abs_url('#organization'), 'name' => site_name(), 'url' => abs_url('')],
 ]]]);
 
 render_sections($page, function () {
@@ -24,12 +24,12 @@ render_sections($page, function () {
     $facts = [];
     foreach (['legal_name' => 'Legal name', 'registration_type' => 'Registered as', 'registration_number' => 'Registration number', 'registration_date' => 'Registration date',
                  'pan_number' => 'PAN of the foundation', 'reg_12a_number' => '12A registration', 'reg_80g_number' => '80G registration', 'csr1_number' => 'CSR-1 registration',
-                 'darpan_id' => 'NITI Aayog Darpan ID', 'fcra_number' => 'FCRA registration', 'contact_address' => 'Registered office'] as $key => $label) {
+                 'darpan_id' => 'NITI Aayog Darpan ID', 'fcra_number' => 'FCRA registration', 'contact_address' => 'Office address'] as $key => $label) {
         if (trim(setting($key)) !== '') {
             $facts[$label] = trim(setting($key));
         }
     }
-    $hasRegistration = count(array_diff_key($facts, ['Legal name' => 1, 'Registered office' => 1])) > 0;
+    $hasRegistration = count(array_diff_key($facts, ['Legal name' => 1, 'Office address' => 1])) > 0;
     $docs = fundraising_documents(['financial_statement', 'annual_report', 'utilization_report']);
     ?>
     <section class="section fr-transparency" id="verified-totals">

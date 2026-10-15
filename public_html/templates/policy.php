@@ -10,10 +10,16 @@ if (!defined('PWF_APP')) {
 }
 
 $page = current_page_row();
-page_header($page, ['schema' => [[
-    '@context' => 'https://schema.org', '@type' => 'WebPage', 'name' => $page['title'],
+$policySchema = [
+    '@context' => 'https://schema.org', '@type' => 'WebPage', '@id' => abs_page_url($page['slug']) . '#webpage',
+    'url' => abs_page_url($page['slug']), 'name' => $page['title'], 'inLanguage' => 'en-IN',
     'dateModified' => date('c', strtotime($page['updated_at'] ?: $page['created_at'])),
-]]]);
+    'publisher' => ['@id' => abs_url('#organization')],
+];
+if (!empty($page['meta_description'])) {
+    $policySchema['description'] = (string) $page['meta_description'];
+}
+page_header($page, ['schema' => [$policySchema]]);
 render_policy_layout($page, policy_links($page['slug']));
 foreach (page_sections((int) $page['id']) as $s) {
     if ($s['section_type'] !== 'richtext') {

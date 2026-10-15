@@ -65,7 +65,7 @@ render_sections($page, function () {
                 <div class="aside-card reveal">
                     <h2 class="h3">About the foundation</h2>
                     <p><?= e(setting('footer_about_text', setting('site_description'))) ?></p>
-                    <p class="hindi ngo-tagline"><?= e(setting('site_tagline')) ?></p>
+                    <p class="hindi ngo-tagline" lang="hi"><?= e(setting('site_tagline')) ?></p>
                 </div>
                 <?php $cards = contact_cards_html(true); if ($cards !== ''): ?>
                     <div class="aside-card reveal"><h2 class="h3">Contact</h2><?= $cards ?><?= social_links_html() ?></div>

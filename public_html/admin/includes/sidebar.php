@@ -4,7 +4,7 @@ if (!defined('PWF_APP')) {
     http_response_code(403);
     exit('Forbidden');
 }
-$navCurrent = basename($_SERVER['PHP_SELF']);
+$navCurrent = basename($_SERVER['SCRIPT_NAME']);
 $navType = (string) ($_GET['type'] ?? '');
 // [file, icon, label, permission (null = any staff), files that highlight this item]
 $navGroups = [

@@ -3,7 +3,11 @@
  * Newsletter:
  *  POST  subscribe (footer, sections, this page): email + consent required; consent text, time, source and IP
  *        are stored; re-subscribing updates the record. Responses are generic (no address enumeration).
- *  GET   ?unsubscribe=<64 hex token>  -> unsubscribed + confirmation email.
+ *  GET   ?unsubscribe=<64 hex token>  -> confirmation page only (mail scanners and link previews open links):
+ *        nothing changes until the visitor presses "Unsubscribe me".
+ *  POST  unsubscribe=<token> (that button), or an RFC 8058 one-click POST to the link (List-Unsubscribe=One-Click):
+ *        unsubscribed + confirmation email. The 256-bit token is the credential, so no CSRF token is needed.
+ *  GET   ?unsubscribed=1 -> result card (changes nothing).
  *  GET   page with its sections and the sign-up form.
  */
 if (!defined('PWF_APP')) {
@@ -14,7 +18,32 @@ if (!defined('PWF_APP')) {
 $page = current_page_row();
 $self = '/' . $page['slug'] . '/';
 
+/** Unsubscribe the subscriber of a valid token (no-op when unknown or already unsubscribed). */
+$doUnsubscribe = function (string $token): void {
+    $row = db_row('SELECT id, email, status FROM newsletter_subscribers WHERE unsubscribe_token = ?', [$token]);
+    if ($row && $row['status'] === 'subscribed') {
+        db_update('newsletter_subscribers', ['status' => 'unsubscribed', 'name' => null, 'ip_address' => null], 'id = :id', ['id' => $row['id']]);
+        log_activity('newsletter_unsubscribed', 'Subscriber #' . $row['id']);
+        send_mail($row['email'], 'You have been unsubscribed - ' . site_name(),
+            '<p>Namaste,</p><p>You have been unsubscribed from email updates from ' . e(site_name()) . '. You will not receive any more newsletters from us.</p>'
+            . '<p>Changed your mind? You can subscribe again at any time on our website:</p><p><a class="btn" href="' . e(abs_page_url('newsletter')) . '">Subscribe again</a></p>');
+    }
+};
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $unsubToken = post_str('unsubscribe', get_str('unsubscribe'));
+    if ($unsubToken !== '' || isset($_POST['List-Unsubscribe'])) {
+        if (preg_match('/^[a-f0-9]{64}$/', $unsubToken)) {
+            $doUnsubscribe($unsubToken);
+        }
+        if (post_str('List-Unsubscribe') === 'One-Click') {   // RFC 8058: plain 200, no redirect
+            header('Content-Type: text/plain; charset=utf-8');
+            header('X-Robots-Tag: noindex');
+            echo 'Unsubscribed.';
+            exit;
+        }
+        redirect($self . '?unsubscribed=1');
+    }
     // Return to the page the form was on (same site only)
     $back = $self;
     $ref = (string) ($_SERVER['HTTP_REFERER'] ?? '');
@@ -49,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect($back);
     }
     log_activity('form_newsletter', 'Newsletter sign-up');
-    $result = newsletter_subscribe($data['email'], $data['name'] !== '' ? $data['name'] : (current_user()['name'] ?? null), (string) ($_POST['source'] ?? 'website'));
+    $result = newsletter_subscribe($data['email'], $data['name'] !== '' ? $data['name'] : (current_user()['name'] ?? null), post_str('source', 'website'));
     if ($result['status'] !== 'existing') {
         newsletter_send_confirmation($data['email'], $result['token']);
         track_conversion('newsletter_signup', $result['id']);
@@ -60,31 +89,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $unsub = null;
-if (isset($_GET['unsubscribe'])) {
-    $token = (string) $_GET['unsubscribe'];
-    if (preg_match('/^[a-f0-9]{64}$/', $token)) {
-        $row = db_row('SELECT id, email, status FROM newsletter_subscribers WHERE unsubscribe_token = ?', [$token]);
+$unsubToken = '';
+$unsubMasked = '';
+if (isset($_GET['unsubscribed'])) {
+    $unsub = 'ok';
+} elseif (isset($_GET['unsubscribe'])) {
+    $unsubToken = get_str('unsubscribe');
+    if (preg_match('/^[a-f0-9]{64}$/', $unsubToken)) {
+        // GET never changes anything: a still-subscribed address gets a confirmation button, anything else the generic result
+        $row = db_row('SELECT email, status FROM newsletter_subscribers WHERE unsubscribe_token = ?', [$unsubToken]);
         if ($row && $row['status'] === 'subscribed') {
-            db_update('newsletter_subscribers', ['status' => 'unsubscribed'], 'id = :id', ['id' => $row['id']]);
-            log_activity('newsletter_unsubscribed', 'Subscriber #' . $row['id']);
-            send_mail($row['email'], 'You have been unsubscribed - ' . site_name(),
-                '<p>Namaste,</p><p>You have been unsubscribed from email updates from ' . e(site_name()) . '. You will not receive any more newsletters from us.</p>'
-                . '<p>Changed your mind? You can subscribe again at any time on our website:</p><p><a class="btn" href="' . e(abs_page_url('newsletter')) . '">Subscribe again</a></p>');
+            $unsub = 'confirm';
+            [$local, $domain] = array_pad(explode('@', (string) $row['email'], 2), 2, '');
+            $unsubMasked = mb_substr($local, 0, 1) . '***@' . $domain;
+        } else {
+            $unsub = 'ok';
         }
-        $unsub = 'ok';
     } else {
         $unsub = 'invalid';
     }
 }
 
 if ($unsub !== null) {
-    page_header($page, ['title' => $unsub === 'ok' ? 'You have been unsubscribed' : 'Unsubscribe link not valid', 'noindex' => true,
+    page_header($page, ['title' => $unsub === 'confirm' ? 'Unsubscribe from email updates' : ($unsub === 'ok' ? 'You have been unsubscribed' : 'Unsubscribe link not valid'), 'noindex' => true,
         'canonical' => abs_page_url('newsletter'), 'crumbs' => [['Newsletter', page_url('newsletter')]]]);
     ?>
     <section class="section">
         <div class="container narrow">
             <div class="result-card info-result">
-                <?php if ($unsub === 'ok'): ?>
+                <?php if ($unsub === 'confirm'): ?>
+                    <span class="result-icon pending"><?= icon('mail') ?></span>
+                    <h2>Stop our email updates?</h2>
+                    <p>Press the button to stop newsletters to <strong><?= e($unsubMasked) ?></strong>. Emails about your own donations, applications or account (for example receipts) are not affected.</p>
+                    <form method="post" action="<?= e(page_url('newsletter')) ?>" class="btn-row center">
+                        <input type="hidden" name="unsubscribe" value="<?= e($unsubToken) ?>">
+                        <button class="btn btn-primary" type="submit"><?= icon('check') ?>Unsubscribe me</button>
+                        <a class="btn btn-outline" href="<?= e(url('/')) ?>">Keep me subscribed</a>
+                    </form>
+                <?php elseif ($unsub === 'ok'): ?>
                     <span class="result-icon success"><?= icon('check-circle') ?></span>
                     <h2>You will not receive further newsletters</h2>
                     <p>If this address was subscribed, it has now been removed from our mailing list and a confirmation has been sent. Emails about your own donations, applications or account (for example receipts) are not affected.</p>
@@ -93,8 +135,10 @@ if ($unsub !== null) {
                     <h2>We could not read this link</h2>
                     <p>Please open the unsubscribe link exactly as it appears in the email, or write to us at <a href="mailto:<?= e(setting('contact_email')) ?>"><?= e(setting('contact_email')) ?></a> and we will remove your address.</p>
                 <?php endif; ?>
+                <?php if ($unsub !== 'confirm'): ?>
                 <div class="btn-row center"><a class="btn btn-primary" href="<?= e(url('/')) ?>"><?= icon('home') ?>Go to homepage</a>
                     <?php if ($unsub === 'ok' && newsletter_enabled()): ?><a class="btn btn-outline" href="<?= e(page_url('newsletter')) ?>#subscribe">Subscribe again</a><?php endif; ?></div>
+                <?php endif; ?>
             </div>
         </div>
     </section>

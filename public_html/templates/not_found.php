@@ -8,7 +8,7 @@ if (!defined('PWF_APP')) {
 http_response_code(404);
 $page = current_page_row();
 page_header($page, ['banner' => false, 'noindex' => true, 'title' => $page['title'] ?: 'Page not found']);
-$q = trim(mb_substr((string) ($_GET['q'] ?? ''), 0, 80));
+$q = trim(mb_substr(get_str('q'), 0, 80));
 $results = [];
 if ($q !== '') {
     $like = '%' . $q . '%';

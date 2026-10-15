@@ -48,7 +48,7 @@ if (!empty($user['must_change_password']) && $section !== 'password') {
 // ---------------------------------------------------------------------
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     csrf_verify($base);
-    $action = (string) ($_POST['action'] ?? '');
+    $action = post_str('action');
 
     switch ($section) {
         case 'overview':
@@ -71,8 +71,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 if ($mobile !== null && !isset($errors['mobile']) && (strlen($mobile) < 8 || strlen($mobile) > 15)) {
                     $errors['mobile'] = 'Please enter a valid mobile number.';
                 }
-                if ($mobile !== null && !isset($errors['mobile']) && db_value('SELECT COUNT(*) FROM users WHERE mobile = ? AND id <> ?', [$mobile, $uid])) {
-                    $errors['mobile'] = 'This mobile number is already linked to another account.';
+                // A changed mobile number is throttled (per IP and per account) and a clash is reported generically,
+                // so the form cannot be used to find out which numbers have accounts.
+                $mobileChanged = $mobile !== null && !isset($errors['mobile']) && $mobile !== (string) ($user['mobile'] ?? '');
+                $mobileTaken = 'This mobile number cannot be used for your account. Please use a different number or contact us.';
+                if ($mobileChanged) {
+                    $limited = form_rate_limited('mobile_change', 5)
+                        || (int) db_value("SELECT COUNT(*) FROM activity_logs WHERE action = 'form_mobile_change' AND user_id = ? AND created_at > ?", [$uid, date('Y-m-d H:i:s', time() - 3600)]) >= 5;
+                    log_activity('form_mobile_change', 'Mobile number change attempted', $uid);
+                    if ($limited) {
+                        $errors['mobile'] = 'Too many attempts. Please try again in an hour.';
+                    } elseif (db_value('SELECT COUNT(*) FROM users WHERE mobile = ? AND id <> ?', [$mobile, $uid])) {
+                        $errors['mobile'] = $mobileTaken;
+                    }
                 }
                 $up = handle_upload('avatar', 'image', 'avatars');
                 if (!empty($up['error'])) {
@@ -91,19 +102,26 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 } elseif ($data['remove_avatar'] === '1') {
                     $avatar = null;
                 }
-                db_update('users', [
-                    'name' => $data['name'], 'mobile' => $mobile, 'address' => $data['address'] !== '' ? $data['address'] : null,
-                    'city' => $data['city'] !== '' ? $data['city'] : null, 'state' => $data['state'] !== '' ? $data['state'] : null,
-                    'pincode' => $data['pincode'] !== '' ? $data['pincode'] : null, 'avatar' => $avatar,
-                ], 'id = :id', ['id' => $uid]);
+                try {
+                    db_update('users', [
+                        'name' => $data['name'], 'mobile' => $mobile, 'address' => $data['address'] !== '' ? $data['address'] : null,
+                        'city' => $data['city'] !== '' ? $data['city'] : null, 'state' => $data['state'] !== '' ? $data['state'] : null,
+                        'pincode' => $data['pincode'] !== '' ? $data['pincode'] : null, 'avatar' => $avatar,
+                    ], 'id = :id', ['id' => $uid]);
+                } catch (PDOException $ex) {
+                    if (!empty($up['path'])) {
+                        delete_upload($up['path']);
+                    }
+                    back_with_errors(['mobile' => $mobileTaken], $base, $_POST);
+                }
                 if ($oldAvatar !== '' && $oldAvatar !== (string) $avatar && strpos($oldAvatar, 'uploads/avatars/') === 0) {
                     delete_upload($oldAvatar);
                 }
                 log_activity('profile_updated', 'Updated own profile', $uid);
                 flash('success', 'Your profile has been saved.');
             } elseif ($action === 'email') {
-                $new = mb_strtolower(trim((string) ($_POST['new_email'] ?? '')));
-                $confirm = mb_strtolower(trim((string) ($_POST['new_email_confirm'] ?? '')));
+                $new = mb_strtolower(trim(post_str('new_email')));
+                $confirm = mb_strtolower(trim(post_str('new_email_confirm')));
                 $errors = [];
                 $limited = form_rate_limited('email_change', 5);
                 log_activity('form_email_change', 'Email change requested', $uid);
@@ -113,7 +131,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                     $errors['new_email'] = 'Please enter a valid email address.';
                 } elseif ($new !== $confirm) {
                     $errors['new_email_confirm'] = 'The two email addresses do not match.';
-                } elseif (!password_verify((string) ($_POST['current_password'] ?? ''), (string) db_value('SELECT password_hash FROM users WHERE id = ?', [$uid]))) {
+                } elseif (!password_verify(post_str('current_password'), (string) db_value('SELECT password_hash FROM users WHERE id = ?', [$uid]))) {
                     $errors['current_password'] = 'Your current password is not correct.';
                 } elseif ($new === mb_strtolower((string) $user['email'])) {
                     $errors['new_email'] = 'This is already your email address.';
@@ -129,6 +147,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 } catch (PDOException $ex) {
                     back_with_errors(['new_email' => 'This email address cannot be used for your account. Please use a different address or contact us.'], $base);
                 }
+                invalidate_password_resets($uid);   // links sent to the old address stop working
                 send_verification_email(db_row('SELECT id, name, email FROM users WHERE id = ?', [$uid]));
                 send_mail($oldEmail, 'Your account email address was changed - ' . site_name(),
                     '<p>Dear ' . e($user['name']) . ',</p><p>The email address of your ' . e(site_name()) . ' account was changed to <strong>' . e(member_mask_email($new)) . '</strong> on ' . e(date('d M Y, h:i A')) . '.</p>'
@@ -142,7 +161,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         case 'tasks':
             if ($action === 'task') {
                 $taskId = (int) ($_POST['task_id'] ?? 0);
-                $to = (string) ($_POST['status'] ?? '');
+                $to = post_str('status');
                 $task = in_array($to, ['in_progress', 'done'], true)
                     ? db_row("SELECT * FROM tasks WHERE id = ? AND user_id = ? AND status IN ('assigned', 'in_progress')", [$taskId, $uid]) : null;
                 if ($task && !($to === 'in_progress' && $task['status'] === 'in_progress')) {
@@ -187,18 +206,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         case 'password':
             if ($action === 'password') {
                 $hash = (string) db_value('SELECT password_hash FROM users WHERE id = ?', [$uid]);
-                $current = (string) ($_POST['current_password'] ?? '');
-                $new = (string) ($_POST['password'] ?? '');
+                $current = post_str('current_password');
+                $new = post_str('password');
                 $errors = [];
                 if (form_rate_limited('password_change', 10)) {
                     $errors['current_password'] = 'Too many attempts. Please try again in an hour.';
                 } elseif (!password_verify($current, $hash)) {
                     $errors['current_password'] = 'Your current password is not correct.';
-                } elseif ($problem = password_problem($new, (string) $user['name'], (string) $user['email'])) {
-                    $errors['password'] = $problem;
-                } elseif (strlen($new) > 72) {
-                    $errors['password'] = 'Password may not be longer than 72 characters.';
-                } elseif ($new !== (string) ($_POST['password_confirm'] ?? '')) {
+                } elseif ($problem = password_problem($new, (string) $user['name'], (string) $user['email'], $uid)) {
+                    $errors['password'] = $problem;   // includes the 72-byte limit and the 12-character staff minimum
+                } elseif ($new !== post_str('password_confirm')) {
                     $errors['password_confirm'] = 'The two passwords do not match.';
                 } elseif (password_verify($new, $hash)) {
                     $errors['password'] = 'Please choose a password that is different from your current one.';
@@ -309,7 +326,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 if (empty($_POST['confirm_deactivate'])) {
                     back_with_errors(['confirm_deactivate' => 'Please confirm that you want to deactivate your account.'], $base);
                 }
-                if (!password_verify((string) ($_POST['deactivate_password'] ?? ''), (string) db_value('SELECT password_hash FROM users WHERE id = ?', [$uid]))) {
+                if (!password_verify(post_str('deactivate_password'), (string) db_value('SELECT password_hash FROM users WHERE id = ?', [$uid]))) {
                     back_with_errors(['deactivate_password' => 'Your password is not correct.'], $base);
                 }
                 db_update('users', ['status' => 'deactivated'], 'id = :id', ['id' => $uid]);
@@ -379,7 +396,7 @@ $csrf = csrf_field();
                 <?= member_avatar($user) ?>
                 <div class="md-user-text">
                     <strong><?= e($user['name']) ?></strong>
-                    <small><?= e($roleNames ? implode(' · ', $roleNames) : 'Member') ?></small>
+                    <small><?= e($roleNames ? implode(' · ', $roleNames) : 'Website account') ?></small>
                 </div>
             </div>
             <nav class="md-nav" aria-label="Dashboard sections">
@@ -475,7 +492,7 @@ case 'overview':
             <div class="md-welcome">
                 <div>
                     <p class="md-welcome-hi">Namaste, <?= e($first) ?>!</p>
-                    <p class="md-welcome-text">Thank you for being part of <?= e(site_name()) ?>. <span class="hindi"><?= e(setting('site_tagline')) ?></span></p>
+                    <p class="md-welcome-text">Thank you for being part of <?= e(site_name()) ?>. <span class="hindi" lang="hi"><?= e(setting('site_tagline')) ?></span></p>
                 </div>
                 <div class="md-welcome-meta">
                     <span><?= icon('user') ?>Member since <?= e(format_date($user['created_at'], 'M Y')) ?></span>
@@ -960,7 +977,8 @@ case 'password':
                     <form class="md-form" method="post" action="<?= e(member_url('password')) ?>" data-acc-form>
                         <?= $csrf ?><input type="hidden" name="action" value="password">
                         <?= account_password_field('current_password', 'current_password', ['label' => 'Current password', 'required' => true, 'autocomplete' => 'current-password']) ?>
-                        <?= account_password_field('password', 'password', ['label' => 'New password', 'required' => true, 'autocomplete' => 'new-password', 'meter' => true]) ?>
+                        <?php $pwStaff = is_staff($uid); ?>
+                        <?= account_password_field('password', 'password', ['label' => 'New password', 'required' => true, 'autocomplete' => 'new-password', 'meter' => true, 'minlength' => $pwStaff ? STAFF_PASSWORD_MIN : 8, 'help' => $pwStaff ? 'Staff accounts need at least ' . STAFF_PASSWORD_MIN . ' characters.' : '']) ?>
                         <?= account_password_field('password_confirm', 'password_confirm', ['label' => 'Confirm new password', 'required' => true, 'autocomplete' => 'new-password', 'match' => 'password']) ?>
                         <div class="form-actions"><button class="btn btn-primary" type="submit"><?= icon('key') ?>Change password</button></div>
                         <p class="md-foot-note"><?= icon('info') ?><span>Changing your password signs you out on all other devices and we email you a confirmation.</span></p>

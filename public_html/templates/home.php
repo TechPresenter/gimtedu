@@ -29,7 +29,7 @@ if (trim($homeSections) === '') {
         'pill' => 'Who we are', 'title' => 'Empowering underprivileged communities',
         'text' => setting('site_description'),
         'image' => 'assets/images/hero/about.svg',
-        'actions' => [['label' => 'About us', 'url' => '/about/', 'style' => 'primary'], ['label' => 'Our programs', 'url' => '/programs/', 'style' => 'outline']],
+        'actions' => [['label' => 'About us', 'url' => '/about/', 'style' => 'primary'], ['label' => 'Our programmes', 'url' => '/programs/', 'style' => 'outline']],
     ]) . '</div></section>';
     echo '<section class="section section-sm"><div class="container">' . ui_cta(setting('site_tagline_en', 'Together, let us build a better tomorrow'),
         'Give your time, share your skills or support a cause.', [

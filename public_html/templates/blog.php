@@ -37,7 +37,7 @@ if ($segments) {
     }
     $post = db_row('SELECT * FROM blog_posts WHERE slug = ?', [$slug]);
     $visible = $post && $post['status'] === 'published' && $post['published_at'] && strtotime($post['published_at']) <= time();
-    $preview = $post && !$visible && user_can('blog.manage');
+    $preview = $post && !$visible && staff_session_can('blog.manage');
     if (!$post || (!$visible && !$preview)) {
         not_found();
     }
@@ -151,7 +151,7 @@ if ($segments) {
 // ---------------------------------------------------------------------
 // List page
 // ---------------------------------------------------------------------
-$category = (string) ($_GET['category'] ?? '');
+$category = get_str('category');
 if (!in_array($category, $categories, true)) {
     $category = '';
 }

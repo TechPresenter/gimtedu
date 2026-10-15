@@ -35,6 +35,7 @@ $check(BASE_URL !== '' && preg_match('#^https?://#', BASE_URL), 'BASE_URL is set
 
 $dbOk = false;
 $hasAdmin = false;
+$dbHint = '';
 try {
     $tables = db()->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
     $dbOk = $check(true, 'Connected to database ' . DB_NAME);
@@ -50,6 +51,7 @@ try {
         ? 'Wrong database username or password, or the user is not linked to the database. Reset the user password in your hosting panel (letters and numbers only) and copy it into DB_PASS.'
         : (stripos($msg, 'Unknown database') !== false ? 'DB_NAME does not exist. Copy the exact full name from your hosting panel.' : 'Check DB_HOST, DB_NAME, DB_USER and DB_PASS.');
     $check(false, 'Connect to the database', $hint);
+    $dbHint = $hint;
 }
 
 if ($hasAdmin && !$locked) {
@@ -106,6 +108,12 @@ if (!$locked && $dbOk && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         }
     }
 }
+
+// Once installed, show only the locked notice: no PHP version, extensions, database name, BASE_URL or table count.
+$showChecks = !$locked || $done;
+if ($locked && !$done) {
+    http_response_code($dbHint !== '' ? 503 : 403);
+}
 ?>
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -116,18 +124,23 @@ if (!$locked && $dbOk && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     <div class="form-card">
         <div class="auth-head"><img src="<?= e(url('assets/images/logo.png')) ?>" alt="" width="72" height="72"><div><h1>Website setup</h1><p class="muted">Prerit Welfare Foundation</p></div></div>
 
+        <?php if ($showChecks): ?>
         <h2 class="form-section-title">Server checks</h2>
         <ul class="install-checks">
             <?php foreach ($checks as [$ok, $label, $hint]): ?>
                 <li class="<?= $ok ? 'ok' : 'bad' ?>"><?= icon($ok ? 'check-circle' : 'alert-circle') ?><span><?= e($label) ?><?php if (!$ok && $hint): ?><small><?= e($hint) ?></small><?php endif; ?></span></li>
             <?php endforeach; ?>
         </ul>
+        <?php endif; ?>
 
         <?php if ($done): ?>
             <div class="alert alert-success"><?= icon('check-circle') ?><div><strong>Installation complete.</strong> The administrator account has been created and the installer is now locked.
                 <br>Next: sign in at <a href="<?= e(url('/admin/')) ?>">/admin/</a>, then add your logo, contact details and verified registration information in Settings.
                 For extra safety you can delete install.php from the server.</div></div>
         <?php elseif ($locked): ?>
+            <?php if ($dbHint !== ''): ?>
+                <div class="alert alert-error" role="alert"><?= icon('alert-circle') ?><div><strong>The website cannot connect to its database.</strong> <?= e($dbHint) ?> These settings are in pwf-config.php (or config.php).</div></div>
+            <?php endif; ?>
             <div class="alert alert-info"><?= icon('lock') ?><div>This website is already installed, so the installer is locked. Sign in at <a href="<?= e(url('/admin/')) ?>">/admin/</a>. To recover access, use "Forgot password" on the login page.</div></div>
         <?php elseif (!$dbOk): ?>
             <div class="alert alert-error"><?= icon('alert-circle') ?><div>Fix the database items above, then reload this page.</div></div>

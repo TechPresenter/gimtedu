@@ -10,7 +10,7 @@ if (!defined('PWF_APP')) {
 
 $page = current_page_row();
 $slug = $page['slug'];
-$consents = ['privacy', 'child', 'declaration'];
+$consents = ['privacy', 'child', 'declaration', 'adult'];
 $required = ['name', 'email', 'phone', 'city', 'state'];
 $positions = staff_positions();
 $positionTitles = array_column($positions, 'title');
@@ -30,6 +30,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ] + $consentRules, $consentLabels + ['experience_years' => 'Years of experience', 'cover_letter' => 'Cover letter']);
     if (!in_array($position, $allowedPositions, true)) {
         $errors['position'] = 'Please choose a position or "General application".';
+    }
+    if (empty($errors['date_of_birth']) && !empty($data['date_of_birth']) && $data['date_of_birth'] > date('Y-m-d', strtotime('-18 years'))) {
+        $errors['date_of_birth'] = 'Paid positions are open to applicants aged 18 or over.';
     }
     $resume = recruitment_upload('resume', 'pdf', 'documents/staff', true, $errors);
     if ($errors) {
@@ -85,7 +88,7 @@ if ($success) {
 }
 
 $user = current_user();
-$preselect = (string) old('position', (string) ($_GET['position'] ?? ''));
+$preselect = (string) old('position', get_str('position'));
 if (!in_array($preselect, $allowedPositions, true)) {
     $preselect = '';
 }

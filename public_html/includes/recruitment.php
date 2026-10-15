@@ -284,11 +284,14 @@ function recruitment_timeline_html(array $rows, string $kind, bool $admin = fals
  * $message is plain text (escaped, line breaks kept).
  * $opts: user_id, link (site path for the button and the notification), button (label), html (trusted extra HTML),
  *        ref (reference number), type (info|success|warning), no_email (bool), notice (shorter in-app text)
+ * Returns true only when an email was actually sent (false: no address, no_email, or sending failed / switched off).
+ * Accounts are matched by email only when that address is verified.
  */
-function notify_applicant(string $email, string $name, string $subject, string $message, array $opts = []): void
+function notify_applicant(string $email, string $name, string $subject, string $message, array $opts = []): bool
 {
     $email = mb_strtolower(trim($email));
     $link = $opts['link'] ?? null;
+    $sent = false;
     if ($email !== '' && empty($opts['no_email'])) {
         $html = '<p>Dear ' . e($name !== '' ? $name : 'applicant') . ',</p><p>' . e_nl($message) . '</p>' . ($opts['html'] ?? '');
         if ($link) {
@@ -300,15 +303,16 @@ function notify_applicant(string $email, string $name, string $subject, string $
                 . (!empty($opts['ref']) ? ' quoting your reference number <strong>' . e($opts['ref']) . '</strong>' : '') . '.</p>';
         }
         $html .= '<p>Regards,<br>' . e(site_name()) . '</p>';
-        send_mail($email, $subject, $html, $contact !== '' ? $contact : null);
+        $sent = send_mail($email, $subject, $html, $contact !== '' ? $contact : null);
     }
     $uid = (int) ($opts['user_id'] ?? 0);
     if (!$uid && $email !== '') {
-        $uid = (int) db_value("SELECT id FROM users WHERE email = ? AND status = 'active'", [$email]);
+        $uid = (int) db_value("SELECT id FROM users WHERE email = ? AND status = 'active' AND email_verified_at IS NOT NULL", [$email]);
     }
     if ($uid) {
         add_notification($uid, $subject, excerpt($opts['notice'] ?? $message, 900), $opts['notify_link'] ?? $link, $opts['type'] ?? 'info');
     }
+    return $sent;
 }
 
 // ---------------------------------------------------------------------
@@ -336,10 +340,17 @@ function recruitment_link_account(string $type, array $row, bool $notify = true)
     if (!empty($row['user_id'])) {
         $user = db_row('SELECT id, name, email, status FROM users WHERE id = ?', [(int) $row['user_id']]);
     }
-    if (!$user && !empty($row['email'])) {
-        $user = db_row('SELECT id, name, email, status FROM users WHERE email = ?', [mb_strtolower((string) $row['email'])]);
-    }
     $roleName = (string) db_value('SELECT name FROM roles WHERE slug = ?', [$t['role']]);
+    if (!$user && !empty($row['email'])) {
+        // Match by email only when the account has proved it owns that address: otherwise anyone could set their
+        // account email to an applicant's address and receive the application (and its personal data).
+        $byEmail = db_row('SELECT id, name, email, status, email_verified_at FROM users WHERE email = ?', [mb_strtolower((string) $row['email'])]);
+        if ($byEmail && empty($byEmail['email_verified_at'])) {
+            return ['linked' => false, 'user' => null, 'role' => $roleName,
+                'message' => 'A website account uses ' . $row['email'] . ' but its email address is not verified, so it was not linked and no role was added. Once the account owner verifies the address, set the status to Active again or use "Link account & add role".'];
+        }
+        $user = $byEmail;
+    }
     if (!$user) {
         return ['linked' => false, 'user' => null, 'role' => $roleName,
             'message' => 'No website account uses ' . $row['email'] . ', so no role was added. If the applicant registers with this email, set the status to Active again to link the account.'];
@@ -399,12 +410,14 @@ function recruitment_change_status(string $type, array $row, string $status, str
         } elseif ($status === 'active' && $link && empty($link['linked'])) {
             $text .= "\n\nTip: create a free account on our website with this email address so that your tasks and certificates can be shared with you.";
         }
-        notify_applicant((string) $row['email'], (string) $row['name'], 'Update on your application ' . $row['application_no'], $text, [
+        $messages[] = notify_applicant((string) $row['email'], (string) $row['name'], 'Update on your application ' . $row['application_no'], $text, [
             'link' => '/application-status/?ref=' . rawurlencode((string) $row['application_no']), 'ref' => $row['application_no'],
             'user_id' => $link['user']['id'] ?? ($row['user_id'] ?? null), 'html' => $emailExtra,
             'type' => in_array($status, ['selected', 'onboarding', 'active'], true) ? 'success' : 'info',
-        ]);
-        $messages[] = 'The applicant was notified by email.';
+        ])
+            ? 'The applicant was notified by email.'
+            : 'The email to the applicant could not be sent (check Settings > Email delivery). The new status is shown on their application status page'
+                . (!empty($link['user']['id']) || !empty($row['user_id']) ? ' and in their account' : '') . ' - please inform them by phone if needed.';
     }
     if (function_exists('admin_log')) {
         admin_log('application_status', $t['title'] . ' ' . $row['application_no'] . ': ' . $row['status'] . ' -> ' . $status);
@@ -467,9 +480,15 @@ function recruitment_support_change_status(string $kind, array $row, string $sta
             $text .= "\n\nMessage from our team:\n" . trim($note);
         }
         if ($email !== '' || $uid) {
-            notify_applicant($email, $name, 'Update on your ' . strtolower($k['label']) . ($ref !== '' ? ' ' . $ref : ''), $text,
+            $sent = notify_applicant($email, $name, 'Update on your ' . strtolower($k['label']) . ($ref !== '' ? ' ' . $ref : ''), $text,
                 ['link' => $link, 'ref' => $ref, 'user_id' => $uid ?: null, 'type' => in_array($status, ['approved', 'assisted', 'disbursed'], true) ? 'success' : 'info']);
-            $messages[] = $email !== '' ? 'The applicant was notified by email.' : 'The applicant was notified in their account (no email address on file).';
+            if ($email === '') {
+                $messages[] = 'The applicant was notified in their account (no email address on file).';
+            } elseif ($sent) {
+                $messages[] = 'The applicant was notified by email.';
+            } else {
+                $messages[] = 'The email could not be sent (check Settings > Email delivery)' . ($uid ? '; the applicant was notified in their account.' : ' - please inform the applicant by phone.');
+            }
         } else {
             $messages[] = 'No email address or website account is on file - please inform the applicant by phone.';
         }
@@ -575,7 +594,7 @@ function recruitment_can_download(string $kind, array $row): bool
     if (!$uid) {
         return false;
     }
-    if (!empty($_SESSION['staff_auth']) && user_can($k['perm']) && is_staff($uid)) {
+    if (staff_session_can($k['perm'])) {
         return true;
     }
     return !empty($row['user_id']) && (int) $row['user_id'] === $uid;
@@ -626,7 +645,7 @@ function send_certificate_file(int $certId): void
         not_found();
     }
     $uid = current_user_id();
-    $staff = $uid && !empty($_SESSION['staff_auth']) && user_can('certificates.manage') && is_staff($uid);
+    $staff = $uid && staff_session_can('certificates.manage');
     $owner = $uid && (int) $cert['user_id'] === $uid && $cert['status'] === 'approved';
     if (!$staff && !$owner) {
         http_response_code(403);
@@ -696,7 +715,7 @@ function render_certificate_html(array $cert): string
         . '<div class="pwf-cert-sig"><strong>' . e($signatory !== '' ? $signatory : $signTitle) . '</strong>' . e($signatory !== '' ? $signTitle : 'For ' . site_name()) . '</div>'
         . '</div>'
         . '<p class="pwf-cert-no">Certificate No. <strong>' . e($cert['certificate_no'] ?? '') . '</strong>'
-        . (setting('site_tagline') !== '' ? ' &middot; <span class="pwf-cert-hindi">' . e(setting('site_tagline')) . '</span>' : '') . '</p>'
+        . (setting('site_tagline') !== '' ? ' &middot; <span class="pwf-cert-hindi" lang="hi">' . e(setting('site_tagline')) . '</span>' : '') . '</p>'
         . '</div></div>'
         . ($mark !== '' ? '<div class="pwf-cert-mark" aria-hidden="true">' . e($mark) . '</div>' : '')
         . '</div>';
@@ -789,7 +808,7 @@ function recruitment_form_assets(): void
     }
 }
 
-/** Consent checkboxes. Keys: privacy, child, conduct, verify, contact, declaration, guardian. */
+/** Consent checkboxes. Keys: privacy, child, conduct, verify, contact, declaration, guardian, datause, membership, adult, minor. */
 function recruitment_consent_defs(): array
 {
     $privacy = '<a href="' . e(page_url('privacy-policy')) . '" target="_blank" rel="noopener">Privacy Policy</a>';
@@ -805,10 +824,13 @@ function recruitment_consent_defs(): array
         'guardian' => ['accept_guardian', 'I am the student (18 years or older) or the student\'s parent / guardian, and I agree to this application being made.', 'Parent / guardian consent'],
         'datause' => ['accept_datause', 'I agree that these details may be used to assess this request and shared only with the foundation\'s staff and volunteers who help with it, as explained in the ' . $privacy . '.', 'Use of your information'],
         'membership' => ['accept_membership', 'I support the objectives of the foundation and agree to abide by its policies and the ' . $conduct . '.', 'Membership declaration'],
+        // Volunteer Policy: 18+, or under 18 with written parent / guardian consent (DPDP Act - consent for a child's data)
+        'adult' => ['accept_adult', 'I am 18 years or older - or I am under 18 and my parent / guardian agrees to this application (the foundation will ask for their written consent before I take part in any activity).', 'Age / parent consent'],
+        'minor' => ['accept_minor', 'If the person who needs support is under 18, I am their parent or lawful guardian, or I am sending this with their parent / guardian\'s permission.', 'Consent for a child'],
     ];
 }
 
-function recruitment_consent_html(array $which): string
+function recruitment_consent_html(array $which, array $conditional = []): string
 {
     $defs = recruitment_consent_defs();
     $html = '<fieldset class="rc-consents"><legend class="form-section-title">' . icon('shield') . 'Consent &amp; declarations</legend>';
@@ -817,6 +839,12 @@ function recruitment_consent_html(array $which): string
             continue;
         }
         [$name, $label] = $defs[$key];
+        if (isset($conditional[$key])) {
+            // Required only in a specific situation (checked on the server), e.g. when the applicant is a child.
+            $html .= '<div class="form-group full"><label class="checkbox"><input type="checkbox" name="' . e($name) . '" value="1"' . old_checked($name, '1') . '><span>' . $label . '</span></label>'
+                . '<span class="help">' . e($conditional[$key]) . '</span>' . field_error($name) . '</div>';
+            continue;
+        }
         $html .= '<div class="form-group full"><label class="checkbox"><input type="checkbox" name="' . e($name) . '" value="1" required' . old_checked($name, '1') . '><span>' . $label . '<span class="req">*</span></span></label>' . field_error($name) . '</div>';
     }
     return $html . '</fieldset>';

@@ -37,8 +37,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
     $response = trim(mb_substr(str_replace("\r\n", "\n", (string) ($_POST['response'] ?? '')), 0, 5000));
     $closed = in_array($req['status'], ['completed', 'rejected'], true);
-    $reply = function (string $subject, string $text) use ($req): void {
-        send_mail((string) $req['email'], $subject . ' - ' . site_name(),
+    $reply = function (string $subject, string $text) use ($req): bool {
+        return send_mail((string) $req['email'], $subject . ' - ' . site_name(),
             '<p>Dear ' . e($req['user_name'] && $req['user_name'] !== 'Deleted user' ? $req['user_name'] : 'Sir/Madam') . ',</p><p>' . e_nl($text) . '</p>'
             . '<p>Reference: data request #' . (int) $req['id'] . '</p><p>Regards,<br>' . e(site_name()) . '</p>');
     };
@@ -59,12 +59,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             'status' => $to, 'response' => $response, 'handled_by' => $meId,
             'completed_at' => in_array($to, ['completed', 'rejected'], true) ? date('Y-m-d H:i:s') : null,
         ], 'id = :id', ['id' => $id]);
-        $reply('Update on your data request #' . $id, $response);
+        $mailed = $reply('Update on your data request #' . $id, $response);
         if ($req['user_id'] && $req['user_status'] !== null && $req['user_name'] !== 'Deleted user') {
             add_notification((int) $req['user_id'], 'Data request #' . $id . ': ' . humanize($to), excerpt($response, 300), '/dashboard/settings/', 'info');
         }
-        admin_log('data_request_' . $to, 'Data request #' . $id . ' (' . $req['request_type'] . ') ' . $to . ' with response emailed');
-        flash('success', 'Response saved and emailed to ' . $req['email'] . '.');
+        admin_log('data_request_' . $to, 'Data request #' . $id . ' (' . $req['request_type'] . ') ' . $to . ($mailed ? ' with response emailed' : ' (response email could not be sent)'));
+        if ($mailed) {
+            flash('success', 'Response saved and emailed to ' . $req['email'] . '.');
+        } else {
+            flash('warning', 'Response saved, but the email to ' . $req['email'] . ' could not be sent - please contact the requester another way.');
+        }
     } elseif ($action === 'anonymise' && !$closed && $req['request_type'] === 'deletion') {
         if (!$subjectId) {
             flash('error', 'No website account is linked to this request.');
@@ -79,9 +83,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             member_anonymise_account($subjectId);
             $text = ($response !== '' ? $response . "\n\n" : 'We have completed your request to delete your account and personal data.' . "\n\n") . member_retention_note();
             db_update('data_requests', ['status' => 'completed', 'response' => $text, 'handled_by' => $meId, 'completed_at' => date('Y-m-d H:i:s')], 'id = :id', ['id' => $id]);
-            $reply('Your data deletion request #' . $id . ' has been completed', $text);
-            admin_log('account_anonymised', 'Anonymised user #' . $subjectId . ' for data request #' . $id . ' (kept ' . $summary['donations'] . ' donation(s), ' . $summary['receipts'] . ' receipt(s))');
-            flash('success', 'The account has been anonymised and the requester has been informed by email.');
+            $mailed = $reply('Your data deletion request #' . $id . ' has been completed', $text);
+            admin_log('account_anonymised', 'Anonymised user #' . $subjectId . ' for data request #' . $id . ' (kept ' . $summary['donations'] . ' donation(s), ' . $summary['receipts'] . ' receipt(s))' . ($mailed ? '' : '; confirmation email not sent'));
+            flash($mailed ? 'success' : 'warning', $mailed ? 'The account has been anonymised and the requester has been informed by email.'
+                : 'The account has been anonymised, but the confirmation email could not be sent - please inform the requester another way.');
         }
     }
     admin_redirect('data-requests.php?id=' . $id);

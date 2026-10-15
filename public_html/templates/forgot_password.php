@@ -16,7 +16,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if (honeypot_triggered()) {
         redirect('/forgot-password/?sent=1');
     }
-    $login = mb_substr(trim((string) ($_POST['login'] ?? '')), 0, 190);
+    $login = mb_substr(trim(post_str('login')), 0, 190);
     if ($login === '') {
         back_with_errors(['login' => 'Please enter your email address or mobile number.'], '/forgot-password/', $_POST);
     }

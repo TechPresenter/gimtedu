@@ -11,17 +11,56 @@
     root.classList.add('js');
     if (!reduceMotion && 'IntersectionObserver' in window) { root.classList.add('js-motion'); }
 
-    /* ---------- Mobile navigation ---------- */
+    /* ---------- Navigation ----------
+       Desktop (>= 1280px): disclosure menus - a submenu opens on hover or through its toggle button.
+       Below 1280px the nav is a modal drawer: the page behind it is made inert while it is open. */
     var navToggle = document.querySelector('.nav-toggle');
     var mainNav = document.getElementById('main-nav');
+    var siteHeader = document.getElementById('site-header');
+    var desktopMq = window.matchMedia ? window.matchMedia('(min-width: 1280px)') : null;
+    var inertEls = [];
 
-    function closeNav() {
+    function closeDropdown(item, returnFocus) {
+        item.classList.remove('open');
+        var t = item.querySelector('.dropdown-toggle');
+        if (!t) { return; }
+        t.setAttribute('aria-expanded', 'false');
+        var dd = item.querySelector('.dropdown');
+        if (returnFocus && dd && dd.contains(document.activeElement)) { t.focus(); }
+    }
+    function closeAllDropdowns() {
+        document.querySelectorAll('.has-dropdown.open').forEach(function (el) { closeDropdown(el, false); });
+    }
+    function setNavInert(on) {
+        inertEls.forEach(function (el) { el.removeAttribute('inert'); });
+        inertEls = [];
+        if (!on) { return; }
+        Array.prototype.forEach.call(body.children, function (el) {
+            if (el !== siteHeader && el.tagName !== 'SCRIPT' && el.tagName !== 'STYLE') { inertEls.push(el); }
+        });
+        if (siteHeader) {
+            siteHeader.querySelectorAll('.header-inner > .brand, .header-actions, .scroll-progress').forEach(function (el) { inertEls.push(el); });
+        }
+        inertEls.forEach(function (el) { el.setAttribute('inert', ''); });
+    }
+    function openNav() {
+        if (!navToggle || !mainNav || body.classList.contains('nav-open')) { return; }
+        body.classList.add('nav-open');
+        navToggle.setAttribute('aria-expanded', 'true');
+        navToggle.setAttribute('aria-label', 'Close menu');
+        setNavInert(true);
+        var first = mainNav.querySelector('.nav-close') || mainNav.querySelector('a, button');
+        if (first) { requestAnimationFrame(function () { first.focus(); }); }
+    }
+    function closeNav(returnFocus) {
         if (!body.classList.contains('nav-open')) { return; }
         body.classList.remove('nav-open');
+        setNavInert(false); // before focusing the toggle: an inert element cannot take focus
+        closeAllDropdowns();
         if (navToggle) {
             navToggle.setAttribute('aria-expanded', 'false');
             navToggle.setAttribute('aria-label', 'Open menu');
-            navToggle.focus();
+            if (returnFocus !== false) { navToggle.focus(); }
         }
     }
 
@@ -29,15 +68,7 @@
         document.querySelectorAll('[data-nav-toggle]').forEach(function (btn) {
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
-                var open = body.classList.toggle('nav-open');
-                navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-                navToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
-                if (open) {
-                    var first = mainNav.querySelector('.nav-close, a');
-                    if (first) { setTimeout(function () { first.focus(); }, 60); }
-                } else {
-                    navToggle.focus();
-                }
+                if (body.classList.contains('nav-open')) { closeNav(); } else { openNav(); }
             });
         });
         document.addEventListener('click', function (e) {
@@ -45,30 +76,90 @@
                 closeNav();
             }
         });
+        // fallback for browsers without `inert`: keep Tab inside the open drawer
+        if (!('inert' in HTMLElement.prototype)) {
+            mainNav.addEventListener('keydown', function (e) {
+                if (e.key !== 'Tab' || !body.classList.contains('nav-open')) { return; }
+                var f = Array.prototype.filter.call(mainNav.querySelectorAll('a[href], button:not([disabled])'), function (el) { return el.offsetParent !== null; });
+                if (!f.length) { return; }
+                if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+                else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+            });
+        }
+        // widening past the drawer breakpoint (e.g. rotating a tablet) must never leave the page inert
+        if (desktopMq) {
+            var onDesktopChange = function (mq) { if (mq.matches) { closeNav(false); } fitDropdowns(); };
+            if (desktopMq.addEventListener) { desktopMq.addEventListener('change', onDesktopChange); } else if (desktopMq.addListener) { desktopMq.addListener(onDesktopChange); }
+        }
+    }
+
+    /* Desktop: keep every submenu inside the viewport (a centred mega menu under "About" would otherwise
+       start off-screen at 1280-1370px, and the last menu would stick out on the right). */
+    function fitDropdowns() {
+        var dds = document.querySelectorAll('.main-nav .has-dropdown > .dropdown');
+        dds.forEach(function (dd) { dd.style.removeProperty('--dd-shift'); });
+        if (desktopMq && !desktopMq.matches) { return; }
+        var vw = document.documentElement.clientWidth, gap = 12;
+        var shifts = Array.prototype.map.call(dds, function (dd) {
+            var r = dd.getBoundingClientRect();
+            if (r.left < gap) { return gap - r.left; }
+            if (r.right > vw - gap) { return Math.max(gap - r.left, vw - gap - r.right); }
+            return 0;
+        });
+        dds.forEach(function (dd, i) { if (shifts[i]) { dd.style.setProperty('--dd-shift', Math.round(shifts[i]) + 'px'); } });
+    }
+    if (mainNav) {
+        var fitQueued = false;
+        window.addEventListener('resize', function () {
+            if (fitQueued) { return; }
+            fitQueued = true;
+            requestAnimationFrame(function () { fitQueued = false; fitDropdowns(); });
+        });
+        fitDropdowns();
+        if (document.fonts && document.fonts.ready) { document.fonts.ready.then(fitDropdowns); }
+        window.addEventListener('load', fitDropdowns);
     }
 
     document.querySelectorAll('.dropdown-toggle').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
             e.stopPropagation();
             var item = btn.closest('.has-dropdown');
+            item.classList.remove('is-dismissed');
             var isOpen = item.classList.toggle('open');
             btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
             document.querySelectorAll('.has-dropdown.open').forEach(function (other) {
-                if (other !== item) {
-                    other.classList.remove('open');
-                    var t = other.querySelector('.dropdown-toggle');
-                    if (t) { t.setAttribute('aria-expanded', 'false'); }
-                }
+                if (other !== item) { closeDropdown(other, false); }
             });
+        });
+    });
+    document.querySelectorAll('.has-dropdown').forEach(function (item) {
+        item.addEventListener('mouseleave', function () { item.classList.remove('is-dismissed'); });
+        item.addEventListener('focusout', function (e) {
+            if (e.relatedTarget && item.contains(e.relatedTarget)) { return; }
+            item.classList.remove('is-dismissed');
+            // desktop: an open menu closes when focus leaves it (the drawer keeps its sections open)
+            if (!body.classList.contains('nav-open') && item.classList.contains('open')) { closeDropdown(item, false); }
+        });
+    });
+    document.addEventListener('click', function (e) {
+        if (body.classList.contains('nav-open')) { return; }
+        document.querySelectorAll('.has-dropdown.open').forEach(function (el) {
+            if (!el.contains(e.target)) { closeDropdown(el, false); }
         });
     });
 
     document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') {
-            closeNav();
-            document.querySelectorAll('.has-dropdown.open').forEach(function (el) { el.classList.remove('open'); });
-            closeLightbox();
-        }
+        if (e.key !== 'Escape') { return; }
+        var drawerOpen = body.classList.contains('nav-open');
+        document.querySelectorAll('.has-dropdown').forEach(function (el) {
+            var hovered = el.matches(':hover');
+            if (el.classList.contains('open') || hovered || el.contains(document.activeElement)) {
+                closeDropdown(el, true);
+                if (hovered && !drawerOpen) { el.classList.add('is-dismissed'); }
+            }
+        });
+        closeNav();
+        closeLightbox();
     });
 
     /* ---------- Sticky glass header, scroll progress, back to top, parallax ---------- */
@@ -110,6 +201,47 @@
         }
     });
 
+    /* ---------- Server-side validation errors: link each message to its field ---------- */
+    // field_error() prints <span class="field-error" id="err-..."> after the field; screen readers then read the
+    // reason with the field (aria-describedby) and the field is marked invalid. Runs once per page.
+    function pwfAddDescribedBy(el, id) {
+        var ids = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+        if (ids.indexOf(id) === -1) { ids.push(id); }
+        el.setAttribute('aria-describedby', ids.join(' '));
+    }
+    function pwfErrorTarget(err) {
+        var sib = err.previousElementSibling;
+        while (sib) {
+            if (sib.matches('input, select, textarea, [role="group"]')) { return sib; }
+            var inner = sib.querySelectorAll('input:not([type="hidden"]), select, textarea');
+            if (inner.length === 1) { return inner[0]; }
+            if (inner.length > 1) { return sib.querySelector('[role="group"]') || (sib.matches('fieldset') ? sib : null) || sib; }
+            sib = sib.previousElementSibling;
+        }
+        var group = err.closest('.form-group');
+        return group ? (group.querySelector('[role="group"]') || group.querySelector('input:not([type="hidden"]), select, textarea')) : null;
+    }
+    function pwfWireServerErrors() {
+        if (window.__pwfServerErrorsWired) { return; }
+        window.__pwfServerErrorsWired = true;
+        var first = null;
+        Array.prototype.forEach.call(document.querySelectorAll('.field-error:not(.js-error)'), function (err, i) {
+            if (!err.textContent.trim()) { return; }
+            var target = pwfErrorTarget(err);
+            if (!target) { return; }
+            if (!err.id || document.getElementById(err.id) !== err) { err.id = 'srv-err-' + i; }
+            pwfAddDescribedBy(target, err.id);
+            var controls = target.matches('input, select, textarea') ? [target] : Array.prototype.slice.call(target.querySelectorAll('input:not([type="hidden"]), select, textarea'));
+            controls.forEach(function (c) { c.setAttribute('aria-invalid', 'true'); c.classList.add('is-invalid'); });
+            if (!first && controls[0]) { first = controls[0]; }
+        });
+        if (first && typeof first.focus === 'function') {
+            first.focus({ preventScroll: true });
+            first.scrollIntoView({ block: 'center' });
+        }
+    }
+    pwfWireServerErrors();
+
     /* ---------- Hero slider ---------- */
     document.querySelectorAll('[data-slider]').forEach(function (slider) {
         var slides = slider.querySelectorAll('.hero-slide');
@@ -132,10 +264,12 @@
             slides[index].classList.remove('is-active');
             slides[index].setAttribute('aria-hidden', 'true');
             dots[index].classList.remove('is-active');
+            dots[index].removeAttribute('aria-current');
             index = (i + slides.length) % slides.length;
             slides[index].classList.add('is-active');
             slides[index].removeAttribute('aria-hidden');
             dots[index].classList.add('is-active');
+            dots[index].setAttribute('aria-current', 'true');
         }
         function restart() {
             if (timer) { clearInterval(timer); }
@@ -145,6 +279,7 @@
 
         slides.forEach(function (s, i) { if (i !== 0) { s.setAttribute('aria-hidden', 'true'); } });
         dots[0].classList.add('is-active');
+        dots[0].setAttribute('aria-current', 'true');
 
         var prev = slider.querySelector('.hero-prev');
         var next = slider.querySelector('.hero-next');
@@ -215,7 +350,8 @@
         var img = lightbox.querySelector('img');
         img.src = item.getAttribute('href');
         img.alt = item.getAttribute('data-caption') || '';
-        lightbox.querySelector('figcaption').textContent = item.getAttribute('data-caption') || '';
+        var caption = item.getAttribute('data-caption') || '';
+        lightbox.querySelector('figcaption').textContent = 'Photo ' + (lbIndex + 1) + ' of ' + lbItems.length + (caption ? ': ' + caption : '');
         lightbox.hidden = false;
         body.classList.add('no-scroll');
         lightbox.querySelector('.lightbox-close').focus();
@@ -242,6 +378,15 @@
         lightbox.addEventListener('click', function (e) { if (e.target === lightbox) { closeLightbox(); } });
         document.addEventListener('keydown', function (e) {
             if (lightbox.hidden) { return; }
+            if (e.key === 'Tab') {
+                // aria-modal: keep keyboard focus on the lightbox controls
+                var f = Array.prototype.slice.call(lightbox.querySelectorAll('button'));
+                var i = f.indexOf(document.activeElement);
+                e.preventDefault();
+                if (i === -1) { (e.shiftKey ? f[f.length - 1] : f[0]).focus(); }
+                else { f[(i + (e.shiftKey ? f.length - 1 : 1)) % f.length].focus(); }
+                return;
+            }
             if (e.key === 'ArrowLeft') { showLightbox(lbIndex - 1); }
             if (e.key === 'ArrowRight') { showLightbox(lbIndex + 1); }
         });
@@ -660,9 +805,12 @@
         var helpInput = helpPanel.querySelector('input[name="q"]');
         var helpBtns = document.querySelectorAll('[data-help-toggle]');
         var setHelp = function (open) {
+            var ae = document.activeElement;
+            var restore = !open && (!ae || ae === document.body || helpPanel.contains(ae));
             helpPanel.hidden = !open;
             helpBtns.forEach(function (b) { if (b.classList.contains('fab')) { b.setAttribute('aria-expanded', open ? 'true' : 'false'); } });
             if (open) { setTimeout(function () { helpInput.focus(); }, 50); }
+            else if (restore) { var fab = document.querySelector('.fab-help'); if (fab) { fab.focus(); } }
         };
         helpBtns.forEach(function (b) { b.addEventListener('click', function () { setHelp(helpPanel.hidden); }); });
         document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !helpPanel.hidden) { setHelp(false); } });
@@ -738,19 +886,42 @@
             window.gtag('js', new Date());
             window.gtag('config', gaId, { anonymize_ip: true });
         };
+        var disableGa = function () {
+            if (!/^G-[A-Z0-9]{4,15}$/.test(gaId)) { return; }
+            window['ga-disable-' + gaId] = true;
+            // remove Google Analytics cookies (_ga, _ga_*) on this host and its parent domain
+            var host = location.hostname;
+            var domains = ['', '; domain=' + host, '; domain=.' + host];
+            var parts = host.split('.');
+            if (parts.length > 2) { domains.push('; domain=.' + parts.slice(-2).join('.')); }
+            document.cookie.split(';').forEach(function (c) {
+                var name = c.split('=')[0].trim();
+                if (name === '_ga' || name.indexOf('_ga_') === 0) {
+                    domains.forEach(function (d) { document.cookie = name + '=; Max-Age=0; path=/' + d; });
+                }
+            });
+        };
         var choice = store('local', 'pwf_consent');
-        if (choice === 'yes') { loadGa(); } else if (choice !== 'no') { consent.hidden = false; }
+        if (choice === 'yes') { loadGa(); } else if (choice === 'no') { disableGa(); } else { consent.hidden = false; }
         consent.querySelectorAll('[data-consent]').forEach(function (b) {
             b.addEventListener('click', function () {
                 var v = b.getAttribute('data-consent');
+                var before = store('local', 'pwf_consent');
                 store('local', 'pwf_consent', v);
                 consent.hidden = true;
-                if (v === 'yes') { loadGa(); }
+                if (v === 'yes') { loadGa(); } else { disableGa(); if (before === 'yes' || window.__gaLoaded) { window.location.reload(); } }
+            });
+        });
+        // "Cookie settings" in the footer: the analytics choice can be changed at any time
+        document.querySelectorAll('[data-consent-reset]').forEach(function (btn) {
+            btn.hidden = false;
+            btn.addEventListener('click', function () {
+                try { window.localStorage.removeItem('pwf_consent'); } catch (err) { /* storage blocked */ }
+                consent.hidden = false;
+                var first = consent.querySelector('[data-consent]');
+                if (first) { first.focus(); }
             });
         });
     }
 
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && body.classList.contains('nav-open')) { closeNav(); }
-    });
 })();

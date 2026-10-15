@@ -12,7 +12,7 @@ if (!defined('PWF_APP')) {
 $page = current_page_row();
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && isset($_GET['token'])) {
-    $uid = verify_email_token((string) $_GET['token']);
+    $uid = verify_email_token(get_str('token'));
     $_SESSION['m5_verify_result'] = $uid ? 'ok' : 'invalid';
     if ($uid) {
         add_notification($uid, 'Email address verified', 'Thank you - your email address is now verified.', '/dashboard/', 'success');

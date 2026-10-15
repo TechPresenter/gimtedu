@@ -38,7 +38,7 @@ define('SMTP_PASS', 'CHANGE-ME');
 
 // --- Razorpay (only after the foundation's merchant account is approved) -------------------
 // Start with TEST keys (rzp_test_...). Webhook URL: BASE_URL/payment-webhook.php
-// Webhook events: payment.captured, payment.failed, order.paid, refund.processed
+// Webhook events: payment.captured, payment.authorized, payment.failed, order.paid, refund.processed
 define('RAZORPAY_KEY_ID', '');
 define('RAZORPAY_KEY_SECRET', '');
 define('RAZORPAY_WEBHOOK_SECRET', '');

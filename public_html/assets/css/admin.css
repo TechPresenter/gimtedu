@@ -38,6 +38,10 @@
 .admin-menu-toggle { display: none; background: var(--green-50); border: 1px solid var(--line); border-radius: 10px; width: 42px; height: 42px; align-items: center; justify-content: center; cursor: pointer; color: var(--green-700); }
 .admin-content { padding: 24px 26px 40px; flex: 1; }
 .admin-content .flash-wrap { margin: 0 0 18px; }
+/* after a save that returns to an #anchor further down the page, messages float in view (admin.js adds .is-floating) */
+.admin-content > .flash-wrap.is-floating { position: fixed; top: 78px; right: 16px; z-index: 54; width: min(440px, calc(100vw - 32px)); margin: 0; display: grid; gap: 8px; }
+.admin-content > .flash-wrap.is-floating .alert { box-shadow: var(--shadow-lg); }
+@media print { .admin-content > .flash-wrap.is-floating { display: none; } }
 .admin-footer { padding: 16px 26px; color: var(--muted); font-size: .8rem; border-top: 1px solid var(--line); background: #fff; }
 
 /* ---------- Building blocks ---------- */
@@ -65,7 +69,7 @@ a.stat-card:hover { border-color: var(--green-400); color: var(--ink); }
 .icon-btn .icon { width: 16px; height: 16px; }
 .inline-form { display: inline; }
 .table-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: .82rem; margin-bottom: 10px; }
-.thumb { width: 64px; height: 44px; object-fit: cover; border-radius: 6px; background: var(--green-50); }
+.thumb { width: 64px; height: 44px; max-width: none; flex: none; object-fit: cover; border-radius: 6px; background: var(--green-50); }
 .mini-progress { height: 6px; background: #e9efe9; border-radius: 99px; overflow: hidden; width: 110px; margin-top: 4px; }
 .mini-progress span { display: block; height: 100%; background: linear-gradient(90deg, var(--green-500), var(--gold-500)); }
 .chart-bars { display: flex; align-items: flex-end; gap: 10px; height: 200px; padding-top: 10px; }
@@ -92,6 +96,11 @@ a.stat-card:hover { border-color: var(--green-400); color: var(--ink); }
 .login-card .brand-row { text-align: center; margin-bottom: 22px; }
 .login-card .brand-row img { width: 90px; height: 90px; margin: 0 auto 10px; }
 .login-card .flash-wrap { margin: 0 0 14px; padding: 0; }
+.login-card form { display: grid; gap: 16px; }
+.login-card form.text-center { display: block; }
+.login-card form > p { margin-top: 0; }
+.login-card form > .btn { margin-top: 4px; }
+.login-card > .alert { margin-bottom: 16px; }
 .kv-small dt { font-size: .8rem; }
 .note-box { background: var(--gold-100); border: 1px solid #f1dc93; border-radius: 10px; padding: 12px 14px; font-size: .88rem; white-space: pre-wrap; }
 
@@ -99,8 +108,10 @@ a.stat-card:hover { border-color: var(--green-400); color: var(--ink); }
     .admin-grid-main { grid-template-columns: 1fr; }
 }
 @media (max-width: 900px) {
-    .admin-sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); transition: transform .25s; box-shadow: 10px 0 30px rgba(0,0,0,.2); }
-    .admin-open .admin-sidebar { transform: translateX(0); }
+    /* hidden (and out of the tab order) while closed; visibility switches after the slide-out */
+    .admin-sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); visibility: hidden; transition: transform .25s, visibility 0s linear .25s; box-shadow: 10px 0 30px rgba(0,0,0,.2); }
+    .admin-open .admin-sidebar { transform: translateX(0); visibility: visible; transition: transform .25s; }
+    body.admin-open { overflow: hidden; }
     .admin-open::after { content: ""; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 55; }
     .admin-menu-toggle { display: inline-flex; }
     .admin-grid-2 { grid-template-columns: 1fr; }
@@ -127,6 +138,7 @@ a.stat-card:hover { border-color: var(--green-400); color: var(--ink); }
 .admin-tabs a.active, .admin-tabs button.active { color: var(--green-700); border-bottom-color: var(--gold-500); }
 .range-picker { justify-content: flex-end; }
 .range-picker select, .range-picker input { flex: 0 1 170px !important; }
+.range-custom { display: contents; }
 .kpi-trend { font-size: .75rem; font-weight: 600; }
 .kpi-trend.up { color: var(--green-600); } .kpi-trend.down { color: var(--red-600); }
 .section-editor { display: grid; gap: 14px; }

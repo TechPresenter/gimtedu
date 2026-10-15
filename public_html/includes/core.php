@@ -18,6 +18,33 @@ function e($value): string
     return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+/** A query-string value as a string; arrays (?x[]=1) and missing values give $default. Not trimmed. */
+function get_str(string $key, string $default = ''): string
+{
+    $v = $_GET[$key] ?? null;
+    return is_string($v) ? $v : $default;
+}
+
+/** A POST value as a string; arrays and missing values give $default. Not trimmed (passwords, tokens stay exact). */
+function post_str(string $key, string $default = ''): string
+{
+    $v = $_POST[$key] ?? null;
+    return is_string($v) ? $v : $default;
+}
+
+/**
+ * Escape text and mark Hindi (Devanagari) runs with lang="hi" so screen readers pronounce them
+ * correctly and the Devanagari font is used. Safe for any CMS text.
+ */
+function e_hi($value): string
+{
+    $html = e($value);
+    if (!preg_match('/\p{Devanagari}/u', $html)) {
+        return $html;
+    }
+    return (string) preg_replace('/(\p{Devanagari}[\p{Devanagari}\p{Mn}\s,.!?।॥\-–]*\p{Devanagari}|\p{Devanagari})/u', '<span lang="hi" class="hindi">$1</span>', $html);
+}
+
 /** Escape and keep line breaks. */
 function e_nl($value): string
 {
@@ -40,6 +67,10 @@ function url(string $path = ''): string
     if (preg_match('#^(https?:)?//#i', $path) || strpos($path, 'mailto:') === 0 || strpos($path, 'tel:') === 0) {
         return $path;
     }
+    // a site path never contains a backslash or control character (browsers read "/\\host" as "//host")
+    if (preg_match('/[\\\\\x00-\x1F\x7F]/', $path)) {
+        $path = '/';
+    }
     return base_path() . '/' . ltrim($path, '/');
 }
 
@@ -55,6 +86,41 @@ function asset(string $path): string
     $file = ROOT_PATH . '/' . ltrim($path, '/');
     $v = is_file($file) ? filemtime($file) : 1;
     return url($path) . '?v=' . $v;
+}
+
+/**
+ * srcset value for an uploaded public image with resized copies ('' when there are none: old uploads, SVG fallbacks).
+ * Use with a sizes attribute; src stays the original file.
+ */
+function image_srcset(?string $path): string
+{
+    $path = (string) $path;
+    if (!preg_match('#^uploads/[A-Za-z0-9_\-/.]+\.(jpe?g|png|webp)$#i', $path) || strpos($path, '..') !== false || !function_exists('image_variant_path')) {
+        return '';
+    }
+    $parts = [];
+    foreach (IMAGE_VARIANT_WIDTHS as $w) {
+        $variant = image_variant_path($path, $w);
+        if (is_file(ROOT_PATH . '/' . $variant)) {
+            $parts[] = url($variant) . ' ' . $w . 'w';
+        }
+    }
+    if (!$parts) {
+        return '';
+    }
+    $size = @getimagesize(ROOT_PATH . '/' . $path);
+    if (!$size) {
+        return '';
+    }
+    $parts[] = url($path) . ' ' . (int) $size[0] . 'w';
+    return implode(', ', $parts);
+}
+
+/** ' srcset="..." sizes="..."' attributes for an <img>, or '' (see image_srcset()). */
+function image_srcset_attr(?string $path, string $sizes): string
+{
+    $set = image_srcset($path);
+    return $set !== '' ? ' srcset="' . e($set) . '" sizes="' . e($sizes) . '"' : '';
 }
 
 /** Image URL with fallback. */

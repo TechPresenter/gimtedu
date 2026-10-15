@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'reply') {
         [$data, $errors] = validate($_POST, ['reply' => 'required|text|min:5|max:5000', 'reply_status' => 'in:,' . implode(',', $statuses)], ['reply' => 'Reply']);
         if ($errors) {
-            back_with_errors($errors, 'admin/' . $back . '#reply', $_POST);
+            back_with_errors($errors, 'admin/' . $back . '#reply-panel', $_POST);
         }
         $subject = 'Re: ' . $enq['subject'] . ' [' . $enq['reference_no'] . ']';
         $body = '<p>Dear ' . e($enq['name']) . ',</p>' . '<div>' . e_nl($data['reply']) . '</div>'
@@ -156,7 +156,7 @@ if ($view):
                 <div class="note-box" style="background:var(--bg-soft);border-color:var(--line)"><?= e($view['message']) ?></div>
             </section>
 
-            <section class="panel" id="reply">
+            <section class="panel" id="reply-panel">
                 <div class="panel-head"><h2>Reply by email</h2></div>
                 <form method="post" class="form-grid">
                     <?= csrf_field() ?><input type="hidden" name="action" value="reply"><input type="hidden" name="id" value="<?= (int) $view['id'] ?>">

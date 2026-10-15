@@ -1,7 +1,9 @@
 <?php
 /**
  * Donations: search, filters (status, campaign, method, dates), verified totals, CSV export and the
- * "record offline donation" form (money already received by bank transfer / cheque / UPI / cash).
+ * "record offline donation" form (money already received in the foundation's bank account by bank transfer,
+ * cleared cheque or UPI, or cash that has been deposited and appears in the bank statement).
+ * The transaction / cheque reference is stored in donations.offline_reference (exact-match duplicate check).
  */
 require_once __DIR__ . '/includes/auth.php';
 require_permission('donations.view');
@@ -29,11 +31,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($errors['paid_on']) && $data['paid_on'] > date('Y-m-d')) {
         $errors['paid_on'] = 'The date received cannot be in the future.';
     }
+    if (!isset($errors['amount']) && $data['payment_method'] === 'cash' && (float) $data['amount'] >= 200000) {
+        $errors['amount'] = 'Cash of ₹2,00,000 or more from one person cannot be accepted (Section 269ST of the Income Tax Act). Ask the donor to pay by bank transfer or cheque.';
+    }
     if (!isset($errors['campaign_id']) && $data['campaign_id'] !== '' && (int) $data['campaign_id'] > 0
         && !db_value("SELECT id FROM campaigns WHERE id = ? AND status IN ('active','completed','closed')", [(int) $data['campaign_id']])) {
         $errors['campaign_id'] = 'Choose a published campaign or the general fund.';
     }
-    if (!$errors && db_value("SELECT id FROM donations WHERE payment_method = ? AND admin_notes LIKE ? AND status = 'success'", [$data['payment_method'], '%reference: ' . $data['reference'] . ' %'])) {
+    // Exact match on the stored reference; a UTR is unique across bank transfer and UPI. Older rows kept the
+    // reference only in the notes, so those are matched exactly (no LIKE wildcards) as a fallback.
+    $sameChannel = in_array($data['payment_method'], ['bank_transfer', 'upi'], true) ? ['bank_transfer', 'upi'] : [$data['payment_method']];
+    $in = implode(',', array_fill(0, count($sameChannel), '?'));
+    if (!$errors && db_value("SELECT id FROM donations WHERE status = 'success' AND payment_method IN ($in)
+                              AND (offline_reference = ? OR INSTR(COALESCE(admin_notes, ''), ?) > 0) LIMIT 1",
+            array_merge($sameChannel, [$data['reference'], 'reference: ' . $data['reference'] . ' (recorded']))) {
         $errors['reference'] = 'A donation with this reference has already been recorded. Check the list before recording it again.';
     }
     if ($errors) {
@@ -53,9 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'donor_address'  => $data['donor_address'] !== '' ? $data['donor_address'] : null,
         'amount'         => round((float) $data['amount'], 2),
         'currency'       => 'INR',
-        'is_anonymous'   => !empty($_POST['is_anonymous']) ? 1 : 0,
+        // An offline donor never sees our form: the name is listed publicly only when staff record the donor's consent.
+        'is_anonymous'   => !empty($_POST['show_name']) ? 0 : 1,
         'payment_method' => $data['payment_method'],
         'gateway'        => 'offline',
+        'offline_reference' => $data['reference'],
         'status'         => 'success',
         'paid_at'        => $data['paid_on'] . ' 12:00:00',
         'verified_via'   => 'offline',
@@ -69,7 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $receipt = issue_receipt($donationId);
     admin_log('donation_offline_recorded', 'Donation #' . $donationId . ' ' . money($data['amount'], true) . ' ' . $data['payment_method'] . ' ref ' . $data['reference'] . ' receipt ' . ($receipt['receipt_no'] ?? '-'));
     $mailed = !empty($_POST['send_receipt']) ? send_receipt_email($donationId) : false;
-    flash('success', 'Offline donation recorded and receipt ' . ($receipt['receipt_no'] ?? '') . ' issued.' . (!empty($_POST['send_receipt']) ? ($mailed ? ' The receipt was emailed to the donor.' : ' The receipt email could not be sent (check email settings) - you can resend it later.') : ''));
+    flash('success', 'Offline donation recorded and receipt ' . ($receipt['receipt_no'] ?? '') . ' issued.' . (!empty($_POST['send_receipt']) ? ($mailed ? ' The receipt was emailed to the donor.' : ' The receipt email could not be sent (check email settings) - you can resend it later.') : '')
+        . ($data['payment_method'] === 'cash' && (float) $data['amount'] > 2000 ? ' Cash donations above ₹2,000 are not eligible for an 80G deduction; the receipt says so.' : ''));
     admin_redirect('donation-view.php?id=' . $donationId);
 }
 
@@ -83,7 +97,7 @@ $method = isset(DONATION_METHODS[$_GET['method'] ?? '']) ? (string) $_GET['metho
 $campaignId = (string) ($_GET['campaign'] ?? '');
 $range = admin_date_range('all');
 $params = [];
-$where = 'WHERE 1=1' . search_where(['d.donation_ref', 'd.donor_name', 'd.donor_email', 'd.donor_phone', 'd.gateway_payment_id', 'd.gateway_order_id', 'd.donor_pan'], $q, $params);
+$where = 'WHERE 1=1' . search_where(['d.donation_ref', 'd.donor_name', 'd.donor_email', 'd.donor_phone', 'd.gateway_payment_id', 'd.gateway_order_id', 'd.donor_pan', 'd.offline_reference'], $q, $params);
 if ($status !== '') {
     $where .= ' AND d.status = ?';
     $params[] = $status;
@@ -105,14 +119,16 @@ if ($range['key'] !== 'all') {
 
 if (isset($_GET['export'])) {
     require_permission('exports.run');
+    // every column has a unique alias, so the row keys never collide (d.status / r.status)
     $rows = db_rows("SELECT d.donation_ref, COALESCE(d.paid_at, d.created_at) AS date, d.donor_name, d.donor_email, d.donor_phone, d.donor_pan, d.donor_address,
-                            d.amount, d.currency, d.status, d.payment_method, d.gateway_method, d.gateway_order_id, d.gateway_payment_id, d.verified_via,
-                            IF(d.reconciled_at IS NULL, 'No', 'Yes'), c.title AS campaign, r.receipt_no, r.status, d.is_anonymous
+                            d.amount, d.currency, d.status AS donation_status, d.payment_method, d.gateway_method, d.gateway_order_id, d.gateway_payment_id,
+                            d.offline_reference, d.verified_via, IF(d.reconciled_at IS NULL, 'No', 'Yes') AS reconciled, c.title AS campaign,
+                            r.receipt_no, r.status AS receipt_status, d.is_anonymous
                      FROM donations d LEFT JOIN campaigns c ON c.id = d.campaign_id LEFT JOIN donation_receipts r ON r.donation_id = d.id
                      $where ORDER BY d.created_at DESC", $params);
     admin_log('donations_exported', count($rows) . ' rows');
     send_csv('donations-' . date('Ymd-His') . '.csv', ['Reference', 'Date', 'Donor', 'Email', 'Phone', 'PAN', 'Address', 'Amount', 'Currency', 'Status', 'Method', 'Gateway method',
-        'Order ID', 'Payment ID', 'Verified via', 'Reconciled', 'Campaign', 'Receipt No', 'Receipt status', 'Anonymous'], $rows);
+        'Order ID', 'Payment ID', 'Transaction / cheque ref', 'Verified via', 'Reconciled', 'Campaign', 'Receipt No', 'Receipt status', 'Anonymous'], $rows);
 }
 
 $totals = db_row("SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN d.status = 'success' THEN d.amount END), 0) AS verified, SUM(d.status = 'success') AS verified_n,
@@ -178,7 +194,7 @@ echo admin_range_picker($range);
 <?php if (admin_can('donations.manage')): ?>
     <details class="panel" id="offline"<?= isset($_GET['offline']) ? ' open' : '' ?>>
         <summary class="panel-head" style="cursor:pointer"><h2><?= icon('plus') ?> Record an offline donation</h2></summary>
-        <p class="small muted">Use this only for money that has <strong>actually been received</strong> in the foundation's bank account (bank transfer, cleared cheque, direct UPI) or as cash against a signed cash receipt. It is recorded as a verified donation, counts towards public totals and a receipt is issued immediately.</p>
+        <p class="small muted">Use this only for money that has <strong>actually been received</strong> in the foundation's bank account (bank transfer, cleared cheque, direct UPI). Cash may be recorded only after it has been deposited into the foundation's bank account and appears in the bank statement; enter the cash receipt number and the deposit slip reference. It is recorded as a verified donation, counts towards public totals and a receipt is issued immediately.</p>
         <form method="post" data-validate data-confirm="Confirm that this amount has been received in the foundation's account?">
             <?= csrf_field() ?>
             <div class="form-grid form-grid-3">
@@ -186,7 +202,7 @@ echo admin_range_picker($range);
                 <div class="form-group"><label for="o_email">Donor email<span class="req">*</span></label><input id="o_email" type="email" name="donor_email" required maxlength="190" value="<?= e(old('donor_email')) ?>"><?= field_error('donor_email') ?></div>
                 <div class="form-group"><label for="o_phone">Mobile</label><input id="o_phone" type="tel" name="donor_phone" maxlength="15" value="<?= e(old('donor_phone')) ?>"><?= field_error('donor_phone') ?></div>
                 <div class="form-group"><label for="o_amount">Amount (₹)<span class="req">*</span></label><input id="o_amount" type="number" name="amount" required min="1" max="100000000" step="0.01" value="<?= e(old('amount')) ?>"><?= field_error('amount') ?></div>
-                <div class="form-group"><label for="o_method">Method<span class="req">*</span></label><select id="o_method" name="payment_method" required><?= options_html(['bank_transfer' => 'Bank transfer (NEFT/RTGS/IMPS)', 'cheque' => 'Cheque (cleared)', 'upi' => 'UPI (direct to bank)', 'cash' => 'Cash'], (string) old('payment_method'), true, 'Select') ?></select><?= field_error('payment_method') ?></div>
+                <div class="form-group"><label for="o_method">Method<span class="req">*</span></label><select id="o_method" name="payment_method" required aria-describedby="o_method_help"><?= options_html(['bank_transfer' => 'Bank transfer (NEFT/RTGS/IMPS)', 'cheque' => 'Cheque (cleared)', 'upi' => 'UPI (direct to bank)', 'cash' => 'Cash (deposited)'], (string) old('payment_method'), true, 'Select') ?></select><span class="help" id="o_method_help">Cash donations above ₹2,000 are not eligible for an 80G deduction; the receipt will say so.</span><?= field_error('payment_method') ?></div>
                 <div class="form-group"><label for="o_date">Date received<span class="req">*</span></label><input id="o_date" type="date" name="paid_on" required max="<?= date('Y-m-d') ?>" value="<?= e(old('paid_on', date('Y-m-d'))) ?>"><?= field_error('paid_on') ?></div>
                 <div class="form-group"><label for="o_ref">Transaction / cheque reference<span class="req">*</span></label><input id="o_ref" name="reference" required minlength="3" maxlength="100" value="<?= e(old('reference')) ?>"><?= field_error('reference') ?></div>
                 <div class="form-group"><label for="o_pan">Donor PAN</label><input id="o_pan" name="donor_pan" maxlength="10" data-rule="pan" data-uppercase value="<?= e(old('donor_pan')) ?>"><?= field_error('donor_pan') ?></div>
@@ -194,9 +210,9 @@ echo admin_range_picker($range);
                 <div class="form-group full"><label for="o_address">Donor address</label><input id="o_address" name="donor_address" maxlength="255" value="<?= e(old('donor_address')) ?>"><?= field_error('donor_address') ?></div>
                 <div class="form-group full"><label for="o_note">Internal note</label><textarea id="o_note" name="admin_note" maxlength="500" rows="2"><?= e(old('admin_note')) ?></textarea></div>
             </div>
-            <label class="checkbox mt-2"><input type="checkbox" name="is_anonymous" value="1"<?= old('is_anonymous') ? ' checked' : '' ?>> <span>Donor wants to remain anonymous on the website</span></label>
+            <label class="checkbox mt-2"><input type="checkbox" name="show_name" value="1"<?= old('show_name') ? ' checked' : '' ?>> <span>The donor has agreed to be listed on the campaign page as a supporter (first name and last initial only; the amount is never shown). Leave unticked to keep the donation anonymous.</span></label>
             <label class="checkbox mt-1"><input type="checkbox" name="send_receipt" value="1" checked> <span>Email the receipt to the donor</span></label>
-            <label class="checkbox mt-1"><input type="checkbox" name="confirm_received" value="1" required> <span>I confirm this amount has been received in the foundation's account (or as cash with a signed receipt).<span class="req">*</span></span></label>
+            <label class="checkbox mt-1"><input type="checkbox" name="confirm_received" value="1" required> <span>I confirm this amount has been received in the foundation's bank account and matched with the bank statement (for cash: deposited and visible in the statement).<span class="req">*</span></span></label>
             <?= field_error('confirm_received') ?>
             <div class="form-actions"><button class="btn btn-primary" type="submit"><?= icon('check') ?>Save &amp; issue receipt</button></div>
         </form>

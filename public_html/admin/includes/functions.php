@@ -7,6 +7,11 @@
 if (!defined('PWF_APP')) {
     require_once dirname(__DIR__, 2) . '/functions.php';
 }
+// Admin scripts never take extra path info (/admin/blog.php/profile.php must not run blog.php under another name)
+if (!empty($_SERVER['PATH_INFO'])) {
+    http_response_code(404);
+    exit('Not found');
+}
 
 /** The signed-in staff member (user row + 'role_name' + 'roles'), or null. */
 function current_admin(): ?array
@@ -80,17 +85,34 @@ function application_statuses(string $type): array
  */
 function admin_date_range(string $default = '30d'): array
 {
-    $key = (string) ($_GET['range'] ?? $default);
+    $key = is_string($_GET['range'] ?? null) ? $_GET['range'] : $default;
     $to = date('Y-m-d');
-    $from = (string) ($_GET['from'] ?? '');
-    $toIn = (string) ($_GET['to'] ?? '');
-    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $toIn) && $from <= $toIn) {
+    $from = is_string($_GET['from'] ?? null) ? $_GET['from'] : '';
+    $toIn = is_string($_GET['to'] ?? null) ? $_GET['to'] : '';
+    // from/to apply only to "custom" (or links without a range): an explicit preset always wins over stale dates
+    $customAllowed = !isset($_GET['range']) || $key === 'custom';
+    if ($customAllowed && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $toIn) && $from <= $toIn) {
         return ['from' => $from, 'to' => $toIn, 'label' => format_date($from) . ' - ' . format_date($toIn), 'key' => 'custom'];
     }
+    if ($key === 'custom') {
+        // "Custom dates" chosen but the dates are missing / invalid: show the default period, keep the picker on custom
+        $fallback = admin_date_range_preset($default === 'custom' ? '30d' : $default, '30d');
+        return ['key' => 'custom'] + $fallback;
+    }
+    return admin_date_range_preset($key, $default);
+}
+
+/** A preset period ('7d', '30d', '90d', '12m', 'fy', 'all'); unknown keys use $default. */
+function admin_date_range_preset(string $key, string $default): array
+{
+    $to = date('Y-m-d');
     $ranges = [
         '7d' => ['-6 days', 'Last 7 days'], '30d' => ['-29 days', 'Last 30 days'], '90d' => ['-89 days', 'Last 90 days'],
         '12m' => ['-12 months', 'Last 12 months'],
     ];
+    if (!isset($ranges[$key]) && !in_array($key, ['fy', 'all'], true)) {
+        $key = (isset($ranges[$default]) || in_array($default, ['fy', 'all'], true)) ? $default : '30d';
+    }
     if ($key === 'fy') {
         $start = (int) date('n') >= 4 ? date('Y') . '-04-01' : (date('Y') - 1) . '-04-01';
         return ['from' => $start, 'to' => $to, 'label' => 'This financial year', 'key' => 'fy'];
@@ -98,8 +120,8 @@ function admin_date_range(string $default = '30d'): array
     if ($key === 'all') {
         return ['from' => '2000-01-01', 'to' => $to, 'label' => 'All time', 'key' => 'all'];
     }
-    [$offset, $label] = $ranges[$key] ?? $ranges[$default] ?? $ranges['30d'];
-    return ['from' => date('Y-m-d', strtotime($offset)), 'to' => $to, 'label' => $label, 'key' => isset($ranges[$key]) ? $key : $default];
+    [$offset, $label] = $ranges[$key];
+    return ['from' => date('Y-m-d', strtotime($offset)), 'to' => $to, 'label' => $label, 'key' => $key];
 }
 
 /** Date-range picker form (keeps other GET parameters). */
@@ -111,13 +133,14 @@ function admin_range_picker(array $range): string
             $html .= '<input type="hidden" name="' . e($k) . '" value="' . e($v) . '">';
         }
     }
-    $html .= '<select name="range" data-autosubmit aria-label="Period">';
+    // admin.js hides the custom dates until "Custom dates" is chosen; without JS they stay visible with Apply
+    $html .= '<select name="range" data-range-select aria-label="Period">';
     foreach (['7d' => 'Last 7 days', '30d' => 'Last 30 days', '90d' => 'Last 90 days', '12m' => 'Last 12 months', 'fy' => 'This financial year', 'all' => 'All time', 'custom' => 'Custom dates'] as $k => $label) {
         $html .= '<option value="' . $k . '"' . ($range['key'] === $k ? ' selected' : '') . '>' . e($label) . '</option>';
     }
-    $html .= '</select><input type="date" name="from" value="' . e($range['key'] === 'custom' ? $range['from'] : '') . '" aria-label="From">'
-        . '<input type="date" name="to" value="' . e($range['key'] === 'custom' ? $range['to'] : '') . '" aria-label="To">'
-        . '<button class="btn btn-ghost btn-sm" type="submit">' . icon('filter') . 'Apply</button></form>';
+    $html .= '</select><span class="range-custom"><input type="date" name="from" value="' . e($range['key'] === 'custom' ? $range['from'] : '') . '" aria-label="From date" title="From">'
+        . '<input type="date" name="to" value="' . e($range['key'] === 'custom' ? $range['to'] : '') . '" aria-label="To date" title="To">'
+        . '<button class="btn btn-ghost btn-sm" type="submit">' . icon('filter') . 'Apply</button></span></form>';
     return $html;
 }
 
@@ -128,10 +151,20 @@ function admin_bar_chart(array $data, bool $money = false): string
         return '<p class="muted">No data for this period.</p>';
     }
     $max = max(1, max(array_map('floatval', $data)));
-    $html = '<div class="chart-bars" role="img" aria-label="Bar chart">';
+    $peakLabel = null;
+    foreach ($data as $label => $value) {
+        if ((float) $value > 0 && ($peakLabel === null || (float) $value > (float) $data[$peakLabel])) {
+            $peakLabel = $label;
+        }
+    }
+    $lastLabel = array_key_last($data);
+    // a list of labelled values (not role=img) so screen readers get every value; title = tooltip for mouse users
+    $html = '<div class="chart-bars" role="list" aria-label="Bar chart">';
     foreach ($data as $label => $value) {
         $h = max(2, round((float) $value / $max * 100));
-        $html .= '<div class="chart-bar"><em>' . e($money ? money($value) : number_format((float) $value)) . '</em><span class="bar" style="height:' . $h . '%"></span><small>' . e($label) . '</small></div>';
+        $text = $money ? money($value) : number_format((float) $value);
+        $cls = 'chart-bar' . ((float) $value > 0 ? ' has-value' : '') . ($label === $peakLabel ? ' is-peak' : '') . ($label === $lastLabel ? ' is-last' : '');
+        $html .= '<div class="' . $cls . '" role="listitem" title="' . e($label . ': ' . $text) . '"><em>' . e($text) . '</em><span class="bar" style="height:' . $h . '%"></span><small>' . e($label) . '</small></div>';
     }
     return $html . '</div>';
 }
@@ -255,7 +288,7 @@ function admin_back(string $default): string
 /** Hidden field to return to the current admin page after an action. */
 function return_field(): string
 {
-    $page = basename($_SERVER['PHP_SELF']) . (!empty($_SERVER['QUERY_STRING']) ? '?' . $_SERVER['QUERY_STRING'] : '');
+    $page = basename($_SERVER['SCRIPT_NAME']) . (!empty($_SERVER['QUERY_STRING']) ? '?' . $_SERVER['QUERY_STRING'] : '');
     return '<input type="hidden" name="return_to" value="' . e($page) . '">';
 }
 

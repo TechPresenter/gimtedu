@@ -21,7 +21,7 @@ $bounds = db_row("SELECT MIN(start_datetime) AS mn, MAX(start_datetime) AS mx FR
 $minMonth = min($currentMonth, $bounds['mn'] ? date('Y-m', strtotime($bounds['mn'])) : $currentMonth);
 $maxMonth = max(date('Y-m', strtotime('first day of +12 months')), $bounds['mx'] ? date('Y-m', strtotime($bounds['mx'])) : $currentMonth);
 $month = $currentMonth;
-$requested = (string) ($_GET['month'] ?? '');
+$requested = get_str('month');
 if (preg_match('/^(\d{4})-(\d{2})$/', $requested, $m) && checkdate((int) $m[2], 1, (int) $m[1])) {
     $month = max($minMonth, min($maxMonth, $requested));
 }
@@ -61,11 +61,11 @@ render_sections($page, function () use ($page, $month, $currentMonth, $minMonth,
     echo '<div class="cal-toolbar">';
     echo '<div class="cal-nav">';
     echo $prevMonth >= $minMonth
-        ? '<a class="btn btn-ghost btn-sm cal-prev" href="' . e($monthUrl($prevMonth)) . '" rel="nofollow">' . icon('chevron-left') . '<span>' . e(date('M Y', strtotime($prevMonth . '-01'))) . '</span></a>'
+        ? '<a class="btn btn-ghost btn-sm cal-prev" href="' . e($monthUrl($prevMonth)) . '" rel="nofollow">' . icon('chevron-left') . '<span><span class="sr-only">Previous month: </span>' . e(date('M Y', strtotime($prevMonth . '-01'))) . '</span></a>'
         : '<span class="btn btn-ghost btn-sm cal-prev is-disabled" aria-disabled="true">' . icon('chevron-left') . '<span>' . e(date('M Y', strtotime($prevMonth . '-01'))) . '</span></span>';
     echo '<h2 class="cal-title" aria-live="polite">' . e($monthLabel) . '</h2>';
     echo $nextMonth <= $maxMonth
-        ? '<a class="btn btn-ghost btn-sm cal-next" href="' . e($monthUrl($nextMonth)) . '" rel="nofollow"><span>' . e(date('M Y', strtotime($nextMonth . '-01'))) . '</span>' . icon('chevron-right') . '</a>'
+        ? '<a class="btn btn-ghost btn-sm cal-next" href="' . e($monthUrl($nextMonth)) . '" rel="nofollow"><span><span class="sr-only">Next month: </span>' . e(date('M Y', strtotime($nextMonth . '-01'))) . '</span>' . icon('chevron-right') . '</a>'
         : '<span class="btn btn-ghost btn-sm cal-next is-disabled" aria-disabled="true"><span>' . e(date('M Y', strtotime($nextMonth . '-01'))) . '</span>' . icon('chevron-right') . '</span>';
     echo '</div>';
     echo '<form class="cal-jump" method="get" action="' . e(page_url($page['slug'])) . '#calendar"><label for="cal-month">Go to</label><select id="cal-month" name="month">';

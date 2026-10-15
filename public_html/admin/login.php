@@ -3,6 +3,7 @@
  * Staff sign-in: email or mobile + password, then the 6-digit code from an authenticator app
  * when two-step login is enabled for the account. Rate limited; generic error messages.
  */
+define('PWF_TOTP_STEP', true);   // this page completes the two-step sign-in
 require_once __DIR__ . '/includes/functions.php';
 
 header('X-Robots-Tag: noindex, nofollow');
@@ -31,6 +32,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $error = 'Too many incorrect codes. Please wait ' . LOGIN_LOCK_MINUTES . ' minutes.';
         } elseif ($row && $row['totp_secret'] && totp_verify($row['totp_secret'], (string) ($_POST['code'] ?? ''))) {
             $_SESSION['totp_ok'] = true;
+            unset($_SESSION['totp_pending']);
             session_regenerate_id(true);
             admin_log('admin_login', 'Staff sign-in completed with two-step code');
             $goNext();
@@ -83,7 +85,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 <div class="form-group"><label for="code">Authentication code</label>
                     <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required autofocus></div>
                 <button class="btn btn-primary btn-block" type="submit"><?= icon('shield') ?>Verify</button>
-                <p class="text-center mt-2 small"><a href="<?= e(page_url('logout')) ?>">Use a different account</a></p>
             <?php else: ?>
                 <div class="form-group"><label for="login">Email or mobile number</label>
                     <input id="login" name="login" autocomplete="username" required maxlength="190" value="<?= e((string) ($_POST['login'] ?? '')) ?>" autofocus></div>
@@ -94,6 +95,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 <p class="text-center mt-2 small"><a href="<?= e(page_url('forgot-password')) ?>">Forgot password?</a> · <a href="<?= e(url('/')) ?>">Back to website</a></p>
             <?php endif; ?>
         </form>
+        <?php if ($step === '2fa'): ?>
+            <form method="post" action="<?= e(admin_url('logout.php')) ?>" class="text-center mt-2">
+                <?= csrf_field() ?>
+                <button type="submit" class="btn btn-ghost btn-sm">Use a different account</button>
+            </form>
+        <?php endif; ?>
     </div>
 </main>
 <script src="<?= e(asset('assets/js/form-validation.js')) ?>"></script>

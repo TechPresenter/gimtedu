@@ -62,16 +62,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($bill['path'])) {
             $row['document_path'] = $bill['path'];
         }
+        // Four-eyes rule: whoever last entered or changed the figures counts as the recorder, so they cannot approve
+        // it themselves (the original recorder stays in the audit log).
+        $row['recorded_by'] = admin_id();
         if ($x) {
             db_update('campaign_expenses', $row, 'id = :id', ['id' => $xid]);
             if (!empty($bill['path']) && $x['document_path']) {
                 delete_upload($x['document_path']);
             }
-            admin_log('expense_updated', 'Expense #' . $xid . ' ' . money($row['amount'], true) . ' campaign #' . $row['campaign_id']);
-            flash('success', 'Expense updated. It now needs approval again.');
+            admin_log('expense_updated', 'Expense #' . $xid . ' ' . money($row['amount'], true) . ' campaign #' . $row['campaign_id']
+                . ((int) $x['recorded_by'] !== (int) admin_id() ? ' (was recorded by user #' . (int) $x['recorded_by'] . ')' : ''));
+            flash('success', 'Expense updated. It now needs approval by another staff member.');
             admin_redirect('expenses.php?campaign=' . $row['campaign_id']);
         }
-        $row['recorded_by'] = admin_id();
         $newId = db_insert('campaign_expenses', $row);
         admin_log('expense_recorded', 'Expense #' . $newId . ' ' . money($row['amount'], true) . ' campaign #' . $row['campaign_id'] . ($row['document_path'] ?? '' ? ' with bill' : ''));
         flash('success', 'Expense recorded. It must be approved before it can be published.');
@@ -89,8 +92,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('info', 'Only recorded expenses can be approved or rejected.');
                 break;
             }
-            if ($action === 'approve' && (int) $x['recorded_by'] === admin_id() && !is_administrator()) {
-                flash('error', 'An expense must be approved by someone other than the person who recorded it.');
+            if ($action === 'approve' && (int) $x['recorded_by'] === (int) admin_id()) {
+                flash('error', 'An expense must be approved by someone other than the person who recorded or last edited it. Ask another staff member with the "Record and approve campaign expenses" permission (for example a Donation Manager) to approve it.');
                 break;
             }
             db_update('campaign_expenses', ['status' => $action === 'approve' ? 'approved' : 'rejected', 'approved_by' => admin_id(), 'approved_at' => date('Y-m-d H:i:s'), 'is_published' => 0], 'id = :id', ['id' => $xid]);

@@ -18,12 +18,13 @@
     :root { --header-h: 74px; }
     .brand img.brand-emblem { width: 54px; height: 54px; }
     .nav-toggle { display: inline-flex; }
+    .header-actions { margin-left: auto; }
     .main-nav {
         position: fixed; top: 0; right: 0; bottom: 0; width: min(360px, 88vw); background: #fff; z-index: 200;
         flex-direction: column; align-items: stretch; gap: 0; padding: 90px 18px 24px; overflow-y: auto;
         transform: translateX(100%); transition: transform .3s ease, visibility .3s; visibility: hidden; margin: 0;
     }
-    .nav-open .main-nav { transform: translateX(0); visibility: visible; box-shadow: -20px 0 40px rgba(0,0,0,.12); }
+    .nav-open .main-nav { transform: translateX(0); visibility: visible; box-shadow: -20px 0 40px rgba(0,0,0,.12); transition: transform .3s ease, visibility 0s; }
     .nav-open::after { content: ""; position: fixed; inset: 0; background: rgba(10, 30, 20, .45); z-index: 90; }
     .nav-open .nav-toggle { visibility: hidden; }
     .main-nav { padding-top: 16px; }
@@ -32,25 +33,29 @@
     .nav-mobile-apply { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 16px; }
     .nav-mobile-apply .apply-chip { color: var(--green-700); background: var(--green-50); border-color: var(--line); }
     .nav-item > a::after { display: none; }
-    .dropdown, .dropdown.mega { width: 100%; transform: none; left: auto; grid-template-columns: 1fr; padding: 0 0 10px 6px; }
+    /* submenus open only through their toggle (.open); a mega menu is hidden here too, overriding enhance.css */
+    .dropdown, .dropdown.mega { display: none; width: 100%; transform: none; left: auto; grid-template-columns: 1fr; padding: 0 0 10px 6px; }
     .dropdown::before, .mega-aside { display: none; }
     .dropdown.mega .dropdown-list { grid-template-columns: 1fr; }
-    .has-dropdown:hover > .dropdown.mega, .has-dropdown:focus-within > .dropdown.mega { transform: none; }
+    .has-dropdown:hover > .dropdown.mega, .has-dropdown.open > .dropdown.mega { transform: none; }
     .has-dropdown.open > .dropdown.mega { display: grid; }
     .dd-text small { display: none; }
     .nav-list { flex-direction: column; align-items: stretch; gap: 0; }
     .nav-item { flex-wrap: wrap; border-bottom: 1px solid var(--line); }
     .nav-item > a { flex: 1; padding: 14px 6px; font-size: 1rem; }
     .nav-item.active > a::after { display: none; }
-    .dropdown-toggle { padding: 12px; }
-    .dropdown { position: static; width: 100%; opacity: 1; visibility: visible; transform: none; box-shadow: none; border: 0; padding: 0 0 10px 10px; display: none; min-width: 0; }
-    .has-dropdown:hover > .dropdown, .has-dropdown:focus-within > .dropdown { display: none; }
+    .dropdown-toggle { padding: 12px; margin-left: 0; }
+    .dropdown { position: static; width: 100%; opacity: 1; visibility: inherit; transform: none; box-shadow: none; border: 0; padding: 0 0 10px 10px; display: none; min-width: 0; }
     .has-dropdown.open > .dropdown { display: block; }
+    /* the closed (hidden) drawer must also hide any submenu left open, so nothing off-screen stays focusable */
+    .has-dropdown:hover > .dropdown, .has-dropdown.open > .dropdown { visibility: inherit; }
     .has-dropdown:hover .dropdown-toggle .icon { transform: none; }
     .has-dropdown.open .dropdown-toggle .icon { transform: rotate(180deg); }
     .nav-mobile-only { display: flex; }
     .nav-donate { margin-top: 20px; }
     body.nav-open { overflow: hidden; }
+    /* floating buttons must not cover the open drawer */
+    body.nav-open .fab-stack, body.nav-open .back-to-top, body.nav-open .help-panel, body.nav-open .consent-banner { visibility: hidden; }
 }
 
 @media (max-width: 1100px) {
@@ -67,7 +72,8 @@
     .split-media img { max-height: 260px; }
     .steps-3 { --step-cols: 1; }
     .policy-layout { grid-template-columns: 1fr; }
-    .policy-aside { position: static; order: 2; }
+    .policy-layout > * { grid-column: auto; grid-row: auto; }
+    .policy-aside { position: static; }
     .two-col { grid-template-columns: 1fr; gap: 24px; }
     .check-list.check-cols-3 { grid-template-columns: repeat(2, 1fr); }
     .grid-4 { grid-template-columns: repeat(2, 1fr); }
@@ -88,6 +94,7 @@
     .member-nav ul { grid-template-columns: repeat(2, 1fr); }
     .cta-band { grid-template-columns: 1fr; padding: 36px; text-align: center; }
     .cta-actions { justify-content: center; }
+    .highlights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 767px) {
@@ -134,7 +141,7 @@
 }
 
 @media (max-width: 480px) {
-    .container { padding: 0 16px; }
+    .container { padding-left: 16px; padding-right: 16px; } /* longhands: keep vertical padding set by .footer-cta-inner etc. */
     .brand-text strong { font-size: .92rem; }
     .brand-text small { font-size: .74rem; }
     .brand img { width: 52px; height: 52px; }
@@ -152,6 +159,10 @@
     .footer-grid { grid-template-columns: 1fr 1fr 1fr; }
     .footer-about { grid-column: 1 / -1; display: block; }
     .topbar-apply { order: 3; width: 100%; }
+    /* contact list + newsletter side by side across the full width (no lone one-third column) */
+    .footer-contact { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 34px; align-items: start; }
+    .footer-contact > .footer-title { grid-column: 1 / -1; }
+    .footer-contact .newsletter-form { margin-top: 0; }
 }
 @media (max-width: 991px) {
     .stats-grid, .stats-grid.stats-3 { grid-template-columns: repeat(2, 1fr); }
@@ -168,7 +179,7 @@
     .topbar-apply::-webkit-scrollbar { display: none; }
     .apply-label { display: none; }
     .topbar-right { display: none; }
-    .header-donate span { display: none; }
+    .header-donate span { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; } /* visually hidden, still the link's accessible name */
     .header-donate { padding: 0; width: 46px; height: 46px; border-radius: 12px; }
     .header-donate .icon { width: 20px; height: 20px; }
     .brand img.brand-emblem { width: 46px; height: 46px; }
@@ -185,17 +196,26 @@
     .footer-grid { grid-template-columns: 1fr 1fr; gap: 26px; padding-top: 40px; }
     .footer-contact { grid-column: 1 / -1; }
     .footer-cta-inner { flex-direction: column; text-align: center; }
+    .footer-cta-inner .btn-row { justify-content: center; }
     .footer-bottom-inner { flex-direction: column; text-align: center; }
     .sitemap-grid { grid-template-columns: 1fr; }
-    .fab-stack { right: 12px; bottom: 76px; gap: 10px; }
-    .fab { width: 46px; height: 46px; }
-    .back-to-top { right: 12px; bottom: 16px; width: 46px; height: 46px; }
-    .help-panel { right: 8px; left: 8px; bottom: 76px; width: auto; max-height: calc(100vh - 100px); }
+    /* phones: one floating button (help) + back-to-top; WhatsApp/contact are in the help panel, menu and footer */
+    .fab-stack .fab-call, .fab-stack .fab-whatsapp { display: none; }
+    .fab-stack { right: 12px; bottom: 72px; gap: 8px; }
+    .fab { width: 44px; height: 44px; }
+    .back-to-top { right: 12px; bottom: 16px; width: 44px; height: 44px; }
+    /* never sit on top of a form field being typed into (the on-screen keyboard is open) */
+    body:has(main :is(input, select, textarea):focus) :is(.fab-stack, .back-to-top) { display: none; }
+    .help-panel { right: 8px; left: 8px; bottom: 124px; width: auto; max-height: calc(100vh - 140px); }
     .toast-stack { top: 10px; right: 10px; left: 10px; width: auto; }
     .countdown-units span { min-width: 38px; }
     .notfound-search { flex-direction: column; }
     dialog.modal { max-width: calc(100vw - 16px); }
     .modal-body { padding: 16px; }
+}
+@media (max-width: 600px) {
+    .footer-contact { display: block; }
+    .footer-contact .newsletter-form { margin-top: 18px; }
 }
 @media (max-width: 420px) {
     .brand-word { display: none; }

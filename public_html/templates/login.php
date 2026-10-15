@@ -10,7 +10,7 @@ if (!defined('PWF_APP')) {
 }
 
 $page = current_page_row();
-$next = safe_next((string) ($_POST['next'] ?? $_GET['next'] ?? ''), '');
+$next = safe_next(post_str('next', get_str('next')), '');
 $self = '/login/' . ($next !== '' ? '?next=' . urlencode($next) : '');
 
 if (is_logged_in()) {
@@ -19,7 +19,7 @@ if (is_logged_in()) {
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     csrf_verify($self);
-    $action = (string) ($_POST['action'] ?? 'login');
+    $action = post_str('action', 'login');
 
     if ($action === 'resend') {
         // Only offered after a correct password for an unverified account (the id is kept in the session).
@@ -33,8 +33,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         redirect($self);
     }
 
-    $login = mb_substr(trim((string) ($_POST['login'] ?? '')), 0, 190);
-    $password = (string) ($_POST['password'] ?? '');
+    $login = mb_substr(trim(post_str('login')), 0, 190);
+    $password = post_str('password');
     $_SESSION['_old'] = ['login' => $login, 'remember' => !empty($_POST['remember']) ? '1' : ''];
     if ($login === '' || $password === '') {
         account_notice(['type' => 'error', 'text' => 'Please enter your email address or mobile number and your password.']);
@@ -46,6 +46,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         unset($_SESSION['_old'], $_SESSION['m5_verify_uid']);
         $user = $result['user'];
         login_user($user, !empty($_POST['remember']));
+        if (!empty($user['totp_enabled'])) {
+            // Two-step login is on for this account: finish signing in with the authenticator code.
+            $_SESSION['staff_auth'] = true;
+            $_SESSION['admin_last_activity'] = time();
+            redirect('admin/login.php?step=2fa');
+        }
         if (is_staff((int) $user['id'])) {
             // Signed in with a password: the admin panel may be opened (two-step login is still enforced there).
             $_SESSION['staff_auth'] = true;

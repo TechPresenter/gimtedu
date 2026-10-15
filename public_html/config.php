@@ -60,7 +60,7 @@ defined('SMTP_PASS')       || define('SMTP_PASS', '');
 // Integrate only after the foundation's merchant account is approved.
 // Webhook URL to configure in the Razorpay dashboard:
 //     BASE_URL/payment-webhook.php
-// Events: payment.captured, payment.failed, order.paid, refund.processed
+// Events: payment.captured, payment.authorized, payment.failed, order.paid, refund.processed
 // ---------------------------------------------------------------------
 defined('RAZORPAY_KEY_ID')         || define('RAZORPAY_KEY_ID', '');
 defined('RAZORPAY_KEY_SECRET')     || define('RAZORPAY_KEY_SECRET', '');

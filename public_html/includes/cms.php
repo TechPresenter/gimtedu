@@ -14,6 +14,8 @@ if (!defined('PWF_APP')) {
 
 /** Templates that accept extra path segments, e.g. /campaign/<slug>/ or /dashboard/<section>/. */
 const PARAM_TEMPLATES = ['campaign_detail', 'event_detail', 'blog', 'stories', 'member', 'schemes', 'gallery'];
+/** Pages that only open from a private link (?ref=&token=): the admin shows no "View on website" link for them. */
+const LINKLESS_TEMPLATES = ['donation_success', 'donation_failed', 'donation_receipt', 'not_found'];
 
 /** Templates whose pages cannot be deleted in the admin (the admin may still edit their content). */
 const TEMPLATE_LABELS = [
@@ -138,7 +140,7 @@ function resolve_route(string $path): ?array
     if (!$page) {
         return null;
     }
-    if ($page['status'] !== 'published' && !(isset($_GET['preview']) && user_can('pages.manage'))) {
+    if ($page['status'] !== 'published' && !(isset($_GET['preview']) && staff_session_can('pages.manage'))) {
         return null;
     }
     return ['page' => $page, 'param' => $param];
@@ -212,15 +214,21 @@ function not_found(): void
 function page_header(array $page, array $opts = []): void
 {
     $title = $opts['title'] ?? $page['title'];
+    $isHome = ($page['template'] ?? '') === 'home';
+    // social networks do not render SVG previews: an SVG banner never becomes og:image (header.php falls back to the default image)
+    $ogImage = (string) ($opts['og_image'] ?? ((($page['og_image'] ?? '') ?: ($page['banner_image'] ?? '')) ?: ''));
+    if (preg_match('/\.svg(\?|#|$)/i', $ogImage)) {
+        $ogImage = '';
+    }
     $GLOBALS['seo'] = [
         'title'       => ($opts['meta_title'] ?? ($page['meta_title'] ?: null)) ?? $title,
         'description' => $opts['meta_description'] ?? ($page['meta_description'] ?: setting('seo_default_description')),
-        'canonical'   => $opts['canonical'] ?? ($page['canonical_url'] ?: abs_url(route_path() === '' ? '' : route_path() . '/')),
-        'og_image'    => $opts['og_image'] ?? ($page['og_image'] ?? '') ?: ($page['banner_image'] ?? ''),
+        'canonical'   => $opts['canonical'] ?? (($page['canonical_url'] ?? '') ?: ($isHome ? abs_url('') : abs_url(route_path() === '' ? '' : route_path() . '/'))),
+        'og_image'    => $ogImage,
         'og_type'     => $opts['og_type'] ?? 'website',
         'schema'      => $opts['schema'] ?? [],
         'noindex'     => !empty($opts['noindex']) || !empty($page['noindex']) || ($page['status'] ?? 'published') !== 'published' || setting('seo_noindex_site') === '1',
-        'is_home'     => ($page['template'] ?? '') === 'home',
+        'is_home'     => $isHome,
         'crumbs'      => $opts['crumbs'] ?? page_crumbs($page),
         'title_plain' => $title,
     ];
@@ -228,11 +236,23 @@ function page_header(array $page, array $opts = []): void
     track_page_view($page);
     require ROOT_PATH . '/header.php';
 
-    if (($opts['banner'] ?? true) !== false && ($page['template'] ?? '') !== 'home') {
+    if (($opts['banner'] ?? true) !== false && !$isHome) {
         $buttons = $opts['buttons'] ?? json_field($page['banner_buttons'] ?? null);
+        $bannerImage = (string) ($opts['image'] ?? ($page['banner_image'] ?? ''));
+        if ($bannerImage !== '' && !empty($page['id'])) {
+            // the first section is an image + text block showing the same illustration larger: no repeat in the banner
+            $first = page_sections((int) $page['id'])[0] ?? null;
+            if ($first && $first['section_type'] === 'split') {
+                $splitSet = json_field($first['settings'] ?? null);
+                $splitImg = ($first['image'] ?? '') ?: ($splitSet['fallback_image'] ?? 'assets/images/hero/community.svg');
+                if ($splitImg === $bannerImage) {
+                    $bannerImage = '';
+                }
+            }
+        }
         echo page_banner($title, $opts['subtitle'] ?? (string) ($page['banner_subtitle'] ?? ''), $GLOBALS['seo']['crumbs'], [
             'eyebrow' => $opts['eyebrow'] ?? ($page['banner_eyebrow'] ?? ''),
-            'image'   => $opts['image'] ?? ($page['banner_image'] ?? ''),
+            'image'   => $bannerImage,
             'actions' => $buttons,
         ]);
     }
@@ -308,6 +328,9 @@ function render_section(array $s, array $page = []): string
         return '';
     }
     $settings = json_field($s['settings'] ?? null);
+    if (!section_requirement_met((string) ($settings['requires'] ?? ''))) {
+        return '';
+    }
     $items = json_field($s['items'] ?? null);
     $inner = $fn($s, $items, $settings, $page);
     if ($inner === '') {
@@ -369,7 +392,24 @@ function section_common_settings(): array
         'align' => ['select', 'Heading alignment', ['' => 'Left', 'center' => 'Centre']],
         'size' => ['select', 'Spacing', ['' => 'Normal', 'sm' => 'Compact']],
         'no_heading' => ['checkbox', 'Hide the section heading'],
+        'requires' => ['select', 'Show only when', ['' => 'Always', 'online_donations' => 'Online donations are available', 'no_online_donations' => 'Online donations are NOT available', 'bank_details' => 'Bank / UPI details are set in Settings']],
     ];
+}
+
+/** Optional per-section condition (settings "requires"): the section is shown only when it is true. */
+function section_requirement_met(string $requires): bool
+{
+    $online = function_exists('online_donations_available') && online_donations_available();
+    switch ($requires) {
+        case 'online_donations':
+            return $online;
+        case 'no_online_donations':
+            return !$online;
+        case 'bank_details':
+            return function_exists('bank_transfer_details') && (bool) bank_transfer_details();
+        default:
+            return true;
+    }
 }
 
 function buttons_setting(): array { return ['buttons', 'Buttons']; }
@@ -521,11 +561,13 @@ function section_link_cards(array $s, array $items, array $set, array $page): st
     if (!$items) {
         return '';
     }
-    $html = '<div class="tile-grid">';
+    $items = array_values(array_filter($items, function ($it) {
+        return is_array($it) && !empty($it['url']);
+    }));
+    $n = count($items);
+    // balanced rows (4 -> 4/2+2, 6 -> 3+3/2+2+2) instead of auto-fit orphans
+    $html = '<div class="tile-grid' . ($n % 4 === 0 ? ' tile-grid--4' : ($n % 3 === 0 ? ' tile-grid--3' : '')) . '">';
     foreach ($items as $it) {
-        if (!is_array($it) || empty($it['url'])) {
-            continue;
-        }
         $html .= '<a class="tile reveal tilt" href="' . e(safe_link((string) $it['url'])) . '"><span class="icon-circle">' . icon($it['icon'] ?? 'arrow-right') . '</span>'
             . '<span><strong>' . e($it['title'] ?? '') . '</strong>' . (!empty($it['text']) ? '<small>' . e($it['text']) . '</small>' : '') . '</span>'
             . icon('chevron-right', 'tile-arrow') . '</a>';
@@ -614,27 +656,30 @@ function render_policy_layout(array $page, array $related = []): void
         }
     }
     [$html, $toc] = content_with_toc($html);
-    echo '<section class="section"><div class="container policy-layout"><aside class="policy-aside">';
-    if (count($toc) > 1) {
-        echo '<nav class="toc" aria-label="Contents"><strong>On this page</strong><ol>';
+    $hasToc = count($toc) > 1;
+    // DOM order = reading order at every width: contents, policy text, then help & related links
+    echo '<section class="section"><div class="container policy-layout' . ($hasToc ? '' : ' no-toc') . '">';
+    if ($hasToc) {
+        echo '<aside class="policy-aside"><nav class="toc" aria-label="Contents"><strong>On this page</strong><ol>';
         foreach ($toc as $id => $label) {
             echo '<li><a href="#' . e($id) . '">' . e($label) . '</a></li>';
         }
-        echo '</ol></nav>';
+        echo '</ol></nav></aside>';
     }
-    echo '<div class="aside-card aside-cta"><h3>Questions?</h3><p>Write to us and we will be happy to help.</p>'
+    $updated = $page['updated_at'] ?: $page['created_at'];
+    echo '<article class="prose policy-content">' . $html
+        . '<p class="muted small page-updated">Last updated: ' . e(format_date($updated)) . '</p></article>';
+    echo '<aside class="policy-help" aria-label="Help and related policies"><div class="aside-card aside-cta"><h2 class="h3">Questions?</h2><p>Write to us and we will be happy to help.</p>'
         . '<a class="btn btn-primary btn-block" href="' . e(page_url('contact')) . '">' . icon('mail') . 'Contact us</a>'
         . '<a class="btn btn-outline btn-block" href="' . e(page_url('grievance-redressal')) . '">Raise a grievance</a></div>';
     if ($related) {
-        echo '<div class="aside-card"><h3>Related policies</h3><ul class="link-list">';
+        echo '<div class="aside-card"><h2 class="h3">Related policies</h2><ul class="link-list">';
         foreach ($related as $label => $href) {
             echo '<li><a href="' . e($href) . '">' . icon('file-text') . e($label) . '</a></li>';
         }
         echo '</ul></div>';
     }
-    $updated = $page['updated_at'] ?: $page['created_at'];
-    echo '</aside><article class="prose policy-content">' . $html
-        . '<p class="muted small page-updated">Last updated: ' . e(format_date($updated)) . '</p></article></div></section>';
+    echo '</aside></div></section>';
 }
 
 /** Links to the other policy pages. */
@@ -697,6 +742,47 @@ function menu_item_active(array $item): bool
 }
 
 /**
+ * The one top-level main-menu item to highlight for the current page (null = none):
+ * 1) an item whose own link is the current page; 2) an item linking to an ancestor page (pages.parent_id);
+ * 3) among items with a matching child, the one with the fewest children (a specific section beats the catch-all group).
+ */
+function nav_active_top_id(array $items): ?int
+{
+    foreach ($items as $it) {
+        if (is_current_url($it['raw_url']) && ($it['raw_url'] !== '/' || route_path() === '')) {
+            return (int) $it['id'];
+        }
+    }
+    $page = $GLOBALS['route']['page'] ?? null;
+    $parentId = $page['parent_id'] ?? null;
+    $guard = 0;
+    while ($parentId && $guard++ < 5) {
+        $parent = db_row('SELECT id, parent_id, slug FROM pages WHERE id = ?', [$parentId]);
+        if (!$parent) {
+            break;
+        }
+        foreach ($items as $it) {
+            if (trim((string) parse_url((string) $it['raw_url'], PHP_URL_PATH), '/') === $parent['slug']) {
+                return (int) $it['id'];
+            }
+        }
+        $parentId = $parent['parent_id'];
+    }
+    $best = null;
+    foreach ($items as $it) {
+        foreach ($it['children'] as $child) {
+            if (menu_item_active($child)) {
+                if ($best === null || count($it['children']) < count($best['children'])) {
+                    $best = $it;
+                }
+                break;
+            }
+        }
+    }
+    return $best ? (int) $best['id'] : null;
+}
+
+/**
  * Only allow safe link targets: site paths (/about/), https/http URLs, mailto:, tel:, #anchors.
  * Anything else falls back to the homepage so no link is ever broken or unsafe.
  */
@@ -739,9 +825,35 @@ function organization_schema(): array
     $org = [
         '@context' => 'https://schema.org', '@type' => 'NGO', '@id' => abs_url('#organization'),
         'name' => site_name(), 'url' => abs_url(''), 'logo' => abs_url('assets/images/logo.png'),
-        'description' => setting('site_description'), 'slogan' => setting('site_tagline_en'),
-        'address' => ['@type' => 'PostalAddress', 'streetAddress' => setting('contact_address'), 'addressCountry' => 'IN'],
     ];
+    if (setting('site_description') !== '') {
+        $org['description'] = setting('site_description');
+    }
+    if (setting('site_tagline_en') !== '') {
+        $org['slogan'] = setting('site_tagline_en');
+    }
+    // Structured address from the free-text office address: PIN code, locality (last part) and street (the rest)
+    $raw = trim((string) preg_replace('/\s+/', ' ', setting('contact_address')));
+    if ($raw !== '') {
+        $addr = ['@type' => 'PostalAddress'];
+        if (preg_match('/\b(\d{3}\s?\d{3})\b/', $raw, $m)) {
+            $addr['postalCode'] = str_replace(' ', '', $m[1]);
+            $raw = str_replace($m[0], '', $raw);
+        }
+        $parts = array_values(array_filter(array_map(function ($p) {
+            return trim($p, " -\t");
+        }, explode(',', $raw)), function ($p) {
+            return $p !== '' && !preg_match('/^india$/i', $p);
+        }));
+        if ($parts) {
+            $addr['addressLocality'] = array_pop($parts);
+        }
+        if ($parts) {
+            $addr['streetAddress'] = implode(', ', $parts);
+        }
+        $addr['addressCountry'] = 'IN';
+        $org['address'] = $addr;
+    }
     if (setting('contact_email')) {
         $org['email'] = setting('contact_email');
     }
@@ -950,10 +1062,13 @@ function sitemap_entries(): array
             error_log('Sitemap query failed: ' . $e->getMessage());
         }
     };
-    $add("SELECT slug, title, updated_at, created_at FROM campaigns WHERE status IN ('active','completed') ORDER BY created_at DESC", 'Campaigns', 'campaign_url');
-    $add("SELECT slug, title, updated_at, created_at FROM events WHERE status = 'published' ORDER BY start_datetime DESC", 'Events', 'event_url');
+    $add("SELECT slug, title, updated_at, created_at FROM campaigns WHERE status IN ('active','completed','closed') ORDER BY created_at DESC", 'Campaigns', 'campaign_url');
+    $add("SELECT slug, title, updated_at, created_at FROM events WHERE status = 'published'
+          AND NOT (event_type = 'awareness_day' AND COALESCE(end_datetime, start_datetime) < NOW()) ORDER BY start_datetime DESC", 'Events', 'event_url');
     $add("SELECT slug, title, updated_at, created_at FROM blog_posts WHERE status = 'published' AND published_at <= NOW() ORDER BY published_at DESC", 'Articles', 'post_url');
-    $add("SELECT slug, title, updated_at, created_at FROM success_stories WHERE status = 'published' AND consent_confirmed = 1 ORDER BY published_at DESC", 'Success stories', 'story_url');
+    // same visibility rule as the story pages (a scheduled story is not listed before its date)
+    $add("SELECT slug, title, updated_at, created_at FROM success_stories WHERE status = 'published' AND consent_confirmed = 1
+          AND (published_at IS NULL OR published_at <= NOW()) ORDER BY published_at DESC", 'Success stories', 'story_url');
     $add("SELECT slug, title, updated_at, created_at FROM schemes WHERE status = 'published' ORDER BY sort_order, title", 'Welfare schemes', 'scheme_url');
     return $entries;
 }

@@ -11,8 +11,29 @@ if (!defined('PWF_APP')) {
 $seo = $GLOBALS['seo'] ?? ['title' => site_name(), 'description' => setting('seo_default_description'), 'canonical' => abs_url(''), 'og_image' => '', 'og_type' => 'website', 'noindex' => false];
 $fullTitle = seo_full_title();
 $description = excerpt((string) ($seo['description'] ?: setting('seo_default_description')), 300);
-$ogImage = $seo['og_image'] ?: setting('seo_default_og_image');
-$ogImageUrl = $ogImage ? (preg_match('#^https?://#', $ogImage) ? $ogImage : abs_url($ogImage)) : abs_url('assets/images/logo.png');
+// Social preview image: page image -> default sharing image setting -> built-in 1200x630 card. SVG is never used
+// (Facebook, WhatsApp, LinkedIn and X do not render it) and a local file must exist.
+$ogUsable = static function (string $p): bool {
+    if ($p === '' || preg_match('/\.svg(\?|#|$)/i', $p)) {
+        return false;
+    }
+    return (bool) preg_match('#^https?://#', $p) || (strpos($p, '..') === false && is_file(ROOT_PATH . '/' . ltrim($p, '/')));
+};
+$ogImage = (string) ($seo['og_image'] ?? '');
+if (!$ogUsable($ogImage)) {
+    $ogImage = (string) setting('seo_default_og_image');
+}
+if (!$ogUsable($ogImage)) {
+    $ogImage = is_file(ROOT_PATH . '/assets/images/og-default.jpg') ? 'assets/images/og-default.jpg' : 'assets/images/logo.png';
+}
+// the alt text describes the picture; the built-in card and the logo show the foundation's logo and name, not the page
+$ogImageAlt = $ogImage === 'assets/images/og-default.jpg'
+    ? 'Prerit Welfare Foundation logo with the tagline Empowering Communities, Spreading Hope, Creating Change'
+    : ($ogImage === 'assets/images/logo.png' ? 'Prerit Welfare Foundation logo' : '');
+$ogImageUrl = preg_match('#^https?://#', $ogImage) ? $ogImage : abs_url(ltrim($ogImage, '/'));
+$ogSize = !preg_match('#^https?://#', $ogImage) ? @getimagesize(ROOT_PATH . '/' . ltrim($ogImage, '/')) : false;
+$ogLarge = !$ogSize || ($ogSize[0] >= 600 && $ogSize[0] !== $ogSize[1]);
+$ogTitle = !empty($seo['is_home']) ? $fullTitle : (string) ($seo['title'] ?? $fullTitle);
 $headerUser = current_user();
 $mainMenu = menu_tree('main');
 $topbarMenu = setting('topbar_enabled', '1') === '1' ? menu_tree('topbar') : [];
@@ -34,15 +55,18 @@ $unread = $headerUser ? unread_notification_count((int) $headerUser['id']) : 0;
     <meta property="og:type" content="<?= e($seo['og_type'] ?? 'website') ?>">
     <meta property="og:site_name" content="<?= e(site_name()) ?>">
     <meta property="og:locale" content="en_IN">
-    <meta property="og:title" content="<?= e($seo['title'] ?? $fullTitle) ?>">
+    <meta property="og:title" content="<?= e($ogTitle) ?>">
     <meta property="og:description" content="<?= e(excerpt($description, 200)) ?>">
     <meta property="og:url" content="<?= e($seo['canonical']) ?>">
     <meta property="og:image" content="<?= e($ogImageUrl) ?>">
-    <meta name="twitter:card" content="summary_large_image">
+    <?php if ($ogSize): ?><meta property="og:image:width" content="<?= (int) $ogSize[0] ?>"><meta property="og:image:height" content="<?= (int) $ogSize[1] ?>"><?php endif; ?>
+    <meta property="og:image:alt" content="<?= e($ogImageAlt !== '' ? $ogImageAlt : $ogTitle) ?>">
+    <meta name="twitter:card" content="<?= $ogLarge ? 'summary_large_image' : 'summary' ?>">
     <?php if (setting('twitter_handle')): ?><meta name="twitter:site" content="@<?= e(ltrim(setting('twitter_handle'), '@')) ?>"><?php endif; ?>
-    <meta name="twitter:title" content="<?= e($seo['title'] ?? $fullTitle) ?>">
+    <meta name="twitter:title" content="<?= e($ogTitle) ?>">
     <meta name="twitter:description" content="<?= e(excerpt($description, 200)) ?>">
     <meta name="twitter:image" content="<?= e($ogImageUrl) ?>">
+    <meta name="twitter:image:alt" content="<?= e($ogImageAlt !== '' ? $ogImageAlt : $ogTitle) ?>">
     <?php if (setting('google_site_verification')): ?><meta name="google-site-verification" content="<?= e(setting('google_site_verification')) ?>"><?php endif; ?>
     <link rel="icon" type="image/png" href="<?= e(setting('favicon_path') ? image_url(setting('favicon_path')) : asset('assets/images/favicon.png')) ?>">
     <link rel="apple-touch-icon" href="<?= e(asset('assets/images/apple-touch-icon.png')) ?>">
@@ -97,16 +121,18 @@ $unread = $headerUser ? unread_notification_count((int) $headerUser['id']) : 0;
 
         <nav class="main-nav" id="main-nav" aria-label="Main navigation">
             <div class="nav-mobile-head">
-                <a class="brand brand-sm" href="<?= e(url('/')) ?>"><?= brand_lockup('mobile') ?></a>
+                <a class="brand brand-sm" href="<?= e(url('/')) ?>" aria-label="<?= e(site_name()) ?> - home"><?= brand_lockup('mobile') ?></a>
                 <button type="button" class="nav-close" data-nav-toggle aria-label="Close menu"><?= icon('x') ?></button>
             </div>
             <ul class="nav-list">
-                <?php foreach ($mainMenu as $navItem):
+                <?php $navActiveId = nav_active_top_id($mainMenu);
+                foreach ($mainMenu as $navItem):
                     $navChildren = $navItem['children'];
                     $navMega = count($navChildren) > 7;
-                    $navActive = menu_item_active($navItem); ?>
+                    $navActive = $navActiveId !== null && $navItem['id'] === $navActiveId;
+                    $navIsPage = $navActive && trim((string) parse_url((string) $navItem['raw_url'], PHP_URL_PATH), '/') === route_path(); ?>
                     <li class="nav-item<?= $navChildren ? ' has-dropdown' : '' ?><?= $navMega ? ' is-mega' : '' ?><?= $navActive ? ' active' : '' ?>">
-                        <a href="<?= e($navItem['url']) ?>"<?= $navActive ? ' aria-current="page"' : '' ?><?= $navItem['new_tab'] ? ' target="_blank" rel="noopener"' : '' ?>><?= e($navItem['label']) ?></a>
+                        <a href="<?= e($navItem['url']) ?>"<?= $navActive ? ' aria-current="' . ($navIsPage ? 'page' : 'true') . '"' : '' ?><?= $navItem['new_tab'] ? ' target="_blank" rel="noopener"' : '' ?>><?= e($navItem['label']) ?></a>
                         <?php if ($navChildren): ?>
                             <button type="button" class="dropdown-toggle" aria-expanded="false" aria-label="Show <?= e($navItem['label']) ?> menu"><?= icon('chevron-down') ?></button>
                             <div class="dropdown<?= $navMega ? ' mega' : '' ?>">
@@ -121,7 +147,7 @@ $unread = $headerUser ? unread_notification_count((int) $headerUser['id']) : 0;
                                 <?php if ($navMega): ?>
                                     <div class="mega-aside">
                                         <strong><?= e(setting('site_tagline_en')) ?></strong>
-                                        <p class="hindi"><?= e(setting('site_tagline')) ?></p>
+                                        <p class="hindi" lang="hi"><?= e(setting('site_tagline')) ?></p>
                                         <a class="btn btn-donate btn-sm" href="<?= e(page_url('donate')) ?>"><?= icon('heart') ?>Donate Now</a>
                                     </div>
                                 <?php endif; ?>

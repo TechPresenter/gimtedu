@@ -10,7 +10,7 @@
 .site-admin .form-grid > * { min-width: 0; }
 .site-admin .form-grid { gap: 14px 18px; }
 .site-admin .panel-head h2 { display: inline-flex; align-items: center; gap: 8px; }
-.site-admin code { background: var(--green-50); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: .85em; word-break: break-all; }
+.site-admin code { background: var(--green-50); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: .85em; word-break: normal; overflow-wrap: anywhere; }
 .site-admin .table td { vertical-align: middle; }
 .site-admin .table .muted { font-size: .8rem; }
 .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
@@ -25,7 +25,7 @@
 .site-page-meta .icon { width: 15px; height: 15px; flex-shrink: 0; }
 
 /* Slug box */
-.site-slug { display: flex; align-items: stretch; border: 1.5px solid #d4dfd8; border-radius: 10px; overflow: hidden; background: #fff; }
+.site-slug { display: flex; align-items: stretch; border: 1.5px solid var(--field-border, #7d8f85); border-radius: 10px; overflow: hidden; background: #fff; }
 .site-slug span { display: flex; align-items: center; padding: 0 10px; background: var(--bg-soft, #f5f9f4); color: var(--muted); font-size: .82rem; white-space: nowrap; max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
 .site-slug input { border: 0 !important; border-radius: 0 !important; min-width: 0; flex: 1; box-shadow: none !important; }
 
@@ -66,6 +66,8 @@
 .site-group-head { gap: 2px; }
 .site-group-head .site-sub { margin-top: 10px; }
 .site-sub { margin: 6px 0 -4px; font-size: .9rem; text-transform: uppercase; letter-spacing: .06em; color: var(--green-700); border-top: 1px dashed var(--line); padding-top: 14px; }
+/* in normal block flow (SEO audit panels) the negative margin would let the next list cover a wrapped heading */
+.panel > .site-sub { margin-bottom: 10px; line-height: 1.35; }
 .site-help { display: flex; gap: 8px; align-items: flex-start; white-space: normal; margin: 0; }
 .site-help .icon { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
 .site-error-list { margin: 6px 0 0; padding-left: 18px; }
@@ -146,9 +148,9 @@ dialog.site-dialog::backdrop, dialog.site-modal::backdrop { background: rgba(6, 
 /* ---------- Lists: pages, menus, redirects ---------- */
 .site-title-cell strong a { color: var(--ink); }
 .site-title-cell strong a:hover { color: var(--green-700); }
-.site-title-cell small { display: block; color: var(--muted); word-break: break-all; }
+.site-title-cell small { display: block; color: var(--muted); word-break: normal; overflow-wrap: anywhere; }
 .site-indent { display: inline-block; width: 18px; color: var(--muted); }
-.site-actions { display: flex; gap: 4px; justify-content: flex-end; flex-wrap: wrap; }
+.site-actions { display: flex; gap: 4px; justify-content: flex-end; flex-wrap: nowrap; } /* tables scroll inside .table-wrap */
 .site-actions form { display: inline; margin: 0; }
 .site-create { display: grid; grid-template-columns: 2fr 1fr 1.4fr auto; gap: 10px; align-items: end; }
 .site-create .form-group { margin: 0; }
@@ -162,7 +164,7 @@ dialog.site-dialog::backdrop, dialog.site-modal::backdrop { background: rgba(6, 
 .menu-node-main { flex: 1 1 200px; min-width: 0; display: flex; align-items: center; gap: 10px; }
 .menu-node-main .icon { color: var(--green-700); flex-shrink: 0; }
 .menu-node-label { font-weight: 600; }
-.menu-node-url { display: block; color: var(--muted); font-size: .8rem; word-break: break-all; }
+.menu-node-url { display: block; color: var(--muted); font-size: .8rem; word-break: normal; overflow-wrap: anywhere; }
 .menu-node .badge { margin-left: 4px; }
 .site-warn { color: #9a6700; font-size: .8rem; display: inline-flex; gap: 4px; align-items: center; }
 .site-warn .icon, .site-bad .icon { width: 14px; height: 14px; }
@@ -174,7 +176,9 @@ dialog.site-dialog::backdrop, dialog.site-modal::backdrop { background: rgba(6, 
 .site-media-card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--shadow-sm); }
 .site-media-card figure { margin: 0; background: repeating-conic-gradient(#eef3ef 0% 25%, #fff 0% 50%) 50% / 16px 16px; }
 .site-media-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; display: block; }
-.site-media-body { padding: 10px 12px 12px; display: grid; gap: 8px; font-size: .83rem; }
+.site-media-body { padding: 10px 12px 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; font-size: .83rem; }
+.site-media-body > * { min-width: 0; }
+.site-media-path > input { flex: 1; min-width: 0; }
 .site-media-path { display: flex; gap: 6px; align-items: center; }
 .site-media-path code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .site-media-body form { display: grid; gap: 6px; }

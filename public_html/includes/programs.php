@@ -338,7 +338,7 @@ function scheme_by_slug(string $slug, bool $preview = false): ?array
     if (!$row) {
         return null;
     }
-    if ($row['status'] !== 'published' && !($preview && user_can('schemes.manage'))) {
+    if ($row['status'] !== 'published' && !($preview && staff_session_can('schemes.manage'))) {
         return null;
     }
     return $row;
@@ -351,7 +351,7 @@ function schemes_directory(): string
 {
     $cats = scheme_categories();
     $q = trim(mb_substr(clean_string($_GET['q'] ?? ''), 0, 80));
-    $cat = (string) ($_GET['category'] ?? '');
+    $cat = get_str('category');
     $cat = isset($cats[$cat]) ? $cat : '';
     $counts = [];
     foreach (db_rows("SELECT category, COUNT(*) AS n FROM schemes WHERE status = 'published' GROUP BY category") as $r) {

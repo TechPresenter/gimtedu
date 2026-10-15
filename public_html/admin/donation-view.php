@@ -1,7 +1,8 @@
 <?php
 /**
  * One donation: details, gateway ids, webhook events, and actions:
- * re-check with Razorpay, mark reconciled, add note, refund (donations.manage); resend receipt (receipts.manage).
+ * re-check with Razorpay (captures an authorised payment of the exact amount), check refunds with Razorpay,
+ * mark reconciled, add note, website name visibility, refund (donations.manage); resend receipt (receipts.manage).
  */
 require_once __DIR__ . '/includes/auth.php';
 require_permission('donations.view');
@@ -34,11 +35,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($payment) {
                 mark_donation_success($id, $payment, 'admin_recheck', admin_id());
                 admin_log('donation_rechecked', 'Donation #' . $id . ' ' . $d['donation_ref'] . ' confirmed by gateway re-check (' . ($payment['id'] ?? '') . ')');
-                flash('success', 'Razorpay confirmed a captured payment of the exact amount. The donation is now verified and a receipt has been issued.');
+                flash('success', 'Razorpay confirmed a captured payment of the exact amount (or an authorised payment that has now been captured). The donation is now verified and a receipt has been issued.');
             } else {
                 admin_log('donation_rechecked', 'Donation #' . $id . ' ' . $d['donation_ref'] . ' - no matching captured payment');
                 flash('warning', 'Razorpay has no captured payment of the exact amount for this order. The donation remains ' . $d['status'] . '.');
             }
+            break;
+
+        case 'sync_refund':
+            if ($d['status'] !== 'success' || $d['payment_method'] !== 'online' || !$d['gateway_payment_id']) {
+                flash('info', 'Only verified online donations with a gateway payment can be checked for refunds.');
+                break;
+            }
+            if (!razorpay_configured()) {
+                flash('error', 'Razorpay keys are not configured.');
+                break;
+            }
+            $payment = razorpay_fetch_payment((string) $d['gateway_payment_id']);
+            if (!$payment) {
+                flash('error', 'Razorpay did not return this payment. Please try again later.');
+                break;
+            }
+            $res = apply_gateway_refund_state($d, $payment, null, 'admin check', admin_id());
+            admin_log('donation_refund_checked', 'Donation #' . $id . ' ' . $d['donation_ref'] . ': ' . $res);
+            $messages = [
+                'donation refunded' => ['success', 'Razorpay shows the full amount refunded. The donation is now marked refunded and its receipt cancelled.'],
+                'partial refund applied' => ['success', 'Razorpay shows a partial refund. The donation amount now shows the net amount kept and the revised receipt was emailed.'],
+                'partial refund already applied' => ['info', 'The donation already reflects the partial refund shown by Razorpay.'],
+                'not confirmed: gateway shows no refund' => ['info', 'Razorpay shows no refund for this payment. Nothing was changed.'],
+            ];
+            [$type, $msg] = $messages[$res] ?? ['warning', 'Nothing was changed (' . $res . ').'];
+            flash($type, $msg);
+            break;
+
+        case 'visibility':
+            if ($d['status'] !== 'success') {
+                flash('error', 'Only verified donations are listed on the website.');
+                break;
+            }
+            $hide = ($_POST['hide'] ?? '') === '1' ? 1 : 0;
+            db_update('donations', ['is_anonymous' => $hide], 'id = :id', ['id' => $id]);
+            admin_log('donation_visibility_changed', 'Donation #' . $id . ' ' . $d['donation_ref'] . ': donor name ' . ($hide ? 'hidden on the website' : 'shown on the website (donor agreed)'));
+            flash('success', $hide ? 'The donor\'s name is no longer shown on the website.' : 'The donor\'s name (first name and last initial) may now be shown among recent supporters.');
             break;
 
         case 'reconcile':
@@ -172,6 +210,7 @@ admin_page_start('Donation ' . $d['donation_ref'], $actions);
                 'Gateway' => $d['gateway'] . ($d['gateway_method'] ? ' (' . $d['gateway_method'] . ')' : ''),
                 'Order ID' => $d['gateway_order_id'] ?: '-',
                 'Payment ID' => $d['gateway_payment_id'] ?: '-',
+                'Transaction / cheque reference' => $d['offline_reference'] ?: null,
                 'Created' => format_date($d['created_at'], 'd M Y, h:i:s A') . ' · IP ' . ($d['ip_address'] ?: '-'),
                 'Paid / verified' => $d['paid_at'] ? format_date($d['paid_at'], 'd M Y, h:i:s A') . ($d['verified_via'] ? ' via ' . humanize($d['verified_via']) : '') . ($d['verified_by_name'] ? ' by ' . $d['verified_by_name'] : '') : 'Not verified',
                 'Reconciled' => $d['reconciled_at'] ? format_date($d['reconciled_at'], 'd M Y, h:i A') . ($d['reconciled_by_name'] ? ' by ' . $d['reconciled_by_name'] : '') : 'No',
@@ -227,8 +266,22 @@ admin_page_start('Donation ' . $d['donation_ref'], $actions);
                     <?php endif; ?>
                 </section>
                 <section class="panel">
+                    <div class="panel-head"><h2>Name on the website</h2></div>
+                    <p class="small muted"><?= $d['is_anonymous'] ? 'Anonymous: the name is not shown among recent supporters.' : 'Shown among recent supporters as first name and last initial (the amount is never shown).' ?></p>
+                    <form method="post"<?= $d['is_anonymous'] ? ' data-confirm="Show this donor\'s name on the website? Do this only when the donor has agreed."' : '' ?>><?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="visibility"><input type="hidden" name="hide" value="<?= $d['is_anonymous'] ? '0' : '1' ?>">
+                        <button class="btn btn-ghost btn-sm btn-block" type="submit"><?= icon($d['is_anonymous'] ? 'eye' : 'lock') ?><?= $d['is_anonymous'] ? 'Show name on website (donor agreed)' : 'Hide name on website' ?></button></form>
+                </section>
+                <?php if ($isOnline && $d['gateway_payment_id'] && razorpay_configured()): ?>
+                    <section class="panel">
+                        <div class="panel-head"><h2>Refunds at Razorpay</h2></div>
+                        <p class="small muted">Use this if a refund was made in the Razorpay Dashboard or a refund notification was missed. A partial refund lowers the amount to the net amount kept and re-sends the revised receipt; a full refund marks the donation refunded.</p>
+                        <form method="post"><?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="sync_refund">
+                            <button class="btn btn-ghost btn-sm btn-block" type="submit"><?= icon('refresh') ?>Check refunds with Razorpay</button></form>
+                    </section>
+                <?php endif; ?>
+                <section class="panel">
                     <div class="panel-head"><h2>Refund</h2></div>
-                    <p class="small muted"><?= $isOnline && $d['gateway_payment_id'] ? 'Sends a full refund of ' . e(money($d['amount'], true)) . ' through Razorpay to the original payment method.' : 'For an offline donation: record a refund that has already been paid back by bank transfer or cheque.' ?>
+                    <p class="small muted"><?= $isOnline && $d['gateway_payment_id'] ? 'Refunds the remaining ' . e(money($d['amount'], true)) . ' through Razorpay to the original payment method.' : 'For an offline donation: record a refund that has already been paid back by bank transfer or cheque.' ?>
                         The donation is removed from verified totals and its receipt is cancelled.</p>
                     <form method="post" data-validate data-confirm="Refund <?= e(money($d['amount'], true)) ?> to <?= e($d['donor_name']) ?>? This cannot be undone.">
                         <?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="refund">

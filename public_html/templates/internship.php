@@ -10,7 +10,7 @@ if (!defined('PWF_APP')) {
 
 $page = current_page_row();
 $slug = $page['slug'];
-$consents = ['privacy', 'child', 'conduct'];
+$consents = ['privacy', 'child', 'conduct', 'adult'];
 $required = ['name', 'email', 'phone', 'city', 'state'];
 $areas = recruitment_options('internship_areas');
 $durations = recruitment_options('durations');
@@ -132,7 +132,7 @@ render_sections($page, function () use ($user, $slug, $consents, $required, $are
                         <div class="form-grid">
                             <div class="form-group">
                                 <label for="internship_area">Area of interest<span class="req">*</span></label>
-                                <select id="internship_area" name="internship_area" required><?= options_html($areas, (string) old('internship_area', (string) ($_GET['area'] ?? '')), false) ?></select>
+                                <select id="internship_area" name="internship_area" required><?= options_html($areas, (string) old('internship_area', get_str('area')), false) ?></select>
                                 <?= field_error('internship_area') ?>
                             </div>
                             <div class="form-group">

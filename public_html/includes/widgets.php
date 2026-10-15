@@ -98,14 +98,31 @@ function render_security_notice(): string
     return ui_modal('security-notice', 'Security check', $body, 'modal-security auto-open');
 }
 
+/** wa.me chat link when the WhatsApp widget is enabled and a valid number is set, otherwise ''. */
+function whatsapp_chat_url(): string
+{
+    $wa = preg_replace('/\D+/', '', setting('whatsapp_number'));
+    if (setting('widget_whatsapp_enabled', '1') !== '1' || strlen($wa) < 10) {
+        return '';
+    }
+    $wa = strlen($wa) === 10 ? '91' . $wa : $wa;
+    return 'https://wa.me/' . $wa . '?text=' . rawurlencode(setting('widget_whatsapp_message'));
+}
+
+/** Google Analytics is configured with a valid measurement id (consent banner + "Cookie settings" link). */
+function ga_enabled(): bool
+{
+    $id = setting('ga_measurement_id');
+    return $id !== '' && (bool) preg_match('/^G-[A-Z0-9]{4,15}$/', $id);
+}
+
 /** Floating action buttons + help assistant + back-to-top. */
 function render_floating_widgets(): string
 {
     $html = '<div class="fab-stack" aria-label="Quick actions">';
-    $wa = preg_replace('/\D+/', '', setting('whatsapp_number'));
-    if (setting('widget_whatsapp_enabled', '1') === '1' && strlen($wa) >= 10) {
-        $wa = strlen($wa) === 10 ? '91' . $wa : $wa;
-        $html .= '<a class="fab fab-whatsapp" href="https://wa.me/' . e($wa) . '?text=' . rawurlencode(setting('widget_whatsapp_message')) . '" target="_blank" rel="noopener" data-tip="Chat on WhatsApp" aria-label="Chat with us on WhatsApp">' . icon('whatsapp') . '</a>';
+    $waUrl = whatsapp_chat_url();
+    if ($waUrl !== '') {
+        $html .= '<a class="fab fab-whatsapp" href="' . e($waUrl) . '" target="_blank" rel="noopener" data-tip="Chat on WhatsApp" aria-label="Chat with us on WhatsApp">' . icon('whatsapp') . '</a>';
     }
     if (setting('widget_contact_enabled', '1') === '1') {
         $phone = setting('contact_phone');
@@ -153,7 +170,9 @@ function render_help_panel(): string
         . '<form class="help-form" data-help-form role="search"><label class="sr-only" for="help-q">Type your question</label>'
         . '<input id="help-q" name="q" type="text" maxlength="120" placeholder="Type a question, e.g. donation receipt" autocomplete="off">'
         . '<button type="submit" class="btn btn-primary btn-sm" aria-label="Ask">' . icon('send') . '</button></form>'
-        . '<footer class="help-foot">Need a person? <a href="' . e(page_url('contact')) . '">Contact us</a></footer></section>';
+        . '<footer class="help-foot">Need a person? <a href="' . e(page_url('contact')) . '">Contact us</a>'
+        . (whatsapp_chat_url() !== '' ? ' · <a href="' . e(whatsapp_chat_url()) . '" target="_blank" rel="noopener">WhatsApp</a>' : '')
+        . '</footer></section>';
 }
 
 /** JSON answers for the help assistant: matching FAQs + suggested pages. GET /api/help/?q= */
@@ -162,7 +181,7 @@ function help_api(): void
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
     header('X-Robots-Tag: noindex');
-    $q = mb_strtolower(trim(mb_substr((string) ($_GET['q'] ?? ''), 0, 120)));
+    $q = mb_strtolower(trim(mb_substr(get_str('q'), 0, 120)));
     $words = array_values(array_filter(preg_split('/[^\p{L}\p{N}]+/u', $q), function ($w) {
         return mb_strlen($w) >= 3 && !in_array($w, ['the', 'and', 'for', 'how', 'can', 'what', 'where', 'with', 'you', 'your', 'are', 'does', 'want', 'need'], true);
     }));
@@ -170,7 +189,7 @@ function help_api(): void
         'donat|pay|upi|contribut|fund|दान' => ['Donate now', page_url('donate')],
         'receipt|80g|tax|certificate of donation|रसीद' => ['Your donations & receipts', member_url('donations')],
         'volunteer|seva|स्वयंसेवक' => ['Volunteer with us', page_url('become-a-volunteer')],
-        'teach|teacher|tutor|शिक्षक' => ['Volunteer Teacher Program', page_url('volunteer-teacher')],
+        'teach|teacher|tutor|शिक्षक' => ['Volunteer Teacher Programme', page_url('volunteer-teacher')],
         'job|career|vacanc|staff|salary|नौकरी' => ['Staff application', page_url('volunteer-staff')],
         'intern' => ['Internships', page_url('internships')],
         'status|track|application|reference' => ['Check application status', page_url('application-status')],
@@ -228,7 +247,7 @@ function help_api(): void
 /** Cookie banner - only when Google Analytics is configured (first-party stats need no cookies). */
 function render_consent_banner(): string
 {
-    if (setting('ga_measurement_id') === '' || !preg_match('/^G-[A-Z0-9]{4,15}$/', setting('ga_measurement_id'))) {
+    if (!ga_enabled()) {
         return '';
     }
     return '<div class="consent-banner" data-consent-banner data-ga="' . e(setting('ga_measurement_id')) . '" hidden role="region" aria-label="Cookie consent"><div class="container consent-inner">'

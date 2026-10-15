@@ -124,7 +124,7 @@ function ngo_details(): array
         $details['Legal name'] = trim(setting('legal_name'));
     }
     $details += ngo_registration_details();
-    foreach (['contact_address' => 'Registered office', 'contact_email' => 'Email', 'contact_phone' => 'Phone'] as $key => $label) {
+    foreach (['contact_address' => 'Office address', 'contact_email' => 'Email', 'contact_phone' => 'Phone'] as $key => $label) {
         if (trim(setting($key)) !== '') {
             $details[$label] = trim(setting($key));
         }
@@ -267,7 +267,8 @@ function team_member_card(array $m, int $i = 0): string
     $bio = trim((string) ($m['bio'] ?? ''));
     if ($bio !== '') {
         if (mb_strlen($bio) > 170) {
-            $html .= '<details class="team-bio"><summary><span>' . e(excerpt($bio, 150)) . '</span> <em>Read more</em></summary><p>' . e_nl($bio) . '</p></details>';
+            // the summary stays visible (and focusable) in both states, so the bio can be collapsed again
+            $html .= '<details class="team-bio"><summary><span class="bio-excerpt">' . e(excerpt($bio, 150)) . '</span> <em><span class="bio-more">Read more</span><span class="bio-less">Show less</span></em></summary><p>' . e_nl($bio) . '</p></details>';
         } else {
             $html .= '<p class="team-bio">' . e_nl($bio) . '</p>';
         }
@@ -455,7 +456,7 @@ function newsletter_email_footer(string $token): string
 {
     return '<hr style="border:0;border-top:1px solid #e0e9e3;margin:24px 0 14px">'
         . '<p style="font-size:12px;color:#5b6b62">You are receiving this email because you subscribed to updates from ' . e(site_name())
-        . '. <a href="' . e(newsletter_unsubscribe_url($token)) . '">Unsubscribe</a> at any time with one click.</p>';
+        . '. <a href="' . e(newsletter_unsubscribe_url($token)) . '">Unsubscribe</a> at any time.</p>';
 }
 
 /**
@@ -672,6 +673,7 @@ function section_newsletter_signup(array $s, array $items, array $set, array $pa
     $inside = !empty($set['no_heading']);
     $title = $inside ? (string) ($s['title'] ?: 'Stay in touch') : 'Get occasional updates';
     $intro = $inside ? (string) ($s['intro'] ?? '') : 'Programme news, events and ways to help - straight to your inbox.';
+    $GLOBALS['newsletter_section_rendered'] = true;   // the footer then skips its own (identical) sign-up form
     return '<div class="nl-band reveal"><span class="nl-orb" aria-hidden="true"></span><div class="nl-copy"><span class="nl-icon">' . icon('mail-open') . '</span>'
         . '<div>' . ($inside && !empty($s['pill']) ? '<span class="pill">' . e($s['pill']) . '</span>' : '')
         . ($inside ? '<h2>' . e($title) . '</h2>' : '<p class="nl-title">' . e($title) . '</p>') . ($intro !== '' ? '<p>' . e($intro) . '</p>' : '') . '</div></div>'

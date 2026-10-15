@@ -178,7 +178,9 @@ admin_page_start('Pages & Sections');
                 <td class="nowrap"><?= e(format_date($p['updated_at'] ?: $p['created_at'], 'd M Y, H:i')) ?><?php if ($p['editor_name']): ?><br><small class="muted">by <?= e($p['editor_name']) ?></small><?php endif; ?></td>
                 <td><div class="site-actions">
                     <a class="icon-btn" href="<?= e($edit) ?>" aria-label="Edit <?= e($p['title']) ?>" title="Edit"><?= icon('edit') ?></a>
-                    <?php if ($p['status'] === 'published'): ?>
+                    <?php if (in_array($p['template'], LINKLESS_TEMPLATES, true)): ?>
+                        <?php /* opens only from a private donation link: a bare link would be a 404 */ ?>
+                    <?php elseif ($p['status'] === 'published'): ?>
                         <a class="icon-btn" href="<?= e($url) ?>" target="_blank" rel="noopener" aria-label="View <?= e($p['title']) ?> on the website" title="View on website"><?= icon('external') ?></a>
                     <?php else: ?>
                         <a class="icon-btn" href="<?= e($url . '?preview=1') ?>" target="_blank" rel="noopener" aria-label="Preview <?= e($p['title']) ?>" title="Preview (staff only)"><?= icon('eye') ?></a>

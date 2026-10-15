@@ -30,8 +30,10 @@ if ($path === 'robots.txt') {
         echo "User-agent: *\nDisallow: /\n";
         exit;
     }
-    echo "User-agent: *\nDisallow: /admin/\nDisallow: /dashboard/\nDisallow: /login/\nDisallow: /register/\nDisallow: /forgot-password/\nDisallow: /reset-password/\n"
-        . "Disallow: /verify-email/\nDisallow: /donation-receipt/\nDisallow: /donation-success/\nDisallow: /donation-failed/\nDisallow: /api/\nDisallow: /uploads/documents/\nDisallow: /uploads/certificates/\n";
+    // Sign-in, registration and password pages send <meta name="robots" content="noindex">: they must stay
+    // crawlable, or search engines never see that tag and may list the bare URLs.
+    echo "User-agent: *\nDisallow: /admin/\nDisallow: /dashboard/\nDisallow: /donation-receipt/\nDisallow: /donation-success/\nDisallow: /donation-failed/\n"
+        . "Disallow: /api/\nDisallow: /uploads/documents/\nDisallow: /uploads/certificates/\n";
     $extra = trim(str_replace("\r", '', setting('robots_txt_extra')));
     if ($extra !== '') {
         echo $extra . "\n";
@@ -64,8 +66,15 @@ if ($path !== '' && ($redirect = find_redirect($path))) {
     exit;
 }
 
+// The homepage has one address: /home/, /Home and /home redirect to /
+if (($method === 'GET' || $method === 'HEAD') && strtolower($path) === 'home') {
+    header('Location: ' . url('/') . ($query !== '' ? '?' . $query : ''), true, 301);
+    exit;
+}
+
 if ($method === 'GET' && $path !== '' && (substr($rawPath, -1) !== '/' || $path !== strtolower($path)) && !preg_match('/\.[a-z0-9]{2,5}$/i', $path)) {
-    if ($path === strtolower($path) || resolve_route(strtolower($path))) {
+    // only safe slugs are canonicalised: a decoded backslash, tab or other character must never reach the Location header
+    if (preg_match('#^[a-z0-9][a-z0-9\-_/]*$#i', $path) && ($path === strtolower($path) || resolve_route(strtolower($path)))) {
         header('Location: ' . url('/' . strtolower($path) . '/') . ($query !== '' ? '?' . $query : ''), true, 301);
         exit;
     }

@@ -125,7 +125,7 @@ function page_banner(string $title, string $subtitle = '', array $crumbs = [], a
     }
     $html .= '<h1>' . e($title) . '</h1>';
     if ($subtitle !== '') {
-        $html .= '<p>' . e($subtitle) . '</p>';
+        $html .= '<p>' . e_hi($subtitle) . '</p>';
     }
     if (!empty($opts['actions'])) {
         $html .= ui_buttons($opts['actions'], 'banner-actions');
@@ -161,8 +161,8 @@ function ui_heading(string $title, string $pill = '', string $intro = '', bool $
 {
     return '<div class="section-head' . ($center ? ' center' : '') . '">'
         . ($pill !== '' ? '<span class="pill">' . e($pill) . '</span>' : '')
-        . '<h2>' . e($title) . '</h2>'
-        . ($intro !== '' ? '<p>' . e($intro) . '</p>' : '')
+        . '<h2>' . e_hi($title) . '</h2>'
+        . ($intro !== '' ? '<p>' . e_hi($intro) . '</p>' : '')
         . '</div>';
 }
 
@@ -239,7 +239,7 @@ function ui_split(array $o): string
         . '<div class="split-content reveal">'
         . (!empty($o['pill']) ? '<span class="pill">' . e($o['pill']) . '</span>' : '')
         . (!empty($o['title']) ? '<h2>' . e($o['title']) . '</h2>' : '')
-        . (!empty($o['text']) ? '<p class="lead">' . e($o['text']) . '</p>' : '')
+        . (!empty($o['text']) ? '<p class="lead">' . e_hi($o['text']) . '</p>' : '')
         . ($o['html'] ?? '')
         . (!empty($o['points']) ? ui_checklist($o['points'], 1) : '')
         . (!empty($o['actions']) ? ui_buttons($o['actions']) : '')
@@ -260,8 +260,8 @@ function ui_checklist(array $items, int $cols = 2): string
 /** Call-to-action band. */
 function ui_cta(string $title, string $text, array $actions, bool $hindiTagline = false): string
 {
-    return '<div class="cta-band reveal"><span class="cta-orb" aria-hidden="true"></span><div><h2>' . e($title) . '</h2><p>' . e($text) . '</p>'
-        . ($hindiTagline ? '<p class="hindi cta-tagline">' . e(setting('site_tagline')) . '</p>' : '')
+    return '<div class="cta-band reveal"><span class="cta-orb" aria-hidden="true"></span><div><h2>' . e_hi($title) . '</h2><p>' . e_hi($text) . '</p>'
+        . ($hindiTagline ? '<p class="hindi cta-tagline" lang="hi">' . e(setting('site_tagline')) . '</p>' : '')
         . '</div>' . ui_buttons($actions, 'cta-actions') . '</div>';
 }
 
@@ -296,7 +296,7 @@ function ui_callout(string $title, string $text, string $tone = 'green', string 
 /** Large quote / motto band (use only for the foundation's own words). */
 function ui_quote(string $text, string $caption = ''): string
 {
-    return '<figure class="quote-band"><blockquote>' . e($text) . '</blockquote>'
+    return '<figure class="quote-band"><blockquote>' . e_hi($text) . '</blockquote>'
         . ($caption !== '' ? '<figcaption>' . e($caption) . '</figcaption>' : '') . '</figure>';
 }
 
@@ -383,10 +383,11 @@ function brand_lockup(string $variant = 'header'): string
     $first = strtok($name, ' ');
     $rest = trim(substr($name, strlen((string) $first)));
     return '<img class="brand-emblem" src="' . e(site_logo()) . '" alt="" width="64" height="64">'
-        . '<span class="brand-word"><span class="brand-name">' . e(mb_strtoupper((string) $first)) . '</span>'
-        . '<span class="brand-sub">' . e(mb_strtoupper($rest)) . '</span>'
+        // the spaces keep the words apart in the accessible name / page text (not rendered between flex items)
+        . '<span class="brand-word"><span class="brand-name">' . e(mb_strtoupper((string) $first)) . '</span> '
+        . '<span class="brand-sub">' . e(mb_strtoupper($rest)) . '</span> '
         . '<span class="brand-rule" aria-hidden="true"></span>'
-        . ($variant === 'full' ? '<span class="brand-slogan">' . e(setting('brand_slogan')) . '</span>' : '')
-        . '<span class="brand-hindi hindi">' . e(setting('brand_slogan_hi', setting('site_tagline'))) . '</span></span>';
+        . ($variant === 'full' ? '<span class="brand-slogan">' . e(setting('brand_slogan')) . '</span> ' : '')
+        . '<span class="brand-hindi hindi" lang="hi">' . e(setting('brand_slogan_hi', setting('site_tagline'))) . '</span></span>';
 }
 

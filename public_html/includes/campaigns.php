@@ -160,7 +160,7 @@ function campaign_card(array $c, int $delay = 0): string
     $raised = (float) ($c['raised'] ?? 0);
     $goal = (float) $c['goal_amount'];
     $html = '<article class="campaign-card fr-card reveal tilt" style="--d:' . ($delay % 4) . '">';
-    $html .= '<a class="campaign-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(campaign_image($c)) . '" alt="" loading="lazy" width="480" height="300">';
+    $html .= '<a class="campaign-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(campaign_image($c)) . '"' . image_srcset_attr($c['image'] ?? null, '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px') . ' alt="" loading="lazy" width="480" height="300">';
     $html .= '<span class="tag tag-cat">' . e(campaign_category_label($c['category'])) . '</span>';
     if (!empty($c['is_urgent']) && campaign_accepts_donations($c)) {
         $html .= '<span class="tag tag-urgent">Urgent</span>';
@@ -480,7 +480,8 @@ function razorpay_verify_payment_for_donation(string $paymentId, array $donation
     if (!$payment || ($payment['order_id'] ?? '') !== $donation['gateway_order_id']) {
         return null;
     }
-    if (($payment['status'] ?? '') === 'authorized' && (int) ($payment['amount'] ?? -1) === to_paise($donation['amount'])) {
+    if (($payment['status'] ?? '') === 'authorized' && (int) ($payment['amount'] ?? -1) === to_paise($donation['amount'])
+        && strtoupper((string) ($payment['currency'] ?? '')) === strtoupper((string) $donation['currency'])) {
         [$status, $captured] = razorpay_request('POST', 'payments/' . rawurlencode($paymentId) . '/capture', [
             'amount' => to_paise($donation['amount']), 'currency' => $donation['currency'],
         ]);
@@ -491,7 +492,11 @@ function razorpay_verify_payment_for_donation(string $paymentId, array $donation
     return razorpay_payment_matches($payment, $donation) ? $payment : null;
 }
 
-/** Ask Razorpay whether an order has a captured payment of the exact amount (admin re-check). */
+/**
+ * Ask Razorpay whether an order has a captured payment of the exact amount (admin re-check, order.paid webhook).
+ * An authorised but not yet captured payment of the exact amount and currency is captured here, so that a donor
+ * who closed the browser before the verify step is not auto-refunded by the gateway. Returns the payment or null.
+ */
 function razorpay_find_captured_payment(array $donation): ?array
 {
     if (empty($donation['gateway_order_id']) || !razorpay_configured()) {
@@ -501,22 +506,46 @@ function razorpay_find_captured_payment(array $donation): ?array
     if ($status !== 200 || empty($body['items']) || !is_array($body['items'])) {
         return null;
     }
+    // An already captured payment wins, so nothing is ever captured twice.
     foreach ($body['items'] as $payment) {
         if (is_array($payment) && razorpay_payment_matches($payment, $donation)) {
             return $payment;
         }
     }
+    foreach ($body['items'] as $payment) {
+        if (is_array($payment) && ($payment['status'] ?? '') === 'authorized'
+            && ($payment['order_id'] ?? '') === $donation['gateway_order_id']
+            && (int) ($payment['amount'] ?? -1) === to_paise($donation['amount'])
+            && strtoupper((string) ($payment['currency'] ?? '')) === strtoupper((string) $donation['currency'])
+            && preg_match('/^pay_[A-Za-z0-9]+$/', (string) ($payment['id'] ?? ''))) {
+            $captured = razorpay_verify_payment_for_donation((string) $payment['id'], $donation);
+            if ($captured) {
+                return $captured;
+            }
+        }
+    }
     return null;
 }
 
-/** Full refund through the Razorpay refunds API. Returns ['ok' => bool, 'refund' => array|null, 'error' => string]. */
+/**
+ * Refund the remaining amount through the Razorpay refunds API (donations.amount is the net amount the foundation
+ * keeps, so after a partial refund it equals what is left). Returns ['ok' => bool, 'refund' => array|null, 'error' => string].
+ */
 function razorpay_refund(array $donation, string $reason = ''): array
 {
     if (empty($donation['gateway_payment_id'])) {
         return ['ok' => false, 'refund' => null, 'error' => 'This donation has no gateway payment ID.'];
     }
+    $amountPaise = to_paise($donation['amount']);
+    $payment = razorpay_fetch_payment((string) $donation['gateway_payment_id']);
+    if ($payment && isset($payment['amount'])) {
+        $amountPaise = min($amountPaise, (int) $payment['amount'] - (int) ($payment['amount_refunded'] ?? 0));
+    }
+    if ($amountPaise <= 0) {
+        return ['ok' => false, 'refund' => null, 'error' => 'Razorpay shows nothing left to refund for this payment. Use "Check refunds with Razorpay" to update the donation.'];
+    }
     [$status, $refund] = razorpay_request('POST', 'payments/' . rawurlencode($donation['gateway_payment_id']) . '/refund', [
-        'amount' => to_paise($donation['amount']),
+        'amount' => $amountPaise,
         'notes'  => ['donation_ref' => $donation['donation_ref'], 'reason' => mb_substr($reason, 0, 200)],
     ]);
     if ($status === 200 && !empty($refund['id']) && preg_match('/^rfnd_[A-Za-z0-9]+$/', (string) $refund['id'])) {
@@ -610,6 +639,48 @@ function mark_donation_refunded(int $donationId, ?string $refundId, string $note
     cancel_receipt($donationId, 'Donation refunded');
     log_activity('donation_refunded', 'Donation #' . $donationId . ' ' . $d['donation_ref'] . ($refundId ? ' refund ' . $refundId : '') . ': ' . mb_substr($note, 0, 200), $adminId, $adminId !== null);
     return true;
+}
+
+/**
+ * Bring a successful online donation in line with the refunds Razorpay reports for its payment ($payment is
+ * fetched from the API, never taken from a webhook body). donations.amount is the net amount the foundation keeps:
+ * - everything refunded: the donation becomes "refunded" and its receipt is cancelled;
+ * - part refunded: the amount becomes gross - refunded (always set from the gateway's cumulative figure, so
+ *   repeated or out-of-order events are safe), a note is added and the revised receipt is emailed.
+ * Returns a short result for the webhook log / admin message.
+ */
+function apply_gateway_refund_state(array $donation, array $payment, ?string $refundId, string $via, ?int $adminId = null): string
+{
+    $grossPaise = (int) ($payment['amount'] ?? 0);
+    $refundedPaise = (int) ($payment['amount_refunded'] ?? 0);
+    if ($grossPaise <= 0 || (string) ($payment['id'] ?? '') !== (string) $donation['gateway_payment_id']) {
+        return 'not confirmed: gateway payment did not match';
+    }
+    if ($donation['status'] !== 'success') {
+        return 'ignored: donation is ' . $donation['status'];
+    }
+    if ($refundedPaise >= $grossPaise || ($payment['refund_status'] ?? '') === 'full') {
+        mark_donation_refunded((int) $donation['id'], $refundId, 'Full refund reported by Razorpay (' . $via . ')', $adminId);
+        return 'donation refunded';
+    }
+    if ($refundedPaise <= 0) {
+        return 'not confirmed: gateway shows no refund';
+    }
+    $net = round(($grossPaise - $refundedPaise) / 100, 2);
+    if (abs($net - (float) $donation['amount']) < 0.005) {
+        return 'partial refund already applied';
+    }
+    $note = "\n[" . date('d M Y H:i') . '] Partial refund: ' . money($refundedPaise / 100, true) . ' of ' . money($grossPaise / 100, true)
+        . ' refunded by Razorpay' . ($refundId ? ' (' . $refundId . ')' : '') . '; net donation now ' . money($net, true) . '; receipt revised.';
+    $n = db_query("UPDATE donations SET amount = ?, admin_notes = TRIM(CONCAT(COALESCE(admin_notes, ''), ?)) WHERE id = ? AND status = 'success'",
+        [$net, $note, (int) $donation['id']])->rowCount();
+    if (!$n) {
+        return 'ignored: donation is no longer successful';
+    }
+    log_activity('donation_partial_refund', 'Donation #' . $donation['id'] . ' ' . $donation['donation_ref'] . ': ' . money($refundedPaise / 100, true)
+        . ' of ' . money($grossPaise / 100, true) . ' refunded (' . $via . ')' . ($refundId ? ' ' . $refundId : ''), $adminId, $adminId !== null);
+    send_receipt_email((int) $donation['id']);
+    return 'partial refund applied';
 }
 
 // ---------------------------------------------------------------------
@@ -903,12 +974,19 @@ function section_donation_appeal(array $s, array $items, array $set, array $page
     if ($campaignTitle !== '') {
         $html .= '<p class="fr-appeal-for">' . icon('heart') . 'Towards: <strong>' . e($campaignTitle) . '</strong></p>';
     }
-    $html .= '<p class="fr-appeal-label" id="appeal-amounts-' . (int) ($s['id'] ?? 0) . '">Choose an amount</p><div class="fr-amounts" role="group" aria-labelledby="appeal-amounts-' . (int) ($s['id'] ?? 0) . '">';
-    foreach ($amounts as $a) {
-        $html .= '<a class="fr-amount" href="' . e(donate_url($query + ['amount' => $a])) . '">' . e(money($a)) . '</a>';
+    // Preset amounts only make sense for online checkout; otherwise point to the real ways to give.
+    if (online_donations_available()) {
+        $html .= '<p class="fr-appeal-label" id="appeal-amounts-' . (int) ($s['id'] ?? 0) . '">Choose an amount</p><div class="fr-amounts" role="group" aria-labelledby="appeal-amounts-' . (int) ($s['id'] ?? 0) . '">';
+        foreach ($amounts as $a) {
+            $html .= '<a class="fr-amount" href="' . e(donate_url($query + ['amount' => $a])) . '">' . e(money($a)) . '</a>';
+        }
+        $html .= '<a class="fr-amount fr-amount-other" href="' . e(donate_url($query)) . '">Other amount</a></div>';
+        $html .= '<a class="btn btn-donate btn-lg" href="' . e(donate_url($query)) . '">' . icon('heart') . e(trim((string) ($set['button_label'] ?? '')) ?: 'Donate now') . '</a></div>';
+    } elseif (bank_transfer_details()) {
+        $html .= '<a class="btn btn-donate btn-lg" href="' . e(donate_url($query)) . '">' . icon('briefcase') . 'See bank transfer details</a></div>';
+    } else {
+        $html .= '<a class="btn btn-donate btn-lg" href="' . e(page_url('contact')) . '">' . icon('mail') . 'Ask how to donate</a></div>';
     }
-    $html .= '<a class="fr-amount fr-amount-other" href="' . e(donate_url($query)) . '">Other amount</a></div>';
-    $html .= '<a class="btn btn-donate btn-lg" href="' . e(donate_url($query)) . '">' . icon('heart') . e(trim((string) ($set['button_label'] ?? '')) ?: 'Donate now') . '</a></div>';
     $html .= '<ul class="fr-appeal-notes">';
     foreach ($notes as $n) {
         $html .= '<li>' . icon('shield') . '<span>' . e($n) . '</span></li>';
@@ -972,7 +1050,11 @@ function expense_action_buttons(array $x, string $returnTo): string
     };
     $html = '';
     if ($x['status'] === 'recorded') {
-        $html .= $form('approve', 'Approve expense', 'check', 'Approve this expense of ' . money($x['amount'], true) . '? Approved expenses can be published in the utilisation report.');
+        if (function_exists('admin_id') && (int) ($x['recorded_by'] ?? 0) === (int) admin_id()) {
+            $html .= '<span class="small muted" title="The person who recorded or last edited an expense cannot approve it">Needs another approver</span> ';
+        } else {
+            $html .= $form('approve', 'Approve expense', 'check', 'Approve this expense of ' . money($x['amount'], true) . '? Approved expenses can be published in the utilisation report.');
+        }
         $html .= $form('reject', 'Reject expense', 'x', 'Reject this expense?');
     }
     if ($x['status'] === 'approved') {
@@ -1014,6 +1096,6 @@ function expense_form_html(?array $x, array $campaigns, ?int $fixedCampaignId, s
         . '<div class="form-group full"><label for="x_bill">Bill / invoice (private)</label><input id="x_bill" type="file" name="bill" accept="application/pdf,image/jpeg,image/png"><span class="help">PDF, JPG or PNG up to ' . (int) MAX_UPLOAD_MB . ' MB. Stored privately - never published.' . (!empty($x['document_path']) ? ' A bill is already attached; uploading replaces it.' : '') . '</span>' . field_error('bill') . '</div>'
         . '</div><div class="form-actions"><button class="btn btn-primary" type="submit">' . icon('check') . ($x ? 'Save changes' : 'Record expense') . '</button>'
         . ($x ? '<a class="btn btn-ghost" href="' . e(admin_url('expenses.php')) . '">Cancel</a>' : '') . '</div>'
-        . '<p class="small muted mt-2">New and edited expenses are saved as "recorded" and need approval by a staff member with expense permission' . ($x ? '' : ' (not the person who recorded them, unless an administrator)') . '.</p></form>';
+        . '<p class="small muted mt-2">New and edited expenses are saved as "recorded" and need approval by another staff member with expense permission - never the person who recorded or last edited them.</p></form>';
     return $html;
 }

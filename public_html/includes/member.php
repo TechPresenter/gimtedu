@@ -221,8 +221,9 @@ function member_my_applications(int $userId): array
 
 /**
  * E-mail a password reset (or invitation) link. $hours > 1 extends the validity (used for staff invitations).
+ * Returns whether the email was sent.
  */
-function member_send_reset_link(array $user, int $hours = 1, bool $invitation = false): void
+function member_send_reset_link(array $user, int $hours = 1, bool $invitation = false): bool
 {
     $token = create_password_reset((int) $user['id']);
     if ($hours > 1) {
@@ -242,7 +243,7 @@ function member_send_reset_link(array $user, int $hours = 1, bool $invitation = 
             . '<p><a class="btn" href="' . e($link) . '">Choose a new password</a></p>'
             . '<p>This link can be used once and is valid for ' . e($valid) . '. If you did not ask for a new password, you can ignore this email - your password will not change.</p>';
     }
-    send_mail($user['email'], $subject, $body);
+    return send_mail($user['email'], $subject, $body);
 }
 
 /**
@@ -280,9 +281,9 @@ function account_side_panel(string $context = 'login'): string
         ? [['heart', 'Receipts for every verified donation', 'Find all your receipts in one place.'],
            ['file-text', 'Follow your applications', 'Volunteer, teacher, internship and support requests.'],
            ['shield', 'Your data stays yours', 'Download it or ask us to delete it at any time.']]
-        : [['lock', 'Secure sign-in', 'Passwords are stored encrypted and never shared.'],
+        : [['lock', 'Secure sign-in', 'Passwords are stored as secure one-way hashes - nobody, including our staff, can read them.'],
            ['award', 'Certificates & events', 'Register for events and download your certificates.'],
-           ['shield', 'Private by design', 'Only you can see your donations and applications.']];
+           ['shield', 'Private by design', 'Only you and the authorised staff who handle them can see your donations and applications.']];
     $html = '<aside class="acc-panel"><span class="acc-orb acc-orb-1" aria-hidden="true"></span><span class="acc-orb acc-orb-2" aria-hidden="true"></span>'
         . '<a class="acc-brand" href="' . e(url('/')) . '" aria-label="' . e(site_name()) . ' - home">' . brand_lockup('full') . '</a>'
         . '<div class="acc-panel-body"><p class="acc-tagline hindi" lang="hi">' . e(setting('site_tagline', 'मिलकर बनाये बेहतर कल')) . '</p>'
@@ -301,15 +302,16 @@ function account_side_panel(string $context = 'login'): string
 function account_password_field(string $id, string $name, array $o = []): string
 {
     $label = $o['label'] ?? 'Password';
+    $min = (int) ($o['minlength'] ?? 8);   // 12 for staff accounts (STAFF_PASSWORD_MIN)
     $html = '<div class="form-group' . (!empty($o['full']) ? ' full' : '') . '"><label for="' . e($id) . '">' . e($label) . (!empty($o['required']) ? '<span class="req">*</span>' : '') . '</label>'
         . '<div class="acc-pw"><input id="' . e($id) . '" type="password" name="' . e($name) . '" maxlength="72"'
         . (!empty($o['required']) ? ' required' : '') . ' autocomplete="' . e($o['autocomplete'] ?? 'current-password') . '"'
-        . (!empty($o['meter']) ? ' minlength="8" data-strength="' . e($id) . '-meter"' : '')
+        . (!empty($o['meter']) ? ' minlength="' . $min . '" data-strength="' . e($id) . '-meter"' : '')
         . (!empty($o['match']) ? ' data-match-with="' . e($o['match']) . '"' : '')
         . (!empty($o['describedby']) ? ' aria-describedby="' . e($o['describedby']) . '"' : '') . '>'
         . '<button type="button" class="acc-pw-toggle" data-pw-toggle="' . e($id) . '" aria-label="Show password" aria-pressed="false">' . icon('eye') . '</button></div>';
     if (!empty($o['meter'])) {
-        $html .= '<div class="acc-meter" id="' . e($id) . '-meter" data-level="0" aria-live="polite"><span class="acc-meter-bar"><span></span></span><small class="acc-meter-text">8+ characters with letters and numbers</small></div>';
+        $html .= '<div class="acc-meter" id="' . e($id) . '-meter" data-level="0" aria-live="polite"><span class="acc-meter-bar"><span></span></span><small class="acc-meter-text">' . $min . '+ characters with letters and numbers</small></div>';
     }
     if (!empty($o['match'])) {
         $html .= '<small class="acc-match" data-match-msg="' . e($id) . '" aria-live="polite"></small>';

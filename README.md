@@ -108,9 +108,12 @@ The site cannot connect to the database: check `DB_NAME`, `DB_USER` (both with t
 ## 5. Payments — Razorpay (only after merchant approval)
 
 1. Razorpay Dashboard → **Test Mode** → API Keys → put `RAZORPAY_KEY_ID` (`rzp_test_…`) and `RAZORPAY_KEY_SECRET` in `pwf-config.php`.
-2. **Webhooks** → URL `https://YOUR-DOMAIN/payment-webhook.php`, a long random secret (same value as `RAZORPAY_WEBHOOK_SECRET`), events `payment.captured`, `payment.failed`, `order.paid`, `refund.processed` (optional `refund.created`).
+2. **Webhooks** → URL `https://YOUR-DOMAIN/payment-webhook.php`, a long random secret (same value as `RAZORPAY_WEBHOOK_SECRET`), events `payment.captured`, `payment.authorized`, `payment.failed`, `order.paid`, `refund.processed` (optional `refund.created`). Automatic capture is recommended (Razorpay Dashboard → payment capture settings); the site also captures an authorised payment of the exact amount itself at checkout, from the webhook and from the admin "Re-check payment status" button.
 3. Test with Razorpay's test UPI/cards (a TEST MODE banner is shown). Then complete KYC, switch to **live keys** and recreate the webhook in Live Mode.
-4. Without keys the donate page honestly shows bank/UPI details (if set) and a contact link — no fake "pay" button.
+4. Without keys the donate page honestly shows bank/UPI details (if set) and a contact link — no fake "pay" button. Page sections can be limited with the section option **Show only when** (online donations available / not available / bank details set); the donate page's "How online donations are verified" steps use it, and donation boxes on other pages switch to "See bank transfer details" or "Ask how to donate".
+5. **Refunds:** a partial refund made at Razorpay lowers the donation to the net amount kept (public totals and the receipt follow) and the revised receipt is emailed; a full refund marks the donation refunded and cancels its receipt. Admin → donation → "Check refunds with Razorpay" applies a refund whose notification was missed.
+6. **Offline donations** (Admin → Donations → Record an offline donation): only money already in the foundation's bank account (cash only after it is deposited). The transaction / cheque reference is stored separately, printed on the receipt and in both CSV exports, and the same reference cannot be recorded twice. The donor's name is listed publicly only when the donor has agreed. Cash of ₹2,00,000 or more is refused (Section 269ST) and receipts for cash above ₹2,000 state that 80G does not apply.
+7. **Donor declaration:** while no FCRA registration is entered in Settings, the donate form asks each donor to confirm that they are an Indian citizen giving their own funds from an Indian account, card or UPI.
 
 **How a donation is confirmed:** the server creates a pending donation and a Razorpay order for the exact amount → after checkout it verifies the HMAC signature **and** fetches the payment from Razorpay (order, amount, currency, captured) → only then marks it *success*, issues receipt `PWF/2026-27/000001` and emails it. The signed webhook confirms independently (duplicate events are ignored). All public totals count **only verified** donations; refunds cancel the receipt.
 
@@ -130,16 +133,16 @@ Create the mailbox `info@preritwelfarefoundation.org` in hPanel and set `SMTP_HO
 | Campaign Manager | Campaigns, updates, proposals, expenses, donation view, reports & exports |
 | Donation Manager | Donations, reconciliation, refunds, receipts, expenses, reports & exports |
 | Volunteer Coordinator | Recruitment applications, interviews, onboarding, tasks, certificates, events |
-| Volunteer Teacher · Registered Volunteer · Member · Donor · Beneficiary Applicant | Member dashboard only (own data) |
+| Volunteer Teacher · Registered Volunteer · Member · Donor · Beneficiary Applicant · Supporter | Member dashboard only (own data) |
 
-Public registration can never create staff roles. Administrators can create custom roles and edit the permission matrix (Users & Roles → Roles & Permissions).
+Public registration can never create staff roles. Visitors who register choose Supporter, Donor or Beneficiary Applicant; **Member** and **Registered Volunteer** are added only when a membership or volunteer application is approved. Expenses always need a second person: whoever recorded or last edited an expense cannot approve it (administrators included). A non-administrator can change another staff account only when they hold every permission that account has. Administrators can create custom roles and edit the permission matrix (Users & Roles → Roles & Permissions).
 
 ---
 
 ## 8. Analytics, SEO & marketing
 * **Built-in analytics** (Admin → Website Analytics): page views, unique visitors, top pages, referrers, UTM sources, devices — no IP addresses stored, Do-Not-Track respected, staff & bots excluded.
 * **Marketing** (Admin → Marketing): conversions (donations, applications, sign-ups) by source/campaign and a **UTM link builder** for WhatsApp/social campaigns.
-* **Google Analytics 4** (optional): add the measurement ID in Settings → SEO & analytics; it loads only after the visitor accepts the consent banner.
+* **Google Analytics 4** (optional): add the measurement ID in Settings → SEO & analytics; it loads only after the visitor accepts the consent banner, and the footer "Cookie settings" link lets visitors change that choice at any time (Google Analytics cookies are removed when they choose "No, thanks").
 * **Search Console**: paste the verification code in Settings → SEO, then submit `https://YOUR-DOMAIN/sitemap.xml`.
 * Every page has its own title, description, canonical, Open Graph/Twitter tags and structured data (NGO, breadcrumbs, articles, events, FAQs). Admin → SEO Audit lists anything missing.
 
@@ -147,8 +150,15 @@ Public registration can never create staff roles. Administrators can create cust
 
 ## 9. Maintenance
 * **Backups:** Admin → Backup & Data Retention → download a database backup; download `uploads/` via File Manager. Hostinger also keeps automatic backups.
-* **Data retention:** the same page removes old logs/analytics and anonymises old rejected applications according to Settings (donation & receipt records are never deleted).
-* **Security Centre:** health checks (HTTPS, debug off, installer removed, payment & mail config, 2-step login), failed sign-ins, staff sessions.
+* **Data retention:** the same page removes old logs/analytics, old resolved enquiries and feedback, anonymises old rejected applications and removes names / IP addresses of unsubscribed newsletter records after 30 days, according to Settings (donation & receipt records are never deleted). The clean-up also runs automatically once a day when the admin dashboard is opened.
+* **Images:** public photos get smaller copies (640 / 1080 px) on upload, used with `srcset` on cards and galleries. For photos uploaded earlier, use Backup & Data Retention → "Create missing resized image copies".
+* **Upgrading an existing database** (installed before these changes): run once in phpMyAdmin
+  `ALTER TABLE donations ADD COLUMN offline_reference VARCHAR(100) DEFAULT NULL AFTER gateway_method, ADD KEY idx_donations_offline_ref (offline_reference);`
+  `UPDATE roles SET allow_self_register = 0 WHERE slug IN ('member','registered_volunteer');`
+  `INSERT IGNORE INTO roles (id,name,slug,description,is_staff,is_system,allow_self_register,sort_order) VALUES (11,'Supporter','supporter','Website account to follow your donations, applications, events and certificates.',0,1,1,6);`
+  Accounts that registered as "Member" earlier without an approved membership can be listed with
+  `SELECT u.id, u.email FROM users u JOIN user_roles ur ON ur.user_id = u.id JOIN roles r ON r.id = ur.role_id AND r.slug = 'member' WHERE NOT EXISTS (SELECT 1 FROM members m WHERE m.user_id = u.id AND m.status = 'approved');`
+* **Security Centre:** health checks (HTTPS, debug off, installer removed, payment & mail config - including a warning when `MAIL_ENABLED` is false, 2-step login), failed sign-ins, staff sessions. Staff passwords need at least 12 characters wherever they are set.
 * Keep `APP_ENV` = `production` on the live site.
 
 ---

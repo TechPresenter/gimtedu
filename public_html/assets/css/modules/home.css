@@ -86,7 +86,7 @@
 /* Glass card with the foundation's slogan */
 .home-glass-card {
     position: absolute; left: -6px; bottom: 76px; z-index: 2; min-width: 220px; max-width: 280px; padding: 14px 16px;
-    border-radius: 18px; background: rgba(255, 255, 255, .13); border: 1px solid rgba(255, 255, 255, .3); color: #fff;
+    border-radius: 18px; background: rgba(6, 48, 28, .72); border: 1px solid rgba(255, 255, 255, .3); color: #fff; /* dark glass: text stays readable over the pale illustration */
     box-shadow: 0 22px 44px rgba(0, 20, 10, .25), inset 0 1px 0 rgba(255, 255, 255, .25);
     -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%);
     animation: float 8s ease-in-out infinite;
@@ -98,10 +98,8 @@
 .glass-icon .icon { width: 15px; height: 15px; }
 
 /* Slider controls at the bottom (never over the text) */
-.home-hero .hero-dots { bottom: 34px; pointer-events: none; }
-.home-hero .hero-dots button { width: 10px; height: 10px; pointer-events: auto; position: relative; }
-.home-hero .hero-dots button::before { content: ""; position: absolute; inset: -10px -4px; }
-.home-hero .hero-dots button.is-active { width: 28px; }
+.home-hero .hero-dots { bottom: 22px; pointer-events: none; }
+.home-hero .hero-dots button { pointer-events: auto; }
 .home-hero .hero-arrow { top: auto; bottom: 18px; transform: none; z-index: 4; width: 42px; height: 42px; display: flex; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .home-hero .hero-prev { left: calc(50% - 116px); }
 .home-hero .hero-next { right: calc(50% - 116px); left: auto; }
@@ -203,7 +201,9 @@
     .home-hero .hero-actions { justify-content: center; }
     .home-hero .hero-art { padding: 20px 0 84px; }
     .home-hero-figure { max-width: 300px; }
-    .home-glass-card { left: auto; right: -8px; bottom: 70px; min-width: 0; max-width: 220px; padding: 10px 12px; }
+    .home-glass-card { left: 0; right: auto; bottom: 70px; min-width: 0; max-width: 220px; padding: 10px 12px; } /* left side: clear of the floating buttons */
+    .home-hero .hero-hindi { color: #fff3c4; }
+    .home-hero .hero-eyebrow { background: rgba(6, 42, 25, .45); }
     .home-glass-card .glass-hindi { font-size: .82rem; }
     .home-glass-card li { font-size: .78rem; }
     .hero-shape-ring { width: 200px; height: 200px; right: -40px; top: 4%; }

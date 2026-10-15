@@ -23,7 +23,7 @@ $c = db_row(campaign_sql() . ' WHERE c.slug = ?', [$slug]);
 if (!$c) {
     not_found();
 }
-$preview = !campaign_is_public($c) && isset($_GET['preview']) && user_can('campaigns.manage');
+$preview = !campaign_is_public($c) && isset($_GET['preview']) && staff_session_can('campaigns.manage');
 if (!campaign_is_public($c) && !$preview) {
     not_found();
 }
@@ -53,9 +53,9 @@ $description = $c['meta_description'] ?: excerpt($c['short_description'], 160);
 $schema = [
     '@context' => 'https://schema.org', '@type' => 'WebPage', 'name' => $c['title'], 'url' => $canonical, 'description' => $description,
     'inLanguage' => 'en-IN', 'about' => ['@type' => 'Thing', 'name' => campaign_category_label($c['category'])],
-    'publisher' => ['@type' => 'NGO', 'name' => site_name(), 'url' => abs_url('')],
+    'publisher' => ['@type' => 'NGO', '@id' => abs_url('#organization'), 'name' => site_name(), 'url' => abs_url('')],
     'potentialAction' => ['@type' => 'DonateAction', 'name' => $accepting ? 'Donate to ' . $c['title'] : 'Donate to ' . site_name(), 'target' => $donateAbs,
-        'recipient' => ['@type' => 'NGO', 'name' => site_name(), 'url' => abs_url('')]],
+        'recipient' => ['@type' => 'NGO', '@id' => abs_url('#organization'), 'name' => site_name(), 'url' => abs_url('')]],
 ];
 if ($imageAbs !== '') {
     $schema['image'] = $imageAbs;
@@ -182,12 +182,14 @@ if ($program) {
                 </div>
                 <?php if ($accepting && campaign_has_future_end($c)): ?><?= ui_countdown($c['end_date']) ?><?php endif; ?>
                 <?php if ($accepting): ?>
+                    <?php if (online_donations_available()): /* preset amounts only apply to online checkout */ ?>
                     <p class="fr-raise-label">Choose an amount</p>
                     <div class="fr-amounts fr-amounts-sm">
                         <?php foreach (array_slice($presets, 0, 4) as $a): ?>
                             <a class="fr-amount" href="<?= e(donate_url(['campaign' => $cid, 'amount' => $a])) ?>"><?= e(money($a)) ?></a>
                         <?php endforeach; ?>
                     </div>
+                    <?php endif; ?>
                     <a class="btn btn-donate btn-lg btn-block" href="<?= e(donate_url(['campaign' => $cid])) ?>"><?= icon('heart') ?>Donate to this campaign</a>
                 <?php else: ?>
                     <div class="notice notice-green"><?= icon('check-circle') ?><div>This campaign is no longer accepting donations. Thank you to everyone who contributed.</div></div>

@@ -6,6 +6,10 @@
  */
 require_once __DIR__ . '/includes/auth.php';
 require_permission('dashboard.view');
+// The data-retention clean-up promised in the Privacy Policy runs automatically at most once a day.
+if (function_exists('retention_auto_run')) {
+    retention_auto_run();
+}
 
 $range = admin_date_range('30d');
 [$from, $to] = insights_bounds($range);
@@ -80,7 +84,7 @@ if (admin_can('analytics.view')) {
     $kpi('eye', '', number_format((int) $traffic['views']), 'Page views · ' . $range['label'], number_format((int) $traffic['visitors']) . ' unique visitors', admin_url('analytics.php?' . http_build_query(array_intersect_key($_GET, ['range' => 1, 'from' => 1, 'to' => 1]))));
 }
 if (admin_can('events.manage')) {
-    $upcomingEvents = db_rows("SELECT e.id, e.title, e.slug, e.start_datetime, e.location, e.event_type, e.capacity,
+    $upcomingEvents = db_rows("SELECT e.id, e.title, e.slug, e.start_datetime, e.end_datetime, e.registration_enabled, e.location, e.event_type, e.capacity,
                                       (SELECT COUNT(*) FROM event_registrations r WHERE r.event_id = e.id AND r.status <> 'cancelled') AS registered
                                FROM events e WHERE e.status = 'published' AND e.start_datetime >= NOW() ORDER BY e.start_datetime LIMIT 5");
 }
@@ -243,8 +247,12 @@ admin_page_start('Dashboard');
                             <li>
                                 <span class="event-mini-date"><strong><?= e(date('d', strtotime($ev['start_datetime']))) ?></strong><small><?= e(date('M', strtotime($ev['start_datetime']))) ?></small></span>
                                 <div><a href="<?= e(admin_url('event-edit.php?id=' . (int) $ev['id'])) ?>"><strong><?= e($ev['title']) ?></strong></a>
-                                    <small class="muted"><?= e(format_date($ev['start_datetime'], 'D, h:i A')) ?> · <?= e($ev['location']) ?></small>
-                                    <small><a class="muted" href="<?= e(admin_url('event-registrations.php?event=' . (int) $ev['id'])) ?>"><?= (int) $ev['registered'] ?> registered<?= $ev['capacity'] ? ' of ' . (int) $ev['capacity'] : '' ?></a></small></div>
+                                    <small class="muted"><?= e(function_exists('event_is_all_day') && event_is_all_day($ev) ? format_date($ev['start_datetime'], 'D') . ' · All day' : format_date($ev['start_datetime'], 'D, h:i A')) ?> · <?= e($ev['location']) ?></small>
+                                    <?php if ((int) $ev['registration_enabled'] === 1 || (int) $ev['registered'] > 0): ?>
+                                        <small><a class="muted" href="<?= e(admin_url('event-registrations.php?event=' . (int) $ev['id'])) ?>"><?= (int) $ev['registered'] ?> registered<?= $ev['capacity'] ? ' of ' . (int) $ev['capacity'] : '' ?></a></small>
+                                    <?php else: ?>
+                                        <small class="muted"><?= $ev['event_type'] === 'awareness_day' ? 'Awareness day' : 'Registration off' ?></small>
+                                    <?php endif; ?></div>
                             </li>
                         <?php endforeach; ?>
                     </ul>

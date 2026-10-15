@@ -79,7 +79,7 @@ admin_page_start('FAQs', [['label' => 'Add question', 'url' => admin_url('faqs.p
     <?php endforeach; ?>
 </nav>
 
-<div class="admin-grid-main">
+<div<?= $showForm ? ' class="admin-grid-main"' : '' ?>>
     <section class="panel">
         <?php admin_filter_bar(['published', 'hidden'], ['placeholder' => 'Search questions and answers', 'hidden' => $cat !== '' ? ['category' => $cat] : []]); ?>
         <?php if (!$rows): ?>
@@ -108,12 +108,9 @@ admin_page_start('FAQs', [['label' => 'Add question', 'url' => admin_url('faqs.p
         <?php endif; ?>
     </section>
 
+    <?php if ($showForm): $f = $edit ?: []; ?>
     <section class="panel" id="faq-form">
         <div class="panel-head"><h2><?= $edit ? 'Edit question' : 'Add a question' ?></h2><?php if ($edit): ?><a class="btn btn-ghost btn-sm" href="<?= e(admin_url('faqs.php')) ?>">Cancel</a><?php endif; ?></div>
-        <?php if (!$showForm): ?>
-            <p class="muted">Choose <strong>Add question</strong> or the edit icon next to a question.</p>
-            <a class="btn btn-primary btn-sm" href="<?= e(admin_url('faqs.php?new=1')) ?>"><?= icon('plus') ?>Add question</a>
-        <?php else: $f = $edit ?: []; ?>
             <form method="post" class="form-grid" data-validate>
                 <?= csrf_field() ?><input type="hidden" name="action" value="save"><input type="hidden" name="id" value="<?= (int) ($f['id'] ?? 0) ?>">
                 <div class="form-group full"><label for="question">Question</label>
@@ -129,8 +126,8 @@ admin_page_start('FAQs', [['label' => 'Add question', 'url' => admin_url('faqs.p
                     <select id="status" name="status"><?= options_html(['published' => 'Published', 'hidden' => 'Hidden'], (string) old('status', $f['status'] ?? 'published'), true, '') ?></select></div>
                 <div class="form-actions full" style="grid-column:1/-1"><button class="btn btn-primary" type="submit"><?= icon('check') ?>Save question</button></div>
             </form>
-        <?php endif; ?>
     </section>
+    <?php endif; ?>
 </div>
 <?php
 admin_page_end();

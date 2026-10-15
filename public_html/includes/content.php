@@ -111,7 +111,7 @@ function content_lightbox(): string
     return '<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="Photo viewer">'
         . '<button class="lightbox-close" type="button" aria-label="Close">' . icon('x') . '</button>'
         . '<button class="lightbox-prev" type="button" aria-label="Previous photo">' . icon('chevron-left') . '</button>'
-        . '<figure><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="1" height="1" decoding="async"><figcaption></figcaption></figure>'
+        . '<figure><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="1" height="1" decoding="async"><figcaption aria-live="polite"></figcaption></figure>'
         . '<button class="lightbox-next" type="button" aria-label="Next photo">' . icon('chevron-right') . '</button></div>';
 }
 
@@ -174,8 +174,14 @@ function content_article_schema(array $item, string $canonical, ?string $author 
         'inLanguage' => 'en-IN',
     ];
     $img = content_abs_image($item['image'] ?? null);
-    $schema['image'] = [$img !== '' ? $img : abs_url('assets/images/logo.png')];
+    $schema['image'] = [$img !== '' ? $img : content_default_schema_image()];
     return $schema;
+}
+
+/** Fallback JSON-LD image: the 1200x630 sharing card when present, else the logo. */
+function content_default_schema_image(): string
+{
+    return abs_url(is_file(ROOT_PATH . '/assets/images/og-default.jpg') ? 'assets/images/og-default.jpg' : 'assets/images/logo.png');
 }
 
 // ---------------------------------------------------------------------
@@ -358,30 +364,41 @@ function awareness_days(int $limit = 6, ?string $from = null): array
         [$from ?? date('Y-m-d H:i:s')]);
 }
 
-/** schema.org Event for an event detail page. Awareness days are observances, not our events: no organizer. */
+/**
+ * schema.org markup for an event detail page. Awareness days are national / international observances, not events
+ * the foundation holds, so they are described as a WebPage (no Event, location, organizer or offers).
+ */
 function event_schema(array $ev, string $canonical): array
 {
+    if (($ev['event_type'] ?? '') === 'awareness_day') {
+        return [
+            '@context' => 'https://schema.org', '@type' => 'WebPage', '@id' => $canonical . '#webpage', 'url' => $canonical,
+            'name' => $ev['title'], 'description' => excerpt((string) ($ev['summary'] ?: $ev['description']), 300),
+            'inLanguage' => 'en-IN', 'about' => ['@type' => 'Thing', 'name' => $ev['title']],
+            'publisher' => ['@id' => abs_url('#organization')],
+        ];
+    }
     $online = event_is_online($ev);
     $schema = [
         '@context' => 'https://schema.org', '@type' => 'Event',
         'name' => $ev['title'],
         'description' => excerpt((string) ($ev['summary'] ?: $ev['description']), 300),
         'startDate' => date('c', strtotime((string) $ev['start_datetime'])),
-        'endDate' => date('c', event_end_ts($ev)),
         'eventStatus' => $ev['status'] === 'cancelled' ? 'https://schema.org/EventCancelled' : 'https://schema.org/EventScheduled',
         'eventAttendanceMode' => $online ? 'https://schema.org/OnlineEventAttendanceMode' : 'https://schema.org/OfflineEventAttendanceMode',
         'location' => $online
             ? ['@type' => 'VirtualLocation', 'url' => $canonical]
             : ['@type' => 'Place', 'name' => $ev['location'], 'address' => ['@type' => 'PostalAddress', 'streetAddress' => $ev['location'], 'addressCountry' => 'IN']],
         'url' => $canonical,
-        'image' => [content_abs_image($ev['image'] ?? null) ?: abs_url('assets/images/logo.png')],
+        'image' => [content_abs_image($ev['image'] ?? null) ?: content_default_schema_image()],
     ];
-    if (($ev['event_type'] ?? '') !== 'awareness_day') {
-        $schema['organizer'] = ['@type' => 'NGO', '@id' => abs_url('#organization'), 'name' => site_name(), 'url' => abs_url('')];
-        if ((int) $ev['registration_enabled'] === 1 && $ev['status'] === 'published') {
-            $schema['offers'] = ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'INR', 'url' => $canonical . '#register',
-                'availability' => (!empty($ev['capacity']) && event_registered_count((int) $ev['id']) >= (int) $ev['capacity']) ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock'];
-        }
+    if (!empty($ev['end_datetime'])) {
+        $schema['endDate'] = date('c', strtotime((string) $ev['end_datetime']));
+    }
+    $schema['organizer'] = ['@type' => 'NGO', '@id' => abs_url('#organization'), 'name' => site_name(), 'url' => abs_url('')];
+    if ((int) $ev['registration_enabled'] === 1 && $ev['status'] === 'published') {
+        $schema['offers'] = ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'INR', 'url' => $canonical . '#register',
+            'availability' => (!empty($ev['capacity']) && event_registered_count((int) $ev['id']) >= (int) $ev['capacity']) ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock'];
     }
     return $schema;
 }
@@ -459,7 +476,7 @@ function event_card(array $ev, int $i = 0): string
         $flag = '<span class="ev-flag">Past event</span>';
     }
     return '<article class="event-card ev-card reveal tilt" style="--d:' . ($i % 4) . '">'
-        . '<a class="event-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($ev['image'] ?? null, $fallback)) . '" alt="" loading="lazy" width="480" height="300"></a>'
+        . '<a class="event-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($ev['image'] ?? null, $fallback)) . '"' . image_srcset_attr($ev['image'] ?? null, '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px') . ' alt="" loading="lazy" width="480" height="300"></a>'
         . content_date_badge((string) $ev['start_datetime']) . $flag
         . '<div class="event-body"><span class="ev-chip ev-type-' . e($type) . '">' . icon(EVENT_TYPE_ICONS[$type] ?? 'calendar') . e(event_type_label($type)) . '</span>'
         . '<h3><a href="' . e($link) . '">' . e($ev['title']) . '</a></h3>'
@@ -475,7 +492,7 @@ function blog_card(array $post, int $i = 0): string
     $cat = (string) ($post['category'] ?? 'blog');
     $minutes = isset($post['content']) ? post_reading_time($post['content']) : 0;
     return '<article class="blog-card post-card reveal tilt" style="--d:' . ($i % 4) . '">'
-        . '<a class="blog-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($post['image'] ?? null, CONTENT_FALLBACK_IMAGE)) . '" alt="" loading="lazy" width="480" height="300"></a>'
+        . '<a class="blog-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($post['image'] ?? null, CONTENT_FALLBACK_IMAGE)) . '"' . image_srcset_attr($post['image'] ?? null, '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px') . ' alt="" loading="lazy" width="480" height="300"></a>'
         . '<span class="post-chip post-chip-' . e($cat) . '">' . e(BLOG_CATEGORIES[$cat] ?? 'Blog') . '</span>'
         . '<div class="blog-body"><div class="post-meta"><span>' . icon('calendar') . '<time datetime="' . e(format_date($post['published_at'] ?? null, 'Y-m-d')) . '">' . e(format_date($post['published_at'] ?? null)) . '</time></span>'
         . ($minutes ? '<span>' . icon('clock') . $minutes . ' min read</span>' : '') . '</div>'
@@ -490,7 +507,7 @@ function blog_card_featured(array $post): string
     $link = post_url($post['slug']);
     $cat = (string) ($post['category'] ?? 'blog');
     return '<article class="post-featured reveal">'
-        . '<a class="post-featured-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($post['image'] ?? null, CONTENT_FALLBACK_IMAGE)) . '" alt="" width="720" height="450"></a>'
+        . '<a class="post-featured-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($post['image'] ?? null, CONTENT_FALLBACK_IMAGE)) . '"' . image_srcset_attr($post['image'] ?? null, '(max-width: 991px) 100vw, 720px') . ' alt="" width="720" height="450"></a>'
         . '<div class="post-featured-body"><div class="post-meta"><span class="post-chip post-chip-' . e($cat) . '">' . e(BLOG_CATEGORIES[$cat] ?? 'Blog') . '</span>'
         . '<span class="featured-label">' . icon('clock') . 'Latest</span></div>'
         . '<h2><a href="' . e($link) . '">' . e($post['title']) . '</a></h2>'
@@ -506,7 +523,7 @@ function story_card(array $s, int $i = 0): string
     $link = story_url($s['slug']);
     $who = trim(implode(' · ', array_filter([(string) ($s['person_name'] ?? ''), (string) ($s['location'] ?? '')])));
     return '<article class="story-card reveal tilt" style="--d:' . ($i % 4) . '">'
-        . '<a class="story-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($s['image'] ?? null, 'assets/images/hero/community.svg')) . '" alt="" loading="lazy" width="480" height="320"></a>'
+        . '<a class="story-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($s['image'] ?? null, 'assets/images/hero/community.svg')) . '"' . image_srcset_attr($s['image'] ?? null, '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px') . ' alt="" loading="lazy" width="480" height="320"></a>'
         . '<div class="story-body"><span class="story-mark" aria-hidden="true">&ldquo;</span>'
         . '<h3><a href="' . e($link) . '">' . e($s['title']) . '</a></h3>'
         . '<p>' . e(excerpt((string) ($s['excerpt'] ?? ''), 150)) . '</p>'
@@ -526,7 +543,7 @@ function gallery_item_html(array $g, int $i = 0): string
     $caption = $g['title'] . (!empty($g['description']) && $g['description'] !== $g['title'] ? ' — ' . $g['description'] : '');
     $cat = (string) ($g['category'] ?? 'general');
     return '<a class="gallery-item m-item reveal" style="--d:' . ($i % 4) . '" href="' . e(url($path)) . '" data-lightbox data-category="' . e($cat) . '" data-caption="' . e($caption) . '">'
-        . '<img src="' . e(url($path)) . '" alt="' . e($alt) . '" loading="lazy" decoding="async"' . ($w ? ' width="' . $w . '" height="' . $h . '"' : '') . '>'
+        . '<img src="' . e(url($path)) . '"' . image_srcset_attr($path, '(max-width: 767px) 50vw, (max-width: 1199px) 33vw, 300px') . ' alt="' . e($alt) . '" loading="lazy" decoding="async"' . ($w ? ' width="' . $w . '" height="' . $h . '"' : '') . '>'
         . '<span class="m-caption"><strong>' . e($g['title']) . '</strong><small>' . e(GALLERY_CATEGORIES[$cat] ?? humanize($cat)) . '</small></span>'
         . '<span class="m-zoom" aria-hidden="true">' . icon('search') . '</span></a>';
 }

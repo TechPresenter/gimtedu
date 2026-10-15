@@ -6,24 +6,59 @@
 
     /* ---------- Mobile sidebar ---------- */
     var toggle = document.querySelector('.admin-menu-toggle');
+    var sidebarEl = document.getElementById('admin-sidebar');
     if (toggle) {
+        var closeMenu = function (returnFocus) {
+            document.body.classList.remove('admin-open');
+            toggle.setAttribute('aria-expanded', 'false');
+            if (returnFocus) { toggle.focus(); }
+        };
         toggle.addEventListener('click', function (e) {
             e.stopPropagation();
             var open = document.body.classList.toggle('admin-open');
             toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open && sidebarEl) {
+                var first = sidebarEl.querySelector('a, button');
+                if (first) { requestAnimationFrame(function () { first.focus(); }); }
+            }
         });
         document.addEventListener('click', function (e) {
-            var sidebar = document.getElementById('admin-sidebar');
-            if (document.body.classList.contains('admin-open') && sidebar && !sidebar.contains(e.target)) {
-                document.body.classList.remove('admin-open');
+            if (document.body.classList.contains('admin-open') && sidebarEl && !sidebarEl.contains(e.target)) {
+                closeMenu(false);
             }
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && document.body.classList.contains('admin-open')) { closeMenu(true); }
+        });
+    }
+    // keep the current page's link visible in a long sidebar
+    var activeLink = sidebarEl && sidebarEl.querySelector('a.active');
+    if (activeLink && activeLink.offsetTop + activeLink.offsetHeight > sidebarEl.clientHeight) {
+        sidebarEl.scrollTop = Math.max(0, activeLink.offsetTop - sidebarEl.clientHeight / 2);
+    }
+
+    /* ---------- Flash messages ---------- */
+    // After a save that returns to an #anchor (or a scrolled page) the message floats in view; success / info
+    // messages disappear after a while, errors stay until dismissed.
+    var flashWrap = document.querySelector('.admin-content > .flash-wrap');
+    if (flashWrap && flashWrap.querySelector('.alert')) {
+        if (location.hash.length > 1 || window.scrollY > 0) { flashWrap.classList.add('is-floating'); }
+        flashWrap.querySelectorAll('.alert-success, .alert-info').forEach(function (a) {
+            setTimeout(function () {
+                if (a.parentNode) { a.remove(); }
+                if (!flashWrap.querySelector('.alert')) { flashWrap.remove(); }
+            }, 8000);
         });
     }
 
     /* ---------- Dismiss alerts ---------- */
     document.addEventListener('click', function (e) {
         var btn = e.target.closest('.alert-close');
-        if (btn) { btn.closest('.alert').remove(); }
+        if (btn) {
+            var wrap = btn.closest('.flash-wrap');
+            btn.closest('.alert').remove();
+            if (wrap && !wrap.querySelector('.alert')) { wrap.remove(); }
+        }
     });
 
     /* ---------- Confirm destructive actions ---------- */
@@ -45,6 +80,34 @@
     /* ---------- Auto-submit filters ---------- */
     document.querySelectorAll('[data-autosubmit]').forEach(function (el) {
         el.addEventListener('change', function () { el.form.submit(); });
+    });
+
+    /* ---------- Date range picker: presets apply at once, "Custom dates" reveals From / To ---------- */
+    document.querySelectorAll('form.range-picker').forEach(function (f) {
+        var sel = f.querySelector('select[name="range"]');
+        var box = f.querySelector('.range-custom');
+        if (!sel || !box) { return; }
+        var from = f.querySelector('input[name="from"]');
+        var to = f.querySelector('input[name="to"]');
+        box.hidden = sel.value !== 'custom';
+        sel.addEventListener('change', function () {
+            if (sel.value === 'custom') {
+                box.hidden = false;
+                if (from) { from.focus(); }
+                return;
+            }
+            if (from) { from.disabled = true; }   // disabled inputs are not submitted: stale dates never override a preset
+            if (to) { to.disabled = true; }
+            f.submit();
+        });
+        [from, to].forEach(function (i) {
+            if (i) { i.addEventListener('change', function () { sel.value = 'custom'; }); }
+        });
+    });
+
+    /* ---------- Charts: scroll wide charts to the latest data ---------- */
+    document.querySelectorAll('.insights-chart').forEach(function (c) {
+        if (c.scrollWidth > c.clientWidth) { c.scrollLeft = c.scrollWidth; }
     });
 
     /* ---------- Simple HTML editor toolbar ---------- */

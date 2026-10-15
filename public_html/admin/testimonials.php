@@ -76,7 +76,7 @@ admin_page_start('Testimonials', [['label' => 'Add testimonial', 'url' => admin_
 ?>
 <div class="alert alert-info"><?= icon('shield') ?><div>Publish only genuine words from real people, with their permission. A testimonial appears on the website only when it is <strong>published</strong> and <strong>consent is recorded</strong>. Do not edit the meaning of what someone said.</div></div>
 
-<div class="admin-grid-main">
+<div<?= $showForm ? ' class="admin-grid-main"' : '' ?>>
     <section class="panel">
         <?php if (!$rows): ?>
             <p class="muted">No testimonials yet. Testimonial sections stay hidden on the website until one is published with consent.</p>
@@ -104,12 +104,9 @@ admin_page_start('Testimonials', [['label' => 'Add testimonial', 'url' => admin_
         <?php endif; ?>
     </section>
 
+    <?php if ($showForm): $t = $edit ?: []; $consentChecked = old('name', null) !== null ? old('consent_confirmed') === '1' : !empty($t['consent_confirmed']); ?>
     <section class="panel">
         <div class="panel-head"><h2><?= $edit ? 'Edit testimonial' : 'Add a testimonial' ?></h2><?php if ($edit): ?><a class="btn btn-ghost btn-sm" href="<?= e(admin_url('testimonials.php')) ?>">Cancel</a><?php endif; ?></div>
-        <?php if (!$showForm): ?>
-            <p class="muted">Choose <strong>Add testimonial</strong> or the edit icon next to an entry.</p>
-            <a class="btn btn-primary btn-sm" href="<?= e(admin_url('testimonials.php?new=1')) ?>"><?= icon('plus') ?>Add testimonial</a>
-        <?php else: $t = $edit ?: []; $consentChecked = old('name', null) !== null ? old('consent_confirmed') === '1' : !empty($t['consent_confirmed']); ?>
             <form method="post" enctype="multipart/form-data" class="form-grid">
                 <?= csrf_field() ?><input type="hidden" name="action" value="save"><input type="hidden" name="id" value="<?= (int) ($t['id'] ?? 0) ?>">
                 <div class="form-group full"><label for="name">Name (as they agreed to be named)</label><input type="text" id="name" name="name" required maxlength="120" value="<?= e(old('name', $t['name'] ?? '')) ?>"><?= field_error('name') ?></div>
@@ -124,8 +121,8 @@ admin_page_start('Testimonials', [['label' => 'Add testimonial', 'url' => admin_
                 <div class="form-group"><label for="sort_order">Order</label><input id="sort_order" type="number" name="sort_order" value="<?= e(old('sort_order', (string) ($t['sort_order'] ?? 0))) ?>"></div>
                 <div class="form-actions full" style="grid-column:1/-1"><button class="btn btn-primary" type="submit"><?= icon('check') ?>Save testimonial</button></div>
             </form>
-        <?php endif; ?>
     </section>
+    <?php endif; ?>
 </div>
 <?php
 admin_page_end();

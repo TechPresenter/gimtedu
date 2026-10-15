@@ -13,6 +13,11 @@ $self = 'campaign-edit.php' . ($id ? '?id=' . $id : '');
 $categories = campaign_categories();
 $programs = db_rows("SELECT id, title FROM programs ORDER BY sort_order, title");
 $editableStatuses = ['draft' => 'Draft (staff only)', 'active' => 'Active - accepting donations', 'completed' => 'Completed', 'closed' => 'Closed'];
+// A campaign with donations or approved expenses cannot go back to Draft: that would hide its figures from the public
+// transparency and utilisation reports while the verified totals still count its donations.
+$draftLocked = $c && $c['status'] !== 'draft' && (
+    (int) db_value("SELECT COUNT(*) FROM donations WHERE campaign_id = ? AND status IN ('success','refunded','pending')", [$id]) > 0
+    || (int) db_value("SELECT COUNT(*) FROM campaign_expenses WHERE campaign_id = ? AND status = 'approved'", [$id]) > 0);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     admin_post_only($self);
@@ -32,6 +37,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'meta_description'  => 'text|max:300',
     ], ['short_description' => 'Short description', 'goal_amount' => 'Target amount', 'program_id' => 'Programme', 'meta_title' => 'SEO title', 'meta_description' => 'SEO description']);
 
+    if ($draftLocked && $data['status'] === 'draft' && !isset($errors['status'])) {
+        $errors['status'] = 'This campaign already has donations or approved expenses, so it cannot go back to Draft (that would hide its figures from the public transparency reports). Set it to Completed or Closed instead.';
+    }
     if (!isset($errors['end_date']) && $data['start_date'] !== '' && $data['end_date'] !== '' && $data['end_date'] < $data['start_date']) {
         $errors['end_date'] = 'The end date cannot be before the start date.';
     }
@@ -143,7 +151,7 @@ admin_page_start($c ? 'Edit campaign' : 'New campaign', $c ? [['label' => 'Campa
     <div>
         <section class="panel">
             <div class="panel-head"><h2>Publishing</h2><?= $c ? status_badge($c['status']) : '' ?></div>
-            <div class="form-group"><label for="status">Status<span class="req">*</span></label><select id="status" name="status" required><?= options_html($editableStatuses, (string) old('status', in_array($c['status'] ?? 'draft', array_keys($editableStatuses), true) ? ($c['status'] ?? 'draft') : 'draft'), true, '') ?></select><?= field_error('status') ?></div>
+            <div class="form-group"><label for="status">Status<span class="req">*</span></label><select id="status" name="status" required<?= $draftLocked ? ' aria-describedby="status_help"' : '' ?>><?= options_html($draftLocked ? array_diff_key($editableStatuses, ['draft' => 1]) : $editableStatuses, (string) old('status', in_array($c['status'] ?? 'draft', array_keys($editableStatuses), true) ? ($c['status'] ?? 'draft') : 'draft'), true, '') ?></select><?php if ($draftLocked): ?><span class="help" id="status_help">Draft is not available: this campaign has donations or approved expenses.</span><?php endif; ?><?= field_error('status') ?></div>
             <label class="checkbox mt-2"><input type="checkbox" name="is_featured" value="1"<?= (old('is_featured', $c['is_featured'] ?? 0)) ? ' checked' : '' ?>> <span>Featured (shown at the top of the campaign list)</span></label>
             <label class="checkbox mt-1"><input type="checkbox" name="is_urgent" value="1"<?= (old('is_urgent', $c['is_urgent'] ?? 0)) ? ' checked' : '' ?>> <span>Urgent (only for a genuine, current emergency)</span></label>
             <div class="form-actions"><button class="btn btn-primary" type="submit"><?= icon('check') ?>Save campaign</button>

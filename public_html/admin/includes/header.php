@@ -24,7 +24,7 @@ $adminTitle = $adminTitle ?? ($GLOBALS['adminTitle'] ?? 'Admin');
     <?php require __DIR__ . '/sidebar.php'; ?>
     <div class="admin-main">
         <header class="admin-topbar">
-            <button class="admin-menu-toggle" type="button" aria-label="Toggle menu" aria-expanded="false"><?= icon('menu') ?></button>
+            <button class="admin-menu-toggle" type="button" aria-label="Toggle menu" aria-expanded="false" aria-controls="admin-sidebar"><?= icon('menu') ?></button>
             <h1><?= e($adminTitle ?? 'Admin') ?></h1>
             <div class="admin-topbar-right">
                 <a class="btn btn-ghost btn-sm hide-sm" href="<?= e(url('/')) ?>" target="_blank" rel="noopener"><?= icon('external') ?>View site</a>
@@ -38,6 +38,6 @@ $adminTitle = $adminTitle ?? ($GLOBALS['adminTitle'] ?? 'Admin');
         </header>
         <div class="admin-content">
             <?= str_replace('flash-wrap container', 'flash-wrap', render_flash()) ?>
-            <?php if (!empty($admin) && empty($admin['totp_enabled']) && is_administrator((int) $admin['id']) && basename($_SERVER['PHP_SELF']) === 'dashboard.php'): ?>
+            <?php if (!empty($admin) && empty($admin['totp_enabled']) && is_administrator((int) $admin['id']) && basename($_SERVER['SCRIPT_NAME']) === 'dashboard.php'): ?>
                 <div class="alert alert-info"><?= icon('shield') ?><div>Protect the admin panel: turn on <a href="<?= e(admin_url('profile.php#two-step')) ?>">two-step login</a> for your account.</div></div>
             <?php endif; ?>

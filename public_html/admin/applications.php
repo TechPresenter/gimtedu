@@ -35,6 +35,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         admin_redirect($back);
     }
     $done = 0;
+    $mailFailed = 0;
     $messages = [];
     foreach ($ids as $id) {
         $row = db_row("SELECT * FROM `$table` WHERE id = ?", [$id]);
@@ -44,12 +45,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         foreach (recruitment_change_status($type, $row, $status, $note, true, $notify) as $m) {
             if ($m !== 'The applicant was notified by email.') {
                 $messages[] = $row['application_no'] . ': ' . $m;
+                if (strpos($m, 'could not be sent') !== false) {
+                    $mailFailed++;
+                }
             }
         }
         $done++;
     }
-    admin_log('applications_bulk_status', $t['title'] . ': ' . $done . ' application(s) set to ' . $status);
-    flash('success', $done . ' application' . ($done === 1 ? '' : 's') . ' updated to "' . recruitment_status_info($status)[0] . '"' . ($notify && $done ? ' and applicants notified.' : '.'));
+    admin_log('applications_bulk_status', $t['title'] . ': ' . $done . ' application(s) set to ' . $status . ($mailFailed ? ' (' . $mailFailed . ' email(s) not sent)' : ''));
+    flash($mailFailed ? 'warning' : 'success', $done . ' application' . ($done === 1 ? '' : 's') . ' updated to "' . recruitment_status_info($status)[0] . '"'
+        . ($notify && $done ? ($mailFailed ? '; ' . $mailFailed . ' email' . ($mailFailed === 1 ? '' : 's') . ' could not be sent (check Settings > Email delivery).' : ' and applicants notified.') : '.'));
     foreach (array_slice($messages, 0, 5) as $m) {
         flash('info', $m);
     }
@@ -199,7 +204,7 @@ echo recruitment_chipbar($statuses, $counts, $status, array_diff_key($_GET, ['ex
         </form>
         <?= pagination_links($p) ?>
     <?php else: ?>
-        <?= empty_state($q !== '' || $status !== '' || $coord !== '' ? 'No applications match these filters.' : 'No ' . strtolower($t['plural']) . ' applications yet. They appear here when someone applies on the website.') ?>
+        <?= empty_state($q !== '' || $status !== '' || $coord !== '' ? 'No applications match these filters.' : 'No ' . strtolower($t['title']) . 's yet. They appear here when someone applies on the website.') ?>
     <?php endif; ?>
 </div>
 <p class="muted small"><?= icon('info') ?> Public form: <a href="<?= e(page_url($t['slug'])) ?>" target="_blank" rel="noopener"><?= e(page_url($t['slug'])) ?></a></p>

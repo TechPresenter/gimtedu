@@ -13,7 +13,7 @@ if (route_param() !== '') {
     not_found();
 }
 $when = ($_GET['when'] ?? '') === 'past' ? 'past' : 'upcoming';
-$type = (string) ($_GET['type'] ?? '');
+$type = get_str('type');
 if (!isset(EVENT_TYPES[$type])) {
     $type = '';
 }

@@ -4,7 +4,7 @@
  * Configure in Razorpay Dashboard > Settings > Webhooks:
  *   URL:    https://YOUR-DOMAIN/payment-webhook.php
  *   Secret: same value as RAZORPAY_WEBHOOK_SECRET in pwf-config.php / config.php
- *   Events: payment.captured, order.paid, payment.failed, refund.processed (refund.created optional)
+ *   Events: payment.captured, payment.authorized, order.paid, payment.failed, refund.processed (refund.created optional)
  *
  * - Every request is authenticated with the X-Razorpay-Signature header (HMAC-SHA256 of the raw body).
  * - Every verified delivery is stored in payment_webhook_events; (gateway, event_id) is unique, so a
@@ -74,6 +74,7 @@ $result = 'ignored: unsupported event';
 try {
     switch ($type) {
         case 'payment.captured':
+        case 'payment.authorized':
         case 'order.paid':
             $orderId = (string) ($paymentEntity['order_id'] ?? ($orderEntity['id'] ?? ''));
             $paymentId = (string) ($paymentEntity['id'] ?? '');
@@ -89,6 +90,13 @@ try {
             }
             if ($donation['status'] === 'refunded') {
                 $result = 'ignored: donation refunded';
+                break;
+            }
+            // An authorised payment of an abandoned (failed) donation is not captured automatically: the donor may
+            // already have donated again. Staff can still capture it with "Re-check payment status".
+            if ($type === 'payment.authorized' && $donation['status'] !== 'pending') {
+                log_activity('webhook_authorized_failed_donation', 'Donation ' . $donation['donation_ref'] . ': authorised payment of a ' . $donation['status'] . ' donation left for staff re-check');
+                $result = 'ignored: donation is ' . $donation['status'] . ' (authorised payment left for staff re-check)';
                 break;
             }
             // Never trust the payload: fetch the payment from the API and match order, amount and currency.
@@ -135,21 +143,14 @@ try {
                 $result = 'ignored: donation is ' . $donation['status'];
                 break;
             }
-            // Confirm with the API how much of the payment has really been refunded.
+            // Confirm with the API how much of the payment has really been refunded (full or partial).
             $payment = razorpay_fetch_payment($paymentId);
-            $refundedPaise = (int) ($payment['amount_refunded'] ?? 0);
             $refundId = preg_match('/^rfnd_[A-Za-z0-9]+$/', (string) ($refundEntity['id'] ?? '')) ? (string) $refundEntity['id'] : null;
-            if ($payment && ($refundedPaise >= to_paise($donation['amount']) || ($payment['refund_status'] ?? '') === 'full')) {
-                mark_donation_refunded($donationId, $refundId, 'Full refund reported by Razorpay (' . $type . ')');
-                $result = 'donation refunded';
-            } elseif ($payment && $refundedPaise > 0) {
-                db_query("UPDATE donations SET admin_notes = TRIM(CONCAT(COALESCE(admin_notes, ''), ?)) WHERE id = ?",
-                    ["\n[" . date('d M Y H:i') . '] Partial refund of ' . money($refundedPaise / 100, true) . ' reported by Razorpay' . ($refundId ? ' (' . $refundId . ')' : '') . ' - review needed.', $donationId]);
-                log_activity('donation_partial_refund', 'Donation ' . $donation['donation_ref'] . ' partial refund ' . ($refundId ?? ''));
-                $result = 'partial refund noted';
-            } else {
-                $result = 'not confirmed: gateway shows no refund';
+            if (!$payment || ($payment['id'] ?? '') !== $paymentId || (int) ($payment['amount'] ?? 0) <= 0) {
+                $result = 'not confirmed: gateway payment not found';
+                break;
             }
+            $result = apply_gateway_refund_state($donation, $payment, $refundId, $type);
             break;
     }
 } catch (Throwable $e) {

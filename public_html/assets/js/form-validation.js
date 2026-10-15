@@ -15,15 +15,33 @@
         patternMismatch: 'Please match the requested format.'
     };
 
+    function setDescribedBy(el, id, add) {
+        var ids = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(function (x) { return x && x !== id; });
+        if (add) { ids.push(id); }
+        if (ids.length) { el.setAttribute('aria-describedby', ids.join(' ')); } else { el.removeAttribute('aria-describedby'); }
+    }
+
+    /* The element that "owns" the message: a checkbox group's [role=group] wrapper, otherwise the field itself. */
+    function errorOwner(field) {
+        if (field.dataset.groupRequired) {
+            return field.closest('[role="group"]') || field.closest('.form-group') || field;
+        }
+        return field;
+    }
+
+    var errorSeq = 0;
     function errorBox(field) {
         var group = field.closest('.form-group') || field.parentNode;
         var box = group.querySelector('.field-error.js-error');
         if (!box) {
             box = document.createElement('span');
             box.className = 'field-error js-error';
-            box.setAttribute('aria-live', 'polite');
+            // no aria-live: the message is read with the field through aria-describedby when focus moves there
+            var base = (field.id || (field.name || 'field').replace(/\W/g, '')) + '-error';
+            box.id = document.getElementById(base) ? base + '-' + (++errorSeq) : base;
             group.appendChild(box);
         }
+        setDescribedBy(errorOwner(field), box.id, true);
         return box;
     }
 
@@ -31,7 +49,14 @@
         field.classList.remove('is-invalid');
         field.removeAttribute('aria-invalid');
         var group = field.closest('.form-group') || field.parentNode;
-        group.querySelectorAll('.field-error').forEach(function (el) { el.remove(); });
+        var owner = errorOwner(field);
+        group.querySelectorAll('.field-error').forEach(function (el) {
+            if (el.id) { setDescribedBy(owner, el.id, false); if (owner !== field) { setDescribedBy(field, el.id, false); } }
+            el.remove();
+        });
+        if (field.dataset.groupRequired && field.form) {
+            field.form.querySelectorAll('[name="' + field.name + '"]').forEach(function (cb) { cb.classList.remove('is-invalid'); cb.removeAttribute('aria-invalid'); });
+        }
     }
 
     function customCheck(field) {
@@ -102,6 +127,9 @@
         if (msg) {
             field.classList.add('is-invalid');
             field.setAttribute('aria-invalid', 'true');
+            if (field.dataset.groupRequired && field.form) {
+                field.form.querySelectorAll('[name="' + field.name + '"]').forEach(function (cb) { cb.classList.add('is-invalid'); cb.setAttribute('aria-invalid', 'true'); });
+            }
             errorBox(field).textContent = msg;
             return false;
         }
@@ -149,6 +177,47 @@
         });
     });
 
+    /* ---------- Server-side validation errors: link each message to its field ---------- */
+    // field_error() prints <span class="field-error" id="err-..."> after the field; screen readers then read the
+    // reason with the field (aria-describedby) and the field is marked invalid. Runs once per page.
+    function pwfAddDescribedBy(el, id) {
+        var ids = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+        if (ids.indexOf(id) === -1) { ids.push(id); }
+        el.setAttribute('aria-describedby', ids.join(' '));
+    }
+    function pwfErrorTarget(err) {
+        var sib = err.previousElementSibling;
+        while (sib) {
+            if (sib.matches('input, select, textarea, [role="group"]')) { return sib; }
+            var inner = sib.querySelectorAll('input:not([type="hidden"]), select, textarea');
+            if (inner.length === 1) { return inner[0]; }
+            if (inner.length > 1) { return sib.querySelector('[role="group"]') || (sib.matches('fieldset') ? sib : null) || sib; }
+            sib = sib.previousElementSibling;
+        }
+        var group = err.closest('.form-group');
+        return group ? (group.querySelector('[role="group"]') || group.querySelector('input:not([type="hidden"]), select, textarea')) : null;
+    }
+    function pwfWireServerErrors() {
+        if (window.__pwfServerErrorsWired) { return; }
+        window.__pwfServerErrorsWired = true;
+        var first = null;
+        Array.prototype.forEach.call(document.querySelectorAll('.field-error:not(.js-error)'), function (err, i) {
+            if (!err.textContent.trim()) { return; }
+            var target = pwfErrorTarget(err);
+            if (!target) { return; }
+            if (!err.id || document.getElementById(err.id) !== err) { err.id = 'srv-err-' + i; }
+            pwfAddDescribedBy(target, err.id);
+            var controls = target.matches('input, select, textarea') ? [target] : Array.prototype.slice.call(target.querySelectorAll('input:not([type="hidden"]), select, textarea'));
+            controls.forEach(function (c) { c.setAttribute('aria-invalid', 'true'); c.classList.add('is-invalid'); });
+            if (!first && controls[0]) { first = controls[0]; }
+        });
+        if (first && typeof first.focus === 'function') {
+            first.focus({ preventScroll: true });
+            first.scrollIntoView({ block: 'center' });
+        }
+    }
+    pwfWireServerErrors();
+
     /* Uppercase PAN / IFSC inputs as the user types */
     document.querySelectorAll('[data-uppercase]').forEach(function (field) {
         field.addEventListener('input', function () {
@@ -158,19 +227,21 @@
         });
     });
 
-    /* Show / hide password */
+    /* Show / hide password (the eye icon stays; .is-on draws the slash) */
     document.querySelectorAll('.password-toggle').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var input = btn.parentNode.querySelector('input');
+            if (!input) { return; }
             var show = input.type === 'password';
             input.type = show ? 'text' : 'password';
             btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-            btn.textContent = show ? 'Hide' : 'Show';
+            btn.classList.toggle('is-on', show);
         });
     });
 
     /* Character counter for textareas with maxlength */
     document.querySelectorAll('textarea[maxlength][data-counter]').forEach(function (ta) {
+        if (ta.getAttribute('data-counter')) { return; } // valued counters (SEO targets) are rendered by modules/admin-site.js
         var counter = document.createElement('span');
         counter.className = 'help';
         ta.parentNode.appendChild(counter);
