@@ -44,7 +44,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 $sent = isset($_GET['sent']);
 page_header($page, [
     'title'            => $sent ? 'Check your email' : 'Forgot your password?',
-    'meta_title'       => 'Forgot password',
+    'meta_title'       => $sent ? 'Check your email for a reset link' : 'Forgot password',
     'meta_description' => 'Reset the password of your ' . site_name() . ' account.',
     'banner'           => false,
     'noindex'          => true,

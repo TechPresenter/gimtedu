@@ -131,8 +131,8 @@ admin_page_start('SEO Audit');
     <h3 class="site-sub">Too long (over 160 characters - Google cuts them off)</h3>
     <?= $list($longDesc, function ($p) use ($edit, $fix) { return '<span><strong>' . e($p['title']) . '</strong><small>' . (int) $p['len'] . ' characters</small></span>' . $fix($edit($p)); }) ?>
     <?php if ($shortDesc): ?>
-        <h3 class="site-sub">Short (under 70 characters - could say more)</h3>
-        <?= $list($shortDesc, function ($p) use ($edit, $fix) { return '<span><strong>' . e($p['title']) . '</strong><small>' . (int) $p['len'] . ' characters</small></span>' . $fix($edit($p), 'Improve'); }) ?>
+        <details class="site-json mt-2"><summary><?= icon('info') ?>Short descriptions (under 70 characters - could say more): <?= count($shortDesc) ?></summary>
+        <div class="mt-1"><?= $list($shortDesc, function ($p) use ($edit, $fix) { return '<span><strong>' . e($p['title']) . '</strong><small>' . (int) $p['len'] . ' characters</small></span>' . $fix($edit($p), 'Improve'); }) ?></div></details>
     <?php endif; ?>
 </section>
 

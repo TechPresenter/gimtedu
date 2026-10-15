@@ -51,6 +51,7 @@
 .fr-chips .filter-btn { display: inline-flex; align-items: center; gap: 6px; }
 .fr-result-line { font-size: .9rem; color: var(--muted); margin: -8px 0 20px; }
 .fr-empty .btn-row { margin-top: 6px; }
+.fr-empty .btn .icon { width: 18px; height: 18px; margin: 0; color: inherit; }
 
 /* ---------- Donation appeal section ---------- */
 .fr-appeal { display: grid; grid-template-columns: 1.35fr 1fr; gap: 28px; align-items: center; padding: 32px; border-radius: var(--radius-lg); background: linear-gradient(135deg, #fff 0%, var(--green-50) 100%); border: 1px solid var(--line); box-shadow: var(--shadow); }
@@ -60,10 +61,10 @@
 .fr-appeal-for { display: flex; align-items: center; gap: 6px; font-size: .92rem; margin: 0 0 10px; }
 .fr-appeal-for .icon { color: var(--green-600); width: 16px; height: 16px; }
 .fr-appeal-label, .fr-raise-label { font-weight: 700; font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; color: var(--green-800); margin: 0 0 10px; }
-.fr-amounts { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.fr-amounts { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 10px; margin-bottom: 18px; }
 .fr-amount { display: flex; align-items: center; justify-content: center; min-height: 48px; padding: 10px 8px; border: 2px solid #d4dfd8; border-radius: 12px; background: #fff; font-weight: 700; color: var(--green-800); text-align: center; transition: border-color .2s, background .2s, transform .2s; }
 .fr-amount:hover, .fr-amount:focus-visible { border-color: var(--gold-500); background: var(--gold-100); color: var(--ink); transform: translateY(-2px); }
-.fr-amount-other { font-weight: 600; color: var(--ink-soft); }
+.fr-amount-other { font-weight: 600; color: var(--ink-soft); white-space: nowrap; font-size: .92rem; }
 .fr-amounts-sm { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
 .fr-amounts-sm .fr-amount { min-height: 42px; font-size: .95rem; }
 .fr-appeal-notes { list-style: none; margin: 0; padding: 22px; display: grid; gap: 12px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
@@ -238,5 +239,3 @@
     .fr-receipt .watermark { color: rgba(198, 40, 40, .18); }
 }
 
-/* ui_progress($r, $g, $n, 'lg') adds .progress-lg to the widget; style.css also uses .progress-lg for a bar height */
-.progress-widget.progress-lg { height: auto; }

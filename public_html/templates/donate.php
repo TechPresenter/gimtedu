@@ -231,10 +231,24 @@ $bank = bank_transfer_details();
 $min = donation_min_amount();
 $presets = donation_presets();
 $campaigns = array_values(array_filter(
-    db_rows("SELECT id, title, category, end_date, status FROM campaigns WHERE status = 'active' ORDER BY is_urgent DESC, is_featured DESC, title ASC"),
+    db_rows("SELECT id, title, category, program_id, end_date, status FROM campaigns WHERE status = 'active' ORDER BY is_urgent DESC, is_featured DESC, title ASC"),
     'campaign_accepts_donations'
 ));
 $requestedCampaign = (int) ($_GET['campaign'] ?? 0);
+// ?program=<slug> (links from programme pages): preselect an open campaign of that programme, if any
+$program = null;
+if ($requestedCampaign <= 0 && isset($_GET['program']) && is_string($_GET['program']) && preg_match('/^[a-z0-9\-]{2,120}$/', $_GET['program'])) {
+    $program = db_row("SELECT id, slug, title FROM programs WHERE slug = ? AND status = 'published'", [$_GET['program']]);
+    if ($program) {
+        foreach ($campaigns as $c) {
+            if ((int) ($c['program_id'] ?? 0) === (int) $program['id'] || $c['category'] === $program['slug']) {
+                $requestedCampaign = (int) $c['id'];
+                $program['campaign'] = $c['title'];
+                break;
+            }
+        }
+    }
+}
 $selectedCampaign = (string) old('campaign_id', $requestedCampaign > 0 ? (string) $requestedCampaign : '');
 $selectedTitle = '';
 foreach ($campaigns as $c) {
@@ -262,7 +276,7 @@ page_header($page, [
     ]],
 ]);
 
-render_sections($page, function () use ($online, $bank, $min, $presets, $campaigns, $selectedCampaign, $selectedTitle, $requestedCampaign, $amount, $reg80g, $user, $address, $contactEmail, $self) {
+render_sections($page, function () use ($online, $bank, $min, $presets, $campaigns, $selectedCampaign, $selectedTitle, $requestedCampaign, $amount, $reg80g, $user, $address, $contactEmail, $self, $program) {
     ?>
     <section class="section" id="donation-form">
         <div class="container donate-layout">
@@ -289,6 +303,9 @@ render_sections($page, function () use ($online, $bank, $min, $presets, $campaig
                 <?php else: ?>
                     <?php if (payment_test_mode()): ?>
                         <div class="test-mode-banner" role="note"><?= icon('alert-triangle') ?>TEST MODE - payments use the Razorpay sandbox. No real money will be charged.</div>
+                    <?php endif; ?>
+                    <?php if ($program && !old('campaign_id')): ?>
+                        <div class="alert alert-info mb-2" role="status"><?= icon('heart') ?><div><?php if (!empty($program['campaign'])): ?>Supporting <strong><?= e($program['title']) ?></strong>: we have selected its open campaign below. You can change it if you wish.<?php else: ?>There is no open campaign for <strong><?= e($program['title']) ?></strong> right now. A general donation supports all our programmes, including this one.<?php endif; ?></div></div>
                     <?php endif; ?>
                     <?php if ($requestedCampaign > 0 && $selectedTitle === '' && !old('campaign_id')): ?>
                         <div class="alert alert-info mb-2" role="status"><?= icon('info') ?><div>That campaign is not accepting donations right now. You can give where it is needed most, or choose another cause below.</div></div>

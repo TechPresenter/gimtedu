@@ -48,6 +48,12 @@ h1, h2, h3, h4 { color: var(--ink); letter-spacing: -.01em; }
 .topbar { background: var(--green-800); color: #e9f5ee; font-size: .8rem; position: relative; }
 .topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--brand-gradient); opacity: .9; }
 .topbar-inner { min-height: 44px; gap: 10px 18px; padding-top: 6px; padding-bottom: 8px; }
+@media (min-width: 1200px) {
+    .topbar-inner { flex-wrap: nowrap; height: 46px; padding-top: 0; padding-bottom: 3px; }
+    .topbar-left, .topbar-right, .topbar-apply { flex-wrap: nowrap; white-space: nowrap; }
+    .topbar-left { min-width: 0; overflow: hidden; }
+}
+@media (min-width: 1200px) and (max-width: 1499px) { .topbar-welcome { display: none; } }
 .topbar-left { gap: 16px; }
 .topbar-welcome { font-weight: 600; color: #fff; }
 .topbar-item { color: #e9f5ee; }
@@ -68,8 +74,12 @@ h1, h2, h3, h4 { color: var(--ink); letter-spacing: -.01em; }
 
 /* ---------- Header (sticky, glass when scrolled) ---------- */
 .site-header { background: rgba(255, 255, 255, .97); box-shadow: 0 1px 0 var(--line); transition: background .3s, box-shadow .3s; }
+/* The blur lives on a pseudo-element: a backdrop-filter on the header itself would become the
+   containing block of the fixed mobile drawer and widen the page. */
+.site-header::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; transition: background .3s; }
 @supports ((-webkit-backdrop-filter: blur(10px)) or (backdrop-filter: blur(10px))) {
-    .site-header.is-scrolled { background: rgba(255, 255, 255, .82); -webkit-backdrop-filter: saturate(170%) blur(14px); backdrop-filter: saturate(170%) blur(14px); }
+    .site-header.is-scrolled { background: transparent; }
+    .site-header.is-scrolled::before { background: rgba(255, 255, 255, .84); -webkit-backdrop-filter: saturate(170%) blur(14px); backdrop-filter: saturate(170%) blur(14px); }
 }
 .site-header.is-scrolled { box-shadow: 0 10px 30px rgba(20, 50, 34, .10); }
 .header-inner { gap: 18px; }
@@ -165,6 +175,9 @@ h1, h2, h3, h4 { color: var(--ink); letter-spacing: -.01em; }
 .banner-art img { filter: drop-shadow(0 24px 40px rgba(0, 0, 0, .25)); }
 
 /* ---------- Sections ---------- */
+/* decorative shapes may never create a horizontal scrollbar */
+.section, .page-banner, .home-hero, .footer-cta, .marquee-cta { overflow-x: clip; }
+.table-wrap { position: relative; }
 .section-white { background: #fff; }
 .section-tint { background: var(--green-50); }
 .section-cream { background: var(--bg-cream); }
@@ -226,7 +239,8 @@ h1, h2, h3, h4 { color: var(--ink); letter-spacing: -.01em; }
 .progress-widget { display: grid; gap: 8px; }
 .progress-meta { display: flex; justify-content: space-between; gap: 10px; font-size: .86rem; color: var(--muted); flex-wrap: wrap; }
 .progress-meta strong { color: var(--green-700); font-size: 1.05rem; }
-.progress-lg .progress { height: 14px; }
+.progress-size-lg .progress { height: 14px; }
+.progress-size-lg .progress-meta strong { font-size: 1.3rem; }
 .countdown { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 14px; background: var(--gold-100); color: #5a4700; font-size: .85rem; }
 .countdown-label { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
 .countdown-units { display: inline-flex; gap: 6px; }
@@ -417,3 +431,6 @@ dialog.modal[open] .modal-card { animation: modal-in .35s var(--ease); }
 }
 body[data-motion="off"] *, body[data-motion="off"] *::before, body[data-motion="off"] *::after { animation: none !important; }
 body[data-motion="off"] .tilt { transform: none !important; }
+
+.hero-pause { width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.4); background: rgba(255,255,255,.12); color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: .7rem; margin-left: 6px; }
+.hero-pause:hover { background: rgba(255,255,255,.25); }

@@ -131,15 +131,15 @@ admin_page_start($story ? 'Edit story' : 'New story', [['label' => 'All stories'
             <section class="panel">
                 <div class="form-grid">
                     <div class="form-group full"><label for="title">Title<span class="req">*</span></label>
-                        <input id="title" name="title" required minlength="3" maxlength="220" value="<?= e($v('title')) ?>" data-slug-source="#slug"><?= field_error('title') ?></div>
+                        <input type="text" id="title" name="title" required minlength="3" maxlength="220" value="<?= e($v('title')) ?>" data-slug-source="#slug"><?= field_error('title') ?></div>
                     <div class="form-group full"><label for="slug">Web address (slug)</label>
-                        <input id="slug" name="slug" maxlength="200" value="<?= e($v('slug')) ?>" <?= $story ? 'data-touched="1"' : '' ?>>
+                        <input type="text" id="slug" name="slug" maxlength="200" value="<?= e($v('slug')) ?>" <?= $story ? 'data-touched="1"' : '' ?>>
                         <span class="help">/success-stories/<strong>this-part</strong>/</span><?= field_error('slug') ?></div>
                     <div class="form-group"><label for="person_name">Name of the person</label>
-                        <input id="person_name" name="person_name" maxlength="120" value="<?= e($v('person_name')) ?>">
+                        <input type="text" id="person_name" name="person_name" maxlength="120" value="<?= e($v('person_name')) ?>">
                         <span class="help">Use a changed name or first name only if the person prefers.</span><?= field_error('person_name') ?></div>
                     <div class="form-group"><label for="location">Location</label>
-                        <input id="location" name="location" maxlength="150" value="<?= e($v('location')) ?>" placeholder="e.g. Village / district, state">
+                        <input type="text" id="location" name="location" maxlength="150" value="<?= e($v('location')) ?>" placeholder="e.g. Village / district, state">
                         <?= field_error('location') ?></div>
                     <div class="form-group full"><label for="excerpt">Summary</label>
                         <textarea id="excerpt" name="excerpt" maxlength="400" rows="3" data-counter style="min-height:90px"><?= e($v('excerpt')) ?></textarea>
@@ -178,7 +178,7 @@ admin_page_start($story ? 'Edit story' : 'New story', [['label' => 'All stories'
             <section class="panel">
                 <div class="panel-head"><h2>Photo</h2></div>
                 <?php $img = $story['image'] ?? ''; ?>
-                <img id="img-preview" class="mb-2"<?= $img ? ' src="' . e(image_url($img)) . '"' : '' ?> alt="" style="width:100%;border-radius:10px;aspect-ratio:3/2;object-fit:cover;background:var(--green-50)"<?= $img ? '' : ' hidden' ?>>
+                <img id="img-preview" class="mb-2" src="<?= e($img ? image_url($img) : 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7') ?>" alt="" width="640" height="400" style="width:100%;border-radius:10px;aspect-ratio:3/2;object-fit:cover;background:var(--green-50)"<?= $img ? '' : ' hidden' ?>>
                 <div class="form-group"><label for="image"><?= $img ? 'Replace photo' : 'Upload photo' ?></label>
                     <input id="image" type="file" name="image" accept=".jpg,.jpeg,.png,.webp" data-preview="#img-preview">
                     <span class="help">Only with the person's consent. Prefer photos that show people with dignity.</span><?= field_error('image') ?></div>

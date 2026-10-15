@@ -116,7 +116,7 @@ admin_filter_bar($statuses, ['placeholder' => 'Search title, slug, location or o
         </table></div>
         <?= pagination_links($p) ?>
     <?php else: ?>
-        <div class="empty-state"><?= icon('inbox') ?><p>No campaigns match these filters.</p><a class="btn btn-outline" href="<?= e(admin_url('campaign-edit.php')) ?>"><?= icon('plus') ?>Create a campaign</a></div>
+        <div class="empty-state"><?= icon('inbox') ?><p>No campaigns match these filters.</p><a class="btn btn-outline" href="<?= e(admin_url('campaign-edit.php')) ?>">Create a campaign</a></div>
     <?php endif; ?>
 </div>
 <p class="small muted">Drafts are visible only to staff (use the preview link). A campaign needs a description and an image before it can be published. Progress figures count only verified donations.</p>

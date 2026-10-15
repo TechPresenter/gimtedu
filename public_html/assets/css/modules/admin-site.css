@@ -5,6 +5,9 @@
    ===================================================================== */
 
 .site-admin { min-width: 0; }
+.site-admin select, .site-admin input, .site-admin textarea { max-width: 100%; min-width: 0; }
+.site-admin .admin-grid-main > *, .site-admin .admin-grid-2 > *, .site-sections > *, .site-settings-layout > * { min-width: 0; }
+.site-admin .form-grid > * { min-width: 0; }
 .site-admin .form-grid { gap: 14px 18px; }
 .site-admin .panel-head h2 { display: inline-flex; align-items: center; gap: 8px; }
 .site-admin code { background: var(--green-50); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: .85em; word-break: break-all; }
@@ -60,6 +63,8 @@
 .site-section-edit > summary .icon { width: 16px; height: 16px; }
 .site-section-edit[open] > summary { background: var(--green-50); }
 .site-section-form { padding: 16px; display: grid; gap: 14px; }
+.site-group-head { gap: 2px; }
+.site-group-head .site-sub { margin-top: 10px; }
 .site-sub { margin: 6px 0 -4px; font-size: .9rem; text-transform: uppercase; letter-spacing: .06em; color: var(--green-700); border-top: 1px dashed var(--line); padding-top: 14px; }
 .site-help { display: flex; gap: 8px; align-items: flex-start; white-space: normal; margin: 0; }
 .site-help .icon { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
@@ -209,7 +214,9 @@ dialog.site-dialog::backdrop, dialog.site-modal::backdrop { background: rgba(6, 
     .site-settings-nav { position: static; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
 }
 @media (max-width: 760px) {
-    .site-admin .form-grid, .site-admin .form-grid-3 { grid-template-columns: 1fr; }
+    .site-admin .form-grid, .site-admin .form-grid-3 { grid-template-columns: minmax(0, 1fr); }
+    .site-admin .filter-row > * { flex-basis: 100%; }
+    .site-admin .filter-row .btn { flex-basis: auto; }
     .site-create { grid-template-columns: 1fr; }
     .site-section-bar { gap: 8px; }
     .site-section-tools { width: 100%; justify-content: flex-end; }

@@ -185,7 +185,7 @@ render_sections($page, function () use ($user, $slug, $consents, $required, $pos
                     ['title' => 'Screening', 'text' => 'We review every application received.'],
                     ['title' => 'Interview', 'text' => 'In person, by phone or video call.'],
                     ['title' => 'Decision & onboarding', 'text' => 'Outcome by email and on the status page.'],
-                ], '<div class="aside-card rc-aside-fraud"><h3>' . icon('shield') . ' Stay safe</h3><p>' . (setting('contact_email') !== '' ? 'Our official email address is <strong>' . e(setting('contact_email')) . '</strong>. ' : '') . 'We never ask for payment, OTPs or passwords at any stage of the application process.</p><a class="link-arrow" href="' . e(page_url('report-fraud')) . '">Report a suspicious request ' . icon('arrow-right') . '</a></div>') ?>
+                ]) ?>
             </div>
         </div>
     </section>

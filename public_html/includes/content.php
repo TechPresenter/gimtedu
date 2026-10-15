@@ -111,7 +111,7 @@ function content_lightbox(): string
     return '<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="Photo viewer">'
         . '<button class="lightbox-close" type="button" aria-label="Close">' . icon('x') . '</button>'
         . '<button class="lightbox-prev" type="button" aria-label="Previous photo">' . icon('chevron-left') . '</button>'
-        . '<figure><img alt="" decoding="async"><figcaption></figcaption></figure>'
+        . '<figure><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="1" height="1" decoding="async"><figcaption></figcaption></figure>'
         . '<button class="lightbox-next" type="button" aria-label="Next photo">' . icon('chevron-right') . '</button></div>';
 }
 
@@ -492,7 +492,7 @@ function blog_card_featured(array $post): string
     return '<article class="post-featured reveal">'
         . '<a class="post-featured-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($post['image'] ?? null, CONTENT_FALLBACK_IMAGE)) . '" alt="" width="720" height="450"></a>'
         . '<div class="post-featured-body"><div class="post-meta"><span class="post-chip post-chip-' . e($cat) . '">' . e(BLOG_CATEGORIES[$cat] ?? 'Blog') . '</span>'
-        . '<span class="featured-label">' . icon('star') . 'Featured</span></div>'
+        . '<span class="featured-label">' . icon('clock') . 'Latest</span></div>'
         . '<h2><a href="' . e($link) . '">' . e($post['title']) . '</a></h2>'
         . '<p class="lead">' . e(excerpt((string) $post['excerpt'], 220)) . '</p>'
         . '<div class="post-meta">' . (!empty($post['author_name']) ? '<span>' . icon('user') . e($post['author_name']) . '</span>' : '')

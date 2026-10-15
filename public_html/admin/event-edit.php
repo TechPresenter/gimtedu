@@ -146,9 +146,9 @@ admin_page_start($event ? 'Edit ' . ($event['event_type'] === 'awareness_day' ? 
             <section class="panel">
                 <div class="form-grid">
                     <div class="form-group full"><label for="title">Title<span class="req">*</span></label>
-                        <input id="title" name="title" required minlength="3" maxlength="200" value="<?= e($v('title')) ?>" data-slug-source="#slug"><?= field_error('title') ?></div>
+                        <input type="text" id="title" name="title" required minlength="3" maxlength="200" value="<?= e($v('title')) ?>" data-slug-source="#slug"><?= field_error('title') ?></div>
                     <div class="form-group full"><label for="slug">Web address (slug)</label>
-                        <input id="slug" name="slug" maxlength="200" value="<?= e($v('slug')) ?>" <?= $event ? 'data-touched="1"' : '' ?>>
+                        <input type="text" id="slug" name="slug" maxlength="200" value="<?= e($v('slug')) ?>" <?= $event ? 'data-touched="1"' : '' ?>>
                         <span class="help">/event-details/<strong>this-part</strong>/ - leave empty to create it from the title.</span><?= field_error('slug') ?></div>
                     <div class="form-group full"><label for="summary">Short summary<span class="req">*</span></label>
                         <textarea id="summary" name="summary" required maxlength="300" rows="3" data-counter style="min-height:84px"><?= e($v('summary')) ?></textarea>
@@ -167,7 +167,7 @@ admin_page_start($event ? 'Edit ' . ($event['event_type'] === 'awareness_day' ? 
                         <input id="end_datetime" type="datetime-local" name="end_datetime" value="<?= e(content_dt_input((string) $v('end_datetime'))) ?>"><?= field_error('end_datetime') ?></div>
                     <div class="form-group full"><label class="checkbox"><input type="checkbox" name="all_day" value="1"<?= $allDayChecked ? ' checked' : '' ?>><span>All-day (times are ignored; shown as a date)</span></label></div>
                     <div class="form-group full"><label for="location">Location<span class="req">*</span></label>
-                        <input id="location" name="location" required maxlength="200" value="<?= e($v('location', $type === 'awareness_day' ? 'India' : '')) ?>" placeholder="Venue, area, city - or Online">
+                        <input type="text" id="location" name="location" required maxlength="200" value="<?= e($v('location', $type === 'awareness_day' ? 'India' : '')) ?>" placeholder="Venue, area, city - or Online">
                         <span class="help">Visitors get a Google Maps search link for this text. Write "Online" for webinars.</span><?= field_error('location') ?></div>
                 </div>
             </section>
@@ -203,7 +203,7 @@ admin_page_start($event ? 'Edit ' . ($event['event_type'] === 'awareness_day' ? 
             <section class="panel">
                 <div class="panel-head"><h2>Image</h2></div>
                 <?php $img = $event['image'] ?? ''; ?>
-                <img id="img-preview" class="mb-2"<?= $img ? ' src="' . e(image_url($img)) . '"' : '' ?> alt="" style="width:100%;border-radius:10px;aspect-ratio:16/10;object-fit:cover;background:var(--green-50)"<?= $img ? '' : ' hidden' ?>>
+                <img id="img-preview" class="mb-2" src="<?= e($img ? image_url($img) : 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7') ?>" alt="" width="640" height="400" style="width:100%;border-radius:10px;aspect-ratio:16/10;object-fit:cover;background:var(--green-50)"<?= $img ? '' : ' hidden' ?>>
                 <div class="form-group"><label for="image"><?= $img ? 'Replace image' : 'Upload image' ?></label>
                     <input id="image" type="file" name="image" accept=".jpg,.jpeg,.png,.webp" data-preview="#img-preview">
                     <span class="help">Optional poster or photo (JPG, PNG, WebP).</span><?= field_error('image') ?></div>

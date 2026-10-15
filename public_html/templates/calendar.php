@@ -141,7 +141,7 @@ render_sections($page, function () use ($page, $month, $currentMonth, $minMonth,
                     . ($ev['status'] === 'cancelled' ? ' <span class="badge badge-red">Cancelled</span>' : '')
                     . '<h3><a href="' . e(event_url($ev['slug'])) . '">' . e(event_short_title($ev)) . '</a></h3>'
                     . '<p>' . e(excerpt((string) $ev['summary'], 220)) . '</p>'
-                    . (!$aw ? '<p class="cal-entry-meta">' . icon('clock') . e(event_when($ev)) . ' · ' . icon('map-pin') . e($ev['location']) . '</p>' : '')
+                    . (!$aw ? '<p class="cal-entry-meta"><span>' . icon('clock') . e(event_when($ev)) . '</span><span>' . icon(event_is_online($ev) ? 'monitor' : 'map-pin') . e($ev['location']) . '</span></p>' : '')
                     . '<p class="cal-entry-links"><a class="link-arrow" href="' . e(event_url($ev['slug'])) . '">' . ($aw ? 'How to take part' : 'Event details') . icon('arrow-right') . '<span class="sr-only">: ' . e($ev['title']) . '</span></a>'
                     . ($aw ? '<a class="link-arrow" href="' . e(page_url($involvePage)) . '">Organise an awareness activity with us' . icon('arrow-right') . '</a>' : '')
                     . '</p></article>';

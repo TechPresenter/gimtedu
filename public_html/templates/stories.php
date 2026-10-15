@@ -56,7 +56,7 @@ if ($segments) {
             <?php if ($preview): ?>
                 <div class="alert alert-warning mb-3"><?= icon('eye') ?><div>Staff preview: this story is not visible to visitors
                     (<?= e((int) $story['consent_confirmed'] === 1 ? $story['status'] : 'consent not confirmed') ?>).
-                    <a href="<?= e(admin_url('story-edit.php?id=' . (int) $story['id'])) ?>">Edit story</a></div></div>
+                    <a href="<?= e(url('admin/story-edit.php?id=' . (int) $story['id'])) ?>">Edit story</a></div></div>
             <?php endif; ?>
             <div class="article-layout">
                 <article class="article-main">

@@ -65,7 +65,7 @@ $titles = ['ok' => 'Your email is verified', 'invalid' => 'This link has expired
 
 page_header($page, [
     'title'            => $titles[$result] ?? 'Verify your email',
-    'meta_title'       => 'Verify your email address',
+    'meta_title'       => ['ok' => 'Email address verified', 'invalid' => 'Verification link expired', 'sent' => 'New verification link sent', '' => 'Verify your email address'][$result] ?? 'Verify your email address',
     'meta_description' => 'Verify the email address of your ' . site_name() . ' account.',
     'banner'           => false,
     'noindex'          => true,

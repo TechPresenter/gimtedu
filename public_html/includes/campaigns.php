@@ -94,10 +94,14 @@ function campaign_category_label(?string $category): string
 /** Campaign image or an illustration that matches its category. */
 function campaign_image(array $c): string
 {
-    $map = ['education-literacy' => 'education', 'food-distribution' => 'disaster-relief', 'environment-protection' => 'environment'];
     $cat = (string) ($c['category'] ?? 'general');
-    $art = $map[$cat] ?? $cat;
-    $fallback = is_file(ROOT_PATH . '/assets/images/programs/' . $art . '.svg') ? 'assets/images/programs/' . $art . '.svg' : 'assets/images/programs/general.svg';
+    if (function_exists('program_art')) {
+        $fallback = program_art(['slug' => $cat], false);   // programme illustration (M2)
+    } else {
+        $map = ['education-literacy' => 'education', 'food-distribution' => 'disaster-relief', 'environment-protection' => 'environment'];
+        $art = $map[$cat] ?? $cat;
+        $fallback = is_file(ROOT_PATH . '/assets/images/programs/' . $art . '.svg') ? 'assets/images/programs/' . $art . '.svg' : 'assets/images/programs/general.svg';
+    }
     return image_url($c['image'] ?? null, $fallback);
 }
 

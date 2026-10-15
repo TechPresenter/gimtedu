@@ -176,7 +176,7 @@ page_header($page, [
 <section class="section event-section">
     <div class="container">
         <?php if ($preview): ?>
-            <div class="alert alert-warning mb-3"><?= icon('eye') ?><div>Staff preview of a <strong><?= e($event['status']) ?></strong> event. Visitors cannot see it. <a href="<?= e(admin_url('event-edit.php?id=' . (int) $event['id'])) ?>">Edit event</a></div></div>
+            <div class="alert alert-warning mb-3"><?= icon('eye') ?><div>Staff preview of a <strong><?= e($event['status']) ?></strong> event. Visitors cannot see it. <a href="<?= e(url('admin/event-edit.php?id=' . (int) $event['id'])) ?>">Edit event</a></div></div>
         <?php endif; ?>
         <?php if ($event['status'] === 'cancelled'): ?>
             <div class="alert alert-error mb-3" role="status"><?= icon('alert-circle') ?><div><strong>This event has been cancelled.</strong> We are sorry for the inconvenience. Registered participants are informed by email.</div></div>

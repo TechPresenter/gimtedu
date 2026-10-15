@@ -84,7 +84,7 @@ if ($segments) {
         <div class="container">
             <?php if ($preview): ?>
                 <div class="alert alert-warning mb-3"><?= icon('eye') ?><div>Staff preview: this post is <strong><?= e($post['status'] === 'published' ? 'scheduled for ' . format_date($post['published_at'], 'd M Y, h:i A') : $post['status']) ?></strong> and is not visible to visitors.
-                    <a href="<?= e(admin_url('blog-edit.php?id=' . (int) $post['id'])) ?>">Edit post</a></div></div>
+                    <a href="<?= e(url('admin/blog-edit.php?id=' . (int) $post['id'])) ?>">Edit post</a></div></div>
             <?php endif; ?>
             <div class="article-layout">
                 <article class="article-main">

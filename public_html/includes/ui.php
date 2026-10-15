@@ -326,7 +326,7 @@ function empty_state(string $message, string $actionLabel = '', string $actionUr
 function ui_progress(float $raised, float $goal, int $donations = 0, string $size = ''): string
 {
     $pct = $goal > 0 ? (int) min(100, floor($raised / $goal * 100)) : 0;
-    $html = '<div class="progress-widget' . ($size ? ' progress-' . e($size) : '') . '">';
+    $html = '<div class="progress-widget' . ($size ? ' progress-size-' . e($size) : '') . '">';
     if ($goal > 0) {
         $html .= '<div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' . $pct . '" aria-label="Funding progress">'
             . '<span data-progress="' . $pct . '" style="width:' . $pct . '%"></span></div>';

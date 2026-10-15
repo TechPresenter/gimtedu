@@ -201,7 +201,7 @@ function recruitment_status_badge(?string $status, string $kind = 'volunteer', b
 }
 
 /** Label for a history entry (status changes plus a few internal event types). */
-function recruitment_history_label(string $status, string $kind): string
+function recruitment_history_label(string $status, string $kind, bool $public = false): string
 {
     $special = [
         'checklist' => 'Onboarding checklist updated', 'coordinator' => 'Coordinator assigned', 'note' => 'Note',
@@ -213,7 +213,7 @@ function recruitment_history_label(string $status, string $kind): string
     if ($status === 'submitted' || ($status === 'pending' && $kind !== 'membership')) {
         return $kind === 'beneficiary' ? 'Request submitted' : 'Application submitted';
     }
-    return recruitment_status_info($status, $kind)[0];
+    return recruitment_status_info($status, $kind)[$public ? 3 : 0];
 }
 
 // ---------------------------------------------------------------------
@@ -254,7 +254,7 @@ function recruitment_timeline_html(array $rows, string $kind, bool $admin = fals
         if (in_array($h['status'], ['rejected', 'withdrawn', 'suspended'], true)) {
             $cls .= ' is-closed';
         }
-        $html .= '<li class="' . $cls . '"><div class="rc-tl-head"><strong>' . e(recruitment_history_label($h['status'], $kind)) . '</strong>'
+        $html .= '<li class="' . $cls . '"><div class="rc-tl-head"><strong>' . e(recruitment_history_label($h['status'], $kind, !$admin)) . '</strong>'
             . '<time datetime="' . e(date('c', strtotime($h['created_at']))) . '">' . e(format_date($h['created_at'], 'd M Y, h:i A')) . '</time>';
         if ($admin) {
             $html .= ' <span class="badge badge-' . ($h['visible_to_applicant'] ? 'green' : 'gray') . '">' . ($h['visible_to_applicant'] ? 'Visible to applicant' : 'Internal') . '</span>';
@@ -1081,9 +1081,10 @@ function section_status_lookup(array $s, array $items, array $set, array $page):
         return '';
     }
     $sid = (int) ($s['id'] ?? 0);
+    $prefix = ['request-help' => 'HLP', 'scholarship' => 'SCH', 'volunteer-teacher' => 'TCH', 'volunteer-staff' => 'STF', 'internships' => 'INT'][$page['slug'] ?? ''] ?? 'VOL';
     return '<form class="rc-lookup reveal" method="post" action="' . e(page_url('application-status')) . '">' . csrf_field() . honeypot_field()
         . '<div class="rc-lookup-field"><label for="sl-ref-' . $sid . '">Reference number</label>'
-        . '<input id="sl-ref-' . $sid . '" type="text" name="ref" required maxlength="40" placeholder="PWF-VOL-' . date('Y') . '-00012" autocomplete="off" data-uppercase></div>'
+        . '<input id="sl-ref-' . $sid . '" type="text" name="ref" required maxlength="40" placeholder="PWF-' . $prefix . '-' . date('Y') . '-00012" autocomplete="off" data-uppercase></div>'
         . '<div class="rc-lookup-field"><label for="sl-contact-' . $sid . '">Email or mobile used</label>'
         . '<input id="sl-contact-' . $sid . '" type="text" name="contact" required maxlength="190" autocomplete="email"></div>'
         . '<button class="btn btn-primary" type="submit">' . icon('search') . e($set['button'] ?? 'Check status') . '</button></form>';

@@ -225,8 +225,9 @@ a.filter-btn { display: inline-flex; align-items: center; }
 .cal-entry h3 a { color: var(--ink); }
 .cal-entry h3 a:hover { color: var(--green-600); }
 .cal-entry p { margin: 0 0 8px; color: var(--muted); font-size: .9rem; }
-.cal-entry-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
-.cal-entry-meta .icon { width: 14px; height: 14px; color: var(--green-600); }
+.cal-entry-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.cal-entry-meta span { display: inline-flex; align-items: flex-start; gap: 6px; }
+.cal-entry-meta .icon { width: 14px; height: 14px; color: var(--green-600); margin-top: 4px; }
 .cal-entry-links { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-bottom: 0 !important; }
 .cal-entry-links .link-arrow { font-size: .86rem; }
 
@@ -246,6 +247,9 @@ a.filter-btn { display: inline-flex; align-items: center; }
 @media (hover: none) {
     .gallery-item .m-caption { transform: none; padding-top: 22px; }
 }
+
+/* Lightbox image: the placeholder carries width/height 1, the real photo sizes itself */
+#lightbox img { width: auto; height: auto; }
 
 /* ---------- Videos (YouTube facade) ---------- */
 .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 26px; }

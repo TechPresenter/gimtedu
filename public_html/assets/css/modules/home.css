@@ -184,7 +184,7 @@
 .tpl-home .section-green .pill { background: rgba(255, 255, 255, .12); color: #fff; border-color: rgba(255, 255, 255, .22); }
 .tpl-home .sec-split .split-media { position: relative; }
 .tpl-home .sec-split .split-media::before {
-    content: ""; position: absolute; width: 46%; aspect-ratio: 1; right: -4%; top: -6%; z-index: 0; border-radius: 50%;
+    content: ""; position: absolute; width: 46%; aspect-ratio: 1; right: 0; top: -6%; z-index: 0; border-radius: 50%;
     background: radial-gradient(circle, rgba(244, 201, 0, .22), transparent 70%); pointer-events: none;
 }
 .tpl-home .sec-split .split-media img { position: relative; z-index: 1; }

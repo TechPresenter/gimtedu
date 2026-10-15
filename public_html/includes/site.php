@@ -992,6 +992,11 @@ function site_settings_tabs(): array
             'contact_address' => ['textarea', 'Office address', '', ['max' => 300]],
             'office_hours' => ['text', 'Office hours', 'e.g. Monday to Saturday, 10:00 AM - 6:00 PM', ['max' => 150]],
             'map_embed_url' => ['map', 'Google Maps embed link', 'In Google Maps: Share → Embed a map → copy only the address inside src="…". It must start with https://www.google.com/maps/embed?'],
+            '_grievance' => ['heading', 'Grievance redressal', 'Shown on the Grievance Redressal page. Enter only names and time limits the foundation has actually committed to - leave blank otherwise (the page then says complaints are handled as early as possible).'],
+            'grievance_officer_name' => ['text', 'Grievance officer (name or designation)', '', ['max' => 120]],
+            'grievance_officer_email' => ['email', 'Grievance officer email'],
+            'grievance_ack_days' => ['int', 'Acknowledge complaints within (days)', '', ['min' => 1, 'max' => 365]],
+            'grievance_resolution_days' => ['int', 'Resolve complaints within (days)', '', ['min' => 1, 'max' => 365]],
         ]],
         'header' => ['Header & footer', 'layers', [
             'topbar_enabled' => ['checkbox', 'Show the top bar above the header (welcome text, email, apply links, login)'],
@@ -1053,6 +1058,9 @@ function site_settings_tabs(): array
         'recruitment' => ['Recruitment', 'briefcase', [
             'staff_positions' => ['textarea', 'Open staff positions', 'One per line as "Title | Short description". Leave empty when there are no openings.', ['max' => 5000]],
             'internship_areas' => ['textarea', 'Internship areas', 'Separate the areas with commas, e.g. Education, Health, Environment', ['max' => 1000]],
+            '_certificates' => ['heading', 'Certificates', 'Printed on volunteer, internship and participation certificates. Use the name and designation of the person actually authorised to sign them.'],
+            'certificate_signatory_name' => ['text', 'Certificate signatory name', '', ['max' => 120]],
+            'certificate_signatory_title' => ['text', 'Certificate signatory designation', 'e.g. Secretary', ['max' => 120]],
         ]],
         'seo' => ['SEO & analytics', 'search', [
             'seo_title_suffix' => ['text', 'Title suffix', 'Added after page titles, e.g. " | Prerit Welfare Foundation".', ['max' => 80]],
@@ -1123,6 +1131,8 @@ function site_setting_input(string $key, array $def, string $value): string
     $max = isset($o['max']) && in_array($type, ['text', 'textarea'], true) ? ' maxlength="' . (int) $o['max'] . '"' : '';
     $counter = !empty($o['counter']) ? ' data-counter="' . (int) $o['counter'] . '"' : '';
     switch ($type) {
+        case 'heading':
+            return '<div class="form-group full site-group-head"><h3 class="site-sub">' . e($label) . '</h3>' . $h . '</div>';
         case 'checkbox':
             return '<div class="form-group full site-check"><input type="hidden" name="' . e($key) . '" value="0"><label class="checkbox" for="' . e($id) . '"><input type="checkbox" id="' . e($id) . '" name="' . e($key) . '" value="1"' . ($value === '1' ? ' checked' : '') . '><span>' . e($label) . '</span></label>' . $h . '</div>';
         case 'textarea':
@@ -1286,6 +1296,9 @@ function site_save_settings(array $fields, array $post, string $folder = 'brandi
     $values = [];
     $errors = [];
     foreach ($fields as $key => $def) {
+        if ($def[0] === 'heading') {
+            continue;
+        }
         [$v, $err] = site_setting_parse($key, $def, $post, $folder);
         if ($err) {
             $errors[$key] = $err;
@@ -1372,8 +1385,10 @@ function section_logo_strip(array $s, array $items, array $set, array $page): st
     foreach ($items as $i => $it) {
         $img = '<img src="' . e(url($it['image'])) . '" alt="' . e($it['name']) . '" loading="lazy" style="max-height:64px;max-width:100%;width:auto;height:auto;object-fit:contain' . (!empty($set['grayscale']) ? ';filter:grayscale(1);opacity:.85' : '') . '">';
         $box = 'display:flex;align-items:center;justify-content:center;height:100%;min-height:96px;padding:14px 18px;background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-sm)';
-        $inner = !empty($it['url'])
-            ? '<a href="' . e(safe_link((string) $it['url'])) . '"' . (preg_match('#^https?://#i', (string) $it['url']) ? ' target="_blank" rel="noopener"' : '') . ' style="' . $box . '" title="' . e($it['name']) . '">' . $img . '</a>'
+        $err = null;
+        $href = !empty($it['url']) ? site_clean_link((string) $it['url'], $err) : '';
+        $inner = ($href !== '' && !$err)
+            ? '<a href="' . e(safe_link($href)) . '"' . (preg_match('#^https?://#i', $href) ? ' target="_blank" rel="noopener"' : '') . ' style="' . $box . '" title="' . e($it['name']) . '">' . $img . '</a>'
             : '<div style="' . $box . '">' . $img . '</div>';
         $html .= '<li class="reveal" style="--d:' . ($i % 4) . ';flex:0 1 190px;min-width:130px">' . $inner . '</li>';
     }
@@ -1408,8 +1423,10 @@ function section_image_cards(array $s, array $items, array $set, array $page): s
     $cols = (int) ($set['cols'] ?? 0) ?: (count($items) % 3 === 0 || count($items) > 4 ? 3 : min(4, max(2, count($items))));
     $html = '<div class="grid grid-' . max(1, min(4, $cols)) . ' site-image-cards">';
     foreach ($items as $i => $it) {
-        $link = !empty($it['link']) ? safe_link((string) $it['link']) : '';
-        $ext = $link !== '' && preg_match('#^https?://#i', (string) $it['link']);
+        $err = null;
+        $clean = !empty($it['link']) ? site_clean_link((string) $it['link'], $err) : '';
+        $link = ($clean !== '' && !$err) ? safe_link($clean) : '';   // unsafe links are dropped, never sent to "/"
+        $ext = $link !== '' && preg_match('#^https?://#i', $clean);
         $attr = $ext ? ' target="_blank" rel="noopener"' : '';
         $html .= '<article class="blog-card reveal tilt" style="--d:' . ($i % 4) . '">';
         if (!empty($it['image']) && site_valid_image_path((string) $it['image'])) {

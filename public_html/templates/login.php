@@ -69,12 +69,24 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 }
 
 $notice = account_notice();
+// Name the destination in the title ("Sign in to continue to My Donations").
+$nextTitle = '';
+if ($next !== '') {
+    $nextSlug = trim((string) parse_url($next, PHP_URL_PATH), '/');
+    $nextParts = explode('/', $nextSlug);
+    $memberSections = member_sections();
+    if ($nextParts[0] === 'dashboard') {
+        $nextTitle = $memberSections[$nextParts[1] ?? 'overview'][2] ?? 'My Dashboard';
+    } elseif ($nextSlug !== '' && ($nextPage = get_page($nextSlug))) {
+        $nextTitle = (string) $nextPage['title'];
+    }
+}
 $showResend = !empty($_SESSION['m5_verify_uid']);
 $registrationOpen = setting('allow_registration', '1') === '1';
 
 page_header($page, [
     'title'            => 'Sign in',
-    'meta_title'       => 'Sign in to your account',
+    'meta_title'       => $nextTitle !== '' ? 'Sign in to continue to ' . $nextTitle : 'Sign in to your account',
     'meta_description' => 'Sign in to your ' . site_name() . ' account to see your donations, receipts, applications, events and certificates.',
     'banner'           => false,
     'noindex'          => true,

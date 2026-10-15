@@ -8,7 +8,7 @@ require_permission('menus.manage');
 
 const SITE_CORE_MENUS = ['main', 'topbar', 'footer_about', 'footer_involved', 'footer_legal'];
 
-$menus = db_rows('SELECT * FROM menus ORDER BY FIELD(menu_key, "main", "topbar") DESC, id');
+$menus = db_rows('SELECT * FROM menus ORDER BY FIELD(menu_key, "topbar", "main") DESC, id');
 $menuKey = (string) ($_GET['menu'] ?? ($_POST['menu'] ?? 'main'));
 $menu = null;
 foreach ($menus as $m) {

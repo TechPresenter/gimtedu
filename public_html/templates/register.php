@@ -112,7 +112,7 @@ $selectedType = (string) old('account_type', in_array('member', $roleSlugs, true
 
 page_header($page, [
     'title'            => $sent ? 'Check your email' : 'Create an account',
-    'meta_title'       => 'Create an account',
+    'meta_title'       => $sent ? 'Check your email to activate your account' : 'Create an account',
     'meta_description' => 'Create a free ' . site_name() . ' account to follow your donations and receipts, applications, events and certificates.',
     'banner'           => false,
     'noindex'          => true,

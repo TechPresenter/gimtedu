@@ -155,7 +155,7 @@ admin_page_start('Registrations', [
         <?= csrf_field() ?><input type="hidden" name="action" value="email"><input type="hidden" name="event" value="<?= (int) $eventId ?>">
         <div class="form-grid">
             <div class="form-group full"><label for="subject">Subject<span class="req">*</span></label>
-                <input id="subject" name="subject" required minlength="3" maxlength="150" value="<?= e(old('subject', 'Update: ' . $event['title'])) ?>"><?= field_error('subject') ?></div>
+                <input type="text" id="subject" name="subject" required minlength="3" maxlength="150" value="<?= e(old('subject', 'Update: ' . $event['title'])) ?>"><?= field_error('subject') ?></div>
             <div class="form-group full"><label for="message">Message<span class="req">*</span></label>
                 <textarea id="message" name="message" required minlength="10" maxlength="5000" rows="7" data-counter><?= e(old('message')) ?></textarea>
                 <span class="help">Plain text. Each email starts with "Dear &lt;name&gt;" and ends with the event's date, place and link.</span><?= field_error('message') ?></div>

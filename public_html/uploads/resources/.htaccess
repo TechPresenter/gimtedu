@@ -1,0 +1,8 @@
+# Public documents (registration certificates, reports, resources): PDFs may be viewed inline.
+# The stricter rules from uploads/.htaccess (no scripts, no HTML) still apply.
+<IfModule mod_headers.c>
+    <FilesMatch "\.pdf$">
+        Header set Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; object-src 'self'; frame-ancestors 'self'"
+        Header set Content-Disposition "inline"
+    </FilesMatch>
+</IfModule>

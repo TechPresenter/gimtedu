@@ -51,7 +51,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
 page_header($page, [
     'title'            => 'Choose a new password',
-    'meta_title'       => 'Choose a new password',
+    'meta_title'       => ($reset && $resetUser) ? 'Choose a new password' : ($token === '' ? 'Reset your password' : 'Password reset link expired'),
     'meta_description' => 'Choose a new password for your ' . site_name() . ' account.',
     'banner'           => false,
     'noindex'          => true,

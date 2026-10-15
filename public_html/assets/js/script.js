@@ -139,7 +139,8 @@
         }
         function restart() {
             if (timer) { clearInterval(timer); }
-            if (!reduceMotion) { timer = setInterval(function () { go(index + 1); }, 6500); }
+            timer = null;
+            if (!reduceMotion && !(typeof paused !== 'undefined' && paused)) { timer = setInterval(function () { go(index + 1); }, 6500); }
         }
 
         slides.forEach(function (s, i) { if (i !== 0) { s.setAttribute('aria-hidden', 'true'); } });
@@ -149,8 +150,26 @@
         var next = slider.querySelector('.hero-next');
         if (prev) { prev.addEventListener('click', function () { go(index - 1); restart(); }); }
         if (next) { next.addEventListener('click', function () { go(index + 1); restart(); }); }
-        slider.addEventListener('mouseenter', function () { if (timer) { clearInterval(timer); } });
-        slider.addEventListener('mouseleave', restart);
+        var paused = false;
+        var stop = function () { if (timer) { clearInterval(timer); timer = null; } };
+        slider.addEventListener('mouseenter', stop);
+        slider.addEventListener('mouseleave', function () { if (!paused) { restart(); } });
+        slider.addEventListener('focusin', stop);
+        slider.addEventListener('focusout', function (e) { if (!paused && !slider.contains(e.relatedTarget)) { restart(); } });
+        if (!reduceMotion && dotsWrap) {
+            var pauseBtn = document.createElement('button');
+            pauseBtn.type = 'button';
+            pauseBtn.className = 'hero-pause';
+            pauseBtn.setAttribute('aria-label', 'Pause slideshow');
+            pauseBtn.innerHTML = '<span aria-hidden="true">&#10074;&#10074;</span>';
+            pauseBtn.addEventListener('click', function () {
+                paused = !paused;
+                pauseBtn.setAttribute('aria-label', paused ? 'Play slideshow' : 'Pause slideshow');
+                pauseBtn.innerHTML = paused ? '<span aria-hidden="true">&#9654;</span>' : '<span aria-hidden="true">&#10074;&#10074;</span>';
+                if (paused) { stop(); } else { restart(); }
+            });
+            dotsWrap.appendChild(pauseBtn);
+        }
 
         // swipe support
         var startX = null;

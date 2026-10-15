@@ -131,9 +131,9 @@ admin_page_start($post ? 'Edit post' : 'New post', [['label' => 'All posts', 'ur
             <section class="panel">
                 <div class="form-grid">
                     <div class="form-group full"><label for="title">Title<span class="req">*</span></label>
-                        <input id="title" name="title" required minlength="3" maxlength="220" value="<?= e($v('title')) ?>" data-slug-source="#slug"><?= field_error('title') ?></div>
+                        <input type="text" id="title" name="title" required minlength="3" maxlength="220" value="<?= e($v('title')) ?>" data-slug-source="#slug"><?= field_error('title') ?></div>
                     <div class="form-group full"><label for="slug">Web address (slug)</label>
-                        <input id="slug" name="slug" maxlength="200" value="<?= e($v('slug')) ?>" <?= $post ? 'data-touched="1"' : '' ?>>
+                        <input type="text" id="slug" name="slug" maxlength="200" value="<?= e($v('slug')) ?>" <?= $post ? 'data-touched="1"' : '' ?>>
                         <span class="help">/blog/<strong>this-part</strong>/ - lower-case letters, numbers and hyphens. Changing it breaks links that were already shared.</span><?= field_error('slug') ?></div>
                     <div class="form-group full"><label for="excerpt">Summary (excerpt)</label>
                         <textarea id="excerpt" name="excerpt" maxlength="400" rows="3" data-counter style="min-height:90px"><?= e($v('excerpt')) ?></textarea>
@@ -147,7 +147,7 @@ admin_page_start($post ? 'Edit post' : 'New post', [['label' => 'All posts', 'ur
                 <div class="panel-head"><h2>Search engines &amp; sharing</h2></div>
                 <div class="form-grid">
                     <div class="form-group full"><label for="meta_title">Meta title</label>
-                        <input id="meta_title" name="meta_title" maxlength="200" data-counter data-ideal="60" value="<?= e($v('meta_title')) ?>"><?= field_error('meta_title') ?></div>
+                        <input type="text" id="meta_title" name="meta_title" maxlength="200" data-counter data-ideal="60" value="<?= e($v('meta_title')) ?>"><?= field_error('meta_title') ?></div>
                     <div class="form-group full"><label for="meta_description">Meta description</label>
                         <textarea id="meta_description" name="meta_description" maxlength="300" rows="3" data-counter style="min-height:84px"><?= e($v('meta_description')) ?></textarea>
                         <span class="help">Aim for 120-160 characters. Leave empty to use the summary.</span><?= field_error('meta_description') ?></div>
@@ -171,7 +171,7 @@ admin_page_start($post ? 'Edit post' : 'New post', [['label' => 'All posts', 'ur
                 <div class="form-group mb-2"><label for="program_id">Programme (optional)</label>
                     <select id="program_id" name="program_id"><?= options_html($programs, (string) $v('program_id'), true, 'None') ?></select><?= field_error('program_id') ?></div>
                 <div class="form-group mb-2"><label for="author_name">Author name</label>
-                    <input id="author_name" name="author_name" maxlength="120" value="<?= e($v('author_name')) ?>" placeholder="<?= e(site_name()) ?>">
+                    <input type="text" id="author_name" name="author_name" maxlength="120" value="<?= e($v('author_name')) ?>" placeholder="<?= e(site_name()) ?>">
                     <span class="help">Leave empty to show the foundation as the author.</span><?= field_error('author_name') ?></div>
                 <div class="form-actions" style="margin-top:14px">
                     <button class="btn btn-primary" type="submit"><?= icon('check') ?>Save post</button>
@@ -181,7 +181,7 @@ admin_page_start($post ? 'Edit post' : 'New post', [['label' => 'All posts', 'ur
             <section class="panel">
                 <div class="panel-head"><h2>Featured image</h2></div>
                 <?php $img = $post['image'] ?? ''; ?>
-                <img id="img-preview" class="mb-2"<?= $img ? ' src="' . e(image_url($img)) . '"' : '' ?> alt="" style="width:100%;border-radius:10px;aspect-ratio:16/10;object-fit:cover;background:var(--green-50)"<?= $img ? '' : ' hidden' ?>>
+                <img id="img-preview" class="mb-2" src="<?= e($img ? image_url($img) : 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7') ?>" alt="" width="640" height="400" style="width:100%;border-radius:10px;aspect-ratio:16/10;object-fit:cover;background:var(--green-50)"<?= $img ? '' : ' hidden' ?>>
                 <div class="form-group"><label for="image"><?= $img ? 'Replace image' : 'Upload image' ?></label>
                     <input id="image" type="file" name="image" accept=".jpg,.jpeg,.png,.webp" data-preview="#img-preview">
                     <span class="help">JPG, PNG or WebP, up to <?= MAX_UPLOAD_MB ?> MB (resized to 1920px). Use photos of identifiable people only with their consent.</span><?= field_error('image') ?></div>

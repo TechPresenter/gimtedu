@@ -264,9 +264,11 @@ $openId = (int) ($_GET['open'] ?? 0);
 
 $actions = [['label' => 'All pages', 'url' => admin_url('pages.php'), 'icon' => 'chevron-left', 'style' => 'ghost']];
 if ($page['status'] === 'published') {
-    $actions[] = ['label' => 'View page', 'url' => $viewUrl, 'icon' => 'external', 'style' => 'outline'];
+    // a published page looks exactly like its preview, so link the real address (no duplicate ?preview URL)
+    $actions[] = ['label' => 'View page', 'url' => $viewUrl, 'icon' => 'external', 'style' => 'primary'];
+} else {
+    $actions[] = ['label' => 'Preview (staff only)', 'url' => $previewUrl, 'icon' => 'eye', 'style' => 'primary'];
 }
-$actions[] = ['label' => 'Preview', 'url' => $previewUrl, 'icon' => 'eye', 'style' => 'primary'];
 admin_page_start('Edit: ' . $page['title'], $actions);
 
 $editor = site_user_name($page['updated_by'] ? (int) $page['updated_by'] : null);

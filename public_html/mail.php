@@ -43,6 +43,10 @@ function send_mail(string $to, string $subject, string $bodyHtml, ?string $reply
 
     if (!MAIL_ENABLED) {
         error_log('[mail disabled] To: ' . $to . ' | Subject: ' . $subject);
+        if (APP_ENV === 'development') {
+            // Local testing only: keep the full message (with links) outside the web root.
+            @file_put_contents(sys_get_temp_dir() . '/pwf-mail.log', '==== ' . date('c') . ' | To: ' . $to . ' | ' . $subject . "\n" . $bodyHtml . "\n\n", FILE_APPEND);
+        }
         return false;
     }
 
@@ -154,7 +158,7 @@ function send_application_ack(string $to, string $name, string $type, string $re
         . '<p>Thank you for your ' . e($type) . ' submitted to ' . e(site_name()) . '. We have received it and our team will review it.</p>'
         . '<p>Your reference number is: <strong style="font-size:18px">' . e($refNo) . '</strong></p>'
         . '<p>You can check the status at any time using this number:</p>'
-        . '<p><a class="btn" href="' . e(abs_url('application-status.php')) . '">Check application status</a></p>'
+        . '<p><a class="btn" href="' . e(abs_url('application-status/')) . '">Check application status</a></p>'
         . '<p>Regards,<br>' . e(site_name()) . '</p>';
     send_mail($to, $type . ' received - ' . $refNo, $body);
 }

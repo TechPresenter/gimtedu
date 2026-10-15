@@ -208,12 +208,12 @@ admin_page_start('Photo & Video Gallery', [['label' => 'View ' . ($type === 'vid
             <div class="form-group full"><label for="images">Photos<span class="req">*</span></label>
                 <input id="images" type="file" name="images[]" accept=".jpg,.jpeg,.png,.webp" multiple required><?= field_error('images') ?></div>
             <div class="form-group"><label for="up-title">Title<span class="req">*</span></label>
-                <input id="up-title" name="title" required minlength="2" maxlength="150" value="<?= e(old('title')) ?>" placeholder="e.g. Health camp, Sector 4">
+                <input type="text" id="up-title" name="title" required minlength="2" maxlength="150" value="<?= e(old('title')) ?>" placeholder="e.g. Health camp, Sector 4">
                 <span class="help">With several photos, a number is added: "Title (1)", "Title (2)"…</span><?= field_error('title') ?></div>
             <div class="form-group"><label for="up-category">Category<span class="req">*</span></label>
                 <select id="up-category" name="category" required><?= $catOptions((string) old('category', 'general')) ?></select><?= field_error('category') ?></div>
             <div class="form-group full"><label for="up-description">Description (alt text)<span class="req">*</span></label>
-                <input id="up-description" name="description" required minlength="5" maxlength="300" value="<?= e(old('description')) ?>" placeholder="Describe what the photo shows, for people using screen readers">
+                <input type="text" id="up-description" name="description" required minlength="5" maxlength="300" value="<?= e(old('description')) ?>" placeholder="Describe what the photo shows, for people using screen readers">
                 <?= field_error('description') ?></div>
             <div class="form-group"><label for="up-sort">Sort order</label>
                 <input id="up-sort" type="number" name="sort_order" min="-9999" max="9999" value="<?= e(old('sort_order', '0')) ?>"><span class="help">Lower numbers are shown first.</span></div>
@@ -229,11 +229,11 @@ admin_page_start('Photo & Video Gallery', [['label' => 'View ' . ($type === 'vid
             <div class="form-group full"><label for="video_url">YouTube link<span class="req">*</span></label>
                 <input id="video_url" type="url" name="video_url" required maxlength="255" value="<?= e(old('video_url')) ?>" placeholder="https://www.youtube.com/watch?v=…"><?= field_error('video_url') ?></div>
             <div class="form-group"><label for="v-title">Title<span class="req">*</span></label>
-                <input id="v-title" name="title" required minlength="2" maxlength="150" value="<?= e(old('title')) ?>"><?= field_error('title') ?></div>
+                <input type="text" id="v-title" name="title" required minlength="2" maxlength="150" value="<?= e(old('title')) ?>"><?= field_error('title') ?></div>
             <div class="form-group"><label for="v-category">Category<span class="req">*</span></label>
                 <select id="v-category" name="category" required><?= $catOptions((string) old('category', 'general')) ?></select><?= field_error('category') ?></div>
             <div class="form-group full"><label for="v-description">Short description</label>
-                <input id="v-description" name="description" maxlength="300" value="<?= e(old('description')) ?>"><?= field_error('description') ?></div>
+                <input type="text" id="v-description" name="description" maxlength="300" value="<?= e(old('description')) ?>"><?= field_error('description') ?></div>
             <div class="form-group"><label for="v-sort">Sort order</label>
                 <input id="v-sort" type="number" name="sort_order" min="-9999" max="9999" value="<?= e(old('sort_order', '0')) ?>"></div>
             <div class="form-group full"><label class="checkbox"><input type="checkbox" name="consent_confirmed" value="1"<?= old('consent_confirmed', null) !== null ? ' checked' : '' ?>><span><strong><?= e(GALLERY_CONSENT_LABEL) ?></strong> - required to publish.</span></label></div>
@@ -262,16 +262,16 @@ admin_page_start('Photo & Video Gallery', [['label' => 'View ' . ($type === 'vid
             $fid = 'g' . (int) $g['id']; ?>
             <div class="gallery-admin-item"<?= $g['status'] === 'hidden' ? ' style="opacity:.85;border-style:dashed"' : '' ?>>
                 <?php if ($thumb): ?><img src="<?= e($thumb) ?>" alt="<?= e($g['description'] ?: $g['title']) ?>" loading="lazy"<?= $g['media_type'] === 'video' ? ' referrerpolicy="no-referrer"' : '' ?>><?php endif; ?>
-                <form method="post" action="<?= e(admin_url($self)) ?>">
+                <form method="post" action="<?= e(admin_url($self)) ?>" style="grid-template-columns:minmax(0,1fr)">
                     <?= csrf_field() ?><?= return_field() ?><input type="hidden" name="action" value="update"><input type="hidden" name="id" value="<?= (int) $g['id'] ?>">
                     <div style="display:flex;justify-content:space-between;gap:6px;align-items:center"><?= status_badge($g['status']) ?><small class="muted">#<?= (int) $g['id'] ?><?= $ytId ? ' · <a href="https://www.youtube.com/watch?v=' . e($ytId) . '" target="_blank" rel="noopener">YouTube</a>' : '' ?></small></div>
                     <label class="sr-only" for="<?= $fid ?>-t">Title</label>
-                    <input id="<?= $fid ?>-t" name="title" required maxlength="150" value="<?= e($g['title']) ?>" placeholder="Title">
+                    <input type="text" id="<?= $fid ?>-t" name="title" required maxlength="150" value="<?= e($g['title']) ?>" placeholder="Title">
                     <label class="sr-only" for="<?= $fid ?>-c">Category</label>
                     <select id="<?= $fid ?>-c" name="category"><?= $catOptions((string) $g['category']) ?></select>
                     <label class="sr-only" for="<?= $fid ?>-d"><?= $g['media_type'] === 'image' ? 'Description (alt text)' : 'Description' ?></label>
-                    <input id="<?= $fid ?>-d" name="description" maxlength="300" value="<?= e((string) $g['description']) ?>" placeholder="<?= $g['media_type'] === 'image' ? 'Description (alt text)' : 'Description' ?>"<?= $g['media_type'] === 'image' ? ' required' : '' ?>>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                    <input type="text" id="<?= $fid ?>-d" name="description" maxlength="300" value="<?= e((string) $g['description']) ?>" placeholder="<?= $g['media_type'] === 'image' ? 'Description (alt text)' : 'Description' ?>"<?= $g['media_type'] === 'image' ? ' required' : '' ?>>
+                    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px">
                         <label class="sr-only" for="<?= $fid ?>-s">Sort order</label>
                         <input id="<?= $fid ?>-s" type="number" name="sort_order" min="-9999" max="9999" value="<?= (int) $g['sort_order'] ?>" title="Sort order">
                         <label class="sr-only" for="<?= $fid ?>-st">Status</label>
@@ -281,11 +281,11 @@ admin_page_start('Photo & Video Gallery', [['label' => 'View ' . ($type === 'vid
                     <button class="btn btn-primary btn-sm" type="submit"><?= icon('check') ?>Save</button>
                 </form>
                 <div style="display:flex;gap:6px;padding:0 10px 10px;flex-wrap:wrap">
-                    <form method="post" action="<?= e(admin_url($self)) ?>" class="inline-form">
+                    <form method="post" action="<?= e(admin_url($self)) ?>" class="inline-form" style="display:inline-block;padding:0">
                         <?= csrf_field() ?><?= return_field() ?><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= (int) $g['id'] ?>">
                         <button class="btn btn-ghost btn-sm" type="submit"><?= icon($g['status'] === 'published' ? 'eye' : 'check-circle') ?><?= $g['status'] === 'published' ? 'Hide' : 'Show' ?></button>
                     </form>
-                    <form method="post" action="<?= e(admin_url($self)) ?>" class="inline-form" data-confirm="Delete this item permanently?">
+                    <form method="post" action="<?= e(admin_url($self)) ?>" class="inline-form" style="display:inline-block;padding:0" data-confirm="Delete this item permanently?">
                         <?= csrf_field() ?><?= return_field() ?><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= (int) $g['id'] ?>">
                         <button class="btn btn-ghost btn-sm" type="submit" aria-label="Delete <?= e($g['title']) ?>"><?= icon('trash') ?>Delete</button>
                     </form>
