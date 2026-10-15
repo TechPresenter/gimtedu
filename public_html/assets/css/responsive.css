@@ -143,7 +143,7 @@
     .btn-lg { padding: .9em 1.5em; }
     .footer-grid { grid-template-columns: 1fr; }
     .member-nav ul { grid-template-columns: 1fr; }
-    .search-bar input, .search-bar select, .search-bar .btn { min-width: 100%; }
+    .search-bar input, .search-bar select { min-width: 0; flex: 1 1 100%; }
 }
 
 

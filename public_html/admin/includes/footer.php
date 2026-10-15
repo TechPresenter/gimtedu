@@ -12,5 +12,6 @@ unset($_SESSION['_old'], $_SESSION['_errors']);
 </div>
 <script src="<?= e(asset('assets/js/form-validation.js')) ?>"></script>
 <script src="<?= e(asset('assets/js/admin.js')) ?>"></script>
+<?php foreach (array_unique($GLOBALS['adminExtraScripts'] ?? []) as $adminScript): ?><script src="<?= e($adminScript) ?>" defer></script><?php endforeach; ?>
 </body>
 </html>

@@ -251,7 +251,7 @@ h1, h2, h3, h4 { color: var(--ink); letter-spacing: -.01em; }
 /* ---------- Share row & tooltips ---------- */
 .share-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .share-row > span { font-weight: 600; font-size: .9rem; color: var(--ink-soft); }
-.share-row a, .share-row button { width: 38px; height: 38px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); background: #fff; color: var(--green-700); cursor: pointer; transition: transform .2s, background .2s, color .2s; position: relative; }
+.share-row a, .share-row button { padding: 0; width: 38px; height: 38px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); background: #fff; color: var(--green-700); cursor: pointer; transition: transform .2s, background .2s, color .2s; position: relative; }
 .share-row a:hover, .share-row button:hover { transform: translateY(-3px); background: var(--green-600); color: #fff; }
 .share-row .share-whatsapp:hover { background: #1fa855; } .share-row .share-facebook:hover { background: #1877f2; } .share-row .share-linkedin:hover { background: #0a66c2; } .share-row .share-twitter:hover { background: #111; }
 @media (hover: hover) and (pointer: fine) {
@@ -434,3 +434,9 @@ body[data-motion="off"] .tilt { transform: none !important; }
 
 .hero-pause { width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.4); background: rgba(255,255,255,.12); color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: .7rem; margin-left: 6px; }
 .hero-pause:hover { background: rgba(255,255,255,.25); }
+
+@media (max-width: 767px) {
+    .search-bar { flex-wrap: wrap; }
+    .search-bar input, .search-bar select { min-width: 0; flex: 1 1 180px; }
+    .search-bar .btn { min-width: 0; flex: 0 0 auto; }
+}
