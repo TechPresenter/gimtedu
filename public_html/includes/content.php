@@ -258,7 +258,7 @@ function event_type_label(?string $type): string
 
 function event_end_ts(array $ev): int
 {
-    return (int) strtotime((string) ($ev['end_datetime'] ?: $ev['start_datetime']));
+    return (int) strtotime((string) (($ev['end_datetime'] ?? null) ?: $ev['start_datetime']));
 }
 
 function event_is_past(array $ev): bool
@@ -464,8 +464,8 @@ function event_card(array $ev, int $i = 0): string
         . '<div class="event-body"><span class="ev-chip ev-type-' . e($type) . '">' . icon(EVENT_TYPE_ICONS[$type] ?? 'calendar') . e(event_type_label($type)) . '</span>'
         . '<h3><a href="' . e($link) . '">' . e($ev['title']) . '</a></h3>'
         . '<ul class="meta-list"><li>' . icon('clock') . '<span>' . e(event_when($ev)) . '</span></li>'
-        . '<li>' . icon(event_is_online($ev) ? 'monitor' : 'map-pin') . '<span>' . e($ev['location']) . '</span></li></ul>'
-        . '<p>' . e(excerpt((string) $ev['summary'], 130)) . '</p>'
+        . '<li>' . icon(event_is_online($ev) ? 'monitor' : 'map-pin') . '<span>' . e($ev['location'] ?? '') . '</span></li></ul>'
+        . '<p>' . e(excerpt((string) ($ev['summary'] ?? ''), 130)) . '</p>'
         . '<a class="link-arrow" href="' . e($link) . '">' . ($type === 'awareness_day' ? 'Learn more' : 'View details') . icon('arrow-right') . '<span class="sr-only">: ' . e($ev['title']) . '</span></a></div></article>';
 }
 
@@ -477,10 +477,10 @@ function blog_card(array $post, int $i = 0): string
     return '<article class="blog-card post-card reveal tilt" style="--d:' . ($i % 4) . '">'
         . '<a class="blog-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($post['image'] ?? null, CONTENT_FALLBACK_IMAGE)) . '" alt="" loading="lazy" width="480" height="300"></a>'
         . '<span class="post-chip post-chip-' . e($cat) . '">' . e(BLOG_CATEGORIES[$cat] ?? 'Blog') . '</span>'
-        . '<div class="blog-body"><div class="post-meta"><span>' . icon('calendar') . '<time datetime="' . e(date('Y-m-d', strtotime((string) $post['published_at']))) . '">' . e(format_date($post['published_at'])) . '</time></span>'
+        . '<div class="blog-body"><div class="post-meta"><span>' . icon('calendar') . '<time datetime="' . e(format_date($post['published_at'] ?? null, 'Y-m-d')) . '">' . e(format_date($post['published_at'] ?? null)) . '</time></span>'
         . ($minutes ? '<span>' . icon('clock') . $minutes . ' min read</span>' : '') . '</div>'
         . '<h3><a href="' . e($link) . '">' . e($post['title']) . '</a></h3>'
-        . '<p>' . e(excerpt((string) $post['excerpt'], 150)) . '</p>'
+        . '<p>' . e(excerpt((string) ($post['excerpt'] ?? ''), 150)) . '</p>'
         . '<a class="link-arrow" href="' . e($link) . '">Read more' . icon('arrow-right') . '<span class="sr-only">: ' . e($post['title']) . '</span></a></div></article>';
 }
 
@@ -509,7 +509,7 @@ function story_card(array $s, int $i = 0): string
         . '<a class="story-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($s['image'] ?? null, 'assets/images/hero/community.svg')) . '" alt="" loading="lazy" width="480" height="320"></a>'
         . '<div class="story-body"><span class="story-mark" aria-hidden="true">&ldquo;</span>'
         . '<h3><a href="' . e($link) . '">' . e($s['title']) . '</a></h3>'
-        . '<p>' . e(excerpt((string) $s['excerpt'], 150)) . '</p>'
+        . '<p>' . e(excerpt((string) ($s['excerpt'] ?? ''), 150)) . '</p>'
         . ($who !== '' ? '<p class="story-person">' . icon('user') . '<span>' . e($who) . '</span></p>' : '')
         . '<a class="link-arrow" href="' . e($link) . '">Read the story' . icon('arrow-right') . '<span class="sr-only">: ' . e($s['title']) . '</span></a></div></article>';
 }
