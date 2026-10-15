@@ -164,14 +164,19 @@
         restart();
     });
 
-    /* ---------- Gallery filter ---------- */
-    var filterBtns = document.querySelectorAll('.filter-btn[data-filter]');
-    filterBtns.forEach(function (btn) {
+    /* ---------- Filter chips (scoped to their own section) ---------- */
+    document.querySelectorAll('.filter-btn[data-filter]').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var f = btn.getAttribute('data-filter');
-            filterBtns.forEach(function (b) { b.classList.toggle('is-active', b === btn); b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
-            document.querySelectorAll('[data-category]').forEach(function (item) {
-                item.hidden = !(f === 'all' || item.getAttribute('data-category') === f);
+            var bar = btn.closest('[data-filter-group], .filter-bar') || btn.parentElement;
+            var targetSel = bar.getAttribute('data-target');
+            var scope = (targetSel && document.querySelector(targetSel)) || bar.closest('section') || document;
+            bar.querySelectorAll('.filter-btn[data-filter]').forEach(function (b) {
+                b.classList.toggle('is-active', b === btn);
+                b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+            });
+            scope.querySelectorAll('[data-category]').forEach(function (item) {
+                item.hidden = !(f === 'all' || (' ' + item.getAttribute('data-category') + ' ').indexOf(' ' + f + ' ') !== -1);
             });
         });
     });

@@ -201,6 +201,11 @@ h1, h2, h3, h4 { color: var(--ink); letter-spacing: -.01em; }
 .tile .tile-arrow { margin-left: auto; color: var(--green-600); transition: transform .2s; }
 .tile:hover .tile-arrow { transform: translateX(4px); }
 
+/* ---------- CTA band decoration ---------- */
+.cta-band { position: relative; overflow: hidden; isolation: isolate; }
+.cta-band > .cta-orb { position: absolute; width: 340px; height: 340px; right: -90px; top: -150px; border-radius: 50%; background: radial-gradient(circle, rgba(244, 201, 0, .32), transparent 68%); z-index: -1; pointer-events: none; }
+.js-motion .cta-band > .cta-orb { animation: float 9s ease-in-out infinite; }
+
 /* ---------- Numbers band (verified figures only) ---------- */
 .stats-grid { display: grid; gap: 18px; grid-template-columns: repeat(4, 1fr); }
 .stats-grid.stats-1 { grid-template-columns: 1fr; } .stats-grid.stats-2 { grid-template-columns: repeat(2, 1fr); } .stats-grid.stats-3 { grid-template-columns: repeat(3, 1fr); }

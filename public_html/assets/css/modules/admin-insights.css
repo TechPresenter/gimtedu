@@ -1,0 +1,149 @@
+/* =====================================================================
+   M7 Admin insights: dashboard, analytics, marketing, reports,
+   security centre, audit log, backups.
+   ===================================================================== */
+
+.admin-content .table th.text-right, .admin-content .table td.text-right { text-align: right; }
+
+/* ---------- Page header row with range picker ---------- */
+.dash-welcome { display: flex; justify-content: space-between; align-items: center; gap: 12px 20px; flex-wrap: wrap; margin-bottom: 18px; }
+.dash-welcome h2 { margin: 0; font-size: 1.3rem; }
+.dash-welcome > div:first-child { flex: 1 1 260px; min-width: 0; }
+.dash-welcome .range-picker { margin-bottom: 0; flex: 0 0 auto; flex-wrap: nowrap; }
+.dash-welcome .range-picker select { flex: 0 0 170px !important; }
+.dash-welcome .range-picker input[type="date"] { flex: 0 0 150px !important; }
+.report-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: flex-end; }
+.report-tools .range-picker { margin: 0; }
+
+/* ---------- KPI cards ---------- */
+.insight-kpis { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.insight-kpis .stat-card { align-items: flex-start; position: relative; overflow: hidden; transition: transform .2s, box-shadow .2s, border-color .2s; }
+.insight-kpis a.stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.insight-kpis .stat-card::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--gold-500), var(--green-500)); opacity: .7; }
+.insight-kpis .stat-card > div { min-width: 0; }
+.insight-kpis .stat-card strong { font-size: 1.35rem; overflow-wrap: anywhere; }
+.insight-kpis .stat-card small { display: block; line-height: 1.35; }
+.insight-kpis .icon-circle { flex-shrink: 0; width: 42px; height: 42px; }
+.kpi-sub { display: block; margin-top: 4px; font-size: .74rem; color: var(--muted); line-height: 1.35; }
+.kpi-trend { display: block; margin-top: 4px; }
+.help-tip { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; background: var(--green-100); color: var(--green-700); font-size: .65rem; font-weight: 700; cursor: help; vertical-align: 1px; }
+
+/* ---------- Columns ---------- */
+.insight-col { display: grid; gap: 22px; align-content: start; min-width: 0; }
+.admin-content .admin-grid-2 > *, .admin-content .admin-grid-main > *, .insight-col > * { min-width: 0; }
+.insight-col > .panel { margin-bottom: 0; }
+
+/* ---------- Charts ---------- */
+.insights-chart { overflow-x: auto; padding-bottom: 2px; }
+.insights-chart .chart-bars { min-width: 100%; }
+.chart-dense .chart-bars { gap: 3px; min-width: 400px; }
+.chart-dense .chart-bar em { opacity: 0; transition: opacity .15s; position: relative; z-index: 2; background: #fff; padding: 1px 4px; border-radius: 4px; box-shadow: var(--shadow-sm); }
+.chart-dense .chart-bar:hover em, .chart-dense .chart-bar:focus-within em { opacity: 1; }
+.chart-dense .chart-bar small { font-size: .62rem; writing-mode: vertical-rl; transform: rotate(180deg); height: 3.6em; }
+.chart-dense .chart-bar span.bar { border-radius: 3px 3px 0 0; }
+.chart-bar:hover span.bar { background: linear-gradient(180deg, var(--gold-500), var(--green-600)); }
+
+/* ---------- Dashboard lists ---------- */
+.quick-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pending-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 14px; }
+.pending-chip { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-soft); color: var(--ink); font-size: .84rem; }
+.pending-chip span { flex: 1; min-width: 0; }
+.pending-chip strong { font-size: 1rem; }
+.pending-chip.has-items { border-color: #f1dc93; background: var(--gold-100); }
+.pending-chip:hover { border-color: var(--green-400); color: var(--ink); }
+.activity-feed { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.activity-feed li { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px dashed var(--line); font-size: .86rem; line-height: 1.45; min-width: 0; }
+.activity-feed li:last-child { border-bottom: 0; }
+.activity-feed li > div { min-width: 0; overflow-wrap: anywhere; }
+.activity-feed code, .log-table code { font-size: .78rem; background: var(--green-50); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; color: var(--green-800); }
+.feed-dot { width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: var(--green-500); box-shadow: 0 0 0 4px var(--green-100); flex-shrink: 0; }
+.setup-progress { width: 100%; margin: -6px 0 14px; }
+.setup-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.setup-list li { display: flex; gap: 10px; align-items: flex-start; font-size: .88rem; }
+.setup-list li small { display: block; color: var(--muted); font-size: .78rem; line-height: 1.4; margin-top: 2px; }
+.setup-mark { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--gold-100); color: #8a6a00; }
+.setup-mark .icon { width: 14px; height: 14px; }
+.setup-list li.is-done .setup-mark { background: var(--green-100); color: var(--green-600); }
+.setup-list li.is-done a strong { color: var(--muted); font-weight: 500; }
+.event-mini-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.event-mini-list li { display: flex; gap: 12px; align-items: flex-start; }
+.event-mini-list li > div { min-width: 0; }
+.event-mini-list small { display: block; font-size: .78rem; }
+.event-mini-date { width: 46px; flex-shrink: 0; text-align: center; border-radius: 10px; background: var(--green-600); color: #fff; padding: 4px 0; line-height: 1.1; }
+.event-mini-date strong { display: block; font-size: 1.1rem; }
+.event-mini-date small { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: #d6efe0; }
+
+/* ---------- Analytics ---------- */
+.bar-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.bar-list li { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; align-items: center; gap: 12px; font-size: .88rem; }
+.bar-list-label { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.bar-list-bar { height: 10px; border-radius: 99px; background: #e9efe9; overflow: hidden; }
+.bar-list-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--green-500), var(--blue-500)); }
+.bar-list-value { white-space: nowrap; font-weight: 600; }
+.utm-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.utm-grid h3 { font-size: .9rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 8px; }
+.table-compact td { padding: 7px 10px !important; font-size: .85rem; overflow-wrap: anywhere; }
+.privacy-note .panel-head h2 { display: inline-flex; align-items: center; gap: 8px; }
+.privacy-note .check-list { margin: 0; font-size: .88rem; }
+
+/* ---------- Marketing: link builder ---------- */
+.utm-builder { margin-top: 6px; }
+.utm-result { background: var(--green-50); border: 1px dashed var(--green-400); border-radius: 12px; padding: 14px; }
+.utm-result label { display: block; font-weight: 600; font-size: .88rem; margin-bottom: 6px; }
+.utm-result-row { display: flex; gap: 8px; }
+.utm-result-row input { flex: 1; min-width: 0; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82rem; background: #fff; }
+
+/* ---------- Reports ---------- */
+.admin-tabs a { display: inline-flex; align-items: center; gap: 6px; }
+.admin-tabs .icon { width: 16px; height: 16px; }
+.report-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; align-items: start; }
+.report-grid .panel { margin-bottom: 0; min-width: 0; }
+.report-panel.is-wide { grid-column: 1 / -1; }
+
+/* ---------- Security centre ---------- */
+.health-list li > div { min-width: 0; }
+.health-list .badge { margin-left: 6px; vertical-align: 1px; }
+.health-detail { display: block; color: var(--ink-soft); font-size: .85rem; margin-top: 2px; overflow-wrap: anywhere; }
+.health-fix { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; font-size: .82rem; color: var(--muted); }
+.health-fix .icon { width: 14px; height: 14px; margin-top: 3px; color: var(--muted) !important; }
+.security-locked li { display: flex; gap: 8px; align-items: flex-start; font-size: .88rem; }
+
+/* ---------- Audit log ---------- */
+.log-table td { vertical-align: top; }
+.log-table tr.log-risk td:first-child { box-shadow: inset 3px 0 0 var(--red-600); }
+.log-details { min-width: 220px; max-width: 460px; overflow-wrap: anywhere; font-size: .85rem; }
+.log-details summary { cursor: pointer; color: var(--ink-soft); }
+.log-details summary:hover { color: var(--green-700); }
+.log-more { margin-top: 6px; padding: 8px 10px; border-radius: 8px; background: var(--bg-soft); border: 1px solid var(--line); }
+.log-more p { margin: 0 0 6px; }
+.log-more small { display: flex; gap: 6px; align-items: flex-start; }
+
+/* ---------- Backups ---------- */
+.backup-form { display: grid; gap: 8px; justify-items: start; }
+.backup-form .checkbox { font-size: .88rem; }
+.panel-head h2 .icon { vertical-align: -3px; margin-right: 4px; color: var(--green-600); }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+    .utm-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+    .report-grid { grid-template-columns: 1fr; }
+    .dash-welcome .range-picker, .report-tools .range-picker { width: 100%; flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-start; }
+    .dash-welcome .range-picker select, .dash-welcome .range-picker input[type="date"] { flex: 1 1 140px !important; }
+}
+@media (max-width: 600px) {
+    .insight-kpis { grid-template-columns: 1fr 1fr; }
+    .insight-kpis .stat-card strong { font-size: 1.1rem; }
+    .bar-list li { grid-template-columns: 90px minmax(0, 1fr); }
+    .bar-list-value { grid-column: 1 / -1; font-size: .8rem; }
+    .utm-result-row { flex-direction: column; }
+    .range-picker select, .range-picker input { flex: 1 1 140px !important; }
+}
+
+@media print {
+    .admin-sidebar, .admin-topbar, .admin-tabs, .report-tools, .range-picker, .admin-footer, .panel-head .btn { display: none !important; }
+    .admin-content { padding: 0; }
+    .report-grid { grid-template-columns: 1fr; }
+}
+.report-panel .table td:first-child { min-width: 170px; }

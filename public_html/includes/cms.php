@@ -313,8 +313,8 @@ function render_section(array $s, array $page = []): string
     if ($inner === '') {
         return '';
     }
-    if (!empty($settings['bare'])) {
-        return $inner;
+    if (!empty($settings['bare']) || $type === 'subnav') {
+        return $inner;   // sticky in-page navigation must not be wrapped
     }
     $bg = in_array($s['background'], ['white', 'tint', 'cream', 'green', 'blue'], true) ? $s['background'] : 'white';
     $width = ($settings['width'] ?? '') === 'narrow' ? ' narrow' : '';
