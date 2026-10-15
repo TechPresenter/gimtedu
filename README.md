@@ -1,24 +1,30 @@
-# Prerit Welfare Foundation — Website
+# Prerit Welfare Foundation — Website & Admin CMS (v2)
 
-A complete, responsive NGO website with a secure admin panel, written in **plain PHP, MySQL, HTML, CSS and vanilla JavaScript**.
+A premium, fully dynamic NGO website with an admin CMS, written in **plain PHP 8, MySQL, HTML, CSS and vanilla JavaScript**.
 No frameworks, no Composer, no npm and no build step — upload the files to `public_html/` on any PHP/MySQL host (e.g. Hostinger) and it runs.
 
 *मिलकर बनाये बेहतर कल — Together, let us build a better tomorrow.*
+
+> **Authentic information only.** The site ships with the foundation's real name, logo, address (New Delhi, 110051), email and descriptions of its areas of work. It does **not** contain invented donations, beneficiaries, statistics, testimonials, partners, awards or registration numbers. Every public figure (amount raised, donations, volunteers, events) is calculated live from **verified** records and hidden while it is zero. Registration details (PAN, 12A, 80G, CSR-1, Darpan, FCRA), phone, WhatsApp, bank details and social links stay hidden until you enter verified values in **Admin → Settings**. The five relief/education/food campaigns are included as **drafts** — review, add real details and publish them when appropriate.
 
 ---
 
 ## 1. What is included
 
-| Area | Features |
-|------|----------|
-| **Public website** | Home page with hero slider, Our Work cards, programme pages (Education, Health, Women Empowerment, Youth Empowerment, Rural Development, Environment, Skill Development, Disaster Relief), campaigns with live fundraising progress, events with online registration, gallery with lightbox, blog / news / press / success stories, impact reports, financial transparency, FAQ, contact, grievance redressal, all policy pages, HTML & XML sitemap. |
-| **Donations** | Razorpay checkout, **server-side signature + API verification**, **signed webhooks**, automatic receipts (only for confirmed payments), printable receipt with amount in words and optional 80G statement, failure/retry page, refunds, offline (bank/cheque/UPI/cash) donations recorded by finance staff. |
-| **Get involved** | Volunteer & internship applications, volunteer-teacher applications (CV upload), staff/job applications (CV upload), membership applications, scholarship applications (document upload), requests for help, application-status lookup by reference number. |
-| **Member area** | Register / login / logout, forgot & reset password, dashboard, profile & password change, *My Donations* (with receipts), *My Applications* (with own documents), *My Certificates* (printable). Members only ever see their own records. |
-| **Admin panel** (`/admin`) | Dashboard with statistics and chart, campaigns (create / edit / view / delete), donations (search, filters, CSV export, gateway re-check, refunds, notes, offline entries), receipts, volunteers, teachers, staff applications, members & users, help requests, scholarships, events & registrations, gallery uploads, blog, testimonials, FAQs, editable pages & public PDF documents, homepage slider, menu editor, enquiries & grievances, newsletter, reports, admin users, roles & permissions, activity logs. |
-| **Security** | PDO prepared statements everywhere, CSRF tokens on every form, server-side validation, output escaping, HTML sanitiser for admin-written content, bcrypt password hashing, login rate-limiting, session hardening, role-based permissions checked on every admin page **and** action, upload validation (type, size, real content, image re-encoding), private documents outside public reach, Content-Security-Policy and other security headers, audit log. |
-
-**Authentic information only.** The site ships with the foundation's real name, logo, address (New Delhi, 110051), email (info@preritwelfarefoundation.org) and the programme descriptions from the existing site. It does **not** invent donations, beneficiaries, registration numbers, phone numbers, team members or impact statistics. All public figures (amount raised, number of donations, volunteers, events) are calculated live from verified database records and are hidden while they are zero. Registration numbers (12A, 80G, PAN, CSR-1, Darpan), phone, WhatsApp, bank details and social links are blank until you enter verified values in **Admin → Settings**.
+| Area | Highlights |
+|---|---|
+| **Design** | Brand colours (#146B43 forest green, #2CA65A green, #F4C900 golden yellow, #176A91 blue), sticky glass header, topbar with **Apply** links (Volunteer, Volunteer Teacher, Job Apply, Internship), horizontal logo lockup (or upload your own horizontal logo), mega menus, breadcrumbs, 3D buttons, scroll-reveal / tilt / parallax animations (automatically off for *reduced motion*), floating WhatsApp / call / help buttons, back-to-top, toasts, modals, countdowns for real end dates, skeleton loaders. Fully responsive (tested 360–1366 px). |
+| **Clean URLs** | `/about/`, `/programs/healthcare/`, `/campaign/bihar-flood-relief/`, `/event-details/<slug>/`, `/blog/<slug>/`, `/dashboard/donations/` … Old `.php` and common WordPress addresses answer with **301 redirects** (editable in Admin → Redirects). |
+| **Pages (CMS)** | Every page is stored in the database and built from editable **sections** (text, image+text, cards, steps, FAQs, numbers, CTA, video, timeline, partner logos and module lists such as campaigns, events, programmes, team, documents, testimonials). Create, edit, reorder, hide, duplicate, preview drafts, SEO fields per page, editor attribution and timestamps. |
+| **Programmes** | 11 programmes (Education & Literacy, Healthcare, Women Empowerment, Youth Empowerment, Rural Development, Environment Protection, Skill Development, Digital Learning, Scholarship & Educational Support, Food Distribution, Disaster Relief) with detailed pages, related campaigns/events/stories, and a **Welfare Schemes** directory (published only with an official source link and "last checked" date). |
+| **Fundraising** | Campaign list & detail pages with **verified** progress, updates, utilisation (approved expenses), share buttons with correct preview; donation form with Razorpay (server-side verification + signed webhooks), receipts only for confirmed payments, refunds, offline donations, fundraiser proposals from members, Financial Transparency & Utilisation reports. |
+| **Get involved** | Volunteer, Volunteer Teacher (CV), Staff / Job (CV), Internship (CV), Membership, Scholarship, Request Help — reference numbers, acknowledgement emails, application-status tracking with timeline. |
+| **Accounts** | Split-screen login (email **or** mobile, password toggle, remember-me), registration with account type, email verification, forgot/reset password (expiring single-use tokens), anti-enumeration, rate limiting. **Member dashboard**: overview, profile, applications, tasks, events, donations, receipts, certificates, notifications, password, privacy settings (download my data, deletion request), help. |
+| **Media & events** | Blog / news / press, success stories (consent required), events with registration, capacity and calendar files, **Awareness Calendar** (68 national & international observances 2026–27), photo gallery with lightbox and video gallery. |
+| **Information** | Team & management body, NGO details, certificates & reports (PDF), FAQs (30), contact, feedback, **grievance redressal**, **report fraud**, newsletter with consent & unsubscribe, full Privacy / Terms / Donation & Refund / Volunteer / Child Protection policies, HTML & XML sitemap, custom 404. |
+| **Admin panel** `/admin/` | Dashboard with date filters, pages & sections, menus (header, topbar, footer columns), media library, settings, widgets & alerts, redirects & 404 log, SEO audit, programmes, schemes, blog, stories, events, gallery, team, documents, testimonials, FAQs, campaigns, proposals, donations, receipts, expenses, recruitment workflow (Submitted → Under Review → Shortlisted → Interview → Selected → Onboarding → Active / Rejected / Withdrawn), tasks, certificates, memberships, help requests, scholarships, users & roles, data requests, enquiries, feedback, newsletter sending, **website analytics**, **marketing & UTM link builder**, reports & CSV exports, **security centre**, audit log, **database backup & data retention**. |
+| **Security** | PDO prepared statements, CSRF on every form, server-side validation & output escaping, HTML sanitiser, password hashing, login & form rate limits, session hardening, remember-me tokens (hashed, rotating), **two-step login (authenticator app) for staff**, server-side role permissions on every admin page & action, private uploads, upload re-encoding, Content-Security-Policy and security headers, audit log, privacy-friendly first-party analytics (no IPs stored; Google Analytics only after consent). |
+| **Honest alerts** | A bilingual **Fraud Alert** pop-up (with reporting steps, 1930 and cybercrime.gov.in) that appears **only when an administrator enables it** after a verified incident. A security notice appears after sign-in **only** when real failed sign-in attempts were recorded on that account. |
 
 ---
 
@@ -26,180 +32,133 @@ No frameworks, no Composer, no npm and no build step — upload the files to `pu
 
 ```
 (repository root)
-├── README.md            ← this file (do NOT upload)
-├── database.sql         ← complete database schema + default data (do NOT upload)
-└── public_html/         ← upload the CONTENTS of this folder to your hosting public_html/
-    ├── index.php, about.php, … (all public pages)
-    ├── process-*.php    ← form handlers
-    ├── payment-webhook.php  ← Razorpay webhook endpoint
-    ├── config.php, database.php, functions.php, header.php, footer.php,
-    │   auth.php, mail.php, validation.php, csrf.php   ← includes (blocked from direct access)
-    ├── uploads/         ← logo/, campaigns/, gallery/, blog/ (public images)
-    │                      documents/ (PRIVATE), documents/public/ (public PDFs), certificates/ (PRIVATE)
-    ├── assets/          ← css/, js/, images/, fonts/
-    └── admin/           ← admin pages, includes/, actions/
+├── README.md               ← this guide (do not upload)
+├── TESTING.md              ← test report (do not upload)
+├── database.sql            ← schema + default content (import once; do not upload)
+├── pwf-config.sample.php   ← template for your PRIVATE config (copy → pwf-config.php)
+└── public_html/            ← upload the CONTENTS of this folder to your hosting public_html/
+    ├── index.php           ← front controller (all clean URLs)
+    ├── install.php         ← one-time installer (creates the first administrator)
+    ├── payment-webhook.php ← Razorpay webhook endpoint
+    ├── .htaccess           ← rewrites, protection, caching
+    ├── config.php, database.php, functions.php, auth.php, csrf.php, validation.php, mail.php,
+    │   header.php, footer.php                 ← core (blocked from direct access)
+    ├── includes/           ← feature modules (cms, ui, widgets, programs, campaigns, recruitment, …) – blocked
+    ├── templates/          ← page templates – blocked
+    ├── admin/              ← admin panel (+ admin/includes/)
+    ├── assets/             ← css/ (style, enhance, responsive, modules/), js/, images/, fonts/
+    └── uploads/            ← public images & PDFs; documents/ and certificates/ are PRIVATE
 ```
-
-`payment-webhook.php` is the only file added to the requested structure: Razorpay needs a dedicated URL to send signed payment notifications to.
 
 ---
 
 ## 3. Requirements
 
-* PHP **8.0 or newer** (tested on PHP 8.3; select 8.1+ in hPanel → PHP Configuration) with extensions: `pdo_mysql`, `mbstring`, `curl`, `fileinfo`, `json`, `dom`, `openssl` and (recommended) `gd`
-* MySQL 5.7+ or MariaDB 10.3+
-* Apache or LiteSpeed with `.htaccess` support (standard on Hostinger and most cPanel hosts)
-* An SSL certificate (free on Hostinger) — required for live payments
+* PHP **8.0+** (8.2/8.3 recommended) with `pdo_mysql`, `mbstring`, `curl`, `fileinfo`, `json`, `dom`, `openssl` and (recommended) `gd`
+* MySQL 5.7+ / MariaDB 10.3+
+* Apache or LiteSpeed with `.htaccess` (`mod_rewrite`) — standard on Hostinger
+* SSL certificate (free on Hostinger) — required before going live with payments
 
 ---
 
-## 4. Installation on Hostinger (or any cPanel / hPanel host)
+## 4. Installation on Hostinger (replacing the old WordPress site)
 
-### Step 1 — Create the database
-1. hPanel → **Databases → MySQL Databases** → create a database and a database user with a strong password. Note the database name, user and password (Hostinger names look like `u123456789_pwf`).
-2. Open **phpMyAdmin** for that database → **Import** → choose `database.sql` → **Go**.
-   (Command line alternative: `mysql -u USER -p DB_NAME < database.sql`)
+### Step 1 — Back up and remove the old WordPress site
+1. hPanel → **Websites → Manage → Backups**: download a full backup (files + database) first.
+2. hPanel → **Files → File Manager → public_html**: delete the WordPress files (`wp-admin/`, `wp-content/`, `wp-includes/`, `wp-*.php`, `index.php`, `.htaccess`, `license.txt`, `readme.html`, `xmlrpc.php`). Keep `.well-known/` if present.
+3. (Optional) the old WordPress database can stay until you are happy with the new site; then delete it in hPanel → Databases.
 
-### Step 2 — Upload the files
-1. hPanel → **Files → File Manager** → open `public_html/`.
-2. Upload the **contents** of the `public_html/` folder from this project (zip it, upload, then *Extract*). Make sure hidden files such as `.htaccess` are included.
-3. Do **not** upload `database.sql` or `README.md`.
+### Step 2 — Create a NEW database
+1. hPanel → **Databases → MySQL Databases** → create database + user. Use a password with **letters and numbers only** (avoids copy/paste and quoting problems). Note the full names (e.g. `u123456789_prerit`).
+2. **phpMyAdmin** → select that database → **Import** → choose `database.sql` → **Go**. You should see 51 tables.
 
-### Step 3 — Configure
-Edit `public_html/config.php`:
+### Step 3 — Upload the website
+1. Zip the **contents** of `public_html/` (or use the ready package), upload to hPanel **File Manager → public_html**, then **Extract**. Make sure `.htaccess` files are included (File Manager → Settings → show hidden files).
+2. Folder permissions: folders `755`, files `644`; `uploads/` and its sub-folders must be writable (default on Hostinger).
 
-```php
-define('APP_ENV', 'production');
-define('BASE_URL', 'https://preritwelfarefoundation.org');   // your domain, no trailing slash
+### Step 4 — Private configuration
+1. Copy `pwf-config.sample.php` to **`pwf-config.php`** and fill in `BASE_URL`, `DB_NAME`, `DB_USER`, `DB_PASS`, a long random **`INSTALL_KEY`**, and (later) SMTP and Razorpay values.
+2. Upload it **one folder above `public_html`** (e.g. `/home/u123456789/domains/preritwelfarefoundation.org/pwf-config.php`). It can never be downloaded from the web there.
+   *If your host does not allow that, put the same `define(...)` lines at the top of `public_html/config.php`.*
 
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'u123456789_pwf');
-define('DB_USER', 'u123456789_pwfuser');
-define('DB_PASS', 'your-database-password');
-```
+### Step 5 — Run the installer
+1. Open `https://YOUR-DOMAIN/install.php` — it checks PHP, extensions, folder permissions and the database.
+2. Enter the **INSTALL_KEY** and create the **first administrator** (name, email, a strong 12+ character password). There is **no default admin account** anywhere.
+3. The installer locks itself. Then set `INSTALL_KEY` back to `''` and delete `install.php` (Admin → Security Centre reminds you).
 
-**Recommended (keeps secrets out of the web folder):** instead of editing passwords inside `config.php`, create a file **`pwf-config.php` one folder above `public_html`** (on Hostinger: `/home/u123456789/domains/yourdomain/pwf-config.php`, i.e. next to `public_html`) and put only your secrets there:
+### Step 6 — Enable HTTPS
+Activate SSL in hPanel, then in `public_html/.htaccess` uncomment the three **Force HTTPS** lines. Keep `BASE_URL` on `https://`.
 
-```php
-<?php
-define('BASE_URL', 'https://preritwelfarefoundation.org');
-define('DB_NAME', 'u123456789_pwf');
-define('DB_USER', 'u123456789_pwfuser');
-define('DB_PASS', 'your-database-password');
-define('SMTP_HOST', 'smtp.hostinger.com');
-define('SMTP_USER', 'info@preritwelfarefoundation.org');
-define('SMTP_PASS', 'your-mailbox-password');
-define('RAZORPAY_KEY_ID', 'rzp_test_xxxxxxxx');
-define('RAZORPAY_KEY_SECRET', 'xxxxxxxxxxxxxxxx');
-define('RAZORPAY_WEBHOOK_SECRET', 'a-long-random-string');
-```
+### Step 7 — First steps in the admin panel (`/admin/`)
+1. **My Profile → Two-step login**: turn it on (any authenticator app).
+2. **Settings → General & branding**: upload the **horizontal logo** (PNG ~600×200) — it replaces the built-in emblem + wordmark in header and footer; add favicon.
+3. **Settings → Contact**: phone, WhatsApp (enables the WhatsApp button), office hours, Google Maps embed link, grievance officer details.
+4. **Settings → NGO registration**: enter **only verified** registration numbers (blank values are never shown).
+5. **Settings → Donations & bank**: bank/UPI details for offline giving (shown only if filled).
+6. **Users & Roles**: create named staff accounts with the right role (Content Editor, Campaign Manager, Donation Manager, Volunteer Coordinator); never share the administrator login.
+7. **Team & Management, Certificates & Reports, Gallery, Testimonials (with consent)**: add real data.
+8. **Campaigns**: review the five draft campaigns, add images, targets and dates, then publish.
+9. **Pages & Sections / Menus / Widgets**: adjust any text, menus, footer columns, announcement bar.
 
-Values in `pwf-config.php` override the defaults in `config.php`.
-
-### Step 4 — Folder permissions
-`uploads/` and its sub-folders must be writable by PHP (normally `755` on Hostinger — already correct after upload). Files should be `644`.
-
-### Step 5 — Enable HTTPS
-Activate the free SSL certificate in hPanel, then open `public_html/.htaccess` and **uncomment** the three "Force HTTPS" lines.
-
-### Step 6 — First admin login
-Go to `https://yourdomain/admin/` and sign in with:
-
-* **Email:** `admin@preritwelfarefoundation.org`
-* **Password:** `Admin@12345`
-
-You will be **forced to choose a new password** before anything else can be used. Then:
-1. **Admin → Settings**: check contact details, add phone/WhatsApp (optional), verified registration & 80G details, bank details, social links.
-2. **Admin → Admin Users**: create named accounts for staff with the right role; avoid sharing the super-admin login.
-3. **Admin → Pages & Documents**: review page texts (e.g. *Our Team* → add management body members) and upload reports/certificates as PDFs.
-4. **Admin → Gallery / Campaigns / Events / Blog**: add real photos, campaigns and events.
+### If you see "We will be back shortly"
+The site cannot connect to the database: check `DB_NAME`, `DB_USER` (both with the `u123…_` prefix) and `DB_PASS` in `pwf-config.php`; reset the database user's password in hPanel if unsure. `install.php` shows the exact database error.
 
 ---
 
-## 5. Payments — Razorpay (test mode first)
+## 5. Payments — Razorpay (only after merchant approval)
 
-1. Create a Razorpay account → Dashboard switched to **Test Mode** → **Account & Settings → API Keys** → generate keys. Put `RAZORPAY_KEY_ID` (`rzp_test_…`) and `RAZORPAY_KEY_SECRET` in `pwf-config.php` / `config.php`.
-2. **Webhooks** (Account & Settings → Webhooks → Add):
-   * URL: `https://yourdomain/payment-webhook.php`
-   * Secret: any long random string — set the **same** value as `RAZORPAY_WEBHOOK_SECRET`
-   * Events: `payment.captured`, `payment.failed`, `order.paid`, `refund.processed`
-3. Keep "automatic capture" enabled in Razorpay payment settings (default). If a payment arrives as *authorized*, the site captures it automatically during verification.
-4. While keys start with `rzp_test_`, every donation page shows a **TEST MODE** banner. Make test payments with Razorpay's test credentials (for UPI use `success@razorpay` / `failure@razorpay`; test cards are listed at https://razorpay.com/docs/payments/payments/test-card-details/).
-5. **Going live:** complete Razorpay KYC, generate **live** keys, create the webhook again in Live Mode, replace the keys and webhook secret, and make sure HTTPS is forced.
+1. Razorpay Dashboard → **Test Mode** → API Keys → put `RAZORPAY_KEY_ID` (`rzp_test_…`) and `RAZORPAY_KEY_SECRET` in `pwf-config.php`.
+2. **Webhooks** → URL `https://YOUR-DOMAIN/payment-webhook.php`, a long random secret (same value as `RAZORPAY_WEBHOOK_SECRET`), events `payment.captured`, `payment.failed`, `order.paid`, `refund.processed` (optional `refund.created`).
+3. Test with Razorpay's test UPI/cards (a TEST MODE banner is shown). Then complete KYC, switch to **live keys** and recreate the webhook in Live Mode.
+4. Without keys the donate page honestly shows bank/UPI details (if set) and a contact link — no fake "pay" button.
 
-### How a donation is confirmed (no fake totals possible)
-1. The donor fills the form → a **pending** donation and a Razorpay **order** (exact amount) are created on the server.
-2. After payment, Razorpay Checkout returns `payment_id`, `order_id`, `signature`. The server checks the **HMAC-SHA256 signature** with the secret key **and** fetches the payment from Razorpay's API to confirm it is `captured`, belongs to this order, and has the exact amount and currency.
-3. Only then is the donation marked **success** and a **receipt** issued (number format `PWF/2026-27/000001`) and emailed.
-4. The **webhook** independently confirms payments (e.g. if the donor closes the browser), records failures and refunds. Every webhook must carry a valid `X-Razorpay-Signature`.
-5. Campaign progress, homepage counters, transparency figures and reports count **only `success` donations**. Refunded donations are excluded and their receipts are marked *cancelled*.
-6. Pending payments can be re-checked by finance staff (Donation → *Re-check payment status*), which again asks Razorpay's API.
-7. Offline donations (bank transfer, cheque, direct UPI, cash) can be recorded only by admins with the *Donations* permission after the money is received; these are logged in the audit trail.
+**How a donation is confirmed:** the server creates a pending donation and a Razorpay order for the exact amount → after checkout it verifies the HMAC signature **and** fetches the payment from Razorpay (order, amount, currency, captured) → only then marks it *success*, issues receipt `PWF/2026-27/000001` and emails it. The signed webhook confirms independently (duplicate events are ignored). All public totals count **only verified** donations; refunds cancel the receipt.
 
 ---
 
 ## 6. Email
-
-* With `SMTP_HOST` empty, PHP `mail()` is used.
-* For reliable delivery on Hostinger create the mailbox `info@preritwelfarefoundation.org` and set `SMTP_HOST=smtp.hostinger.com`, `SMTP_PORT=465`, `SMTP_ENCRYPTION=ssl`, `SMTP_USER`, `SMTP_PASS`.
-* Emails sent: donation receipts, application acknowledgements with reference numbers, status updates (when the admin ticks "email the applicant"), password reset links, welcome emails, event registration confirmations and admin notifications (to *Notification email* in Settings).
-* Set `MAIL_ENABLED` to `false` to disable sending (messages are then only written to the PHP error log).
+Create the mailbox `info@preritwelfarefoundation.org` in hPanel and set `SMTP_HOST=smtp.hostinger.com`, `SMTP_PORT=465`, `SMTP_ENCRYPTION=ssl`, `SMTP_USER`, `SMTP_PASS` in `pwf-config.php`. With `SMTP_HOST` empty, PHP `mail()` is used. Admin → Settings → Email has a "send test email" button.
 
 ---
 
-## 7. Admin roles & permissions
+## 7. Roles & permissions (server-side)
 
-Permissions are enforced on the server for every admin page and every action (not only by hiding menu items). Denied attempts are written to the activity log.
+| Role | Typical access |
+|---|---|
+| Administrator | Everything (users, roles, settings, security, backups) |
+| Content Editor | Pages & sections, menus, media, redirects, programmes, schemes, blog, stories, events, gallery, team, documents, testimonials, FAQs, analytics |
+| Campaign Manager | Campaigns, updates, proposals, expenses, donation view, reports & exports |
+| Donation Manager | Donations, reconciliation, refunds, receipts, expenses, reports & exports |
+| Volunteer Coordinator | Recruitment applications, interviews, onboarding, tasks, certificates, events |
+| Volunteer Teacher · Registered Volunteer · Member · Donor · Beneficiary Applicant | Member dashboard only (own data) |
 
-| Role | Access |
-|------|--------|
-| Super Admin | Everything, including admin users, roles, settings and logs |
-| Manager | Campaigns, donations, applications, members, help requests & scholarships, content, enquiries, reports |
-| Finance | Campaigns, donations & receipts, reports |
-| Content Editor | Pages, homepage, menus, events, gallery, blog, testimonials, FAQs |
-| Application Reviewer | Volunteer/teacher/staff applications, help requests & scholarships, members, enquiries |
-
-Super admins can create additional roles in **Admin → Roles & Permissions**. The last active super admin cannot be deactivated or demoted.
-
----
-
-## 8. Security notes
-
-* **Private files:** CVs, scholarship and help-request documents (`uploads/documents/`) and certificate PDFs (`uploads/certificates/`) are blocked by `.htaccess` and are only delivered through PHP after checking the logged-in owner or admin permission. Only PDFs placed in `uploads/documents/public/` by admins are public.
-* `uploads/` can never execute scripts; uploaded images are re-encoded (removing hidden content) and given random names.
-* Include files (`config.php`, `functions.php`, …) and `admin/includes/` return **403** if requested directly.
-* Passwords use `password_hash()` (bcrypt). Password-reset tokens are random, stored hashed, valid for 1 hour and single-use.
-* Login is rate-limited (5 failures per email / 10 per IP in 15 minutes) for both members and admins; public forms have per-IP limits and a honeypot field.
-* Admin sessions expire after 60 minutes of inactivity and are bound to the browser that logged in. The default admin password must be changed at first login.
-* If the site is behind Cloudflare, set `TRUSTED_PROXY_HEADER` to `'HTTP_CF_CONNECTING_IP'` so rate limits use the visitor's real IP.
-* Keep `APP_ENV` as `production` on the live site (errors are logged, not displayed).
-* Back up the database (hPanel → Backups or phpMyAdmin export) and the `uploads/` folder regularly.
+Public registration can never create staff roles. Administrators can create custom roles and edit the permission matrix (Users & Roles → Roles & Permissions).
 
 ---
 
-## 9. Running locally (optional)
+## 8. Analytics, SEO & marketing
+* **Built-in analytics** (Admin → Website Analytics): page views, unique visitors, top pages, referrers, UTM sources, devices — no IP addresses stored, Do-Not-Track respected, staff & bots excluded.
+* **Marketing** (Admin → Marketing): conversions (donations, applications, sign-ups) by source/campaign and a **UTM link builder** for WhatsApp/social campaigns.
+* **Google Analytics 4** (optional): add the measurement ID in Settings → SEO & analytics; it loads only after the visitor accepts the consent banner.
+* **Search Console**: paste the verification code in Settings → SEO, then submit `https://YOUR-DOMAIN/sitemap.xml`.
+* Every page has its own title, description, canonical, Open Graph/Twitter tags and structured data (NGO, breadcrumbs, articles, events, FAQs). Admin → SEO Audit lists anything missing.
 
+---
+
+## 9. Maintenance
+* **Backups:** Admin → Backup & Data Retention → download a database backup; download `uploads/` via File Manager. Hostinger also keeps automatic backups.
+* **Data retention:** the same page removes old logs/analytics and anonymises old rejected applications according to Settings (donation & receipt records are never deleted).
+* **Security Centre:** health checks (HTTPS, debug off, installer removed, payment & mail config, 2-step login), failed sign-ins, staff sessions.
+* Keep `APP_ENV` = `production` on the live site.
+
+---
+
+## 10. Local development
 ```bash
 mysql -u root -e "CREATE DATABASE pwf CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
 mysql -u root pwf < database.sql
-# create ../pwf-config.php next to public_html with APP_ENV 'development',
-# BASE_URL 'http://localhost:8000' and your local DB credentials, then:
-cd public_html && php -S localhost:8000
+# pwf-config.php next to public_html: APP_ENV 'development', BASE_URL 'http://localhost:8080', DB credentials, INSTALL_KEY
+# Serve public_html with Apache (AllowOverride All) on port 8080, then open /install.php
 ```
 
-(PHP's built-in server ignores `.htaccess`; use Apache/LiteSpeed to test the access rules.)
-
----
-
-## 10. Testing checklist (performed before delivery)
-
-The project was tested on Apache 2.4 + PHP 8.3 + MariaDB 10.11 with a mock of the Razorpay API in test mode:
-
-* All public and admin pages load without PHP, JavaScript or Content-Security-Policy errors; every internal navigation link resolves.
-* Every form saves validated data, rejects invalid data with clear messages, enforces CSRF tokens and honeypots.
-* Uploads: real PDFs/images accepted, fake PDFs, PHP files and wrong extensions rejected; private files return 403 when requested directly; `.php` files in `uploads/` are not executed.
-* Authentication: registration, login, logout, wrong password, brute-force lockout, open-redirect protection, forgot/reset password (single-use token), profile & password change.
-* Member isolation: users see only their own donations, receipts, applications, documents and certificates.
-* Payments: order creation, verified checkout, forged signature, payment from another order, under-payment, failed payment & retry, signed webhook (valid / invalid signature, replay, amount mismatch), refund webhook, admin re-check, offline donation, receipts only for confirmed payments, totals from verified donations only.
-* Admin: forced password change, all CRUD screens, application review & email notification, certificates, membership approval, CSV exports, reports, HTML sanitising, menu link validation, and role permissions (an editor is denied finance, people, settings, users and logs pages and actions).
-* Mobile layouts at 375–390 px: no horizontal scrolling, working mobile menu, forms and admin sidebar.
+See **TESTING.md** for the full test report.
