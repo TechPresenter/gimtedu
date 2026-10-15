@@ -12,6 +12,7 @@ ServerSignature Off
 <FilesMatch "^(config|database|functions|header|footer|auth|mail|validation|csrf)\.php$">
     Require all denied
 </FilesMatch>
+# includes/ and templates/ also carry their own "deny all" .htaccess
 <FilesMatch "\.(sql|md|log|ini|bak|old|orig|swp|dist|env|json|lock|sh|yml|yaml)$">
     Require all denied
 </FilesMatch>
@@ -33,6 +34,15 @@ ServerSignature Off
 
     # Block access to hidden files/folders such as .git
     RewriteRule (^|/)\.(?!well-known/) - [F,L]
+
+    # Pass the Authorization header to PHP (some hosts strip it)
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Clean URLs: everything that is not a real file or folder goes to the front controller
+    # (/about/, /campaign/bihar-flood-relief/, /sitemap.xml, old *.php addresses -> 301 redirects)
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L,QSA]
 </IfModule>
 
 # ---------------------------------------------------------------------
@@ -49,6 +59,7 @@ ServerSignature Off
 # Error pages
 # ---------------------------------------------------------------------
 ErrorDocument 403 "Forbidden"
+ErrorDocument 404 /index.php
 
 # ---------------------------------------------------------------------
 # Compression & browser caching for static files

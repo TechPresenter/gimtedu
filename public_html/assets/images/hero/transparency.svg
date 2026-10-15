@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360" role="img" aria-label="Transparency">
+  <title>Transparency</title>
+  <style>@keyframes pwfspin{to{transform:rotate(360deg)}}@keyframes pwfbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}.ring{transform-box:view-box;transform-origin:240px 182px;animation:pwfspin 70s linear infinite}.bob{animation:pwfbob 5s ease-in-out infinite}.bob2{animation:pwfbob 6.5s ease-in-out .9s infinite}@media (prefers-reduced-motion:reduce){.ring,.bob,.bob2{animation:none}}</style>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e7f73"/><stop offset="1" stop-color="#11564e"/></linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.55"/></radialGradient>
+  </defs>
+  <circle cx="240" cy="182" r="150" fill="url(#glow)"/>
+  <circle class="ring" cx="240" cy="182" r="150" fill="none" stroke="#1e7f73" stroke-opacity="0.25" stroke-width="2" stroke-dasharray="6 10"/>
+  <path d="M96 250c40-34 92-46 144-40" fill="none" stroke="#F4C900" stroke-width="6" stroke-linecap="round" opacity="0.8"/>
+  <path d="M384 120c-30 8-56 26-74 52" fill="none" stroke="#176A91" stroke-width="5" stroke-linecap="round" opacity="0.6"/>
+  <circle cx="240" cy="182" r="92" fill="url(#g)"/>
+  <circle cx="240" cy="182" r="92" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="10"/>
+  <g transform="translate(192 134) scale(4)" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></g>
+  <g class="bob">
+    <circle cx="112" cy="96" r="14" fill="#2CA65A"/>
+    <path d="M92 132c10-16 30-22 44-12-14 2-26 12-30 26z" fill="#2CA65A"/>
+    <circle cx="372" cy="246" r="13" fill="#176A91"/>
+    <path d="M352 282c10-15 28-20 42-11-13 2-24 11-28 24z" fill="#176A91"/>
+    <circle cx="384" cy="74" r="11" fill="#f08a24"/>
+    <path d="M366 104c8-13 24-18 36-10-11 2-21 9-24 20z" fill="#f08a24"/>
+  </g>
+  <circle cx="86" cy="196" r="6" fill="#F4C900"/>
+  <circle cx="404" cy="182" r="5" fill="#2CA65A"/>
+  <circle cx="150" cy="300" r="7" fill="#176A91" opacity="0.7"/>
+  <circle cx="330" cy="54" r="4" fill="#F4C900"/>
+</svg>

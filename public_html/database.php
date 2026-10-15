@@ -23,7 +23,13 @@ function db(): PDO
             $pdo->exec("SET time_zone = '+05:30'");
         } catch (PDOException $e) {
             error_log('Database connection failed: ' . $e->getMessage());
+            if (defined('PWF_INSTALLER')) {
+                throw $e;
+            }
             http_response_code(503);
+            if (APP_ENV === 'development') {
+                exit('Database connection failed: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8'));
+            }
             exit('<!doctype html><meta charset="utf-8"><title>Service unavailable</title>'
                 . '<div style="font-family:sans-serif;max-width:560px;margin:80px auto;text-align:center">'
                 . '<h1>We will be back shortly</h1><p>The website is temporarily unavailable. Please try again in a few minutes.</p></div>');

@@ -1,148 +1,115 @@
 <?php
-/** Public site footer. */
+/**
+ * Public site footer. Called by page_footer().
+ * Columns come from Admin > Menus (footer_about, footer_involved, footer_legal);
+ * blocks (newsletter, contact, social, registration) are switched on/off in Admin > Settings > Footer.
+ */
 if (!defined('PWF_APP')) {
     http_response_code(403);
     exit('Forbidden');
 }
 
-$siteName = site_name();
+$footerMenus = [];
+foreach (db_rows("SELECT menu_key, name FROM menus WHERE menu_key LIKE 'footer\\_%' ORDER BY id") as $fm) {
+    $items = menu_tree($fm['menu_key']);
+    if ($items) {
+        $footerMenus[] = ['title' => trim(preg_replace('/^Footer:\s*/i', '', $fm['name'])), 'items' => $items];
+    }
+}
 $contactEmail = setting('contact_email');
 $contactPhone = setting('contact_phone');
-$whatsapp = preg_replace('/\D/', '', setting('whatsapp_number'));
-unset($_SESSION['_old'], $_SESSION['_errors']);
+$regBits = array_filter([
+    'Reg. No.' => setting('registration_number'), 'PAN' => setting('pan_number'), '12A' => setting('reg_12a_number'),
+    '80G' => setting('reg_80g_number'), 'Darpan ID' => setting('darpan_id'),
+]);
 ?>
 </main>
 
-<section class="contact-band">
-    <div class="container">
-        <div class="contact-band-inner">
-            <div class="contact-band-item">
-                <span class="contact-band-icon"><?= icon('map-pin') ?></span>
-                <div><small>Address</small><strong><?= e(setting('contact_address')) ?></strong></div>
+<footer class="site-footer">
+    <div class="footer-cta">
+        <div class="container footer-cta-inner">
+            <div>
+                <p class="footer-cta-title"><?= e(setting('site_tagline_en', 'Together, let us build a better tomorrow')) ?></p>
+                <p class="hindi footer-cta-hindi"><?= e(setting('site_tagline')) ?></p>
             </div>
-            <?php if ($contactPhone): ?>
-                <div class="contact-band-item">
-                    <span class="contact-band-icon"><?= icon('phone') ?></span>
-                    <div><small>Call Us</small><a href="tel:<?= e(preg_replace('/[^0-9+]/', '', $contactPhone)) ?>"><strong><?= e($contactPhone) ?></strong></a></div>
-                </div>
-            <?php endif; ?>
-            <?php if ($contactEmail): ?>
-                <div class="contact-band-item">
-                    <span class="contact-band-icon"><?= icon('mail') ?></span>
-                    <div><small>Send Email</small><a href="mailto:<?= e($contactEmail) ?>"><strong><?= e($contactEmail) ?></strong></a></div>
-                </div>
-            <?php endif; ?>
+            <div class="btn-row">
+                <a class="btn btn-donate btn-3d" href="<?= e(page_url('donate')) ?>"><?= icon('heart') ?>Donate Now</a>
+                <a class="btn btn-light btn-3d" href="<?= e(page_url('become-a-volunteer')) ?>"><?= icon('users') ?>Become a Volunteer</a>
+            </div>
         </div>
     </div>
-</section>
 
-<footer class="site-footer">
     <div class="container footer-grid">
         <div class="footer-about">
-            <img src="<?= e(site_logo()) ?>" alt="<?= e($siteName) ?> logo" width="96" height="96" loading="lazy">
-            <p><strong><?= e($siteName) ?></strong> is a nonprofit organization dedicated to empowering underprivileged communities through education, healthcare, women empowerment, environmental care, and skill development. We strive to build a fair and inclusive society where everyone can live with dignity and equal opportunity.</p>
-            <?php if (setting('registration_number')): ?>
-                <p class="footer-reg"><?= e(setting('registration_type', 'Registration')) ?> No: <?= e(setting('registration_number')) ?></p>
+            <a class="footer-brand" href="<?= e(url('/')) ?>" aria-label="<?= e(site_name()) ?>"><?= brand_lockup('footer') ?></a>
+            <?php if (setting('brand_slogan')): ?><p class="footer-slogan"><?= e(setting('brand_slogan')) ?></p><?php endif; ?>
+            <p><?= e(setting('footer_about_text', setting('site_description'))) ?></p>
+            <?php if (setting('footer_show_registration', '1') === '1' && $regBits): ?>
+                <ul class="footer-reg">
+                    <?php foreach ($regBits as $label => $value): ?><li><span><?= e($label) ?></span><?= e($value) ?></li><?php endforeach; ?>
+                </ul>
             <?php endif; ?>
-        </div>
-
-        <div class="footer-col">
-            <h3>About</h3>
-            <ul>
-                <li><a href="<?= e(url('about.php')) ?>"><?= icon('chevrons-right') ?>About Us</a></li>
-                <li><a href="<?= e(url('about.php#mission')) ?>"><?= icon('chevrons-right') ?>Mission &amp; Vision</a></li>
-                <li><a href="<?= e(url('our-team.php#management')) ?>"><?= icon('chevrons-right') ?>Management Body</a></li>
-                <li><a href="<?= e(url('financial-transparency.php')) ?>"><?= icon('chevrons-right') ?>NGO Details</a></li>
-                <li><a href="<?= e(url('our-team.php')) ?>"><?= icon('chevrons-right') ?>Our Team</a></li>
-                <li><a href="<?= e(url('impact-reports.php')) ?>"><?= icon('chevrons-right') ?>Impact Reports</a></li>
-                <li><a href="<?= e(url('gallery.php')) ?>"><?= icon('chevrons-right') ?>Our Gallery</a></li>
-            </ul>
-        </div>
-
-        <div class="footer-col">
-            <h3>Get Involved</h3>
-            <ul>
-                <li><a href="<?= e(url('volunteer.php')) ?>"><?= icon('chevrons-right') ?>Volunteer with Us</a></li>
-                <li><a href="<?= e(url('apply-volunteer.php?type=intern')) ?>"><?= icon('chevrons-right') ?>Internships</a></li>
-                <li><a href="<?= e(url('donate.php')) ?>"><?= icon('chevrons-right') ?>Donate / Fundraise</a></li>
-                <li><a href="<?= e(url('campaigns.php')) ?>"><?= icon('chevrons-right') ?>Campaigns</a></li>
-                <li><a href="<?= e(url('skill-development.php')) ?>"><?= icon('chevrons-right') ?>Skill Development &amp; Training</a></li>
-                <li><a href="<?= e(url('blog.php')) ?>"><?= icon('chevrons-right') ?>Blogs &amp; Articles</a></li>
-                <li><a href="<?= e(url('success-stories.php')) ?>"><?= icon('chevrons-right') ?>Success Stories</a></li>
-                <li><a href="<?= e(url('blog.php?category=press')) ?>"><?= icon('chevrons-right') ?>Media / Press Releases</a></li>
-            </ul>
-        </div>
-
-        <div class="footer-col">
-            <h3>Contact &amp; Legal</h3>
-            <ul>
-                <li><a href="<?= e(url('contact.php?type=feedback')) ?>"><?= icon('chevrons-right') ?>Feedback Form</a></li>
-                <li><a href="<?= e(url('privacy-policy.php')) ?>"><?= icon('chevrons-right') ?>Privacy Policy</a></li>
-                <li><a href="<?= e(url('terms.php')) ?>"><?= icon('chevrons-right') ?>Terms &amp; Conditions</a></li>
-                <li><a href="<?= e(url('donation-policy.php')) ?>"><?= icon('chevrons-right') ?>Donation &amp; Refund Policy</a></li>
-                <li><a href="<?= e(url('child-protection-policy.php')) ?>"><?= icon('chevrons-right') ?>Child Protection Policy</a></li>
-                <li><a href="<?= e(url('grievance.php')) ?>"><?= icon('chevrons-right') ?>Grievance Redressal</a></li>
-                <li><a href="<?= e(url('events.php')) ?>"><?= icon('chevrons-right') ?>Upcoming Events</a></li>
-                <li><a href="<?= e(url('sitemap.php')) ?>"><?= icon('chevrons-right') ?>Sitemap</a></li>
-            </ul>
-        </div>
-
-        <div class="footer-col footer-contact">
-            <h3>Contact Us</h3>
-            <ul class="footer-contact-list">
-                <li><?= icon('map-pin') ?><span><?= e(setting('contact_address')) ?></span></li>
-                <?php if ($contactEmail): ?><li><?= icon('mail') ?><a href="mailto:<?= e($contactEmail) ?>"><?= e($contactEmail) ?></a></li><?php endif; ?>
-                <?php if ($contactPhone): ?><li><?= icon('phone') ?><a href="tel:<?= e(preg_replace('/[^0-9+]/', '', $contactPhone)) ?>"><?= e($contactPhone) ?></a></li><?php endif; ?>
-            </ul>
-            <?php $socials = social_links(); if ($socials): ?>
+            <?php if (setting('footer_show_social', '1') === '1' && social_links()): ?>
                 <div class="footer-social">
-                    <?php foreach ($socials as $socialKey => $social): ?>
-                        <a href="<?= e($social['url']) ?>" target="_blank" rel="noopener noreferrer" aria-label="<?= e($social['label']) ?>"><?= icon($socialKey) ?></a>
+                    <?php foreach (social_links() as $key => $link): ?>
+                        <a href="<?= e($link['url']) ?>" target="_blank" rel="noopener" aria-label="<?= e($link['label']) ?>" data-tip="<?= e($link['label']) ?>"><?= icon($key) ?></a>
                     <?php endforeach; ?>
                 </div>
             <?php endif; ?>
+        </div>
 
-            <form class="newsletter-form" action="<?= e(url('process-contact.php')) ?>" method="post" data-validate>
-                <?= csrf_field() ?>
-                <input type="hidden" name="form_type" value="newsletter">
-                <input type="hidden" name="return_to" value="<?= e(current_page()) ?>">
-                <?= honeypot_field() ?>
-                <label for="newsletter-email">Subscribe to our newsletter</label>
-                <div class="newsletter-row">
-                    <input id="newsletter-email" type="email" name="email" placeholder="Your email address" required maxlength="190" autocomplete="email">
-                    <button class="btn btn-donate btn-sm" type="submit" aria-label="Subscribe"><?= icon('send') ?></button>
-                </div>
-            </form>
+        <?php foreach ($footerMenus as $fm): ?>
+            <div class="footer-col">
+                <h2 class="footer-title"><?= e($fm['title']) ?></h2>
+                <ul>
+                    <?php foreach ($fm['items'] as $fi): ?>
+                        <li><a href="<?= e($fi['url']) ?>"<?= $fi['new_tab'] ? ' target="_blank" rel="noopener"' : '' ?>><?= icon('chevron-right') ?><?= e($fi['label']) ?></a></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endforeach; ?>
+
+        <div class="footer-col footer-contact">
+            <?php if (setting('footer_show_contact', '1') === '1'): ?>
+                <h2 class="footer-title">Contact</h2>
+                <ul class="footer-contact-list">
+                    <?php if (setting('contact_address')): ?><li><?= icon('map-pin') ?><span><?= e(setting('contact_address')) ?></span></li><?php endif; ?>
+                    <?php if ($contactEmail): ?><li><?= icon('mail') ?><a href="mailto:<?= e($contactEmail) ?>"><?= e($contactEmail) ?></a></li><?php endif; ?>
+                    <?php if ($contactPhone): ?><li><?= icon('phone') ?><a href="tel:<?= e(preg_replace('/[^\d+]/', '', $contactPhone)) ?>"><?= e($contactPhone) ?></a></li><?php endif; ?>
+                    <?php if (setting('office_hours')): ?><li><?= icon('clock') ?><span><?= e(setting('office_hours')) ?></span></li><?php endif; ?>
+                </ul>
+            <?php endif; ?>
+            <?php if (setting('newsletter_enabled', '1') === '1' && setting('footer_show_newsletter', '1') === '1'): ?>
+                <form class="newsletter-form" method="post" action="<?= e(page_url('newsletter')) ?>">
+                    <?= csrf_field() ?><?= honeypot_field() ?>
+                    <input type="hidden" name="source" value="footer">
+                    <label for="nl-email">Get updates on our work</label>
+                    <div class="newsletter-row">
+                        <input id="nl-email" type="email" name="email" required maxlength="190" placeholder="Your email address" autocomplete="email">
+                        <button class="btn btn-donate btn-sm" type="submit" aria-label="Subscribe"><?= icon('send') ?></button>
+                    </div>
+                    <label class="checkbox newsletter-consent"><input type="checkbox" name="consent" value="1" required><span><?= e(setting('newsletter_consent_text')) ?></span></label>
+                </form>
+            <?php endif; ?>
         </div>
     </div>
+
     <div class="footer-bottom">
-        <div class="container">
-            &copy; <?= date('Y') ?> Copyrights by <strong><?= e($siteName) ?></strong>. All Rights Reserved.
+        <div class="container footer-bottom-inner">
+            <p><?= e(str_replace('{year}', date('Y'), setting('footer_copyright', '© {year} ' . site_name() . '. All Rights Reserved.'))) ?></p>
+            <?php if (setting('footer_bottom_links', '1') === '1'): ?>
+                <nav aria-label="Legal"><a href="<?= e(page_url('privacy-policy')) ?>">Privacy</a><a href="<?= e(page_url('terms-conditions')) ?>">Terms</a><a href="<?= e(page_url('donation-refund-policy')) ?>">Refunds</a><a href="<?= e(page_url('report-fraud')) ?>">Report fraud</a><a href="<?= e(page_url('sitemap')) ?>">Sitemap</a></nav>
+            <?php endif; ?>
         </div>
     </div>
 </footer>
 
-<div class="floating-actions">
-    <?php if ($whatsapp): ?>
-        <a class="float-btn float-whatsapp" href="https://wa.me/<?= e(strlen($whatsapp) === 10 ? '91' . $whatsapp : $whatsapp) ?>" target="_blank" rel="noopener noreferrer" aria-label="Chat on WhatsApp"><?= icon('whatsapp') ?></a>
-    <?php endif; ?>
-    <?php if ($contactPhone): ?>
-        <a class="float-btn float-call" href="tel:<?= e(preg_replace('/[^0-9+]/', '', $contactPhone)) ?>" aria-label="Call us"><?= icon('phone') ?></a>
-    <?php endif; ?>
-    <button class="float-btn back-to-top" type="button" aria-label="Back to top"><?= icon('arrow-up') ?></button>
-</div>
-
-<div class="lightbox" id="lightbox" hidden>
-    <button class="lightbox-close" type="button" aria-label="Close"><?= icon('x') ?></button>
-    <button class="lightbox-prev" type="button" aria-label="Previous image"><?= icon('chevron-left') ?></button>
-    <figure><img src="" alt=""><figcaption></figcaption></figure>
-    <button class="lightbox-next" type="button" aria-label="Next image"><?= icon('chevron-right') ?></button>
-</div>
-
-<?php foreach ($extraScripts ?? [] as $src): ?>
-    <script src="<?= e($src) ?>"></script>
-<?php endforeach; ?>
-<script src="<?= e(asset('assets/js/script.js')) ?>"></script>
-<script src="<?= e(asset('assets/js/form-validation.js')) ?>"></script>
+<?= render_floating_widgets() ?>
+<?= render_fraud_alert() ?>
+<?= render_security_notice() ?>
+<?= render_consent_banner() ?>
+<?php $faqSchema = faq_schema(); if ($faqSchema) { echo json_ld($faqSchema); } ?>
+<script src="<?= e(asset('assets/js/script.js')) ?>" defer></script>
+<?php foreach ($GLOBALS['extraScripts'] ?? [] as $src): ?><script src="<?= e($src) ?>" defer></script><?php endforeach; ?>
 </body>
 </html>

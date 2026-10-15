@@ -13,3 +13,4 @@ Thumbs.db
 *.log
 .idea/
 .vscode/
+public_html/install.lock

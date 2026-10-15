@@ -57,6 +57,7 @@ defined('SMTP_PASS')       || define('SMTP_PASS', '');
 // ---------------------------------------------------------------------
 // Payment gateway: Razorpay (https://razorpay.com)
 // Use TEST keys (rzp_test_...) until you are ready to go live.
+// Integrate only after the foundation's merchant account is approved.
 // Webhook URL to configure in the Razorpay dashboard:
 //     BASE_URL/payment-webhook.php
 // Events: payment.captured, payment.failed, order.paid, refund.processed
@@ -77,6 +78,9 @@ defined('MAX_UPLOAD_MB')         || define('MAX_UPLOAD_MB', 5);
 // Only if the site is behind Cloudflare or another proxy: the $_SERVER key that
 // holds the visitor's real IP, e.g. 'HTTP_CF_CONNECTING_IP'. Leave empty otherwise.
 defined('TRUSTED_PROXY_HEADER')  || define('TRUSTED_PROXY_HEADER', '');
+// One-time installer key: set a long random value, open /install.php, enter it to create the first
+// administrator. After installation the installer locks itself; you can then clear this value.
+defined('INSTALL_KEY')           || define('INSTALL_KEY', '');
 
 // ---------------------------------------------------------------------
 // Paths (normally no need to change)

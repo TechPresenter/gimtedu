@@ -4,9 +4,8 @@ if (!defined('PWF_APP')) {
     http_response_code(403);
     exit('Forbidden');
 }
-header('X-Robots-Tag: noindex, nofollow');
-header('Cache-Control: no-store');
 $admin = current_admin();
+$adminTitle = $adminTitle ?? ($GLOBALS['adminTitle'] ?? 'Admin');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -18,6 +17,7 @@ $admin = current_admin();
     <link rel="icon" type="image/png" href="<?= e(asset('assets/images/favicon.png')) ?>">
     <link rel="stylesheet" href="<?= e(asset('assets/css/style.css')) ?>">
     <link rel="stylesheet" href="<?= e(asset('assets/css/admin.css')) ?>">
+    <?php foreach (glob(ROOT_PATH . '/assets/css/modules/admin-*.css') ?: [] as $adminCss): ?><link rel="stylesheet" href="<?= e(asset('assets/css/modules/' . basename($adminCss))) ?>"><?php endforeach; ?>
 </head>
 <body class="admin-body">
 <div class="admin-shell">
@@ -27,7 +27,7 @@ $admin = current_admin();
             <button class="admin-menu-toggle" type="button" aria-label="Toggle menu" aria-expanded="false"><?= icon('menu') ?></button>
             <h1><?= e($adminTitle ?? 'Admin') ?></h1>
             <div class="admin-topbar-right">
-                <a class="btn btn-ghost btn-sm hide-sm" href="<?= e(url('index.php')) ?>" target="_blank" rel="noopener"><?= icon('external') ?>View site</a>
+                <a class="btn btn-ghost btn-sm hide-sm" href="<?= e(url('/')) ?>" target="_blank" rel="noopener"><?= icon('external') ?>View site</a>
                 <?php if ($admin): ?>
                     <a class="admin-user" href="<?= e(admin_url('profile.php')) ?>">
                         <span class="avatar"><?= e(mb_strtoupper(mb_substr($admin['name'], 0, 1))) ?></span>
@@ -38,3 +38,6 @@ $admin = current_admin();
         </header>
         <div class="admin-content">
             <?= str_replace('flash-wrap container', 'flash-wrap', render_flash()) ?>
+            <?php if (!empty($admin) && empty($admin['totp_enabled']) && is_administrator((int) $admin['id']) && basename($_SERVER['PHP_SELF']) === 'dashboard.php'): ?>
+                <div class="alert alert-info"><?= icon('shield') ?><div>Protect the admin panel: turn on <a href="<?= e(admin_url('profile.php#two-step')) ?>">two-step login</a> for your account.</div></div>
+            <?php endif; ?>
