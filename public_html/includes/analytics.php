@@ -416,11 +416,15 @@ function analytics_geo_from_cloudflare(): ?array
     if (!preg_match('/^[A-Z]{2}$/', $cc) || in_array($cc, ['XX', 'T1'], true)) {
         return null;
     }
-    $clean = function ($key): ?string {
-        $v = analytics_text($_SERVER[$key] ?? null, 80);
-        return $v !== null && preg_match('/^[\p{L}\p{M}\p{N} .,\'()\-]+$/u', $v) ? $v : null;
-    };
-    return ['country_code' => $cc, 'country' => analytics_country_name($cc), 'region' => $clean('HTTP_CF_REGION'), 'city' => $clean('HTTP_CF_IPCITY'), 'source' => 'cloudflare'];
+    return ['country_code' => $cc, 'country' => analytics_country_name($cc), 'region' => analytics_place_name($_SERVER['HTTP_CF_REGION'] ?? null),
+        'city' => analytics_place_name($_SERVER['HTTP_CF_IPCITY'] ?? null), 'source' => 'cloudflare'];
+}
+
+/** A region / city name from a header or a lookup service: letters, digits, spaces and . , ' ( ) - only, else null. */
+function analytics_place_name($v): ?string
+{
+    $v = analytics_text($v, 80);
+    return $v !== null && preg_match('/^[\p{L}\p{M}\p{N} .,\'()\-]+$/u', $v) ? $v : null;
 }
 
 /** Cache key for an IP address: keyed hash that also changes every day (the IP itself is never stored). */
@@ -486,10 +490,10 @@ function analytics_geo_lookup(string $ip, string $provider): ?array
     if ($status === 200 && is_array($data) && empty($data['error']) && empty($data['bogon'])) {
         $cc = strtoupper((string) ($provider === 'ipinfo' ? ($data['country'] ?? '') : ($data['country_code'] ?? ($data['country'] ?? ''))));
         if (preg_match('/^[A-Z]{2}$/', $cc)) {
-            $name = $provider === 'ipapi' ? analytics_text($data['country_name'] ?? null, 80) : null;
+            $name = $provider === 'ipapi' ? analytics_place_name($data['country_name'] ?? null) : null;
             $geo = [
                 'country_code' => $cc, 'country' => $name ?: analytics_country_name($cc),
-                'region' => analytics_text($data['region'] ?? null, 80), 'city' => analytics_text($data['city'] ?? null, 80), 'source' => $provider,
+                'region' => analytics_place_name($data['region'] ?? null), 'city' => analytics_place_name($data['city'] ?? null), 'source' => $provider,
             ];
         }
     }
@@ -769,7 +773,11 @@ function api_collect(): void
         analytics_apply_consent($in['c'] ?? null, $sessionId);
 
         if ($needGeo) {
-            $geo = analytics_geo_lookup(client_ip(), analytics_geo_provider());
+            // the 24-hour cache first (another visit from this address may have filled it, and a failed lookup is
+            // remembered for an hour so the provider is not asked again for every new visit)
+            $ip = client_ip();
+            $cached = analytics_geo_cached($ip);
+            $geo = $cached !== null ? (!empty($cached['country_code']) ? $cached : null) : analytics_geo_lookup($ip, analytics_geo_provider());
             if ($geo) {
                 db_query('UPDATE analytics_sessions SET country_code = ?, country = ?, region = ?, city = ?, geo_source = ? WHERE id = ? AND geo_source IS NULL',
                     [$geo['country_code'], $geo['country'], $geo['region'], $geo['city'], $geo['source'], $sessionId]);
@@ -963,10 +971,71 @@ function analytics_cleanup(): array
         $out['events'] = db_query('DELETE FROM analytics_events WHERE created_at < NOW() - INTERVAL ? DAY LIMIT 20000', [$days])->rowCount();
         $out['sessions'] = db_query('DELETE FROM analytics_sessions WHERE last_seen_at < NOW() - INTERVAL ? DAY LIMIT 5000', [$days])->rowCount();
         $out['geo'] = db_query('DELETE FROM geo_cache WHERE expires_at < NOW() LIMIT 5000')->rowCount();
+        analytics_unlink_erased_users();
     } catch (Throwable $e) {
         error_log('Deep analytics (cleanup): ' . $e->getMessage());
     }
     return $out;
+}
+
+// =====================================================================
+// Personal data: deletion and access requests of members
+// =====================================================================
+
+/**
+ * A member's account was deleted / anonymised: their visits stay in the statistics, but no longer linked to the
+ * account or to their visitor cookie. Returns the number of visits unlinked. (Call from member_anonymise_account().)
+ */
+function analytics_forget_user(int $userId): int
+{
+    if ($userId <= 0 || !table_exists('analytics_sessions')) {
+        return 0;
+    }
+    try {
+        return db_query('UPDATE analytics_sessions SET user_id = NULL, visitor_id = NULL, is_returning = 0 WHERE user_id = ?', [$userId])->rowCount();
+    } catch (Throwable $e) {
+        error_log('Deep analytics (forget user): ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * Safety net while member_anonymise_account() does not call analytics_forget_user(): unlink the visits of accounts that
+ * were anonymised after a deletion request (status 'deactivated', e-mail deleted-<id>@invalid.local). Cheap: one indexed
+ * UPDATE that changes nothing once they are unlinked.
+ */
+function analytics_unlink_erased_users(): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    try {
+        db_query("UPDATE analytics_sessions s JOIN users u ON u.id = s.user_id
+                  SET s.user_id = NULL, s.visitor_id = NULL, s.is_returning = 0
+                  WHERE u.status = 'deactivated' AND u.email LIKE 'deleted-%@invalid.local'");
+    } catch (Throwable $e) {
+        error_log('Deep analytics (unlink erased accounts): ' . $e->getMessage());
+    }
+}
+
+/** A member's own website visits for a personal-data export (paths and times only; no internal ids or codes). */
+function analytics_user_export(int $userId): array
+{
+    if ($userId <= 0 || !table_exists('analytics_sessions')) {
+        return [];
+    }
+    $visits = db_rows('SELECT id, started_at, last_seen_at, landing_path, exit_path, channel, referrer_host, utm_source, utm_medium, utm_campaign,
+                              device, browser, browser_version, os, screen, language, timezone, country, region, city, pageviews, engaged_seconds, converted
+                       FROM analytics_sessions WHERE user_id = ? ORDER BY started_at DESC LIMIT 1000', [$userId]);
+    foreach ($visits as &$v) {
+        $v['pages'] = db_rows('SELECT path, created_at AS viewed_at, engaged_seconds, max_scroll FROM page_views WHERE session_id = ? ORDER BY id LIMIT 500', [(int) $v['id']]);
+        $v['actions'] = db_rows("SELECT type, label, path, created_at FROM analytics_events WHERE session_id = ? AND type <> 'js_error' ORDER BY id LIMIT 500", [(int) $v['id']]);
+        unset($v['id']);
+    }
+    unset($v);
+    return $visits;
 }
 
 // =====================================================================
@@ -979,6 +1048,7 @@ function analytics_user_activity_panel(int $userId): string
     if (!table_exists('analytics_sessions')) {
         return '';
     }
+    analytics_unlink_erased_users();
     $sessions = db_rows('SELECT id, sid, started_at, last_seen_at, landing_path, exit_path, channel, referrer_host, device, browser, os, city, region, country,
                                 pageviews, engaged_seconds, converted
                          FROM analytics_sessions WHERE user_id = ? ORDER BY started_at DESC LIMIT 8', [$userId]);

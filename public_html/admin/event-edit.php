@@ -54,6 +54,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $action = programhub_admin_param($_POST, 'action', 'save');
 
     // ----- Delete / duplicate / cancel ----------------------------------
+    if ($action === 'delete' && $event && ($blocked = programhub_admin_delete_blocked($event)) !== null) {
+        flash('error', $blocked);
+        admin_redirect($self);
+    }
     if ($action === 'delete' && $event) {
         $regs = programhub_admin_delete_event($event);
         admin_log('event_deleted', $label($event) . ' deleted' . ($regs ? ' with ' . $regs . ' registrations' : ''));

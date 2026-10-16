@@ -106,7 +106,8 @@ if ($tab === 'interests') {
     if (isset($_GET['export'])) {
         require_permission('exports.run');
         admin_log('program_interests_exported', 'Interest sign-ups exported' . ($catId ? ' (category #' . $catId . ')' : '') . ($status ? ' (' . $status . ')' : ''));
-        $rows = db_rows("SELECT i.id, i.name, i.email, i.phone, i.city, c.title, ev.title, i.message, i.status, i.consent_at, i.notified_at, i.created_at $from $where ORDER BY i.id", $params);
+        // distinct aliases: two columns named "title" would collapse into one key and shift every later CSV column
+        $rows = db_rows("SELECT i.id, i.name, i.email, i.phone, i.city, c.title AS category_title, ev.title AS event_title, i.message, i.status, i.consent_at, i.notified_at, i.created_at $from $where ORDER BY i.id", $params);
         send_csv('interest-signups-' . date('Y-m-d') . '.csv', ['ID', 'Name', 'Email', 'Mobile', 'City', 'Category', 'Event', 'Message', 'Status', 'Consent given', 'Notified', 'Signed up'], $rows);
     }
 

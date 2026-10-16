@@ -175,7 +175,7 @@ if ($sub === 'join') {
             . '<p>' . icon($mode === 'online' ? 'monitor' : 'map-pin') . '<span>' . e(programhub_event_where($event, false)) . '</span></p></div></div>'
             . '<p class="ph-join-who">Hello ' . e($reg['name']) . ' · ' . programhub_reg_badge((string) $reg['status']) . ' · Reference <strong>' . e(programhub_registration_ref($reg)) . '</strong></p>';
         if ($event['status'] === 'cancelled') {
-            echo '<div class="alert alert-error" role="status">' . icon('alert-circle') . '<div>This event has been cancelled. We are sorry for the inconvenience.</div></div>';
+            echo '<div class="alert alert-error" role="status">' . icon('alert-circle') . '<div>This event has been cancelled.' . (trim((string) ($event['cancel_reason'] ?? '')) !== '' ? ' ' . e(trim((string) $event['cancel_reason'])) : '') . ' We are sorry for the inconvenience.</div></div>';
         } elseif ($reg['status'] === 'waitlisted') {
             echo '<div class="alert alert-info" role="status">' . icon('info') . '<div>You are on the waiting list. If a place becomes available we will email you, and the joining details will appear here.</div></div>';
         } elseif (!$active) {
@@ -296,7 +296,7 @@ $heading = function (string $id, string $title, string $iconName): string {
             <div class="alert alert-warning mb-3"><?= icon('eye') ?><div>Staff preview of a <strong><?= e($event['status']) ?></strong> event. Visitors cannot see it. <a href="<?= e(url('admin/event-edit.php?id=' . (int) $event['id'])) ?>">Edit event</a></div></div>
         <?php endif; ?>
         <?php if ($event['status'] === 'cancelled'): ?>
-            <div class="alert alert-error mb-3" role="status"><?= icon('alert-circle') ?><div><strong>This event has been cancelled.</strong> We are sorry for the inconvenience. Registered participants are informed by email.</div></div>
+            <div class="alert alert-error mb-3" role="status"><?= icon('alert-circle') ?><div><strong>This event has been cancelled.</strong><?= trim((string) ($event['cancel_reason'] ?? '')) !== '' ? ' ' . e(trim((string) $event['cancel_reason'])) : '' ?> We are sorry for the inconvenience. Registered participants are informed by email.</div></div>
         <?php elseif ($state['is_past'] && !$isAwareness): ?>
             <div class="alert alert-info mb-3" role="status"><?= icon('info') ?><div>This event took place on <?= e(date('d F Y', strtotime($event['start_datetime']))) ?>.<?= $related ? ' See our <a href="#related">upcoming events</a>.' : ' See our <a href="' . e(events_list_url()) . '">upcoming events</a>.' ?></div></div>
         <?php endif; ?>

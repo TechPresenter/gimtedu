@@ -401,6 +401,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         }
         if ($changes && $provider !== 'none') {
             save_setting('geoip_backoff_until', '0');
+            db_query("DELETE FROM geo_cache WHERE source = 'failed'");   // let the new provider / token try again now
         }
         admin_log('analytics_settings_updated', $changes ? 'Deep analytics settings: ' . implode(', ', $changes) : 'Deep analytics settings saved (no changes)');
         flash('success', $changes ? 'Analytics settings saved.' : 'No changes to save.');
@@ -450,6 +451,9 @@ if ($tab === 'realtime' && da_get('format') === 'json') {
 // CSV exports
 // =====================================================================
 $export = da_get('export');
+if ($export !== '' && !in_array($export, ['sessions', 'pageviews', 'events'], true)) {
+    $export = '';   // unknown file type: show the Export tab instead of writing a misleading audit entry
+}
 if ($export !== '' && $installed) {
     require_permission('exports.run');
     $suffix = $range['from'] . '-to-' . $range['to'] . '.csv';
@@ -492,6 +496,9 @@ $visit = null;
 
 if ($installed && in_array($tab, ['overview', 'funnels', 'visitors'], true)) {
     analytics_sync_verified_donations($range['key'] === 'all' ? '2000-01-01' : $prevFrom);
+}
+if ($installed && in_array($tab, ['realtime', 'visitors'], true)) {
+    analytics_unlink_erased_users();   // members who asked for their account to be deleted are never shown by name
 }
 
 if ($installed && $tab === 'overview') {

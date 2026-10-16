@@ -129,6 +129,46 @@ function home_slogan_card(): string
 const HOME_HERO_FALLBACK_IMAGE = 'assets/images/hero/community.svg';
 
 /**
+ * Upload limits the hero slider editor can really use: [bytes per file, bytes per save (0 = no limit)].
+ * The site allows MAX_UPLOAD_MB, but a host's php.ini may be lower (upload_max_filesize: a bigger file is
+ * refused; post_max_size: a bigger form arrives empty and every edit in that save is lost).
+ */
+function home_hero_upload_limits(): array
+{
+    $bytes = function ($v): int {
+        $v = trim((string) $v);
+        $n = (float) $v;
+        switch (strtolower(substr($v, -1))) {
+            case 'g':
+                $n *= 1024;
+                // no break
+            case 'm':
+                $n *= 1024;
+                // no break
+            case 'k':
+                $n *= 1024;
+        }
+        return (int) $n;
+    };
+    $file = (int) (MAX_UPLOAD_MB * 1048576);
+    $ini = $bytes(ini_get('upload_max_filesize'));
+    $post = $bytes(ini_get('post_max_size'));
+    if ($ini > 0) {
+        $file = min($file, $ini);
+    }
+    if ($post > 0) {
+        $file = min($file, $post);
+    }
+    return [$file, max(0, $post)];
+}
+
+/** "5 MB", "2 MB", "1.5 MB" */
+function home_hero_mb(int $bytes): string
+{
+    return rtrim(rtrim(number_format($bytes / 1048576, 1, '.', ''), '0'), '.') . ' MB';
+}
+
+/**
  * Right-side image of a hero slide. Photos (or image_style "photo") fill a fixed 4:3 rounded frame
  * (3:2 on phones) with object-fit: cover, so the box is reserved before the file loads (no layout shift);
  * SVG illustrations (or image_style "illustration") are shown whole, as before. The first slide loads
@@ -155,8 +195,12 @@ function home_hero_figure(array $sl, bool $first): string
     if ($isPhoto) {
         $positions = ['top' => 'center top', 'bottom' => 'center bottom', 'left' => 'left center', 'right' => 'right center'];
         $pos = $positions[(string) ($sl['image_position'] ?? '')] ?? '';
-        $attrs .= image_srcset_attr($image, '(max-width: 767px) calc(100vw - 32px), (max-width: 991px) 460px, 520px')
+        // slot widths from modules/home.css: phones 100% - gutters (max 400px), tablets 460px, desktop 520px
+        $attrs .= image_srcset_attr($image, '(max-width: 444px) calc(100vw - 44px), (max-width: 767px) 400px, (max-width: 991px) 460px, 520px')
             . ($pos !== '' ? ' style="object-position:' . $pos . '"' : '');
+    } elseif (!$isSvg) {
+        // a raster drawing shown whole (style "Illustration"): smaller copies for its 240-470px slot
+        $attrs .= image_srcset_attr($image, '(max-width: 767px) 240px, (max-width: 991px) 300px, 470px');
     }
     return '<div class="home-hero-figure' . ($isPhoto ? ' is-photo' : '') . '">'
         . '<img src="' . e(url($image)) . '" alt="' . e($alt) . '"' . $attrs . '></div>';
@@ -222,7 +266,7 @@ function section_schema_hero_slider(): array
             'title' => ['text', 'Title (use "हिंदी – English" to show a Hindi line above the English title)'],
             'text' => ['textarea', 'Text'],
             'image' => ['image', 'Right-side image (photo or illustration)',
-                'Shown on the right of the slide on computers and below the text on phones. Recommended: a landscape photo of 1200 × 900 px (4:3), JPG, PNG or WebP, up to ' . (int) MAX_UPLOAD_MB . ' MB - it is cropped to fill a rounded frame. SVG illustrations are shown whole. Publish photos of identifiable people only with their consent (a parent\'s or guardian\'s for children). Remove the image to show the default illustration.'],
+                'Shown on the right of the slide on computers and below the text on phones. Recommended: a landscape photo of 1200 × 900 px (4:3), JPG, PNG or WebP, up to ' . home_hero_mb(home_hero_upload_limits()[0]) . ' - it is cropped to fill a rounded frame. SVG illustrations are shown whole. Publish photos of identifiable people only with their consent (a parent\'s or guardian\'s for children). Remove the image to show the default illustration.'],
             'image_alt' => ['text', 'Image description (alt text)', 'What the photo shows, for people using screen readers - e.g. "Volunteers teaching children at a community learning circle". Leave empty for decorative illustrations.'],
             'image_style' => ['select', 'Image style', ['' => 'Auto - photos fill the frame, SVG illustrations fit', 'photo' => 'Photo - fill the rounded frame (cropped)', 'illustration' => 'Illustration - show the whole image, no frame'],
                 'Choose "Illustration" for a PNG drawing with a transparent background.'],

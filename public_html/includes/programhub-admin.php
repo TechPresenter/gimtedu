@@ -540,6 +540,19 @@ function programhub_admin_duplicate_event(int $id): int
     return $newId;
 }
 
+/**
+ * Why the current admin may NOT delete this event, or null. Deleting an event also deletes its registrations
+ * (participant data, including minors' guardian details), so it needs events.registrations when there are any.
+ */
+function programhub_admin_delete_blocked(array $event): ?string
+{
+    $regs = (int) db_value('SELECT COUNT(*) FROM event_registrations WHERE event_id = ?', [(int) $event['id']]);
+    if ($regs > 0 && !admin_can('events.registrations')) {
+        return 'This event has ' . $regs . ' registration' . ($regs === 1 ? '' : 's') . '. Deleting it would also delete participant data, which only staff with access to registrations may do. Archive the event instead, or ask an administrator.';
+    }
+    return null;
+}
+
 /** Delete an event with its downloads (files too), links, report and registrations (FK cascade). Returns the number of registrations removed. */
 function programhub_admin_delete_event(array $event): int
 {

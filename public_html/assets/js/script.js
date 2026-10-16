@@ -214,6 +214,11 @@
         // scroll a partly visible link, so align it with the row's snap position (no fight with scroll-snap).
         row.addEventListener('focusin', function (e) {
             var el = e.target;
+            // keyboard only: scrolling a link the mouse is pressing moves it away before the button is released,
+            // and the click (and the visit) is lost
+            var keyboard = true;
+            try { keyboard = el.matches(':focus-visible'); } catch (err) { /* older browsers: always align */ }
+            if (!keyboard) { return; }
             requestAnimationFrame(function () {
                 var a = el.getBoundingClientRect(), r = row.getBoundingClientRect();
                 if (a.left < r.left + 34 || a.right > r.right - 60) {

@@ -377,6 +377,16 @@ function programhub_event_resources(int $eventId, string $visibility = 'public')
     }
 }
 
+/** Does the event have published downloads for registered participants only? */
+function programhub_has_private_resources(int $eventId): bool
+{
+    try {
+        return (bool) db_value("SELECT 1 FROM event_resources WHERE event_id = ? AND visibility = 'registered' AND status = 'published' LIMIT 1", [$eventId]);
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 /** Report & verified outcomes of an event (outcomes decoded to a list of [label, value, note]). */
 function programhub_event_report(int $eventId, bool $publishedOnly = true): ?array
 {
@@ -606,7 +616,10 @@ function programhub_register(int $eventId, array $data, array $opts = []): array
         }
         $row['status'] = $full ? 'waitlisted' : 'registered';
         if ($existing) {
-            db_update('event_registrations', $row, 'id = :id', ['id' => $existing['id']]);
+            // a cancelled registration comes back as a NEW one: its place in the waiting-list queue (created_at) and
+            // the old confirmation / attendance stamps must not carry over
+            db_update('event_registrations', $row + ['created_at' => $now, 'confirmed_at' => null, 'attended_at' => null, 'meeting_link_sent_at' => null],
+                'id = :id', ['id' => $existing['id']]);
             $id = (int) $existing['id'];
         } else {
             $id = db_insert('event_registrations', $row + ['event_id' => $eventId, 'email' => $email]);
@@ -761,9 +774,14 @@ function programhub_send_participant_email(array $event, array $reg, string $kin
         return false;
     }
     $token = (string) ($extra['token'] ?? '');
-    $joinUrl = $token !== '' ? programhub_join_url($event, (int) $reg['id'], $token) : '';
     $mode = event_mode($event);
     $online = $mode !== 'in_person';
+    // in-person events with registered-only materials: the private page is the only way a guest can open them
+    $privateFiles = !$online && in_array($kind, ['confirmed', 'promoted', 'reminder'], true) && !empty($reg['id']) && programhub_has_private_resources((int) $event['id']);
+    if ($token === '' && $privateFiles) {
+        $token = programhub_issue_access_token((int) $reg['id']);
+    }
+    $joinUrl = $token !== '' ? programhub_join_url($event, (int) $reg['id'], $token) : '';
     $title = e((string) $event['title']);
     $facts = '<table role="presentation" style="margin:14px 0;border-collapse:collapse;font-size:15px">'
         . '<tr><td style="padding:3px 14px 3px 0;color:#5e6e66">When</td><td style="padding:3px 0"><strong>' . e(event_when($event, true)) . '</strong></td></tr>'
@@ -793,6 +811,9 @@ function programhub_send_participant_email(array $event, array $reg, string $kin
     } elseif ($online && $joinUrl !== '' && in_array($kind, ['confirmed', 'promoted', 'reminder'], true)) {
         $body .= '<p><strong>Joining online?</strong> The joining link is shared only with registered participants. It will appear on your '
             . '<a href="' . e($joinUrl) . '">private joining page</a> and will be emailed to you before the session. Please do not share this link.</p>';
+    } elseif ($privateFiles && $joinUrl !== '') {
+        $body .= '<p><strong>Materials for participants:</strong> files shared only with registered participants are on your '
+            . '<a href="' . e($joinUrl) . '">private participant page</a>. Please do not share this link.</p>';
     }
     if ($kind === 'promoted' || $kind === 'confirmed' || $kind === 'reminder') {
         $map = programhub_map_url($event);
@@ -867,6 +888,42 @@ function program_category_group(array $cat): string
         return 'innovation';
     }
     return 'more';
+}
+
+/**
+ * Link to the "Programmes and event registrations" part of the privacy policy. The policy layout builds each heading id
+ * from the section TITLE (content_with_toc()), not from its anchor, so the fragment is derived from the current title
+ * of the section with anchor 'programmes-events' (added by migration 607, editable in Admin > Pages).
+ */
+function programhub_privacy_url(): string
+{
+    static $url = null;
+    if ($url === null) {
+        $url = page_url('privacy-policy');
+        try {
+            $title = (string) db_value("SELECT s.title FROM page_sections s JOIN pages p ON p.id = s.page_id
+                                        WHERE p.slug = 'privacy-policy' AND s.anchor = 'programmes-events' AND s.status = 'visible' LIMIT 1");
+            if (trim($title) !== '') {
+                $url .= '#' . slugify(trim(html_entity_decode(strip_tags($title), ENT_QUOTES, 'UTF-8')));
+            }
+        } catch (Throwable $e) {
+            error_log('programhub_privacy_url: ' . $e->getMessage());
+        }
+    }
+    return $url;
+}
+
+/**
+ * old() for the module's forms, always a string (or null when $default is null and nothing was sent): a crafted
+ * POST with field[]=... is flashed back as an array, which would otherwise print "Array" and log a PHP warning.
+ */
+function programhub_old(string $key, ?string $default = ''): ?string
+{
+    $v = old($key, $default);
+    if ($v === null) {
+        return null;
+    }
+    return is_scalar($v) ? (string) $v : (string) $default;
 }
 
 /** Load the public module script (forms, filters) once. */
@@ -1382,7 +1439,7 @@ function programhub_registration_form(array $events, array $o): string
         . '<div class="form-group"><label for="reg-guardian-name">Parent / guardian name<span class="req">*</span></label><input id="reg-guardian-name" type="text" name="guardian_name" maxlength="120" data-req value="' . e(old('guardian_name')) . '">' . field_error('guardian_name') . '</div>'
         . '<div class="form-group"><label for="reg-guardian-phone">Parent / guardian mobile<span class="req">*</span></label><input id="reg-guardian-phone" type="tel" name="guardian_phone" maxlength="15" inputmode="tel" data-req value="' . e(old('guardian_phone')) . '">' . field_error('guardian_phone') . '</div>'
         . '</div><div class="form-group"><label class="checkbox"><input type="checkbox" name="guardian_consent" value="1" data-req' . old_checked('guardian_consent', '1') . '><span>I am the parent or guardian, or they have agreed to this registration.<span class="req">*</span></span></label>' . field_error('guardian_consent') . '</div></div>'
-        . '<div class="form-group"><label class="checkbox"><input type="checkbox" name="consent" value="1" required' . old_checked('consent', '1') . '><span>I agree that my details are used to manage this registration, as described in the <a href="' . e(page_url('privacy-policy')) . '#programmes-events">privacy policy</a>.<span class="req">*</span></span></label>' . field_error('consent') . '</div>'
+        . '<div class="form-group"><label class="checkbox"><input type="checkbox" name="consent" value="1" required' . old_checked('consent', '1') . '><span>I agree that my details are used to manage this registration, as described in the <a href="' . e(programhub_privacy_url()) . '">privacy policy</a>.<span class="req">*</span></span></label>' . field_error('consent') . '</div>'
         . '<button class="btn btn-primary btn-lg btn-block" type="submit" data-ph-submit>' . icon('check') . '<span>' . ($single && !$firstState['open'] ? 'Join the waiting list' : 'Register now') . '</span></button>'
         . '<p class="form-note">' . icon('lock') . '<span>Registration is free on this website - no payment is asked for or collected here. You will receive a confirmation by email.</span></p>'
         . '</form>';
@@ -1485,6 +1542,9 @@ function programhub_confirmation_html(array $event, array $reg, string $token, b
     if (!$waitlisted && $mode !== 'in_person' && $token !== '') {
         $html .= '<div class="ph-private">' . icon('lock') . '<div><strong>Your private joining page</strong><p>The online joining link is shown there and emailed to you before the session. Please keep this link to yourself.</p>'
             . '<a class="btn btn-blue btn-sm" href="' . e(programhub_join_url($event, (int) $reg['id'], $token)) . '" rel="nofollow">' . icon('monitor') . 'Open joining page</a></div></div>';
+    } elseif (!$waitlisted && $token !== '' && programhub_has_private_resources((int) $event['id'])) {
+        $html .= '<div class="ph-private">' . icon('lock') . '<div><strong>Your private participant page</strong><p>Materials shared only with registered participants are there. The link is also in your confirmation email. Please keep it to yourself.</p>'
+            . '<a class="btn btn-blue btn-sm" href="' . e(programhub_join_url($event, (int) $reg['id'], $token)) . '" rel="nofollow">' . icon('download') . 'Open participant page</a></div></div>';
     }
     $html .= '</div><div class="ph-next"><h3>What happens next</h3><ol class="ph-next-steps">'
         . '<li><strong>' . ($sent ? 'Check your inbox' : 'Keep your reference number') . '</strong><span>' . ($sent
@@ -1542,7 +1602,7 @@ function programhub_interest_form(array $cat, string $action): string
         . '<div class="form-group full"><label for="in-message">What would you like to learn or join? <span class="muted">(optional)</span></label><textarea id="in-message" name="in_message" maxlength="500" rows="3" data-counter>' . e(old('in_message')) . '</textarea>' . field_error('in_message') . '</div>'
         . '</div><div class="form-group"><label class="checkbox"><input type="checkbox" name="in_consent" value="1" required' . old_checked('in_consent', '1') . '><span>Email me when new ' . e($cat['title']) . ' sessions are announced. I can ask you to remove my details at any time.<span class="req">*</span></span></label>' . field_error('in_consent') . '</div>'
         . '<button class="btn btn-primary btn-block" type="submit">' . icon('bell') . 'Notify me</button>'
-        . '<p class="form-note">' . icon('lock') . '<span>We use these details only to tell you about sessions in this area. See our <a href="' . e(page_url('privacy-policy')) . '#programmes-events">privacy policy</a>.</span></p></form>';
+        . '<p class="form-note">' . icon('lock') . '<span>We use these details only to tell you about sessions in this area. See our <a href="' . e(programhub_privacy_url()) . '">privacy policy</a>.</span></p></form>';
 }
 
 function programhub_handle_interest(array $cat, string $back): void

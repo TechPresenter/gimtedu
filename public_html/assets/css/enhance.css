@@ -179,6 +179,11 @@ h1, h2, h3, h4 { color: var(--ink); letter-spacing: -.01em; }
 }
 .js [data-hscroll] { scrollbar-width: none; }
 .js [data-hscroll]::-webkit-scrollbar { display: none; }
+/* same from the first paint (script.js adds .js only after the page has loaded) */
+@media (scripting: enabled) {
+    [data-hscroll] { scrollbar-width: none; }
+    [data-hscroll]::-webkit-scrollbar { display: none; }
+}
 [data-hscroll].is-overflowing:not(.at-start) { --fade-l: 34px; }
 [data-hscroll].is-overflowing:not(.at-end) { --fade-r: 60px; }
 .hscroll-hint {
@@ -227,6 +232,19 @@ h1, h2, h3, h4 { color: var(--ink); letter-spacing: -.01em; }
 }
 @media (max-width: 480px) {
     .nav-strip-list { padding: 0 13px; }
+}
+/* JavaScript off: the row keeps its native scrollbar; a desktop browser's classic scrollbar is added below the
+   pills instead of covering their lower half (phones use overlay scrollbars: the strip stays 50px) */
+@media (scripting: none) and (max-width: 1279px) {
+    .nav-strip { height: auto; min-height: var(--nav-strip-h); }
+    .nav-strip-scroller { height: auto; }
+    .nav-strip-list { height: calc(var(--nav-strip-h) - 1px); }
+}
+/* Windows high contrast: backgrounds are dropped, so the current pill / apply chip keeps a thicker system-colour
+   border and its dot */
+@media (forced-colors: active) {
+    .nav-pill.is-active > span, .nav-apply-row .apply-chip.is-active { border: 2px solid Highlight; }
+    .nav-pill.is-active > span::before { forced-color-adjust: none; background: Highlight; box-shadow: none; }
 }
 
 /* ---------- Toasts (flash messages) ---------- */

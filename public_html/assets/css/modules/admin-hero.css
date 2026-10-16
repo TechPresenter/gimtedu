@@ -53,4 +53,5 @@
 .hero-img-status { margin: 0; padding: 8px 12px; border-radius: 10px; font-size: .82rem; line-height: 1.45; background: var(--green-50); border: 1px solid rgba(20, 107, 67, .2); color: var(--green-800); }
 .hero-img-status.is-warn { background: var(--gold-100, #fff6c7); border-color: #f1dc93; color: #5c4a00; }
 .hero-img-status.is-error { background: #fdecec; border-color: #f3b9b9; color: #8a1c1c; }
-.hero-img-status[hidden] { display: none; }
+/* empty = nothing to say yet: kept in the page (a live region must exist before it changes) but takes no space */
+.hero-img-status:empty { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }

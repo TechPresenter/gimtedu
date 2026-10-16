@@ -85,6 +85,16 @@
     function storedConsent() {
         try { return window.localStorage.getItem('pwf_consent'); } catch (e) { return null; }
     }
+    // "pwf_consent" is shared with Google Analytics: a "yes" given on the older GA-only notice does not cover our own
+    // visitor cookie. This key records that the choice was made on a notice that asked about pwf_vid.
+    function scopeCovered() {
+        try { return window.localStorage.getItem('pwf_consent_scope') === 'vid'; } catch (e) { return false; }
+    }
+    function setScope(on) {
+        try {
+            if (on) { window.localStorage.setItem('pwf_consent_scope', 'vid'); } else { window.localStorage.removeItem('pwf_consent_scope'); }
+        } catch (e) { /* storage blocked: the server-side cookie still records the choice */ }
+    }
 
     /* ---------- engaged time: counts only while the page is visible and the visitor active (30 s idle pause) ---------- */
     function activity() { lastActivity = Date.now(); }
@@ -274,6 +284,7 @@
     /* ---------- consent for the persistent visitor id (cookie pwf_vid, set by the server only after "Allow") ---------- */
     function consentClick(choice) {
         if (!cfg.consent) { return; }
+        setScope(choice === 'yes');   // this notice asked about the visitor cookie
         if (choice === 'yes' && !cfg.vid) {
             pendingConsent = 'yes';
             cfg.vid = true;
@@ -286,10 +297,19 @@
     }
     if (cfg.consent) {
         var stored = storedConsent();
-        if (stored === 'yes' && !cfg.vid) { pendingConsent = 'yes'; cfg.vid = true; }
+        var banner = document.querySelector('[data-consent-banner]');
+        if (stored === 'yes' && cfg.vid) {
+            setScope(true);   // the cookie only exists after "Allow analytics" on a notice that asked about it
+        } else if (stored === 'yes' && !cfg.vid) {
+            if (scopeCovered()) {
+                pendingConsent = 'yes';   // cookie expired or was cleared: restore it (the visitor allowed it)
+                cfg.vid = true;
+            } else if (banner) {
+                banner.hidden = false;    // "yes" was given before the notice mentioned our own cookie: ask again
+            }
+        }
         if (stored === 'no' && cfg.vid) { pendingConsent = 'no'; cfg.vid = false; }
         // "Cookie settings" link in the footer (footer.php prints its own only when Google Analytics is on)
-        var banner = document.querySelector('[data-consent-banner]');
         var nav = document.querySelector('.footer-bottom nav');
         if (banner && nav && !document.querySelector('[data-consent-reset]')) {
             var reset = document.createElement('button');

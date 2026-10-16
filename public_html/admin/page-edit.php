@@ -454,7 +454,7 @@ $editor = site_user_name($page['updated_by'] ? (int) $page['updated_by'] : null)
     $hidden = $s['status'] === 'hidden';
     $exists = function_exists('section_' . preg_replace('/[^a-z0-9_]/', '', (string) $s['section_type']));
 ?>
-    <article class="site-section<?= $hidden ? ' is-hidden' : '' ?><?= $s['section_type'] === 'hero_slider' ? ' is-hero-slider" data-max-upload-mb="' . (int) MAX_UPLOAD_MB : '' ?>" id="section-<?= $sid ?>">
+    <article class="site-section<?= $hidden ? ' is-hidden' : '' ?><?php if ($s['section_type'] === 'hero_slider'): [$heroFileMax, $heroPostMax] = home_hero_upload_limits(); ?> is-hero-slider" data-max-upload-bytes="<?= (int) $heroFileMax ?>" data-max-post-bytes="<?= (int) $heroPostMax ?><?php endif; ?>" id="section-<?= $sid ?>">
         <header class="site-section-bar">
             <span class="site-section-num" aria-hidden="true"><?= $n + 1 ?></span>
             <div class="site-section-meta">

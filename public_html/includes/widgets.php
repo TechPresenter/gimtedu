@@ -274,7 +274,7 @@ function render_consent_banner(): string
     if ($ga && $own) {
         $text = 'We would like to use analytics cookies - Google Analytics and our own first-party cookie that recognises return visits - to understand how visitors use this website. No advertising cookies. You can say no - the website works fully either way. See our <a href="' . e(page_url('privacy-policy') . '#website-analytics-details') . '">privacy policy</a>.';
     } elseif ($own) {
-        $text = 'May we set one first-party cookie (no third parties, no advertising) so our own website statistics can recognise return visits? Visits are still counted anonymously without it, and the website works fully either way. See our <a href="' . e(page_url('privacy-policy') . '#website-analytics-details') . '">privacy policy</a>.';
+        $text = 'May we set one first-party cookie (no third parties, no advertising) so our own website statistics can recognise return visits? Without it, visits are still counted but not linked to your earlier visits, and the website works fully either way. See our <a href="' . e(page_url('privacy-policy') . '#website-analytics-details') . '">privacy policy</a>.';
     } else {
         $text = 'We would like to use Google Analytics cookies to understand how visitors use this website. You can say no - the website works fully either way. See our <a href="' . e(page_url('privacy-policy')) . '">privacy policy</a>.';
     }

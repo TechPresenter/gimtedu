@@ -1316,7 +1316,8 @@ function api_chat(): void
     if (!is_array($in)) {
         $in = $_POST;
     }
-    $sent = (string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($in['csrf_token'] ?? ''));
+    $sent = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($in['csrf_token'] ?? '');
+    $sent = is_string($sent) ? $sent : '';
     if ($sent === '' || empty($_SESSION['csrf_token']) || !hash_equals((string) $_SESSION['csrf_token'], $sent)) {
         assistant_json(403, ['ok' => false, 'error' => 'csrf', 'message' => 'Your session has expired. Please reload the page and try again.']);
     }

@@ -40,7 +40,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     }
     $label = ($event['event_type'] === 'awareness_day' ? 'Awareness day' : 'Event') . ' #' . $id . ' "' . $event['title'] . '"';
 
-    if ($action === 'delete') {
+    if ($action === 'delete' && ($blocked = programhub_admin_delete_blocked($event)) !== null) {
+        flash('error', $blocked);
+    } elseif ($action === 'delete') {
         $regs = programhub_admin_delete_event($event);
         admin_log('event_deleted', $label . ' deleted' . ($regs ? ' with ' . $regs . ' registrations' : ''));
         flash('success', 'The event "' . $event['title'] . '" was deleted.');
