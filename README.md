@@ -1,11 +1,36 @@
-# Prerit Welfare Foundation — Website & Admin CMS (v2)
+# Prerit Welfare Foundation — Website & Admin CMS (v3 · Upgrade 1)
 
 A premium, fully dynamic NGO website with an admin CMS, written in **plain PHP 8, MySQL, HTML, CSS and vanilla JavaScript**.
 No frameworks, no Composer, no npm and no build step — upload the files to `public_html/` on any PHP/MySQL host (e.g. Hostinger) and it runs.
 
 *मिलकर बनाये बेहतर कल — Together, let us build a better tomorrow.*
 
-> **Authentic information only.** The site ships with the foundation's real name, logo, address (New Delhi, 110051), email and descriptions of its areas of work. It does **not** contain invented donations, beneficiaries, statistics, testimonials, partners, awards or registration numbers. Every public figure (amount raised, donations, volunteers, events) is calculated live from **verified** records and hidden while it is zero. Registration details (PAN, 12A, 80G, CSR-1, Darpan, FCRA), phone, WhatsApp, bank details and social links stay hidden until you enter verified values in **Admin → Settings**. The five relief/education/food campaigns are included as **drafts** — review, add real details and publish them when appropriate.
+> **Authentic information only.** The site ships with the foundation's real name, logo, address (New Delhi, 110051), email, the registration details the foundation provided (CIN U88900BR2025NPL079155, NGO ID BR/2025/0847299, registered with the Ministry of Corporate Affairs, MSME Udyam UDYAM-BR-37-0067136) and descriptions of its areas of work. It does **not** contain invented donations, beneficiaries, statistics, testimonials, partners, awards or registration numbers. Every public figure (amount raised, donations, volunteers, events) is calculated live from **verified** records and hidden while it is zero. Registration details (PAN, 12A, 80G, CSR-1, Darpan, FCRA), phone, WhatsApp, bank details and social links stay hidden until you enter verified values in **Admin → Settings**. The five relief/education/food campaigns are included as **drafts** — review, add real details and publish them when appropriate.
+
+---
+
+## 0. What's new in v3 (Upgrade 1) and how to upgrade the live site
+
+| Area | What changed | Where in the admin |
+|---|---|---|
+| **Data-safe upgrades** | `includes/migrations.php`: numbered migrations run once, automatically, on the first request after new files are uploaded (database lock; idempotent; never delete or overwrite admin-entered data). Sites installed from the earlier v2 package are brought to the final v2 state too. | Audit Log → "database_upgraded" |
+| **Encrypted secrets** | Payment and AI keys entered in the admin are stored encrypted (libsodium, or AES-256-GCM) with `APP_KEY` from `pwf-config.php` (or a key derived from the database credentials). A constant in `pwf-config.php` always wins. Secrets are never shown back. | — |
+| **Payment gateways** | Razorpay keys from the admin panel (password confirmation, test connection, webhook guide) + full **Cashfree** integration (order → SDK v3 checkout → server verification, signed webhook `cashfree-webhook.php`, refunds). Donors choose when both are on. | Fundraising → Payment Gateways |
+| **AI assistant** | OpenAI-powered website guide (server-side proxy, knowledge from the site's own pages, programmes, events, FAQs and contacts; safe HTML; rate limits, daily cap; FAQ fallback; optional conversation log with retention). Off until a key is added. | Communication → AI Assistant |
+| **Deep analytics** | First-party sessions, engaged time, scroll depth, clicks, downloads, forms, channels, devices, approximate location (Cloudflare headers / ipinfo / ipapi, no IP stored), real-time view, funnels, journeys, CSV exports; return visits only with consent. | Insights → Deep Analytics & Visitors |
+| **Programs & Events** | `/programs/` hub with 10 categories (AI, Robotics, ML & Data Science, Digital Marketing, Cyber Security, Career & Entrepreneurship, Fitness & Yoga, Music & Arts, Hackathons, Events & Seminars), event pages at `/events/<slug>/` and `/hackathons/<slug>/`, registrations with deadlines, seat limits, waiting list, private joining links, speakers, partners, resources, reports with verified outcomes, interest list, partnership enquiries. No events or figures are seeded. | Content → Programme Categories, Events & Calendar, Speakers & Trainers, Partners & Sponsors |
+| **Authorization letters** | Volunteer-teacher authorization letters in the foundation's letter layout (letterhead, logo watermark, seal, school verification box), masked ID numbers only, reference numbers, public verification at `/verify-letter/`. | People → Authorization Letters |
+| **Pages** | Home "Our impact" section hidden; mega-menu tagline column removed; volunteer-teacher page shows only the form behind a Terms & Conditions pop-up; donate page shows only the form with the foundation seal; top bar "Programs & Events" dropdown; mobile swipeable menu strip; hero slider right-side images editable with preview; footer shows CIN, NGO ID, MCA registration, MSME and focus areas. | Pages, Settings, Dashboard hero card |
+
+**Upgrading the live site (keep all data):**
+1. Back up files and database (hPanel → Backups, and Admin → Backup & Data Retention).
+2. Upload `prerit-upgrade-1.zip` into `public_html` and extract it, replacing files. Do not delete anything; the zip contains no `install.php` and no user uploads. Keep `pwf-config.php` (outside `public_html`).
+3. Open the home page once — migrations run automatically (Audit Log shows "database_upgraded").
+4. Recommended: add `define('APP_KEY', '<40+ random letters and digits>');` to `pwf-config.php` before entering keys in the admin, and never change it afterwards.
+5. **Regenerate the Razorpay Key Secret** (it was shared in a chat), then enter the keys in Fundraising → Payment Gateways, test the connection and set up the webhook. Optional: Cashfree (sandbox first), OpenAI key (set a budget limit in OpenAI), analytics location source, seal and signature in Authorization Letters → Settings.
+6. Do **not** re-import `database.sql` on a site that has real data.
+
+Step-by-step in Hindi: **DEPLOY-HINDI.md** (section A).
 
 ---
 
@@ -152,7 +177,7 @@ Public registration can never create staff roles. Visitors who register choose S
 * **Backups:** Admin → Backup & Data Retention → download a database backup; download `uploads/` via File Manager. Hostinger also keeps automatic backups.
 * **Data retention:** the same page removes old logs/analytics, old resolved enquiries and feedback, anonymises old rejected applications and removes names / IP addresses of unsubscribed newsletter records after 30 days, according to Settings (donation & receipt records are never deleted). The clean-up also runs automatically once a day when the admin dashboard is opened.
 * **Images:** public photos get smaller copies (640 / 1080 px) on upload, used with `srcset` on cards and galleries. For photos uploaded earlier, use Backup & Data Retention → "Create missing resized image copies".
-* **Upgrading an existing database** (installed before these changes): run once in phpMyAdmin
+* **Upgrading an existing database:** no manual SQL is needed any more — uploading the new files runs the pending migrations automatically (section 0). The manual statements below are kept only for reference (they are part of `migration_100_v2_final_catchup`):
   `ALTER TABLE donations ADD COLUMN offline_reference VARCHAR(100) DEFAULT NULL AFTER gateway_method, ADD KEY idx_donations_offline_ref (offline_reference);`
   `UPDATE roles SET allow_self_register = 0 WHERE slug IN ('member','registered_volunteer');`
   `INSERT IGNORE INTO roles (id,name,slug,description,is_staff,is_system,allow_self_register,sort_order) VALUES (11,'Supporter','supporter','Website account to follow your donations, applications, events and certificates.',0,1,1,6);`
