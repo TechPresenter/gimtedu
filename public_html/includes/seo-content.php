@@ -15,6 +15,7 @@
  *   874  footer "Workshops" link: /events/?type=workshop (noindex filter) -> /programs/, only while seeded
  *   875  "Our offices" block (corporate office address from Settings) on Contact and NGO Details
  *   876  /partner-with-us/ "Become a Project Partner" page, its footer link and a link from Contact
+ *   877  focus + secondary keywords (English only, C11) into the WP-1 seo_meta table, only into empty fields
  *
  * Nothing here is ever deleted. Each migration is idempotent: run twice, the second run changes nothing.
  * New section type: office_addresses (renders the addresses saved in Settings at request time, so the page
@@ -653,4 +654,103 @@ function migration_876_seo_content_partner_page(): void
         }
     }
     seo_content_log('"Become a Project Partner" page', $changes);
+}
+
+/**
+ * Focus and secondary keywords per page from the keyword mapping (keywords.csv), for the WP-1/WP-4 seo_meta fields
+ * (advisory only: they never change page text). English only - no Hindi or Hinglish terms until real Hindi content
+ * exists (CRITIC C11) - and without terms the site cannot honestly serve: "free ... workshop" on pages whose fees are set
+ * per event, 80G/12A, unconfirmed offices or placements, draft flood-relief campaigns, "near me" and city variants.
+ * slug => [focus keyword, [secondary keywords, max 10]]
+ */
+function seo_content_keywords(): array
+{
+    return [
+        'home' => ['Prerit Welfare Foundation', ['Prerit Welfare Foundation New Delhi', 'Prerit Welfare Foundation NGO', 'NGO for education and youth empowerment in India', 'NGO for education and skill development']],
+        'about' => ['about Prerit Welfare Foundation', ['what does Prerit Welfare Foundation do', 'Prerit Welfare Foundation Noida corporate office', 'nonprofit for education healthcare and women empowerment']],
+        'our-mission-vision' => ['Prerit Welfare Foundation mission and vision', ['Prerit Welfare Foundation values', 'NGO mission and vision for education and skill development']],
+        'achievements' => ['Prerit Welfare Foundation achievements', ['Prerit Welfare Foundation milestones', 'Prerit Welfare Foundation completed campaigns', 'Prerit Welfare Foundation past events']],
+        'ngo-details' => ['Prerit Welfare Foundation registration details', ['U88900BR2025NPL079155', 'BR/2025/0847299', 'Prerit Welfare Foundation CIN', 'Prerit Welfare Foundation MSME Udyam', 'is Prerit Welfare Foundation registered']],
+        'certifications' => ['Prerit Welfare Foundation certificates', ['Prerit Welfare Foundation registration certificate', 'Prerit Welfare Foundation certificate of incorporation']],
+        'management-body' => ['Prerit Welfare Foundation management', ['Prerit Welfare Foundation directors', 'Prerit Welfare Foundation governance']],
+        'volunteers' => ['Prerit Welfare Foundation team', ['Prerit Welfare Foundation volunteers', 'join Prerit Welfare Foundation team']],
+        'programs' => ['Prerit Welfare Foundation programs', ['NGO programmes for education health and skills', 'workshops seminars and community events', 'programs and events']],
+        'programs/education-literacy' => ['education programme for underprivileged children', ['community learning circles', 'literacy drive NGO', 'adult literacy programme', 'free learning sessions for children', 'donate books and stationery to NGO']],
+        'programs/healthcare' => ['free health camp NGO', ['health awareness session', 'health screening camp', 'women and elderly health awareness', 'health scheme awareness']],
+        'programs/women-empowerment' => ['women empowerment programme', ['self help group support for women', 'skill training for women', 'financial literacy for women', 'what is a self help group']],
+        'programs/youth-empowerment' => ['youth empowerment programme', ['mentoring for young people', 'leadership and life skills for youth', 'community service opportunities for students', 'youth empowerment NGO India']],
+        'programs/rural-development' => ['rural development NGO', ['village awareness drive', 'help with government schemes in villages', 'rural livelihood and skill building']],
+        'programs/environment-protection' => ['tree plantation drive', ['cleanliness drive volunteer', 'waste segregation awareness', 'school eco club activities', 'environment protection NGO']],
+        'skill-development' => ['skill development programme for youth', ['free skill training for youth', 'vocational training NGO', 'digital skills training for jobs', 'fake job offer in NGO name']],
+        'programs/digital-learning' => ['digital literacy programme', ['digital literacy for rural communities', 'smartphone training for senior citizens', 'basic computer training for women', 'safe digital payments awareness', 'donate old laptop or phone NGO']],
+        'programs/scholarship-educational-support' => ['educational support for students from poor families', ['study material support for students', 'government scholarship guidance', 'mentoring for students']],
+        'programs/food-distribution' => ['ration kit distribution', ['food distribution drive', 'donate ration kit', 'food support for needy families']],
+        'programs/disaster-relief' => ['flood relief NGO', ['disaster relief volunteer', 'fake flood relief collection']],
+        'programs/ai-artificial-intelligence' => ['AI workshop for students', ['generative AI workshop for beginners', 'AI awareness session for teachers', 'responsible AI training']],
+        'programs/robotics-technology' => ['robotics workshop for students', ['AI and robotics workshops for students', 'STEM activities for school students', 'IoT workshop for beginners', 'robotics workshop for schools', 'sensors and electronics workshop']],
+        'programs/machine-learning-data-science' => ['machine learning workshop for beginners', ['Python workshop for beginners', 'data science workshop for students', 'data visualisation workshop']],
+        'programs/digital-marketing' => ['digital marketing workshop', ['SEO workshop for beginners', 'social media marketing for small business', 'personal branding workshop', 'digital marketing for NGOs and community groups']],
+        'programs/cyber-security' => ['cyber safety awareness programme', ['cyber awareness workshop for schools', 'phishing and UPI fraud awareness', 'online fraud awareness for senior citizens', 'cyber hygiene training', 'cyberbullying awareness for students']],
+        'programs/career-entrepreneurship' => ['career guidance workshop', ['resume writing workshop', 'interview skills training', 'freelancing guidance for beginners', 'entrepreneurship workshop for youth', 'career planning session for students']],
+        'programs/fitness-yoga-wellness' => ['community yoga sessions', ['yoga awareness programme', 'meditation and breathing session', 'fitness awareness programme for students', 'wellness workshop for workplaces']],
+        'programs/music-arts-culture' => ['music and arts workshops', ['singing workshop', 'cultural programme for community', 'art and craft workshop for children', 'music workshop for children NGO']],
+        'programs/hackathons-innovation' => ['hackathon for students', ['innovation challenge for students', 'social impact hackathon', 'coding challenge for college students', 'hackathon for school students', 'sponsor a hackathon']],
+        'programs/events-seminars' => ['seminars and webinars on social issues', ['public seminar on education and health', 'host a seminar at your school or college', 'community outreach events']],
+        'events' => ['upcoming workshops and events', ['Prerit Welfare Foundation events', 'register for workshop', 'upcoming health camp']],
+        'awareness-calendar' => ['awareness days calendar India', ['national and international days list', 'health awareness days list', 'how to celebrate an awareness day in school']],
+        'awareness-campaign' => ['community awareness programme', ['awareness campaign on health and hygiene', 'girl child education awareness', 'invite NGO for awareness session in school', 'street play awareness campaign']],
+        'become-a-volunteer' => ['NGO volunteer opportunities', ['online volunteering opportunities', 'volunteer certificate NGO']],
+        'volunteer-teacher' => ['volunteer teacher', ['teach underprivileged children volunteer', 'online volunteer teaching', 'volunteer teacher NGO India', 'volunteer teacher authorization letter']],
+        'volunteer-staff' => ['NGO jobs', ['work with an NGO', 'programme coordinator NGO job', 'NGO job fee fraud']],
+        'internships' => ['NGO internship for students', ['online NGO internship', 'social work internship', 'NGO internship with certificate', 'research and documentation internship']],
+        'membership' => ['become a member of an NGO', ['NGO membership', 'NGO life membership', 'student membership NGO']],
+        'partner-with-us' => ['NGO partnership opportunities', ['partner with an NGO for school workshops', 'CSR partnership with NGO', 'become a trainer or speaker volunteer', 'sponsor a workshop or hackathon', 'host an awareness session in your community', 'NGO collaboration with colleges']],
+        'donate' => ['donate to NGO online', ['donate to Prerit Welfare Foundation', 'donate for education of poor children', 'donate via UPI to NGO', 'NGO donation receipt']],
+        'campaigns' => ['NGO fundraising campaigns', ['donate to flood relief campaign', 'education support campaign for children', 'Prerit Welfare Foundation campaigns']],
+        'start-a-fundraiser' => ['start a fundraiser for a cause', ['fundraise for an NGO', 'crowdfunding for social cause India', 'raise funds for school kits for children']],
+        'financial-transparency' => ['Prerit Welfare Foundation financial transparency', ['NGO financial transparency', 'how NGO donations are verified']],
+        'utilization-reports' => ['campaign fund utilisation report', ['how NGO donations are used']],
+        'impact-reports' => ['Prerit Welfare Foundation annual report', ['Prerit Welfare Foundation impact report']],
+        'blog' => ['Prerit Welfare Foundation blog', ['digital safety and digital literacy guides', 'volunteering guide India', 'NGO blog India education and skills']],
+        'media' => ['Prerit Welfare Foundation press release', ['Prerit Welfare Foundation media contact']],
+        'digital-resources' => ['free awareness guides and toolkits', ['volunteer toolkit']],
+        'success-stories' => ['Prerit Welfare Foundation success stories', []],
+        'gallery' => ['Prerit Welfare Foundation photos', ['Prerit Welfare Foundation videos']],
+        'schemes' => ['help to apply for government welfare schemes', ['government schemes for women', 'welfare scheme eligibility check']],
+        'request-help' => ['apply for help from an NGO', ['ration support for poor family', 'education help for poor students', 'NGO help for medical treatment']],
+        'beneficiary-support' => ['how to get help from an NGO', ['documents needed to request NGO help', 'who can get help from NGO', 'NGO support request process']],
+        'scholarship' => ['apply for scholarship support', ['NGO scholarship for students', 'scholarship for economically weaker students']],
+        'contact' => ['Prerit Welfare Foundation contact', ['Prerit Welfare Foundation address', 'Prerit Welfare Foundation email', 'Prerit Welfare Foundation Noida office']],
+        'faq' => ['Prerit Welfare Foundation FAQ', ['is Prerit Welfare Foundation genuine']],
+        'report-fraud' => ['report fraud using Prerit Welfare Foundation name', ['Prerit Welfare Foundation fake job offer', 'NGO job fee scam', '1930 cyber helpline']],
+        'verify-letter' => ['verify Prerit Welfare Foundation authorization letter', ['volunteer teacher authorization letter verification', 'check authorization letter reference number', 'fake NGO authorization letter']],
+        'child-protection-policy' => ['NGO child protection policy', ['POCSO reporting duty NGO', 'two adult rule volunteers', 'child safeguarding policy for volunteers']],
+        'volunteer-policy' => ['NGO volunteer policy and code of conduct', ['volunteer code of conduct']],
+    ];
+}
+
+/** Keywords into seo_meta (WP-1 table): a row is created or only its empty keyword fields are filled. */
+function migration_877_seo_content_focus_keywords(): void
+{
+    if (!table_exists('seo_meta') || !column_exists('seo_meta', 'focus_keyword') || !column_exists('seo_meta', 'secondary_keywords')) {
+        return;   // WP-1 not installed: nothing to fill (the admin can enter keywords later in Admin > SEO)
+    }
+    $changes = [];
+    foreach (seo_content_keywords() as $slug => [$focus, $secondary]) {
+        $pageId = (int) db_value('SELECT id FROM pages WHERE slug = ?', [$slug]);
+        if (!$pageId || preg_match('/[\x{0900}-\x{097F}]/u', $focus . implode(',', $secondary))) {
+            continue;
+        }
+        $focus = mb_substr($focus, 0, 120);
+        $list = mb_substr(implode(', ', array_slice($secondary, 0, 10)), 0, 500);
+        $n = db_query("INSERT INTO seo_meta (entity_type, entity_id, focus_keyword, secondary_keywords) VALUES ('page', ?, ?, ?)
+                       ON DUPLICATE KEY UPDATE
+                         focus_keyword = IF(focus_keyword IS NULL OR focus_keyword = '', VALUES(focus_keyword), focus_keyword),
+                         secondary_keywords = IF(secondary_keywords IS NULL OR secondary_keywords = '', VALUES(secondary_keywords), secondary_keywords)",
+            [$pageId, $focus, $list !== '' ? $list : null])->rowCount();
+        if ($n > 0) {
+            $changes[] = $slug;
+        }
+    }
+    seo_content_log('Focus keywords filled for pages without keywords', $changes);
 }
