@@ -31,8 +31,8 @@ foreach (['pdo_mysql', 'mbstring', 'curl', 'fileinfo', 'json', 'dom', 'openssl']
 }
 $check(extension_loaded('gd'), 'PHP extension gd (recommended for image optimisation)', 'Optional, but recommended.');
 $check(is_writable(UPLOAD_PATH), 'uploads/ folder is writable', 'Set permission 755 on public_html/uploads and its sub-folders.');
-$check(INSTALL_KEY !== '' && strlen(INSTALL_KEY) >= 16, 'INSTALL_KEY is set (16+ characters)', 'Add define(\'INSTALL_KEY\', \'a-long-random-value\'); to pwf-config.php or config.php.');
-$check(BASE_URL !== '' && preg_match('#^https?://#', BASE_URL), 'BASE_URL is set (' . BASE_URL . ')', 'Set BASE_URL in config.');
+$check(INSTALL_KEY !== '' && strlen(INSTALL_KEY) >= 16, 'INSTALL_KEY is set (16+ characters)', 'Add define(\'INSTALL_KEY\', \'a-long-random-value\'); to pwf-config.php.');
+$check(BASE_URL !== '' && preg_match('#^https?://#', BASE_URL), 'BASE_URL is set (' . BASE_URL . ')', 'Set BASE_URL in pwf-config.php.');
 
 $dbOk = false;
 $hasAdmin = false;

@@ -9,6 +9,8 @@
 | `prerit-website.zip` | पूरी वेबसाइट। इसकी सारी फ़ाइलें सीधे zip के अंदर हैं (कोई अलग folder या दूसरी zip नहीं)। साथ में `pwf-config.php` (settings फ़ाइल) भी है। |
 | `prerit-database.sql` | पूरा database: सारे pages, menus, settings, programme categories और सारे updates पहले से लगे हुए। इसमें कोई user, password, donation, application या payment/AI key नहीं है। |
 
+> 🔒 `prerit-website.zip` को किसी से share न करें (chat, email, shared drive) — इसकी `pwf-config.php` में आपकी secret keys (`INSTALL_KEY`, `APP_KEY`) हैं। काम पूरा होने पर अपने computer से भी हटा दें या सुरक्षित जगह रखें।
+
 **पहले तय करें कौन सा रास्ता:**
 
 - **रास्ता 1 – नई installation:** नया/खाली database। → ZIP + SQL दोनों।
@@ -22,7 +24,7 @@
 
 **शुरू करने से पहले:**
 - hPanel → Websites → Manage → **Backups** → पुरानी files + database का बैकअप डाउनलोड करें (अगर कुछ पहले से है)।
-- hPanel → Advanced → **PHP Configuration** → PHP **8.1 या 8.2** चुनें (कम से कम 8.0)। Extensions `pdo_mysql`, `mbstring`, `gd`, `curl`, `openssl`, `sodium` ON रखें।
+- hPanel → Advanced → **PHP Configuration** → PHP **8.2** चुनें (8.1–8.3 भी चलेगा, कम से कम 8.0)। Extensions `pdo_mysql`, `mbstring`, `curl`, `fileinfo`, `dom`, `json`, `openssl` ON रखें (`gd` और `sodium` भी हों तो अच्छा)।
 
 ### स्टेप 1 – ZIP upload और extract करें
 1. hPanel → **File Manager** → `public_html` खोलें।
@@ -39,6 +41,8 @@
 4. "Import has been successfully finished" दिखना चाहिए (लगभग 70 tables)।
 
 ### स्टेप 3 – Config फ़ाइल में database की जानकारी डालें
+> ⚠️ अगर `public_html` के **एक folder ऊपर** पहले से कोई `pwf-config.php` है (पुरानी/live वेबसाइट की), तो वेबसाइट **वही फ़ाइल** पढ़ती है और `public_html` वाली को अनदेखा करती है। नई installation के लिए database की तीन values उसी ऊपर वाली फ़ाइल में बदलें, या उसका नाम `pwf-config-old.php` कर दें (उसका `APP_KEY` संभालकर रखें)।
+
 1. File Manager → `public_html` → `pwf-config.php` → right-click → **Edit**।
 2. सबसे ऊपर ये **तीन लाइनें** बदलें (सिर्फ़ quotes `' '` के अंदर का हिस्सा):
    ```php
@@ -52,12 +56,12 @@
 
 ### स्टेप 4 – Domain जोड़ें और वेबसाइट live करें
 1. Domain इसी Hostinger hosting से जुड़ा हो (Domain के nameservers Hostinger के हों)।
-2. hPanel → Security → **SSL** → certificate **Active** हो → **Force HTTPS** ON।
+2. hPanel → Security → **SSL** → certificate **Active** हो → **Force HTTPS** ON। (नया domain जोड़ा है तो SSL Active होने में कुछ घंटे लग सकते हैं — Active होने तक `install.php` न खोलें।)
 3. Browser में खोलें: `https://preritwelfarefoundation.org/install.php`
    - सारी जाँचें हरी होनी चाहिए।
    - **Installation key**: `pwf-config.php` में `INSTALL_KEY` वाली लाइन की value copy करके डालें।
    - पहला **Administrator** बनाएँ: नाम, email, मज़बूत पासवर्ड (12+ अक्षर, नाम/email का हिस्सा नहीं) → "Installation complete"।
-4. File Manager → `public_html` → **`install.php` delete करें।**
+4. File Manager → `public_html` → **`install.php` delete करें।** (चाहें तो `pwf-config.php` में `INSTALL_KEY` की value को `''` कर दें — उसकी अब ज़रूरत नहीं।)
 5. `https://preritwelfarefoundation.org/admin/` पर login करें। ✅ वेबसाइट live है।
 
 ---
@@ -66,9 +70,11 @@
 
 1. **बैकअप (ज़रूरी):** hPanel → Backups → files + database डाउनलोड करें। और Admin → System → **Backup & Data Retention** → database backup।
 2. File Manager → `public_html` → `prerit-website.zip` upload → **Extract** (जगह `public_html`) → पूछे तो **Replace / Overwrite**। कुछ भी delete न करें — `uploads` folder (आपकी photos/documents) वैसे ही रहेगा।
-3. Extract के बाद `public_html` से ये **दो फ़ाइलें delete करें**:
+   - Extract के बाद `public_html` में **सीधे** `install.php` और `pwf-config.php` दिखनी चाहिए। अगर `prerit-website` नाम का नया folder बन गया है, तो उस folder को delete करके दोबारा extract करें — जगह सिर्फ़ `public_html` रखें।
+3. Extract के बाद `public_html` से ये **तीन फ़ाइलें delete करें**:
    - `install.php` (वेबसाइट पहले से installed है)
    - `pwf-config.php` (यह सिर्फ़ नई installation के लिए है। आपकी असली settings `public_html` के **एक folder ऊपर** वाली `pwf-config.php` में हैं — उसे न छुएँ।)
+   - `prerit-website.zip` (extract हो जाने के बाद इसकी ज़रूरत नहीं; इसमें secret keys हैं)
 4. **SQL import न करें।**
 5. वेबसाइट एक बार खोलें: database **अपने-आप** update हो जाता है (नई tables/settings जुड़ती हैं, आपका कोई data नहीं हटता)। जाँच: Admin → Dashboard पर कोई लाल सूचना नहीं; Admin → System → Security Centre में "Database up to date"।
    - पहले वाली "Illegal mix of collations" error भी इसी update से ठीक हो जाती है।
@@ -94,7 +100,7 @@
 | दिखे | कारण / उपाय |
 |---|---|
 | "We will be back shortly" | `pwf-config.php` में database name / user / password गलत। hPanel में DB user का पासवर्ड reset करके वही डालें। `install.php` खोलने पर सही error दिखता है। |
-| 500 error | PHP version 8.1/8.2 चुनें। |
+| 500 error | PHP version 8.2 (या 8.1/8.3) चुनें। |
 | Homepage खुले पर बाकी pages 404 | `.htaccess` extract नहीं हुई — zip दोबारा extract करें। |
 | phpMyAdmin: "Table 'website_settings' already exists" | आप ऐसे database में import कर रहे हैं जिसमें पहले से tables हैं। नई installation के लिए नया/खाली database लें। (Live database है तो कुछ नहीं बदला — रास्ता 2 अपनाएँ।) |
 | install.php पर "already installed" / Forbidden | Administrator पहले से बना है — सीधे `/admin/` खोलें और `install.php` delete करें। |

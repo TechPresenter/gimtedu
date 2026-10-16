@@ -16,16 +16,18 @@ The release consists of two files:
 * **`prerit-website.zip`** — the whole website. All files are directly at the root of the zip (no nested zips, no extra folder), including `.htaccess`, `install.php` and a ready **`pwf-config.php`** whose `INSTALL_KEY` and `APP_KEY` are already filled with unique random values.
 * **`prerit-database.sql`** — the complete database with every update already applied (pages, menus, settings, programme categories, SEO data). It contains **no** user accounts, passwords, donations, applications, payment or AI keys. It never drops anything: imported into a database that already has the website's tables, it stops at the first table ("Table 'website_settings' already exists") and changes nothing.
 
+Keep `prerit-website.zip` confidential: its `pwf-config.php` holds your `INSTALL_KEY` and `APP_KEY`. Do not share it (chat, email, shared drives); delete it from the server after extracting, and remove or safely store your own copy when you are done.
+
 **Path 1 — new installation (empty database)**
 1. **Upload and extract** `prerit-website.zip` in `public_html` (hPanel → File Manager → Upload → right-click → Extract). `index.php`, `install.php`, `pwf-config.php`, `admin/`, `assets/` must sit directly in `public_html`. Delete the zip.
 2. **Create a database** (hPanel → Databases → Management) and **import** `prerit-database.sql` in phpMyAdmin (Import → Go).
-3. **Edit `public_html/pwf-config.php`**: `DB_NAME`, `DB_USER`, `DB_PASS` (full names with the `u123…_` prefix). Change `BASE_URL` only for a different domain (https, no trailing slash). Leave `INSTALL_KEY` and `APP_KEY` as they are — never change `APP_KEY` later. The file is blocked from the web by `.htaccess`; moving it one folder above `public_html` is optional and even safer (that location is read first).
-4. **Domain and go live**: point the domain to the hosting, activate SSL (hPanel → Security → SSL; the `.htaccess` already redirects http/www to `https://preritwelfarefoundation.org`), open `https://YOUR-DOMAIN/install.php`, enter the `INSTALL_KEY` from `pwf-config.php`, create the first administrator, then **delete `install.php`**.
+3. **Edit `public_html/pwf-config.php`**: `DB_NAME`, `DB_USER`, `DB_PASS` (full names with the `u123…_` prefix). Change `BASE_URL` only for a different domain (https, no trailing slash). Leave `INSTALL_KEY` and `APP_KEY` as they are — never change `APP_KEY` later. The file is blocked from the web by `.htaccess`; moving it one folder above `public_html` is optional and even safer (that location is read first). **If a `pwf-config.php` already exists one folder above `public_html`** (from an earlier site on the same account), the website reads that file and ignores `public_html/pwf-config.php`: enter the three database values there instead, or rename it to `pwf-config-old.php` (keep its `APP_KEY`). Do not edit `config.php` — it only holds defaults and every update replaces it.
+4. **Domain and go live**: point the domain to the hosting, activate SSL (hPanel → Security → SSL; the `.htaccess` already redirects http/www to `https://preritwelfarefoundation.org`; on a newly added domain the free SSL can take a few hours — wait until it shows Active before opening install.php), open `https://YOUR-DOMAIN/install.php`, enter the `INSTALL_KEY` from `pwf-config.php`, create the first administrator, then **delete `install.php`**. You may then also set `INSTALL_KEY` to `''` in `pwf-config.php`.
 
 **Path 2 — update the site that is already live (keep all data)**
 1. Back up files and database (hPanel → Backups; Admin → Backup & Data Retention).
-2. Upload `prerit-website.zip` into `public_html` and extract it, replacing files. Do not delete `uploads/`.
-3. Delete `public_html/install.php` and `public_html/pwf-config.php` (the live settings stay in the `pwf-config.php` one folder above `public_html`).
+2. Upload `prerit-website.zip` into `public_html` and extract it, replacing files. Do not delete `uploads/`. Afterwards `install.php` and `pwf-config.php` must sit directly in `public_html`; if the extract created a sub-folder (e.g. `public_html/prerit-website/`), delete that folder and extract again with `public_html` as the target.
+3. Delete `public_html/install.php`, `public_html/pwf-config.php` (the live settings stay in the `pwf-config.php` one folder above `public_html`) and the zip itself (it contains secret keys).
 4. **Do not import the SQL.** Open the home page once: the database updates itself (Audit Log → "database_upgraded"; Security Centre → "Database up to date"). This also clears the earlier "Illegal mix of collations" update error.
 
 Then: regenerate the Razorpay Key Secret (it was shared in a chat) and enter the keys in Admin → Fundraising → Payment Gateways; turn on two-step login; upload the seal; submit `sitemap.xml` in Google Search Console. Step-by-step in Hindi: **DEPLOY-HINDI.md**.
@@ -94,7 +96,7 @@ Then: regenerate the Razorpay Key Secret (it was shared in a chat) and enter the
 
 ## 3. Requirements
 
-* PHP **8.0+** (8.2/8.3 recommended) with `pdo_mysql`, `mbstring`, `curl`, `fileinfo`, `json`, `dom`, `openssl` and (recommended) `gd`
+* PHP **8.2** recommended (8.1–8.3 work; minimum 8.0) with `pdo_mysql`, `mbstring`, `curl`, `fileinfo`, `json`, `dom`, `openssl` and (recommended) `gd` and `sodium`
 * MySQL 5.7+ / MariaDB 10.3+
 * Apache or LiteSpeed with `.htaccess` (`mod_rewrite`) — standard on Hostinger
 * SSL certificate (free on Hostinger) — required before going live with payments
@@ -131,8 +133,8 @@ The site cannot connect to the database: check `DB_NAME`, `DB_USER` (both with t
 
 ## 5. Payments — Razorpay (only after merchant approval)
 
-1. Razorpay Dashboard → **Test Mode** → API Keys → put `RAZORPAY_KEY_ID` (`rzp_test_…`) and `RAZORPAY_KEY_SECRET` in `pwf-config.php`.
-2. **Webhooks** → URL `https://YOUR-DOMAIN/payment-webhook.php`, a long random secret (same value as `RAZORPAY_WEBHOOK_SECRET`), events `payment.captured`, `payment.authorized`, `payment.failed`, `order.paid`, `refund.processed` (optional `refund.created`). Automatic capture is recommended (Razorpay Dashboard → payment capture settings); the site also captures an authorised payment of the exact amount itself at checkout, from the webhook and from the admin "Re-check payment status" button.
+1. Razorpay Dashboard → **Test Mode** → API Keys → enter the Key ID (`rzp_test_…`) and Key Secret in **Admin → Fundraising → Payment Gateways** (stored encrypted with `APP_KEY`; do not put them in `pwf-config.php`, where a constant would override the admin settings and sit in plain text).
+2. **Webhooks** → URL `https://YOUR-DOMAIN/payment-webhook.php`, a long random secret (the same value as the Webhook Secret in Payment Gateways), events `payment.captured`, `payment.authorized`, `payment.failed`, `order.paid`, `refund.processed` (optional `refund.created`). Automatic capture is recommended (Razorpay Dashboard → payment capture settings); the site also captures an authorised payment of the exact amount itself at checkout, from the webhook and from the admin "Re-check payment status" button.
 3. Test with Razorpay's test UPI/cards (a TEST MODE banner is shown). Then complete KYC, switch to **live keys** and recreate the webhook in Live Mode.
 4. Without keys the donate page honestly shows bank/UPI details (if set) and a contact link — no fake "pay" button. Page sections can be limited with the section option **Show only when** (online donations available / not available / bank details set); the donate page's "How online donations are verified" steps use it, and donation boxes on other pages switch to "See bank transfer details" or "Ask how to donate".
 5. **Refunds:** a partial refund made at Razorpay lowers the donation to the net amount kept (public totals and the receipt follow) and the revised receipt is emailed; a full refund marks the donation refunded and cancels its receipt. Admin → donation → "Check refunds with Razorpay" applies a refund whose notification was missed.
@@ -167,8 +169,8 @@ Public registration can never create staff roles. Visitors who register choose S
 * **Built-in analytics** (Admin → Website Analytics): page views, unique visitors, top pages, referrers, UTM sources, devices — no IP addresses stored, Do-Not-Track respected, staff & bots excluded.
 * **Marketing** (Admin → Marketing): conversions (donations, applications, sign-ups) by source/campaign and a **UTM link builder** for WhatsApp/social campaigns.
 * **Google Analytics 4** (optional): add the measurement ID in Settings → SEO & analytics; it loads only after the visitor accepts the consent banner, and the footer "Cookie settings" link lets visitors change that choice at any time (Google Analytics cookies are removed when they choose "No, thanks").
-* **Search Console**: paste the verification code in Settings → SEO, then submit `https://YOUR-DOMAIN/sitemap.xml`.
-* Every page has its own title, description, canonical, Open Graph/Twitter tags and structured data (NGO, breadcrumbs, articles, events, FAQs). Admin → SEO Audit lists anything missing.
+* **Search Console**: verify a Domain property through DNS (or paste the HTML-tag verification code in Admin → SEO → Integrations, or Settings → SEO & analytics), then submit `https://YOUR-DOMAIN/sitemap.xml`.
+* Every page has its own title, description, canonical, Open Graph/Twitter tags and structured data (NGO, breadcrumbs, articles, events, FAQs). Admin → SEO lists anything missing.
 
 ---
 

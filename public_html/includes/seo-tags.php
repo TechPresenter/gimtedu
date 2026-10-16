@@ -523,11 +523,19 @@ function migration_840_seo_tags_settings(): void
     add_setting_if_missing('ga_respect_gpc', '1');
 }
 
-/** Privacy policy: Google Analytics / Tag Manager and consent mode (added once; never edits existing sections). */
+/**
+ * Privacy policy: Google Analytics / Tag Manager and consent mode (added once; never edits existing sections).
+ * The one-time marker keeps a section the owner deleted from coming back when the migration runs again.
+ */
 function migration_841_seo_consent_mode_privacy(): void
 {
+    $once = '841_privacy_consent_mode';
     $pageId = (int) db_value("SELECT id FROM pages WHERE slug = 'privacy-policy'");
-    if (!$pageId || (int) db_value("SELECT COUNT(*) FROM page_sections WHERE page_id = ? AND anchor = 'consent-mode'", [$pageId]) > 0) {
+    if (!$pageId || migration_once_done($once)) {
+        return;
+    }
+    if ((int) db_value("SELECT COUNT(*) FROM page_sections WHERE page_id = ? AND anchor = 'consent-mode'", [$pageId]) > 0) {
+        migration_once_mark($once);
         return;
     }
     $body = '<p>The foundation may turn on <strong>Google Analytics</strong> (or load it through <strong>Google Tag Manager</strong>) to understand how the website is used. If it is turned on, it loads <strong>only after you choose "Allow analytics"</strong> in the cookie notice. If you choose "No, thanks", or make no choice, nothing from Google Analytics or Google Tag Manager is loaded. Advertising storage, ad personalisation and sending data for advertising stay off in every case: the foundation does not run advertising through this website.</p>'
@@ -541,4 +549,5 @@ function migration_841_seo_consent_mode_privacy(): void
         'page_id' => $pageId, 'section_type' => 'richtext', 'anchor' => 'consent-mode', 'title' => 'Google Analytics and Google Tag Manager (optional)',
         'body' => $body, 'background' => 'white', 'status' => 'visible', 'sort_order' => 63,
     ]);
+    migration_once_mark($once);
 }

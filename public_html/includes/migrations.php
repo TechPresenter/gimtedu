@@ -7,6 +7,8 @@
  * Pending migrations run once, in number order, automatically on the next request after new files are
  * uploaded (protected by a database lock). Each migration MUST be idempotent (CREATE TABLE IF NOT EXISTS,
  * guarded ALTER via column_exists(), INSERT IGNORE, conditional UPDATE) and must never delete user data.
+ * Content a migration adds (pages, sections, menu links, filled-in texts) is guarded with migration_once_done() /
+ * migration_once_mark(), so what the owner deleted or cleared afterwards never comes back on a second run.
  * Applied migrations are recorded in `schema_migrations`.
  */
 
@@ -56,6 +58,23 @@ function fill_setting_if_empty(string $key, string $value): void
 {
     add_setting_if_missing($key, $value);
     db_query("UPDATE website_settings SET setting_value = ? WHERE setting_key = ? AND (setting_value IS NULL OR setting_value = '')", [$value, $key]);
+}
+
+/**
+ * Content that a migration adds or changes once (a page, a section, a menu link, filled-in texts). The first run records
+ * $key (website_settings "migration_once_<key>"); from then on the step is skipped, even when the migration runs again
+ * (lost schema_migrations rows, a re-test, a database copied from before the upgrade). So a page, section or link the
+ * owner deleted, or a text the owner cleared, never comes back.
+ */
+function migration_once_done(string $key): bool
+{
+    return (int) db_value('SELECT COUNT(*) FROM website_settings WHERE setting_key = ?', ['migration_once_' . $key]) > 0;
+}
+
+/** Record a migration_once_done() step (kept when it already exists). */
+function migration_once_mark(string $key): void
+{
+    add_setting_if_missing('migration_once_' . $key, date('Y-m-d H:i:s'));
 }
 
 /** Add a permission and grant it to the given role slugs (administrator always has everything). */
@@ -189,6 +208,7 @@ function run_pending_migrations(bool $force = false): array
                 continue;
             }
             try {
+                settings_all(true);   // a migration must see the settings that earlier migrations of this run wrote directly
                 $fn();
                 db_query('INSERT IGNORE INTO schema_migrations (name) VALUES (?)', [$fn]);
                 $ran[] = $fn;

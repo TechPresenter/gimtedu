@@ -992,6 +992,34 @@ function seo_normalise_request(string $path, string $rawPath = '', string $metho
         }
     }
     if ($target !== $uriPath || $origin !== '') {
+        // an old address from the redirects table goes straight to its target ("//events-page/" -> "/events/" in one 301,
+        // not first to "/events-page/"); 410 rows answer 410 at once. The path comes from the request itself:
+        // route_path() reads "//events-page/" as a host name and returns ''.
+        $plain = rawurldecode($target);
+        $base = base_path();
+        if ($base !== '' && strpos($plain, $base . '/') === 0) {
+            $plain = substr($plain, strlen($base));
+        }
+        $plain = trim($plain, '/');
+        if (strtolower($plain) === 'home') {
+            seo_normalise_redirect_to($origin . url('/') . $suffix);   // "//home/" -> "/" in one hop (index.php sends /home/ to /)
+        }
+        if ($plain !== '' && function_exists('find_redirect')) {
+            try {
+                $row = find_redirect($plain);
+            } catch (Throwable $e) {
+                $row = null;
+            }
+            if ($row) {
+                $to = trim((string) ($row['target_url'] ?? ''));
+                if ($origin === '' || (int) ($row['status_code'] ?? 301) === 410) {
+                    seo_normalise_redirect_response($row, $qs);
+                } elseif ($to !== '') {
+                    $abs = preg_match('#^https?://#i', $to) ? $to : $origin . url($to);
+                    seo_normalise_redirect_to($abs . ($qs !== '' && strpos($abs, '?') === false ? '?' . $qs : ''), (int) $row['status_code'] === 302 ? 302 : 301);
+                }
+            }
+        }
         seo_normalise_redirect_to($origin . $target . $suffix);
     }
 

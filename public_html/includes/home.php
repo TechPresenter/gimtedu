@@ -704,8 +704,19 @@ function security_health_checks(): array
     $add($display ? 'bad' : 'ok', 'Error messages hidden from visitors', $display ? 'display_errors is on: technical errors may be shown publicly.' : 'display_errors is off.',
         $display ? 'Set APP_ENV to production (this switches display_errors off).' : '');
     $private = is_file(dirname(ROOT_PATH) . '/pwf-config.php');
-    $add($private ? 'ok' : 'warn', 'Private configuration file outside public_html', $private ? 'pwf-config.php was found one folder above the website.' : 'No pwf-config.php found above public_html.',
-        $private ? '' : 'Create ../pwf-config.php (outside public_html) and move the database password and SMTP secrets into it (payment keys can be entered encrypted in Payment Gateways).');
+    $inside = is_file(ROOT_PATH . '/pwf-config.php');
+    if ($private && $inside) {
+        $add('warn', 'Private configuration file outside public_html', 'pwf-config.php one folder above the website is used. public_html/pwf-config.php also exists but is not used.',
+            'Delete public_html/pwf-config.php in File Manager (it came with the update ZIP; your settings are in the file one folder above public_html).');
+    } elseif ($private) {
+        $add('ok', 'Private configuration file outside public_html', 'pwf-config.php was found one folder above the website.');
+    } elseif ($inside) {
+        $add('warn', 'Private configuration file outside public_html', 'pwf-config.php is in public_html, where .htaccess blocks it from the web.',
+            'Optional, even safer: move pwf-config.php one folder up, above public_html (the website looks there first).');
+    } else {
+        $add('warn', 'Private configuration file outside public_html', 'No pwf-config.php found above public_html.',
+            'Create ../pwf-config.php (outside public_html) and move the database password and SMTP secrets into it (payment keys can be entered encrypted in Payment Gateways).');
+    }
     $add(INSTALL_KEY === '' ? 'ok' : 'warn', 'Installer key cleared', INSTALL_KEY === '' ? 'INSTALL_KEY is empty.' : 'INSTALL_KEY is still set.',
         INSTALL_KEY === '' ? '' : 'After installation, set INSTALL_KEY to an empty string in pwf-config.php.');
     $installer = is_file(ROOT_PATH . '/install.php');

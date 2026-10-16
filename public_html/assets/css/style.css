@@ -6,7 +6,7 @@
 /* ---------- Fonts (self-hosted WOFF2, SIL Open Font License: assets/fonts/*LICENSE.txt) ----------
    Poppins   - headings, navigation, buttons, labels, badges, stats (the brand voice).
                Latin AND Devanagari faces share the one family name, so every Hindi character next to
-               Poppins text is drawn by real Poppins Devanagari at the same weight (no faux bold).
+               Poppins text is drawn by real Poppins Devanagari (Medium for 400-600, Bold for 700-800; no faux bold).
    Noto Sans - running text (paragraphs, lists, answers, policy text, table cells, form help): a humanist
                text face, more legible than Poppins at 14-18 px; Hindi inside it is drawn by Poppins Devanagari.
    unicode-range: a file is downloaded only when the page shows a character it covers (Devanagari files
@@ -18,31 +18,31 @@
 @font-face { font-family: "Poppins"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/poppins-latin-600-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 @font-face { font-family: "Poppins"; font-style: normal; font-weight: 700; font-display: swap; src: url("../fonts/poppins-latin-700-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 @font-face { font-family: "Poppins"; font-style: normal; font-weight: 800; font-display: swap; src: url("../fonts/poppins-latin-800-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-/* Poppins - Devanagari (same family, every weight the site uses; dandas U+0964-0965 are inside U+0900-097F) */
-@font-face { font-family: "Poppins"; font-style: normal; font-weight: 400; font-display: swap; src: url("../fonts/poppins-devanagari-400-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
+/* Poppins - Devanagari: the Hindi on the site is short (slogans, the motto), so two real weights serve all five: the
+   500 (Medium) file for 400-600 and the 700 (Bold) file for 700-800 - never a synthesised bold, and one 39 KB file on
+   almost every page instead of one per weight. The faces keep the exact weights of the Latin faces above (a face with
+   a weight range would not be combined with them, and Hindi would fall back to a system font). Faces that share a
+   file download it once. Dandas U+0964-0965 are inside U+0900-097F. */
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 400; font-display: swap; src: url("../fonts/poppins-devanagari-500-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
 @font-face { font-family: "Poppins"; font-style: normal; font-weight: 500; font-display: swap; src: url("../fonts/poppins-devanagari-500-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
-@font-face { font-family: "Poppins"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/poppins-devanagari-600-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/poppins-devanagari-500-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
 @font-face { font-family: "Poppins"; font-style: normal; font-weight: 700; font-display: swap; src: url("../fonts/poppins-devanagari-700-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
-@font-face { font-family: "Poppins"; font-style: normal; font-weight: 800; font-display: swap; src: url("../fonts/poppins-devanagari-800-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 800; font-display: swap; src: url("../fonts/poppins-devanagari-700-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
 /* Poppins - rupee sign */
 @font-face { font-family: "Poppins"; font-style: normal; font-weight: 400; font-display: swap; src: url("../fonts/poppins-rupee-400-normal.woff2") format("woff2"); unicode-range: U+20B9; }
 @font-face { font-family: "Poppins"; font-style: normal; font-weight: 500; font-display: swap; src: url("../fonts/poppins-rupee-500-normal.woff2") format("woff2"); unicode-range: U+20B9; }
 @font-face { font-family: "Poppins"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/poppins-rupee-600-normal.woff2") format("woff2"); unicode-range: U+20B9; }
 @font-face { font-family: "Poppins"; font-style: normal; font-weight: 700; font-display: swap; src: url("../fonts/poppins-rupee-700-normal.woff2") format("woff2"); unicode-range: U+20B9; }
 @font-face { font-family: "Poppins"; font-style: normal; font-weight: 800; font-display: swap; src: url("../fonts/poppins-rupee-800-normal.woff2") format("woff2"); unicode-range: U+20B9; }
-/* older name, still used by some templates (certificates): the same Devanagari files */
-@font-face { font-family: "Poppins Devanagari"; font-style: normal; font-weight: 400; font-display: swap; src: url("../fonts/poppins-devanagari-400-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
-@font-face { font-family: "Poppins Devanagari"; font-style: normal; font-weight: 500; font-display: swap; src: url("../fonts/poppins-devanagari-500-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
-@font-face { font-family: "Poppins Devanagari"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/poppins-devanagari-600-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
-@font-face { font-family: "Poppins Devanagari"; font-style: normal; font-weight: 700; font-display: swap; src: url("../fonts/poppins-devanagari-700-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
-@font-face { font-family: "Poppins Devanagari"; font-style: normal; font-weight: 800; font-display: swap; src: url("../fonts/poppins-devanagari-800-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
+/* older name, still used by some templates (certificates): the same two Devanagari files */
+@font-face { font-family: "Poppins Devanagari"; font-style: normal; font-weight: 100 650; font-display: swap; src: url("../fonts/poppins-devanagari-500-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
+@font-face { font-family: "Poppins Devanagari"; font-style: normal; font-weight: 651 900; font-display: swap; src: url("../fonts/poppins-devanagari-700-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
 /* Noto Sans - running text, Latin only (Devanagari in running text falls through to Poppins Devanagari, so the
    whole site uses one Hindi design). Two real weights: 400 serves 100-450 and 600 serves 451-900, so bold or
-   medium text in a paragraph uses the real 600, never a synthesised bold. Italics for <em> and quotes. */
+   medium text in a paragraph uses the real 600, never a synthesised bold. No italic files: the few <em> words and
+   quotes are slanted by the browser (font-synthesis: style below), which saves a 14 KB download on those pages. */
 @font-face { font-family: "Noto Sans"; font-style: normal; font-weight: 100 450; font-display: swap; src: url("../fonts/noto-sans-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 @font-face { font-family: "Noto Sans"; font-style: normal; font-weight: 451 900; font-display: swap; src: url("../fonts/noto-sans-latin-600-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: "Noto Sans"; font-style: italic; font-weight: 100 450; font-display: swap; src: url("../fonts/noto-sans-latin-400-italic.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: "Noto Sans"; font-style: italic; font-weight: 451 900; font-display: swap; src: url("../fonts/noto-sans-latin-600-italic.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 @font-face { font-family: "Noto Sans"; font-style: normal; font-weight: 100 450; font-display: swap; src: url("../fonts/noto-sans-rupee-400-normal.woff2") format("woff2"); unicode-range: U+20B9; }
 @font-face { font-family: "Noto Sans"; font-style: normal; font-weight: 451 900; font-display: swap; src: url("../fonts/noto-sans-rupee-600-normal.woff2") format("woff2"); unicode-range: U+20B9; }
 /* Metric-matched fallbacks: while a web font is still downloading, text is drawn in a local Arial / Liberation
@@ -153,7 +153,7 @@ body {
     color: var(--ink);
     background: var(--bg);
     font-kerning: normal;
-    font-synthesis: none;          /* never a faux bold / italic: a weight that is not loaded maps to the nearest real one */
+    font-synthesis: style;         /* never a faux bold (a weight that is not loaded maps to the nearest real one); italics are slanted */
 }
 @media (min-width: 1024px) { :root { --text-base: 1.0625rem; } }
 main { font-size: var(--text-base); }
@@ -162,7 +162,7 @@ img { height: auto; }
 a { color: var(--green-600); text-decoration: none; transition: color .2s; }
 a:hover { color: var(--green-800); }
 /* links inside running text are underlined, not shown by colour alone (WCAG 1.4.1) */
-main :is(p, label, li > span, .help, .form-note, .checkbox, .small) a:not([class]) { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+main :is(p, label, li > span, .help, .form-note, .checkbox, .small, .alert > div) a:not([class]) { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 p { margin: 0 0 1em; }
 h1, h2, h3, h4 { margin: 0 0 .5em; line-height: var(--lh-heading); color: var(--ink); font-weight: 700; }
 h1 { font-size: var(--fs-h1); letter-spacing: var(--tracking-display); }

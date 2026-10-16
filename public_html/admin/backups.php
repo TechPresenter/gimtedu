@@ -146,7 +146,7 @@ admin_page_start('Backup & Data Retention');
         <form method="post" class="mt-2" id="uploads"><?= csrf_field() ?><input type="hidden" name="action" value="image_variants">
             <button class="btn btn-ghost btn-sm" type="submit"><?= icon('refresh') ?>Create missing resized image copies</button>
             <span class="muted small">Smaller copies of public photos (gallery, campaigns, events, blog, stories) load faster on phones. New uploads get them automatically.</span></form>
-        <p class="small mt-2 mb-0">Uploaded images and documents are not part of the database backup. To copy them, open <strong>hPanel › File Manager</strong>, right-click <code>public_html/uploads</code>, choose <em>Compress</em> and download the .zip file. Private folders hold resumes, ID documents and certificates – handle them with the same care as the database backup.</p>
+        <p class="small mt-2 mb-0">Uploaded images and documents are not part of the database backup. To copy them, open <strong>hPanel › File Manager</strong>, right-click <code>public_html/uploads</code>, choose <em>Compress</em>, download the .zip file, then delete that .zip from the server. Private folders hold resumes, ID documents and certificates – handle them with the same care as the database backup.</p>
     </section>
 </div>
 

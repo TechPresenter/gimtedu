@@ -970,7 +970,7 @@ elseif ($tab === 'sitemaps'):
             <p class="help mt-0">/sitemap.xml is a sitemap index that lists these files (only those with entries):</p>
             <div class="table-wrap"><table class="table"><thead><tr><th scope="col">File</th><th scope="col">Entries</th><th scope="col">Newest change</th></tr></thead><tbody>
             <?php foreach ($children as $c): ?>
-                <tr><td><a href="<?= e($c['url']) ?>" target="_blank" rel="noopener">sitemap-<?= e($c['name']) ?>.xml</a></td><td><?= (int) $c['count'] ?></td><td><?= $c['lastmod'] !== '' ? e(format_date($c['lastmod'])) : '<span class="muted">-</span>' ?></td></tr>
+                <tr><td><?php if ((int) $c['count'] > 0): ?><a href="<?= e($c['url']) ?>" target="_blank" rel="noopener">sitemap-<?= e($c['name']) ?>.xml</a><?php else: ?>sitemap-<?= e($c['name']) ?>.xml <span class="muted">(empty - not listed)</span><?php endif; ?></td><td><?= (int) $c['count'] ?></td><td><?= $c['lastmod'] !== '' ? e(format_date($c['lastmod'])) : '<span class="muted">-</span>' ?></td></tr>
             <?php endforeach; ?>
             </tbody></table></div>
         <?php else:

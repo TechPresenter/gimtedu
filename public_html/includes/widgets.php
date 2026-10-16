@@ -138,7 +138,7 @@ function render_floating_widgets(): string
     // (render_assistant_widget() prints the panel); otherwise the automated FAQ helper below works as before.
     $aiAssistant = function_exists('assistant_active') && assistant_active();
     if ($aiAssistant) {
-        $html .= '<button type="button" class="fab fab-help fab-ai" data-ai-toggle aria-haspopup="dialog" aria-expanded="false" aria-controls="ai-chat" data-tip="Ask our website assistant" aria-label="Open the website assistant (AI chat)">'
+        $html .= '<button type="button" class="fab fab-help fab-ai" data-ai-toggle aria-haspopup="dialog" aria-expanded="false" aria-controls="ai-chat" data-tip="Ask our website assistant" aria-label="Open the AI website assistant">'
             . icon('message') . '<span class="fab-ai-badge" aria-hidden="true">AI</span></button>';
     } elseif (setting('widget_help_enabled', '1') === '1') {
         $html .= '<button type="button" class="fab fab-help" data-help-toggle aria-expanded="false" aria-controls="help-panel" data-tip="Help assistant" aria-label="Open help assistant">' . icon('message') . '</button>';

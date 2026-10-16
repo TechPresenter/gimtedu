@@ -353,6 +353,9 @@ function seo_content_insert_section(int $pageId, array $s): int
 /** Titles and descriptions of the mapped pages, the W2 category pages (G-ON3) and the reviewed utility pages (G-ON2). */
 function migration_870_seo_content_page_meta(): void
 {
+    if (migration_once_done('870_page_meta')) {
+        return;   // done once: a title or description the owner cleared later stays empty
+    }
     $seeds = seo_content_seeded_pages();
     $dynamic = seo_content_dynamic_descriptions();
     $changes = [];
@@ -366,6 +369,7 @@ function migration_870_seo_content_page_meta(): void
         $desc = $dynamic[$slug] ?? $desc;
         $changes = array_merge($changes, seo_content_apply_page($slug, $seeds[$slug], $title, $desc));
     }
+    migration_once_mark('870_page_meta');
     seo_content_log('Search titles and descriptions updated where they were still the original text', $changes);
 }
 
@@ -379,10 +383,11 @@ function migration_871_seo_content_home_title(): void
         return;
     }
     $title = 'Prerit Welfare Foundation | NGO for Education & Skills';
-    if (!seo_content_title_ok($title)) {
+    if (!seo_content_title_ok($title) || migration_once_done('871_home_title')) {
         return;
     }
     $n = db_query("UPDATE pages SET meta_title = ? WHERE slug = 'home' AND template = 'home' AND (meta_title IS NULL OR meta_title = '')", [$title])->rowCount();
+    migration_once_mark('871_home_title');
     seo_content_log('Home page search title set', $n ? ['home title'] : []);
 }
 
@@ -395,6 +400,9 @@ function migration_871_seo_content_home_title(): void
  */
 function migration_872_seo_content_cannibalisation_copy(): void
 {
+    if (migration_once_done('872_cannibalisation_copy')) {
+        return;   // done once: a card link or button the owner removed later is not added again
+    }
     $changes = [];
     $fixes = [
         // C1
@@ -458,15 +466,20 @@ function migration_872_seo_content_cannibalisation_copy(): void
             $changes[] = $slug . ' title';
         }
     }
+    migration_once_mark('872_cannibalisation_copy');
     seo_content_log('Programme pages cross-linked and page titles clarified (unedited content only)', $changes);
 }
 
-/** Help text for /verify-letter/ (G-ON4); /application-status/ only when it has no explanatory sections at all. */
+/**
+ * Help text for /verify-letter/ (G-ON4); /application-status/ only when it has no explanatory sections at all.
+ * Each page is handled once (one-time marker): a help section the owner deleted is not added again.
+ */
 function migration_873_seo_content_utility_help(): void
 {
     $changes = [];
     $pageId = (int) db_value("SELECT id FROM pages WHERE slug = 'verify-letter' AND template = 'verify_letter'");
-    if ($pageId && !(int) db_value("SELECT COUNT(*) FROM page_sections WHERE page_id = ? AND (anchor = 'how-to-check' OR section_type IN ('richtext', 'faqs', 'faq_list', 'steps'))", [$pageId])) {
+    $verifyDone = !$pageId || migration_once_done('873_verify_letter_help');
+    if (!$verifyDone && !(int) db_value("SELECT COUNT(*) FROM page_sections WHERE page_id = ? AND (anchor = 'how-to-check' OR section_type IN ('richtext', 'faqs', 'faq_list', 'steps'))", [$pageId])) {
         $prefix = function_exists('letter_ref_prefix') ? letter_ref_prefix() : 'EIF';
         $example = $prefix . '/' . date('Y') . '/012';
         // a "module" row keeps the verification form first and puts the help text under it
@@ -484,8 +497,12 @@ function migration_873_seo_content_utility_help(): void
         ]);
         $changes[] = 'verify-letter';
     }
+    if (!$verifyDone) {
+        migration_once_mark('873_verify_letter_help');
+    }
     $statusId = (int) db_value("SELECT id FROM pages WHERE slug = 'application-status' AND template = 'application_status'");
-    if ($statusId && !(int) db_value("SELECT COUNT(*) FROM page_sections WHERE page_id = ? AND section_type IN ('richtext', 'faqs', 'faq_list', 'features', 'steps')", [$statusId])) {
+    $statusDone = !$statusId || migration_once_done('873_application_status_help');
+    if (!$statusDone && !(int) db_value("SELECT COUNT(*) FROM page_sections WHERE page_id = ? AND section_type IN ('richtext', 'faqs', 'faq_list', 'features', 'steps')", [$statusId])) {
         if (!(int) db_value("SELECT COUNT(*) FROM page_sections WHERE page_id = ? AND section_type = 'module'", [$statusId])) {
             seo_content_insert_section($statusId, ['type' => 'module', 'sort' => 10]);
         }
@@ -497,17 +514,21 @@ function migration_873_seo_content_utility_help(): void
         ]);
         $changes[] = 'application-status';
     }
+    if (!$statusDone) {
+        migration_once_mark('873_application_status_help');
+    }
     seo_content_log('Help text added to utility pages', $changes);
 }
 
 /** Footer "Workshops": the seeded link points to a noindex, filtered event list; send it to the Programs & Events grid (P1-1). */
 function migration_874_seo_content_footer_workshops(): void
 {
-    if (!table_exists('menu_items')) {
+    if (!table_exists('menu_items') || migration_once_done('874_footer_workshops')) {
         return;
     }
     $n = db_query("UPDATE menu_items i JOIN menus m ON m.id = i.menu_id SET i.url = '/programs/'
                    WHERE m.menu_key = 'footer_programs' AND i.label = 'Workshops' AND i.url = '/events/?type=workshop'")->rowCount();
+    migration_once_mark('874_footer_workshops');
     seo_content_log('Footer "Workshops" link now opens the Programs & Events page', $n ? ['footer_programs'] : []);
 }
 
@@ -515,6 +536,7 @@ function migration_874_seo_content_footer_workshops(): void
  * Name, address and phone consistency: Contact and NGO Details show the corporate office from Settings (it was
  * printed only on letters). Added once per page, never when the page already shows that address in a section.
  * The registered office is not invented: the block shows it only after a "registered_office_address" setting exists.
+ * Each page is handled once (one-time marker): a block the owner deleted is not added again.
  */
 function migration_875_seo_content_office_addresses(): void
 {
@@ -526,19 +548,20 @@ function migration_875_seo_content_office_addresses(): void
     $changes = [];
     foreach ([['contact', 'contact'], ['ngo-details', 'ngo_details']] as [$slug, $template]) {
         $pageId = (int) db_value('SELECT id FROM pages WHERE slug = ? AND template = ?', [$slug, $template]);
-        if (!$pageId) {
+        $once = '875_offices_' . str_replace('-', '_', $slug);
+        if (!$pageId || migration_once_done($once)) {
             continue;
         }
         $exists = (int) db_value("SELECT COUNT(*) FROM page_sections WHERE page_id = ? AND (section_type = 'office_addresses'
                                     OR CONCAT_WS(' ', title, intro, body, items, settings) LIKE ?)", [$pageId, $needle]);
-        if ($exists) {
-            continue;
+        if (!$exists) {
+            // sort 15: right after the page's main block (contact form / registration table)
+            seo_content_insert_section($pageId, [
+                'type' => 'office_addresses', 'anchor' => 'offices', 'pill' => 'Addresses', 'title' => 'Our offices', 'sort' => 15, 'background' => 'tint',
+            ]);
+            $changes[] = $slug;
         }
-        // sort 15: right after the page's main block (contact form / registration table)
-        seo_content_insert_section($pageId, [
-            'type' => 'office_addresses', 'anchor' => 'offices', 'pill' => 'Addresses', 'title' => 'Our offices', 'sort' => 15, 'background' => 'tint',
-        ]);
-        $changes[] = $slug;
+        migration_once_mark($once);
     }
     seo_content_log('Office addresses block added', $changes);
 }
@@ -617,13 +640,18 @@ function seo_content_partner_sections(): array
     ];
 }
 
-/** "Become a Project Partner" page (/partner-with-us/), its footer link and a link from the Contact page. No franchise page. */
+/**
+ * "Become a Project Partner" page (/partner-with-us/), its footer link and a link from the Contact page. No franchise page.
+ * Each of the three steps is done once (one-time markers): a page, footer link or card link the owner deleted later is
+ * not added again, with or without a redirect for the old address.
+ */
 function migration_876_seo_content_partner_page(): void
 {
     $changes = [];
     $slug = 'partner-with-us';
     $blocked = (int) db_value('SELECT COUNT(*) FROM redirects WHERE source_path IN (?, ?)', [$slug, $slug . '/']) > 0;
-    if (!$blocked && !db_value('SELECT id FROM pages WHERE slug = ?', [$slug])) {
+    $pageDone = migration_once_done('876_partner_page');
+    if (!$pageDone && !$blocked && !db_value('SELECT id FROM pages WHERE slug = ?', [$slug])) {
         $pageId = (int) db_insert('pages', [
             'parent_id' => null, 'slug' => $slug, 'template' => 'default', 'title' => 'Become a Project Partner',
             'banner_eyebrow' => 'Partner with us',
@@ -640,17 +668,26 @@ function migration_876_seo_content_partner_page(): void
         }
         $changes[] = 'page /partner-with-us/';
     }
+    if (!$pageDone) {
+        migration_once_mark('876_partner_page');
+    }
     $live = (int) db_value("SELECT COUNT(*) FROM pages WHERE slug = ? AND status = 'published'", [$slug]) > 0;
     if ($live && table_exists('menu_items')) {
         $menuId = (int) db_value("SELECT id FROM menus WHERE menu_key = 'footer_involved'");
-        if ($menuId && !db_value("SELECT COUNT(*) FROM menu_items i JOIN menus m ON m.id = i.menu_id WHERE m.menu_key LIKE 'footer%' AND i.url IN ('/partner-with-us/', '/partner-with-us')")) {
-            $sort = (int) db_value('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM menu_items WHERE menu_id = ? AND parent_id IS NULL', [$menuId]);
-            db_insert('menu_items', ['menu_id' => $menuId, 'parent_id' => null, 'label' => 'Become a Project Partner', 'url' => '/partner-with-us/', 'status' => 'visible', 'sort_order' => $sort]);
-            $changes[] = 'footer link';
+        if ($menuId && !migration_once_done('876_partner_footer_link')) {
+            if (!db_value("SELECT COUNT(*) FROM menu_items i JOIN menus m ON m.id = i.menu_id WHERE m.menu_key LIKE 'footer%' AND i.url IN ('/partner-with-us/', '/partner-with-us')")) {
+                $sort = (int) db_value('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM menu_items WHERE menu_id = ? AND parent_id IS NULL', [$menuId]);
+                db_insert('menu_items', ['menu_id' => $menuId, 'parent_id' => null, 'label' => 'Become a Project Partner', 'url' => '/partner-with-us/', 'status' => 'visible', 'sort_order' => $sort]);
+                $changes[] = 'footer link';
+            }
+            migration_once_mark('876_partner_footer_link');
         }
         // Contact > "Work with us": the partnerships card links to the new page (seeded section only)
-        if (seo_content_link_cards('contact', 30, '30e344223dcd0d2ed4de29597e3ffdb6', ['Partnerships & CSR' => ['/partner-with-us/', 'Become a project partner']])) {
-            $changes[] = 'contact card link';
+        if (!migration_once_done('876_contact_card_link')) {
+            if (seo_content_link_cards('contact', 30, '30e344223dcd0d2ed4de29597e3ffdb6', ['Partnerships & CSR' => ['/partner-with-us/', 'Become a project partner']])) {
+                $changes[] = 'contact card link';
+            }
+            migration_once_mark('876_contact_card_link');
         }
     }
     seo_content_log('"Become a Project Partner" page', $changes);
@@ -735,6 +772,9 @@ function migration_877_seo_content_focus_keywords(): void
     if (!table_exists('seo_meta') || !column_exists('seo_meta', 'focus_keyword') || !column_exists('seo_meta', 'secondary_keywords')) {
         return;   // WP-1 not installed: nothing to fill (the admin can enter keywords later in Admin > SEO)
     }
+    if (migration_once_done('877_focus_keywords')) {
+        return;   // filled once: keywords the owner cleared later stay empty
+    }
     $changes = [];
     foreach (seo_content_keywords() as $slug => [$focus, $secondary]) {
         $pageId = (int) db_value('SELECT id FROM pages WHERE slug = ?', [$slug]);
@@ -752,5 +792,54 @@ function migration_877_seo_content_focus_keywords(): void
             $changes[] = $slug;
         }
     }
+    migration_once_mark('877_focus_keywords');
     seo_content_log('Focus keywords filled for pages without keywords', $changes);
+}
+
+/**
+ * One-time markers for sites whose content migrations 841 and 870-877 ran before those migrations recorded them
+ * (a database upgraded with an earlier build of this release, or a copy of one): every step of a migration that is
+ * already in schema_migrations counts as done, so its pages, sections and links are never added again.
+ * Nothing to do when any marker exists - the migrations then ran with this code and recorded their own steps.
+ */
+function migration_878_seo_content_once_markers(): void
+{
+    if ((int) db_value("SELECT COUNT(*) FROM website_settings WHERE setting_key LIKE 'migration\\_once\\_%'") > 0 || !table_exists('schema_migrations')) {
+        return;
+    }
+    $steps = [
+        'migration_841_seo_consent_mode_privacy' => ['841_privacy_consent_mode'],
+        'migration_870_seo_content_page_meta' => ['870_page_meta'],
+        'migration_871_seo_content_home_title' => ['871_home_title'],
+        'migration_872_seo_content_cannibalisation_copy' => ['872_cannibalisation_copy'],
+        'migration_873_seo_content_utility_help' => ['873_verify_letter_help', '873_application_status_help'],
+        'migration_874_seo_content_footer_workshops' => ['874_footer_workshops'],
+        'migration_875_seo_content_office_addresses' => ['875_offices_contact', '875_offices_ngo_details'],
+        'migration_876_seo_content_partner_page' => ['876_partner_page', '876_partner_footer_link', '876_contact_card_link'],
+        'migration_877_seo_content_focus_keywords' => ['877_focus_keywords'],
+    ];
+    $applied = array_flip(array_column(db_rows('SELECT name FROM schema_migrations'), 'name'));
+    foreach ($steps as $fn => $keys) {
+        if (isset($applied[$fn])) {
+            foreach ($keys as $key) {
+                migration_once_mark($key);
+            }
+        }
+    }
+}
+
+/**
+ * 879: repeat 875 (and the contact description of 870) for sites where they ran in the same request as migration 700,
+ * which created corporate_office_address after the settings cache had been read. Guarded: the office block only where
+ * the 875 once-marker is missing, the description only while it is still exactly the generic text 870 wrote.
+ */
+function migration_879_seo_content_office_addresses_retry(): void
+{
+    settings_all(true);
+    migration_875_seo_content_office_addresses();
+    $generic = 'Contact Prerit Welfare Foundation by email or through the enquiry form about volunteering, partnerships, media, donations or support from our programmes.';
+    $dynamic = seo_content_dynamic_descriptions()['contact'] ?? '';
+    if ($dynamic !== '' && $dynamic !== $generic) {
+        db_query("UPDATE pages SET meta_description = ? WHERE slug = 'contact' AND template = 'contact' AND BINARY meta_description = BINARY ?", [$dynamic, $generic]);
+    }
 }

@@ -124,10 +124,11 @@ if (setting('mobile_nav_strip', '1') === '1') {
     <link rel="icon" type="image/png" sizes="192x192" href="<?= e(asset('assets/images/favicon-192.png')) ?>">
 <?php endif; ?>
     <link rel="apple-touch-icon" href="<?= e(asset('assets/images/apple-touch-icon.png')) ?>">
-    <?php /* only the three files that draw most of the first screen (UI 600, hero/banner title 800, body text 400); the other weights load on demand and their metric-matched fallbacks (style.css) keep the swap from shifting the layout */ ?>
+    <?php /* only the files that draw most of the first screen (UI 600, hero/banner title 800, body text 400, and the Hindi line of the logo in the header of every page); the other weights load on demand and their metric-matched fallbacks (style.css) keep the swap from shifting the layout. Hindi has no metric-matched fallback, so its one file is preloaded: it then arrives before the first paint and the Hindi text never moves the lines around it */ ?>
     <link rel="preload" href="<?= e(url('assets/fonts/poppins-latin-600-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="<?= e(url('assets/fonts/poppins-latin-800-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="<?= e(url('assets/fonts/noto-sans-latin-400-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="<?= e(url('assets/fonts/poppins-devanagari-500-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
     <?php
     // Stylesheets: style.css, enhance.css, the public module files, responsive.css - in that order, as ONE cached file
     // (includes/core.php css_bundle_url(), rebuilt when a source file changes); one by one when assets/cache/ cannot
@@ -210,7 +211,7 @@ if (setting('mobile_nav_strip', '1') === '1') {
 
         <nav class="main-nav" id="main-nav" aria-label="Main navigation">
             <div class="nav-mobile-head">
-                <a class="brand brand-sm" href="<?= e(url('/')) ?>" aria-label="<?= e(site_name()) ?> - home"><?= brand_lockup('mobile') ?></a>
+                <a class="brand brand-sm" href="<?= e(url('/')) ?>"><?= brand_lockup('mobile') ?><span class="sr-only"> - home</span></a>
                 <button type="button" class="nav-close" data-nav-toggle aria-label="Close menu"><?= icon('x') ?></button>
             </div>
             <?php if ($topbarMenu): ?>

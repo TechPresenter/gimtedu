@@ -1705,6 +1705,7 @@ function seo_graph_document(): array
  * All nodes of this page: NGO #organization, #logo, WebSite #website, then (not on 404) the page's WebPage
  * {self}#webpage, BreadcrumbList #breadcrumb (not on home), ImageObject #primaryimage (raster images only), and the
  * template / seo_graph_add() nodes merged in (seo_merge_template_schema()). @id references always resolve in the graph.
+ * A page whose canonical is another address gets only the three site nodes.
  */
 function seo_graph(): array
 {
@@ -1717,7 +1718,12 @@ function seo_graph(): array
     foreach ([seo_org_node(), seo_logo_node(), seo_website_node()] as $n) {
         $graph[$n['@id']] = $n;
     }
-    if (empty($seo['is_404'])) {
+    // A page whose canonical is another address (an older awareness-day edition, a custom canonical URL) is a duplicate
+    // for search engines: it describes no WebPage, breadcrumb or template entity of its own, so every structured-data
+    // signal names the canonical page (rel=canonical and og:url already do).
+    $canonical = (string) ($seo['canonical'] ?? '');
+    $elsewhere = $canonical !== '' && empty($seo['is_404']) && seo_normalise_url($canonical) !== seo_normalise_url((string) $seo['self_url']);
+    if (empty($seo['is_404']) && !$elsewhere) {
         $self = (string) $seo['self_url'];
         if (!empty($seo['primary_image'])) {
             $img = seo_image_node((string) $seo['primary_image']['path'], $self . '#primaryimage', (string) $seo['primary_image']['alt']);

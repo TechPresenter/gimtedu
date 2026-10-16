@@ -7,8 +7,27 @@ if (!defined('PWF_APP')) {
 
 $page = current_page_row();
 page_header($page);
+$entries = sitemap_entries();
+// SEO module: list only what the XML sitemaps list (no noindex or empty list pages, no older awareness-day editions,
+// no page whose canonical is another address). Without it, or when the XML sitemaps are empty, everything is listed.
+if (function_exists('seo_sitemap_sets') && function_exists('seo_sitemap_normal_url')) {
+    $listed = [];
+    foreach (seo_sitemap_sets() as $set => $items) {
+        if ($set === 'images') {
+            continue;
+        }
+        foreach ($items as $item) {
+            $listed[seo_sitemap_normal_url((string) $item['loc'])] = true;
+        }
+    }
+    if ($listed) {
+        $entries = array_filter($entries, function (array $entry) use ($listed): bool {
+            return isset($listed[seo_sitemap_normal_url((string) $entry['loc'])]);
+        });
+    }
+}
 $groups = [];
-foreach (sitemap_entries() as $entry) {
+foreach ($entries as $entry) {
     $groups[$entry['group']][] = $entry;
 }
 ?>

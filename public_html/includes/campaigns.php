@@ -250,7 +250,7 @@ function campaign_feature_card(array $c): string
     if (campaign_accepts_donations($c)) {
         $html .= '<a class="btn btn-donate" href="' . e(donate_url(['campaign' => (int) $c['id']])) . '"' . donation_dl_attrs('campaign_feature', $c) . '>' . icon('heart') . 'Donate to this campaign</a>';
     }
-    $html .= '<a class="btn btn-outline" href="' . e($link) . '">Read more</a></div></div></article>';
+    $html .= '<a class="btn btn-outline" href="' . e($link) . '">Read more<span class="sr-only"> about ' . e($c['title']) . '</span></a></div></div></article>';
     return $html;
 }
 

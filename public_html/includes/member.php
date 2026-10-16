@@ -285,7 +285,7 @@ function account_side_panel(string $context = 'login'): string
            ['award', 'Certificates & events', 'Register for events and download your certificates.'],
            ['shield', 'Private by design', 'Only you and the authorised staff who handle them can see your donations and applications.']];
     $html = '<aside class="acc-panel"><span class="acc-orb acc-orb-1" aria-hidden="true"></span><span class="acc-orb acc-orb-2" aria-hidden="true"></span>'
-        . '<a class="acc-brand" href="' . e(url('/')) . '" aria-label="' . e(site_name()) . ' - home">' . brand_lockup('full') . '</a>'
+        . '<a class="acc-brand" href="' . e(url('/')) . '">' . brand_lockup('full') . '<span class="sr-only"> - home</span></a>'
         . '<div class="acc-panel-body"><p class="acc-tagline hindi" lang="hi">' . e(setting('site_tagline', 'मिलकर बनाये बेहतर कल')) . '</p>'
         . '<p class="acc-panel-title">' . e($title) . '</p><p class="acc-panel-text">' . e($text) . '</p></div>'
         . '<div class="acc-art"><img src="' . e(url($art)) . '" alt="" width="480" height="360" loading="eager"></div><ul class="acc-trust">';

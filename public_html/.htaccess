@@ -13,7 +13,8 @@ ServerSignature Off
     Require all denied
 </FilesMatch>
 # includes/ and templates/ also carry their own "deny all" .htaccess
-<FilesMatch "\.(sql|md|log|ini|bak|old|orig|swp|dist|env|json|lock|sh|yml|yaml)$">
+# archives too: an update ZIP left in public_html contains pwf-config.php with the site's keys
+<FilesMatch "\.(sql|md|log|ini|bak|old|orig|swp|dist|env|json|lock|sh|yml|yaml|zip|tar|gz|tgz|7z|rar)$">
     Require all denied
 </FilesMatch>
 <FilesMatch "^\.">
@@ -30,11 +31,14 @@ ServerSignature Off
     # The rules match ONLY these two host names, so localhost, staging copies, preview and temporary hosting
     # addresses are never redirected. The live site has an SSL certificate (Hostinger free SSL); hPanel "Force HTTPS"
     # may stay on as well (it gives the same single hop). If the domain ever changes, edit both host names here and
-    # BASE_URL together. /.well-known/ (SSL certificate renewal checks) is left alone.
+    # BASE_URL together. /.well-known/ (SSL certificate renewal checks) is left alone; THE_REQUEST (the original
+    # request line) keeps it alone also after a missing file there was passed on to index.php.
     RewriteCond %{REQUEST_URI} !^/\.well-known/
+    RewriteCond %{THE_REQUEST} !\s/\.well-known/
     RewriteCond %{HTTP_HOST} ^www\.preritwelfarefoundation\.org(?::(?:80|443))?$ [NC]
     RewriteRule ^ https://preritwelfarefoundation.org%{REQUEST_URI} [L,R=301]
     RewriteCond %{REQUEST_URI} !^/\.well-known/
+    RewriteCond %{THE_REQUEST} !\s/\.well-known/
     RewriteCond %{HTTP_HOST} ^preritwelfarefoundation\.org(?::(?:80|443))?$ [NC]
     RewriteCond %{HTTPS} !=on
     RewriteCond %{HTTP:X-Forwarded-Proto} !^https$ [NC]
