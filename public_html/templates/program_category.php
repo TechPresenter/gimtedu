@@ -125,9 +125,10 @@ if (!$hasSubnav && count($links) > 2) {
 
 render_sections($page);
 if (function_exists('seo_dates_line') && function_exists('seo_eeat_content_dates')) {
-    // "Last updated" (only a substantive update an editor recorded) and "Reviewed by ... on ..." (only when entered)
+    // "Last updated" (only a substantive update an editor recorded), "Reviewed by ... on ..." and sources (only when entered)
     $eeatLine = seo_dates_line(null, seo_eeat_content_dates('page', (int) $page['id'], $page)['updated'], ['updated_label' => 'Last updated'])
-        . (function_exists('seo_review_line') ? seo_review_line('page', (int) $page['id']) : '');
+        . (function_exists('seo_review_line') ? seo_review_line('page', (int) $page['id']) : '')
+        . (function_exists('seo_sources_list') ? seo_sources_list('page', (int) $page['id']) : '');
     echo $eeatLine !== '' ? '<div class="container seo-page-meta">' . $eeatLine . '</div>' : '';
 }
 page_footer();

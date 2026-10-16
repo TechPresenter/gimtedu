@@ -9,7 +9,7 @@ ServerSignature Off
 # ---------------------------------------------------------------------
 # Block direct access to include files, configuration and data files
 # ---------------------------------------------------------------------
-<FilesMatch "^(config|database|functions|header|footer|auth|mail|validation|csrf)\.php$">
+<FilesMatch "^(config|pwf-config|database|functions|header|footer|auth|mail|validation|csrf)\.php$">
     Require all denied
 </FilesMatch>
 # includes/ and templates/ also carry their own "deny all" .htaccess

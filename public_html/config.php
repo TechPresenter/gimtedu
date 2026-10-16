@@ -20,7 +20,9 @@ if (!defined('PWF_APP')) {
     exit('Forbidden');
 }
 
-$pwfPrivateConfig = dirname(__DIR__) . '/pwf-config.php';
+// Private settings: ../pwf-config.php (one folder above public_html, safest) or, if that does not exist,
+// public_html/pwf-config.php (blocked from the web by .htaccess). Updates never contain either file.
+$pwfPrivateConfig = is_file(dirname(__DIR__) . '/pwf-config.php') ? dirname(__DIR__) . '/pwf-config.php' : __DIR__ . '/pwf-config.php';
 if (is_file($pwfPrivateConfig)) {
     require $pwfPrivateConfig;
 }
