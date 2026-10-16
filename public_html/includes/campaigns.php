@@ -94,6 +94,12 @@ function campaign_category_label(?string $category): string
 /** Campaign image or an illustration that matches its category. */
 function campaign_image(array $c): string
 {
+    return image_url($c['image'] ?? null, campaign_fallback_art($c));
+}
+
+/** Illustration (site path) shown for a campaign without its own photo. */
+function campaign_fallback_art(array $c): string
+{
     $cat = (string) ($c['category'] ?? 'general');
     if (function_exists('program_art')) {
         $fallback = program_art(['slug' => $cat], false);   // programme illustration (M2)
@@ -102,7 +108,31 @@ function campaign_image(array $c): string
         $art = $map[$cat] ?? $cat;
         $fallback = is_file(ROOT_PATH . '/assets/images/programs/' . $art . '.svg') ? 'assets/images/programs/' . $art . '.svg' : 'assets/images/programs/general.svg';
     }
-    return image_url($c['image'] ?? null, $fallback);
+    return $fallback;
+}
+
+/**
+ * Campaign photo (or its category illustration) through the SEO images module when installed: seo_picture() with the
+ * WebP <source>, the -640/-1080 srcset and real sizes; otherwise the previous <img>. $attrs: width, height, sizes,
+ * fetchpriority / loading (see seo_picture()); $alt is used as given.
+ */
+function campaign_picture(array $c, string $alt, array $attrs, string $legacy): string
+{
+    if (!function_exists('cms_picture')) {
+        return $legacy;
+    }
+    return cms_picture($c['image'] ?? null, $alt, $attrs + ['fallback' => campaign_fallback_art($c)], $legacy);
+}
+
+/**
+ * data-dl-* attributes of a donation link (WP-5: consent-tags.js turns a click into a "donate_click" dataLayer event,
+ * only after the visitor allowed analytics). Values are short slugs; never an amount, name or reference.
+ */
+function donation_dl_attrs(string $location, ?array $c = null): string
+{
+    $cat = $c ? strtolower((string) ($c['category'] ?? '')) : '';
+    return ' data-dl-event="donate_click" data-dl-location="' . e($location) . '"'
+        . ($cat !== '' && preg_match('/^[a-z0-9][a-z0-9_-]{0,59}$/', $cat) ? ' data-dl-category="' . e($cat) . '"' : '');
 }
 
 /** Absolute URL of the campaign's own uploaded image ('' when it has none). */
@@ -160,7 +190,10 @@ function campaign_card(array $c, int $delay = 0): string
     $raised = (float) ($c['raised'] ?? 0);
     $goal = (float) $c['goal_amount'];
     $html = '<article class="campaign-card fr-card reveal tilt" style="--d:' . ($delay % 4) . '">';
-    $html .= '<a class="campaign-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(campaign_image($c)) . '"' . image_srcset_attr($c['image'] ?? null, '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px') . ' alt="" loading="lazy" width="480" height="300">';
+    $sizes = '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px';
+    $html .= '<a class="campaign-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true">'
+        . campaign_picture($c, '', ['width' => 480, 'height' => 300, 'sizes' => $sizes],
+            '<img src="' . e(campaign_image($c)) . '"' . image_srcset_attr($c['image'] ?? null, $sizes) . ' alt="" loading="lazy" width="480" height="300">');
     $html .= '<span class="tag tag-cat">' . e(campaign_category_label($c['category'])) . '</span>';
     if (!empty($c['is_urgent']) && campaign_accepts_donations($c)) {
         $html .= '<span class="tag tag-urgent">Urgent</span>';
@@ -181,7 +214,7 @@ function campaign_card(array $c, int $delay = 0): string
         . '<span>' . icon(campaign_accepts_donations($c) ? 'heart' : 'check-circle') . e(campaign_status_text($c)) . '</span></div>';
     $html .= '<div class="campaign-actions">';
     if (campaign_accepts_donations($c)) {
-        $html .= '<a class="btn btn-donate btn-sm" href="' . e(donate_url(['campaign' => (int) $c['id']])) . '">' . icon('heart') . 'Donate</a>';
+        $html .= '<a class="btn btn-donate btn-sm" href="' . e(donate_url(['campaign' => (int) $c['id']])) . '"' . donation_dl_attrs('campaign_card', $c) . '>' . icon('heart') . 'Donate</a>';
     }
     $html .= '<a class="btn btn-outline btn-sm" href="' . e($link) . '">View details<span class="sr-only">: ' . e($c['title']) . '</span></a></div>';
     return $html . '</div></article>';
@@ -192,7 +225,8 @@ function campaign_feature_card(array $c): string
 {
     $link = campaign_url($c['slug']);
     $html = '<article class="fr-feature reveal">'
-        . '<a class="fr-feature-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(campaign_image($c)) . '" alt="" width="640" height="420"></a>'
+        . '<a class="fr-feature-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true">'
+        . campaign_picture($c, '', ['width' => 640, 'height' => 420, 'loading' => null, 'sizes' => '(max-width: 991px) 100vw, 640px'], '<img src="' . e(campaign_image($c)) . '" alt="" width="640" height="420">') . '</a>'
         . '<div class="fr-feature-body"><div class="fr-tags"><span class="badge badge-gold">' . icon('star') . 'Featured campaign</span>'
         . '<span class="badge badge-green">' . e(campaign_category_label($c['category'])) . '</span>'
         . (!empty($c['is_urgent']) && campaign_accepts_donations($c) ? '<span class="badge badge-red">Urgent</span>' : '') . '</div>'
@@ -214,7 +248,7 @@ function campaign_feature_card(array $c): string
     }
     $html .= '<div class="btn-row">';
     if (campaign_accepts_donations($c)) {
-        $html .= '<a class="btn btn-donate" href="' . e(donate_url(['campaign' => (int) $c['id']])) . '">' . icon('heart') . 'Donate to this campaign</a>';
+        $html .= '<a class="btn btn-donate" href="' . e(donate_url(['campaign' => (int) $c['id']])) . '"' . donation_dl_attrs('campaign_feature', $c) . '>' . icon('heart') . 'Donate to this campaign</a>';
     }
     $html .= '<a class="btn btn-outline" href="' . e($link) . '">Read more</a></div></div></article>';
     return $html;
@@ -917,6 +951,9 @@ function section_campaigns_grid(array $s, array $items, array $set, array $page)
     if (!$rows) {
         return '';
     }
+    if (function_exists('seo_image_alt_prime')) {
+        seo_image_alt_prime(array_values(array_filter(array_column($rows, 'image'))));
+    }
     $html = '<div class="grid grid-3 fr-grid">';
     foreach ($rows as $i => $c) {
         $html .= campaign_card($c, $i);
@@ -983,7 +1020,8 @@ function section_donation_appeal(array $s, array $items, array $set, array $page
     }
     $html = '<div class="fr-appeal reveal"><div class="fr-appeal-main">';
     if (!empty($s['body'])) {
-        $html .= '<div class="prose">' . clean_html((string) $s['body']) . '</div>';
+        $body = clean_html((string) $s['body']);
+        $html .= '<div class="prose">' . (function_exists('seo_filter_content_images') ? seo_filter_content_images($body) : $body) . '</div>';
     }
     if ($campaignTitle !== '') {
         $html .= '<p class="fr-appeal-for">' . icon('heart') . 'Towards: <strong>' . e($campaignTitle) . '</strong></p>';
@@ -992,10 +1030,10 @@ function section_donation_appeal(array $s, array $items, array $set, array $page
     if (online_donations_available()) {
         $html .= '<p class="fr-appeal-label" id="appeal-amounts-' . (int) ($s['id'] ?? 0) . '">Choose an amount</p><div class="fr-amounts" role="group" aria-labelledby="appeal-amounts-' . (int) ($s['id'] ?? 0) . '">';
         foreach ($amounts as $a) {
-            $html .= '<a class="fr-amount" href="' . e(donate_url($query + ['amount' => $a])) . '">' . e(money($a)) . '</a>';
+            $html .= '<a class="fr-amount" href="' . e(donate_url($query + ['amount' => $a])) . '"' . donation_dl_attrs('appeal_amount') . '>' . e(money($a)) . '</a>';
         }
-        $html .= '<a class="fr-amount fr-amount-other" href="' . e(donate_url($query)) . '">Other amount</a></div>';
-        $html .= '<a class="btn btn-donate btn-lg" href="' . e(donate_url($query)) . '">' . icon('heart') . e(trim((string) ($set['button_label'] ?? '')) ?: 'Donate now') . '</a></div>';
+        $html .= '<a class="fr-amount fr-amount-other" href="' . e(donate_url($query)) . '"' . donation_dl_attrs('appeal_amount') . '>Other amount</a></div>';
+        $html .= '<a class="btn btn-donate btn-lg" href="' . e(donate_url($query)) . '"' . donation_dl_attrs('appeal') . '>' . icon('heart') . e(trim((string) ($set['button_label'] ?? '')) ?: 'Donate now') . '</a></div>';
     } elseif (bank_transfer_details()) {
         $html .= '<a class="btn btn-donate btn-lg" href="' . e(donate_url($query)) . '">' . icon('briefcase') . 'See bank transfer details</a></div>';
     } else {

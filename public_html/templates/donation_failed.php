@@ -22,6 +22,12 @@ if ($d['status'] === 'success' || $d['status'] === 'refunded') {
 $canRetry = $d['payment_method'] === 'online' && $d['gateway_order_id'] && in_array($d['status'], ['pending', 'failed'], true) && gateway_active(donation_gateway($d));
 $retryQuery = $d['campaign_id'] ? ['campaign' => (int) $d['campaign_id'], 'amount' => (int) round((float) $d['amount'])] : ['amount' => (int) round((float) $d['amount'])];
 
+// WP-5 dataLayer: "donation_failed" (gateway only - no amount, reference or name). This page never loads Google tags,
+// so the event is sent on the donor's next eligible page, after consent. Queued once per donation and session.
+if (function_exists('seo_queue_event') && session_status() === PHP_SESSION_ACTIVE && empty($_SESSION['seo_dl_failed'][(int) $d['id']])) {
+    seo_queue_event('donation_failed', null, (int) $d['id']);
+    $_SESSION['seo_dl_failed'][(int) $d['id']] = 1;
+}
 header('X-Robots-Tag: noindex');
 page_header($page, ['banner' => false, 'noindex' => true, 'canonical' => abs_page_url('donation-failed')]);
 ?>

@@ -59,6 +59,9 @@ $listUrl = function (array $query) use ($status, $category, $q): string {
     return page_url('campaigns', array_filter(array_merge($base, $query), function ($v) { return $v !== null && $v !== ''; }));
 };
 
+if (function_exists('seo_image_alt_prime')) {
+    seo_image_alt_prime(array_values(array_filter(array_merge($featured ? [(string) $featured['image']] : [], array_column($campaigns, 'image')))));
+}
 $itemList = [];
 foreach ($campaigns as $i => $c) {
     $itemList[] = ['@type' => 'ListItem', 'position' => $i + 1, 'url' => abs_url('campaign/' . $c['slug'] . '/'), 'name' => $c['title']];

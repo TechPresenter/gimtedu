@@ -31,6 +31,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'bio' => $data['bio'] !== '' ? $data['bio'] : null, 'linkedin_url' => $data['linkedin_url'] !== '' ? $data['linkedin_url'] : null,
             'sort_order' => (int) ($data['sort_order'] ?: 0), 'status' => $data['status'],
         ];
+        if (function_exists('seo_eeat_team_row_extra')) {
+            $row += seo_eeat_team_row_extra($_POST);   // recorded photo consent (author boxes, structured data)
+        }
         $photo = admin_upload_image('photo', 'team', $data['name']);
         if ($photo === null && ($_FILES['photo']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
             $_SESSION['_old'] = array_diff_key($_POST, ['csrf_token' => 1]); // admin_upload_image() already explained the problem
@@ -110,7 +113,8 @@ admin_page_start('Team & Management', [['label' => 'Add member', 'url' => admin_
                             <a class="icon-btn" href="<?= e(admin_url('team.php?edit=' . $r['id'])) ?>" title="Edit" aria-label="Edit <?= e($r['name']) ?>"><?= icon('edit') ?></a>
                             <form method="post" class="inline-form"><?= csrf_field() ?><?= return_field() ?><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= (int) $r['id'] ?>">
                                 <button class="icon-btn" type="submit" title="<?= $r['status'] === 'published' ? 'Hide' : 'Publish' ?>" aria-label="<?= $r['status'] === 'published' ? 'Hide' : 'Publish' ?> <?= e($r['name']) ?>"><?= icon($r['status'] === 'published' ? 'eye' : 'check') ?></button></form>
-                            <form method="post" class="inline-form" data-confirm="Delete <?= e($r['name']) ?> from the team list?"><?= csrf_field() ?><?= return_field() ?><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= (int) $r['id'] ?>">
+                            <?php $usage = function_exists('seo_eeat_member_usage') ? seo_eeat_member_usage((int) $r['id']) : 0; ?>
+                            <form method="post" class="inline-form" data-confirm="Delete <?= e($r['name']) ?> from the team list?<?= $usage ? e(' They are named as author or reviewer of ' . $usage . ' item' . ($usage === 1 ? '' : 's') . '; those pages will no longer show them.') : '' ?>"><?= csrf_field() ?><?= return_field() ?><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= (int) $r['id'] ?>">
                                 <button class="icon-btn danger" type="submit" title="Delete" aria-label="Delete <?= e($r['name']) ?>"><?= icon('trash') ?></button></form>
                         </td>
                     </tr>
@@ -134,6 +138,7 @@ admin_page_start('Team & Management', [['label' => 'Add member', 'url' => admin_
                 <div class="form-group full"><label for="photo">Photo (JPG, PNG or WebP, square works best)</label>
                     <?php if (!empty($m['photo']) && is_file(ROOT_PATH . '/' . $m['photo'])): ?><img src="<?= e(url($m['photo'])) ?>" alt="Current photo" class="thumb" style="width:88px;height:88px;border-radius:50%"><label class="checkbox"><input type="checkbox" name="remove_photo" value="1"><span>Remove current photo</span></label><?php endif; ?>
                     <input id="photo" type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"><?= field_error('photo') ?><span class="help">Use a photo only with the person's permission.</span></div>
+                <?= function_exists('seo_eeat_team_consent_field') ? seo_eeat_team_consent_field($m ?: null) : '' ?>
                 <div class="form-group"><label for="status">Status</label><select id="status" name="status"><?= options_html(['published' => 'Published', 'hidden' => 'Hidden'], (string) old('status', $m['status'] ?? 'published'), true, '') ?></select></div>
                 <div class="form-actions full" style="grid-column:1/-1"><button class="btn btn-primary" type="submit"><?= icon('check') ?>Save member</button></div>
             </form>

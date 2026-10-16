@@ -29,6 +29,11 @@ $groupIntro = [
     'volunteer'  => 'Volunteers who give their time and skills to our programmes and campaigns.',
 ];
 
+// Person nodes (only what Team & Management holds: name, designation, bio, LinkedIn; photo only with recorded consent)
+// and an ItemList mainEntity, added to the graph before page_header() prints it
+if (function_exists('seo_team_graph')) {
+    seo_team_graph($members, $page);
+}
 page_header($page);
 render_sections($page, function () use ($byGroup, $groups, $groupIntro, $page) {
     echo '<section class="section team-section" id="members"><div class="container">';

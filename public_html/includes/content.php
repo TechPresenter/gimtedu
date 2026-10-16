@@ -109,6 +109,49 @@ function content_abs_image(?string $path): string
     return abs_url($path);
 }
 
+/**
+ * Stored rich text of a post / story as it is rendered: inline images get lazy loading, real width/height, the
+ * -640/-1080 srcset, the media-library alt text (when the alt is empty) and a WebP <picture> through the SEO images
+ * module (seo_filter_content_images(); only <img> tags change). Unchanged when the module is not installed.
+ */
+function content_body_html(string $html): string
+{
+    return function_exists('seo_filter_content_images') ? seo_filter_content_images($html) : $html;
+}
+
+/**
+ * Hero photo of a post or story (the page's LCP image: never lazy, fetchpriority="high"). Alt text: the media
+ * library's alt for the file, else $fallbackAlt (the title, as before). Through seo_picture() (WebP + srcset) when the
+ * SEO images module is installed, else the previous <img>. $path must be an existing local file.
+ */
+function content_hero_picture(string $path, string $fallbackAlt, string $sizes): string
+{
+    [$w, $h] = content_image_size($path);
+    $legacy = '<img src="' . e(url($path)) . '" alt="' . e($fallbackAlt) . '"' . ($w ? ' width="' . $w . '" height="' . $h . '"' : '') . ' fetchpriority="high">';
+    if (!function_exists('cms_picture')) {
+        return $legacy;
+    }
+    $alt = function_exists('seo_image_alt') ? seo_image_alt($path, $fallbackAlt) : $fallbackAlt;
+    return cms_picture($path, $alt, ['width' => $w ?: null, 'height' => $h ?: null, 'fetchpriority' => 'high', 'fallback' => '', 'sizes' => $sizes], $legacy);
+}
+
+/** Card image (decorative, alt="") through seo_picture() when available; $legacy is the previous markup. */
+function content_card_picture(?string $path, string $fallback, int $w, int $h, string $sizes, string $legacy, bool $lazy = true): string
+{
+    if (!function_exists('cms_picture')) {
+        return $legacy;
+    }
+    return cms_picture($path, '', ['fallback' => $fallback, 'width' => $w, 'height' => $h, 'sizes' => $sizes] + ($lazy ? [] : ['loading' => null]), $legacy);
+}
+
+/** Load the media-library alt texts / sizes of a list of images with one query (before a card loop). */
+function content_prime_images(array $paths): void
+{
+    if (function_exists('seo_image_alt_prime')) {
+        seo_image_alt_prime(array_values(array_filter(array_map('strval', $paths), 'strlen')));
+    }
+}
+
 /** Add the media module script once (video facades, admin counters). */
 function media_js(): void
 {
@@ -432,7 +475,7 @@ function event_schema(array $ev, string $canonical): array
     }
     // The location never contains the private meeting link: VirtualLocation points to the public event page.
     $mode = event_mode($ev);
-    $place = ['@type' => 'Place', 'name' => $ev['location'], 'address' => ['@type' => 'PostalAddress', 'streetAddress' => trim((string) (($ev['venue_address'] ?? '') ?: $ev['location'])), 'addressCountry' => 'IN']];
+    $place = ['@type' => 'Place', 'name' => $ev['location'], 'address' => event_postal_address(trim((string) (($ev['venue_address'] ?? '') ?: $ev['location'])))];
     $virtual = ['@type' => 'VirtualLocation', 'url' => $canonical];
     $statusUrl = ['cancelled' => 'https://schema.org/EventCancelled'][$ev['status']] ?? 'https://schema.org/EventScheduled';
     $schema = [
@@ -444,31 +487,97 @@ function event_schema(array $ev, string $canonical): array
         'eventAttendanceMode' => ['online' => 'https://schema.org/OnlineEventAttendanceMode', 'hybrid' => 'https://schema.org/MixedEventAttendanceMode'][$mode] ?? 'https://schema.org/OfflineEventAttendanceMode',
         'location' => $mode === 'online' ? $virtual : ($mode === 'hybrid' ? [$place, $virtual] : $place),
         'url' => $canonical,
-        'image' => [content_abs_image($ev['image'] ?? null) ?: content_default_schema_image()],
+        'image' => [event_schema_image($ev)],
     ];
     if (!empty($ev['end_datetime'])) {
         $schema['endDate'] = date('c', strtotime((string) $ev['end_datetime']));
     }
     $schema['organizer'] = ['@type' => 'NGO', '@id' => abs_url('#organization'), 'name' => site_name(), 'url' => abs_url('')];
     if (function_exists('programhub_event_speakers') && !empty($ev['id'])) {
+        // public profiles only (active + profile_consent = 1, as on the page); never e-mail, phone or photo
         $performers = [];
         foreach (programhub_event_speakers((int) $ev['id']) as $sp) {
-            $performers[] = array_filter(['@type' => 'Person', 'name' => $sp['name'], 'jobTitle' => $sp['designation'] ?: null]);
+            $performers[] = event_speaker_node($sp);
         }
         if ($performers) {
             $schema['performer'] = $performers;
         }
     }
+    // Offers only while registration is really open (published, not cancelled, not started, deadline not passed,
+    // registration already opened; a full event with a waiting list counts as sold out): CRITIC G-SD2.
     $fee = isset($ev['fee_amount']) && $ev['fee_amount'] !== null ? (float) $ev['fee_amount'] : 0.0;
-    if ((int) $ev['registration_enabled'] === 1 && $ev['status'] === 'published') {
-        $state = event_state($ev);
+    $state = (int) $ev['registration_enabled'] === 1 && $ev['status'] === 'published' ? event_state($ev) : null;
+    if ($state && !empty($state['can_register'])) {
         $schema['offers'] = ['@type' => 'Offer', 'price' => $fee > 0 ? number_format($fee, 2, '.', '') : '0', 'priceCurrency' => 'INR', 'url' => $canonical . '#register',
             'availability' => $state['is_full'] ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock'];
         if (!empty($state['opens_at'])) {
             $schema['offers']['validFrom'] = date('c', (int) $state['opens_at']);
         }
+        if (!empty($state['deadline'])) {
+            $schema['offers']['validThrough'] = date('c', (int) $state['deadline']);
+        }
     }
     return $schema;
+}
+
+/**
+ * schema.org PostalAddress from a free-text venue address. A 6-digit PIN code becomes postalCode, the part before it
+ * addressLocality and a trailing Indian state addressRegion (seo_parse_address() of the SEO core when installed);
+ * without a PIN code the text stays a single streetAddress, as written by the editor.
+ */
+function event_postal_address(string $text): array
+{
+    $text = trim((string) preg_replace('/\s+/', ' ', $text));
+    $address = ['@type' => 'PostalAddress', 'streetAddress' => $text, 'addressCountry' => 'IN'];
+    if (function_exists('seo_parse_address')) {
+        $parts = seo_parse_address($text);
+    } else {
+        $parts = preg_match('/\b(\d{3}\s?\d{3})\b/', $text, $m) ? ['postalCode' => str_replace(' ', '', $m[1])] : [];
+    }
+    return array_merge($address, array_intersect_key($parts, array_flip(['streetAddress', 'addressLocality', 'addressRegion', 'postalCode'])));
+}
+
+/** Event image for JSON-LD: its own photo, else its programme category's share card (WP-3), else the default card. */
+function event_schema_image(array $ev): string
+{
+    $img = content_abs_image($ev['image'] ?? null);
+    if ($img === '' && !empty($ev['category_id']) && function_exists('seo_static_og')) {
+        try {
+            $slug = (string) db_value('SELECT p.slug FROM program_categories c JOIN pages p ON p.id = c.page_id WHERE c.id = ?', [(int) $ev['category_id']]);
+            $rel = $slug !== '' ? seo_static_og($slug) : null;
+            $img = $rel ? abs_url($rel) : '';
+        } catch (Throwable $e) {
+            $img = '';
+        }
+    }
+    return $img !== '' ? $img : content_default_schema_image();
+}
+
+/**
+ * Person node of a consented speaker / trainer (the caller passes only public profiles). @id BASE#speaker-<id>, so
+ * the same person is one entity on every event page; only what the editor entered and the page shows: name, job title,
+ * organisation, https profile links. No e-mail, phone or photo.
+ */
+function event_speaker_node(array $sp): array
+{
+    $node = ['@type' => 'Person', '@id' => abs_url('#speaker-' . (int) $sp['id']), 'name' => (string) $sp['name']];
+    if (trim((string) ($sp['designation'] ?? '')) !== '') {
+        $node['jobTitle'] = trim((string) $sp['designation']);
+    }
+    if (trim((string) ($sp['organisation'] ?? '')) !== '') {
+        $node['affiliation'] = ['@type' => 'Organization', 'name' => trim((string) $sp['organisation'])];
+    }
+    $links = [];
+    foreach (['linkedin_url', 'website_url'] as $col) {
+        $u = trim((string) ($sp[$col] ?? ''));
+        if ($u !== '' && preg_match('#^https://[^\s"<>]+$#i', $u)) {
+            $links[] = $u;
+        }
+    }
+    if ($links) {
+        $node['sameAs'] = $links;
+    }
+    return $node;
 }
 
 /** Escape text for an iCalendar property value. */
@@ -545,8 +654,10 @@ function event_card(array $ev, int $i = 0): string
     } elseif (event_is_past($ev) && $type !== 'awareness_day') {
         $flag = '<span class="ev-flag">Past event</span>';
     }
+    $sizes = '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px';
     return '<article class="event-card ev-card reveal tilt" style="--d:' . ($i % 4) . '">'
-        . '<a class="event-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($ev['image'] ?? null, $fallback)) . '"' . image_srcset_attr($ev['image'] ?? null, '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px') . ' alt="" loading="lazy" width="480" height="300"></a>'
+        . '<a class="event-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true">' . content_card_picture($ev['image'] ?? null, $fallback, 480, 300, $sizes,
+            '<img src="' . e(image_url($ev['image'] ?? null, $fallback)) . '"' . image_srcset_attr($ev['image'] ?? null, $sizes) . ' alt="" loading="lazy" width="480" height="300">') . '</a>'
         . content_date_badge((string) $ev['start_datetime']) . $flag
         . '<div class="event-body"><span class="ev-chip ev-type-' . e($type) . '">' . icon(EVENT_TYPE_ICONS[$type] ?? 'calendar') . e(event_type_label($type)) . '</span>'
         . '<h3><a href="' . e($link) . '">' . e($ev['title']) . '</a></h3>'
@@ -561,8 +672,10 @@ function blog_card(array $post, int $i = 0): string
     $link = post_url($post['slug']);
     $cat = (string) ($post['category'] ?? 'blog');
     $minutes = isset($post['content']) ? post_reading_time($post['content']) : 0;
+    $sizes = '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px';
     return '<article class="blog-card post-card reveal tilt" style="--d:' . ($i % 4) . '">'
-        . '<a class="blog-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($post['image'] ?? null, CONTENT_FALLBACK_IMAGE)) . '"' . image_srcset_attr($post['image'] ?? null, '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px') . ' alt="" loading="lazy" width="480" height="300"></a>'
+        . '<a class="blog-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true">' . content_card_picture($post['image'] ?? null, CONTENT_FALLBACK_IMAGE, 480, 300, $sizes,
+            '<img src="' . e(image_url($post['image'] ?? null, CONTENT_FALLBACK_IMAGE)) . '"' . image_srcset_attr($post['image'] ?? null, $sizes) . ' alt="" loading="lazy" width="480" height="300">') . '</a>'
         . '<span class="post-chip post-chip-' . e($cat) . '">' . e(BLOG_CATEGORIES[$cat] ?? 'Blog') . '</span>'
         . '<div class="blog-body"><div class="post-meta"><span>' . icon('calendar') . '<time datetime="' . e(format_date($post['published_at'] ?? null, 'Y-m-d')) . '">' . e(format_date($post['published_at'] ?? null)) . '</time></span>'
         . ($minutes ? '<span>' . icon('clock') . $minutes . ' min read</span>' : '') . '</div>'
@@ -577,7 +690,8 @@ function blog_card_featured(array $post): string
     $link = post_url($post['slug']);
     $cat = (string) ($post['category'] ?? 'blog');
     return '<article class="post-featured reveal">'
-        . '<a class="post-featured-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($post['image'] ?? null, CONTENT_FALLBACK_IMAGE)) . '"' . image_srcset_attr($post['image'] ?? null, '(max-width: 991px) 100vw, 720px') . ' alt="" width="720" height="450"></a>'
+        . '<a class="post-featured-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true">' . content_card_picture($post['image'] ?? null, CONTENT_FALLBACK_IMAGE, 720, 450, '(max-width: 991px) 100vw, 720px',
+            '<img src="' . e(image_url($post['image'] ?? null, CONTENT_FALLBACK_IMAGE)) . '"' . image_srcset_attr($post['image'] ?? null, '(max-width: 991px) 100vw, 720px') . ' alt="" width="720" height="450">', false) . '</a>'
         . '<div class="post-featured-body"><div class="post-meta"><span class="post-chip post-chip-' . e($cat) . '">' . e(BLOG_CATEGORIES[$cat] ?? 'Blog') . '</span>'
         . '<span class="featured-label">' . icon('clock') . 'Latest</span></div>'
         . '<h2><a href="' . e($link) . '">' . e($post['title']) . '</a></h2>'
@@ -593,7 +707,8 @@ function story_card(array $s, int $i = 0): string
     $link = story_url($s['slug']);
     $who = trim(implode(' · ', array_filter([(string) ($s['person_name'] ?? ''), (string) ($s['location'] ?? '')])));
     return '<article class="story-card reveal tilt" style="--d:' . ($i % 4) . '">'
-        . '<a class="story-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($s['image'] ?? null, 'assets/images/hero/community.svg')) . '"' . image_srcset_attr($s['image'] ?? null, '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px') . ' alt="" loading="lazy" width="480" height="320"></a>'
+        . '<a class="story-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true">' . content_card_picture($s['image'] ?? null, 'assets/images/hero/community.svg', 480, 320, '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px',
+            '<img src="' . e(image_url($s['image'] ?? null, 'assets/images/hero/community.svg')) . '"' . image_srcset_attr($s['image'] ?? null, '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px') . ' alt="" loading="lazy" width="480" height="320">') . '</a>'
         . '<div class="story-body"><span class="story-mark" aria-hidden="true">&ldquo;</span>'
         . '<h3><a href="' . e($link) . '">' . e($s['title']) . '</a></h3>'
         . '<p>' . e(excerpt((string) ($s['excerpt'] ?? ''), 150)) . '</p>'
@@ -609,11 +724,15 @@ function gallery_item_html(array $g, int $i = 0): string
         return '';
     }
     [$w, $h] = content_image_size($path);
-    $alt = trim((string) ($g['description'] ?? '')) !== '' ? (string) $g['description'] : (string) $g['title'];
+    // alt: the item's description, else the media library's alt text for the file, else its title
+    $alt = trim((string) ($g['description'] ?? '')) !== '' ? (string) $g['description']
+        : (function_exists('seo_image_alt') ? seo_image_alt($path, (string) $g['title']) : (string) $g['title']);
     $caption = $g['title'] . (!empty($g['description']) && $g['description'] !== $g['title'] ? ' — ' . $g['description'] : '');
     $cat = (string) ($g['category'] ?? 'general');
+    $sizes = '(max-width: 767px) 50vw, (max-width: 1199px) 33vw, 300px';
+    $legacy = '<img src="' . e(url($path)) . '"' . image_srcset_attr($path, $sizes) . ' alt="' . e($alt) . '" loading="lazy" decoding="async"' . ($w ? ' width="' . $w . '" height="' . $h . '"' : '') . '>';
     return '<a class="gallery-item m-item reveal" style="--d:' . ($i % 4) . '" href="' . e(url($path)) . '" data-lightbox data-category="' . e($cat) . '" data-caption="' . e($caption) . '">'
-        . '<img src="' . e(url($path)) . '"' . image_srcset_attr($path, '(max-width: 767px) 50vw, (max-width: 1199px) 33vw, 300px') . ' alt="' . e($alt) . '" loading="lazy" decoding="async"' . ($w ? ' width="' . $w . '" height="' . $h . '"' : '') . '>'
+        . (function_exists('cms_picture') ? cms_picture($path, $alt, ['fallback' => '', 'width' => $w ?: null, 'height' => $h ?: null, 'sizes' => $sizes], $legacy) : $legacy)
         . '<span class="m-caption"><strong>' . e($g['title']) . '</strong><small>' . e(GALLERY_CATEGORIES[$cat] ?? humanize($cat)) . '</small></span>'
         . '<span class="m-zoom" aria-hidden="true">' . icon('search') . '</span></a>';
 }
@@ -636,6 +755,52 @@ function video_item_html(array $g, int $i = 0): string
         . '<span class="video-play" aria-hidden="true"><svg viewBox="0 0 68 48" width="68" height="48" focusable="false"><path class="vp-bg" d="M66.5 7.7a8.5 8.5 0 0 0-6-6C55.3.3 34 .3 34 .3s-21.3 0-26.5 1.4a8.5 8.5 0 0 0-6 6C.1 13 .1 24 .1 24s0 11 1.4 16.3a8.5 8.5 0 0 0 6 6C12.7 47.7 34 47.7 34 47.7s21.3 0 26.5-1.4a8.5 8.5 0 0 0 6-6C67.9 35 67.9 24 67.9 24s0-11-1.4-16.3z"/><path d="M45 24 27 14v20z" fill="#fff"/></svg></span>'
         . '</a></div><figcaption><span class="video-cat">' . e(GALLERY_CATEGORIES[$cat] ?? humanize($cat)) . '</span><strong>' . e($g['title']) . '</strong>'
         . (!empty($g['description']) ? '<span>' . e($g['description']) . '</span>' : '') . '</figcaption></figure>';
+}
+
+/**
+ * Structured data for a gallery page, as a partial WebPage node that the SEO core merges into the page's #webpage
+ * (call seo_graph_add() with it BEFORE page_header()). Only real, shown rows: published items with consent recorded.
+ *  - photos: ImageGallery with associatedMedia = up to 30 ImageObjects (file URL, title, caption = alt text, size);
+ *  - videos: CollectionPage with hasPart = VideoObjects, but only for videos whose publication date on YouTube an
+ *    editor entered (gallery_items.video_published_on, CRITIC C9); the date the row was added here is never used.
+ * Returns null when there is nothing to describe. $pageUrl = absolute URL of the gallery page (for the @ids).
+ */
+function gallery_schema_node(array $items, string $mediaType, string $pageUrl): ?array
+{
+    $nodes = [];
+    foreach ($items as $g) {
+        if (($g['status'] ?? '') !== 'published' || (int) ($g['consent_confirmed'] ?? 0) !== 1 || ($g['media_type'] ?? '') !== $mediaType) {
+            continue;
+        }
+        if ($mediaType === 'image') {
+            $path = (string) ($g['image_path'] ?? '');
+            if (count($nodes) >= 30 || $path === '' || strpos($path, '..') !== false || !is_file(ROOT_PATH . '/' . $path)) {
+                continue;
+            }
+            [$w, $h] = content_image_size($path);
+            $caption = trim((string) ($g['description'] ?? '')) !== '' ? (string) $g['description']
+                : (function_exists('seo_image_alt') ? seo_image_alt($path, (string) $g['title']) : (string) $g['title']);
+            $nodes[] = array_filter(['@type' => 'ImageObject', 'contentUrl' => abs_url($path), 'name' => (string) $g['title'], 'caption' => $caption,
+                'width' => $w ?: null, 'height' => $h ?: null], function ($v) { return $v !== null && $v !== ''; });
+            continue;
+        }
+        $id = youtube_id((string) ($g['video_url'] ?? ''));
+        $date = trim((string) ($g['video_published_on'] ?? ''));
+        $ts = preg_match('/^\d{4}-\d{2}-\d{2}/', $date) ? strtotime(substr($date, 0, 10)) : false;
+        if ($id === '' || !$ts || $ts > time()) {
+            continue;
+        }
+        $nodes[] = ['@type' => 'VideoObject', '@id' => $pageUrl . '#video-' . (int) $g['id'], 'name' => (string) $g['title'],
+            'description' => trim((string) ($g['description'] ?? '')) !== '' ? (string) $g['description'] : (string) $g['title'],
+            'thumbnailUrl' => 'https://i.ytimg.com/vi/' . $id . '/hqdefault.jpg', 'embedUrl' => 'https://www.youtube-nocookie.com/embed/' . $id,
+            'uploadDate' => date('Y-m-d', $ts), 'inLanguage' => 'en-IN'];
+    }
+    if (!$nodes) {
+        return null;
+    }
+    return $mediaType === 'image'
+        ? ['@type' => 'ImageGallery', 'associatedMedia' => $nodes]
+        : ['@type' => 'CollectionPage', 'hasPart' => $nodes];
 }
 
 /** Compact awareness-day row (calendar lists, section). */
@@ -683,6 +848,7 @@ function section_events_list(array $s, array $items, array $set, array $page): s
     if (!$rows) {
         return '';
     }
+    content_prime_images(array_column($rows, 'image'));
     $html = '<div class="card-grid">';
     foreach ($rows as $i => $ev) {
         $html .= event_card($ev, $i);
@@ -723,6 +889,7 @@ function section_posts_list(array $s, array $items, array $set, array $page): st
     if (!$rows) {
         return '';
     }
+    content_prime_images(array_column($rows, 'image'));
     $html = '<div class="card-grid">';
     foreach ($rows as $i => $p) {
         $html .= blog_card($p, $i);
@@ -752,6 +919,7 @@ function section_stories_list(array $s, array $items, array $set, array $page): 
     if (!$rows) {
         return '';
     }
+    content_prime_images(array_column($rows, 'image'));
     $html = '<div class="card-grid">';
     foreach ($rows as $i => $st) {
         $html .= story_card($st, $i);
@@ -790,6 +958,7 @@ function section_gallery_strip(array $s, array $items, array $set, array $page):
         $params[] = $cat;
     }
     $rows = db_rows("SELECT * FROM gallery_items WHERE $where ORDER BY sort_order, id DESC LIMIT $limit", $params);
+    content_prime_images(array_column($rows, 'image_path'));
     $html = '';
     foreach ($rows as $i => $g) {
         $html .= $media === 'video' ? video_item_html($g, $i) : gallery_item_html($g, $i);
@@ -833,4 +1002,20 @@ function section_awareness_days(array $s, array $items, array $set, array $page)
         $html .= '<div class="section-more"><a class="btn btn-outline" href="' . e(page_url('awareness-calendar')) . '">' . icon('calendar') . 'Open the awareness calendar</a></div>';
     }
     return $html;
+}
+
+// ---------------------------------------------------------------------
+// Migrations
+// ---------------------------------------------------------------------
+
+/**
+ * Date on which a gallery video was published on YouTube, entered by an editor (copied from YouTube). VideoObject
+ * markup on /video-gallery/ is printed only for videos that have it (CRITIC C9: the date the row was added to this site
+ * is not an upload date). Additive; nothing is filled in automatically.
+ */
+function migration_866_seo_gallery_video_date(): void
+{
+    if (table_exists('gallery_items')) {
+        add_column_if_missing('gallery_items', 'video_published_on', 'DATE NULL DEFAULT NULL AFTER video_url');
+    }
 }

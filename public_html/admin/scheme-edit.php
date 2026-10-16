@@ -103,6 +103,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         admin_log('scheme_created', 'Scheme #' . $id . ' "' . $data['title'] . '" created as ' . $data['status']);
         flash('success', 'Scheme created' . ($data['status'] === 'published' ? ' and published.' : ' as a ' . $data['status'] . '.'));
     }
+    // SEO: a changed address of a published scheme gets a one-hop 301; a new or moved address is released from old redirects
+    if ($scheme && $scheme['slug'] !== $slug && $scheme['status'] === 'published' && function_exists('seo_slug_changed')) {
+        $moved = seo_slug_changed('scheme', scheme_url($scheme['slug']), scheme_url($slug));
+        if (!empty($moved['message'])) {
+            flash($moved['ok'] ? 'info' : 'warning', (string) $moved['message']);
+        }
+    } elseif ((!$scheme || $scheme['slug'] !== $slug) && function_exists('seo_slug_claim')) {
+        seo_slug_claim(scheme_url($slug));
+    }
+    if ($data['status'] === 'published' && function_exists('seo_indexnow_ping')) {
+        seo_indexnow_ping([scheme_url($slug)]);   // only when IndexNow is switched on (off by default)
+    }
     admin_redirect('scheme-edit.php?id=' . $id);
 }
 
@@ -120,7 +132,8 @@ admin_page_start($scheme ? 'Edit scheme' : 'New scheme');
 <div class="page-actions">
     <a class="btn btn-ghost btn-sm" href="<?= e(admin_url('schemes.php')) ?>"><?= icon('chevron-left') ?>All schemes</a>
     <?php if ($scheme): ?>
-        <div class="actions"><a class="btn btn-ghost btn-sm" href="<?= e(scheme_url($scheme['slug']) . ($scheme['status'] !== 'published' ? '?preview=1' : '')) ?>" target="_blank" rel="noopener"><?= icon('external') ?><?= $scheme['status'] === 'published' ? 'View page' : 'Preview' ?></a></div>
+        <div class="actions"><a class="btn btn-ghost btn-sm" href="<?= e(scheme_url($scheme['slug']) . ($scheme['status'] !== 'published' ? '?preview=1' : '')) ?>" target="_blank" rel="noopener"><?= icon('external') ?><?= $scheme['status'] === 'published' ? 'View page' : 'Preview' ?></a>
+            <?php if (function_exists('seo_entity_edit_url') && admin_can('seo.manage')): ?><a class="btn btn-ghost btn-sm" href="<?= e(seo_entity_edit_url('scheme', (int) $scheme['id'])) ?>"><?= icon('search') ?>SEO settings</a><?php endif; ?></div>
     <?php endif; ?>
 </div>
 

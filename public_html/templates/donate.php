@@ -307,7 +307,7 @@ if (isset($_GET['pay'])) {
                     <div class="alert alert-warning mb-2" role="status"><?= icon('alert-circle') ?><div>Your previous attempt did not go through<?= $donation['failure_reason'] ? ': ' . e($donation['failure_reason']) : '' ?>. You can try again.</div></div>
                 <?php endif; ?>
                 <?php if ($gateway === 'cashfree'): ?>
-                    <button id="cf-pay" class="btn btn-donate btn-lg btn-block" type="button"<?= isset($_GET['closed']) ? '' : ' data-autoopen' ?>
+                    <button id="cf-pay" class="btn btn-donate btn-lg btn-block" type="button" data-dl-event="donation_checkout_open" data-dl-gateway="cashfree" data-dl-location="payment_step"<?= isset($_GET['closed']) ? '' : ' data-autoopen' ?>
                             data-session="<?= e($cfSession) ?>"
                             data-mode="<?= e(cashfree_env()) ?>">
                         <?= icon('lock') ?>Pay <?= e(money($donation['amount'], true)) ?> securely
@@ -321,7 +321,7 @@ if (isset($_GET['pay'])) {
                         <input type="hidden" name="token" value="<?= e($donation['access_token']) ?>">
                     </form>
                 <?php else: ?>
-                    <button id="rzp-pay" class="btn btn-donate btn-lg btn-block" type="button" data-autoopen
+                    <button id="rzp-pay" class="btn btn-donate btn-lg btn-block" type="button" data-autoopen data-dl-event="donation_checkout_open" data-dl-gateway="razorpay" data-dl-location="payment_step"
                             data-key="<?= e(razorpay_key_id()) ?>"
                             data-amount="<?= to_paise($donation['amount']) ?>"
                             data-currency="<?= e($donation['currency']) ?>"
@@ -562,7 +562,7 @@ render_sections($page, function () use ($online, $gateways, $selectedGateway, $b
                             <input type="hidden" name="gateway" value="<?= e($gateways[0] ?? 'razorpay') ?>">
                         <?php endif; ?>
                         <div class="form-actions">
-                            <button class="btn btn-donate btn-lg btn-block" type="submit" data-loading="Preparing secure payment…"><?= icon('lock') ?>Proceed to pay <span data-amount-preview></span></button>
+                            <button class="btn btn-donate btn-lg btn-block" type="submit" data-loading="Preparing secure payment…" data-dl-event="donation_checkout_open" data-dl-location="donate_form"<?= count($gateways) === 1 ? ' data-dl-gateway="' . e($gateways[0]) . '"' : '' ?>><?= icon('lock') ?>Proceed to pay <span data-amount-preview></span></button>
                         </div>
                         <?php if (!$user): ?>
                             <p class="form-note"><?= icon('info') ?><span><a href="<?= e(page_url('login', ['next' => '/donate/'])) ?>">Log in</a> or <a href="<?= e(page_url('register')) ?>">create an account</a> to see all your donations and receipts in one place. You can also donate as a guest.</span></p>

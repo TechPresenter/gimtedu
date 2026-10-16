@@ -44,7 +44,8 @@ if ($segments) {
 
     // View counter: real visitors only (no bots, no staff), once per session
     if ($visible && !content_is_bot() && !is_staff() && empty($_SESSION['viewed_posts'][$post['id']])) {
-        db_query('UPDATE blog_posts SET views = views + 1 WHERE id = ?', [$post['id']]);
+        // updated_at = updated_at: the column has ON UPDATE CURRENT_TIMESTAMP, and a view is not an edit (it was shown as "Updated")
+        db_query('UPDATE blog_posts SET views = views + 1, updated_at = updated_at WHERE id = ?', [$post['id']]);
         $_SESSION['viewed_posts'][$post['id']] = 1;
     }
 
@@ -65,6 +66,14 @@ if ($segments) {
     $next = $visible ? db_row('SELECT slug, title FROM blog_posts WHERE ' . post_visible_sql() . ' AND (published_at > ? OR (published_at = ? AND id > ?)) ORDER BY published_at ASC, id ASC LIMIT 1',
         [$post['published_at'], $post['published_at'], $post['id']]) : null;
 
+    // E-E-A-T (WP-6): accurate dates (an "Updated" date only for an edit an editor marked as substantive), author /
+    // reviewer Person nodes and sources; added to the graph before page_header() prints it
+    $eeatDates = function_exists('seo_eeat_content_dates') ? seo_eeat_content_dates('post', (int) $post['id'], $post) : ['published' => $published, 'updated' => null];
+    $articleSchema = content_article_schema($post, $canonical, $post['author_name'] ?: null);
+    if (function_exists('seo_eeat_article')) {
+        $articleSchema = seo_eeat_article($articleSchema, 'post', (int) $post['id'], $post, $canonical);
+    }
+    content_prime_images(array_merge([(string) $post['image']], array_column($related, 'image')));
     page_header($page, [
         'title' => $post['title'],
         'subtitle' => excerpt($post['excerpt'], 200),
@@ -77,7 +86,7 @@ if ($segments) {
         'crumbs' => $crumbs,
         'noindex' => !$visible,
         'buttons' => [],
-        'schema' => [content_article_schema($post, $canonical, $post['author_name'] ?: null)],
+        'schema' => [$articleSchema],
     ]);
     ?>
     <section class="section article-section">
@@ -90,18 +99,18 @@ if ($segments) {
                 <article class="article-main">
                     <div class="article-meta">
                         <span class="post-chip post-chip-<?= e($post['category']) ?>"><?= e(BLOG_CATEGORIES[$post['category']] ?? 'Blog') ?></span>
-                        <span><?= icon('user') ?><?= e($post['author_name'] ?: site_name()) ?></span>
+                        <span><?= icon('user') ?><?= e(function_exists('seo_eeat_author_name') ? seo_eeat_author_name('post', (int) $post['id'], $post['author_name']) : ($post['author_name'] ?: site_name())) ?></span>
                         <span><?= icon('calendar') ?><time datetime="<?= e(date('c', strtotime($published))) ?>"><?= e(format_date($published, 'd F Y')) ?></time></span>
                         <span><?= icon('clock') ?><?= $minutes ?> min read</span>
-                        <?php if ($post['updated_at'] && strtotime($post['updated_at']) > strtotime($published) + 86400): ?>
-                            <span class="muted">Updated <?= e(format_date($post['updated_at'])) ?></span>
-                        <?php endif; ?>
+                        <?= function_exists('seo_dates_line') ? seo_dates_line($published, $eeatDates['updated'], ['wrap' => 'none', 'show_published' => false]) : '' ?>
                     </div>
-                    <?php if ($post['image'] && is_file(ROOT_PATH . '/' . $post['image'])): [$iw, $ih] = content_image_size($post['image']); ?>
-                        <figure class="article-hero"><img src="<?= e(url($post['image'])) ?>" alt="<?= e($post['title']) ?>"<?= $iw ? ' width="' . $iw . '" height="' . $ih . '"' : '' ?> fetchpriority="high"></figure>
+                    <?php if ($post['image'] && is_file(ROOT_PATH . '/' . $post['image'])): ?>
+                        <figure class="article-hero"><?= content_hero_picture($post['image'], $post['title'], '(max-width: 991px) calc(100vw - 40px), 820px') ?></figure>
                     <?php endif; ?>
-                    <div class="prose article-prose"><?= $post['content'] ?></div>
+                    <div class="prose article-prose"><?= content_body_html((string) $post['content']) ?></div>
+                    <?= function_exists('seo_review_line') ? seo_review_line('post', (int) $post['id']) . seo_sources_list('post', (int) $post['id']) : '' ?>
                     <?= content_program_box($post['program_id'] ? (int) $post['program_id'] : null, 'Read more about our programme') ?>
+                    <?= function_exists('seo_author_box') ? seo_author_box('post', (int) $post['id'], $post['author_name']) : '' ?>
                     <div class="article-foot">
                         <?= share_buttons($canonical, $post['title']) ?>
                     </div>
@@ -217,6 +226,7 @@ render_sections($page, function () use ($page, $posts, $p, $category, $categorie
             echo empty_state('Articles and news from our work will be published here soon. Subscribe to hear when we post.', 'Get updates', '/newsletter/');
         }
     } else {
+        content_prime_images(array_column($posts, 'image'));
         $list = $posts;
         if ($p['page'] === 1 && $q === '' && count($list) > 1) {
             echo blog_card_featured(array_shift($list));

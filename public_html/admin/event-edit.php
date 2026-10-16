@@ -326,6 +326,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         'mode' => 'in:in_person,online,hybrid',
         'location' => 'max:200',
         'venue_address' => 'max:300',
+        'venue_locality' => 'max:100',
+        'venue_region' => 'in:' . implode(',', indian_states()),
+        'venue_postcode' => 'pincode',
         'map_url' => 'max:500',
         'meeting_url' => 'max:500',
         'meeting_info' => 'text|max:500',
@@ -348,6 +351,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     ], ['event_type' => 'Type', 'category_id' => 'Category', 'program_id' => 'Programme', 'start_datetime' => 'Start', 'end_datetime' => 'End',
         'registration_opens_at' => 'Registration opens', 'registration_deadline' => 'Registration deadline', 'team_size_min' => 'Minimum team size',
         'team_size_max' => 'Maximum team size', 'fee_amount' => 'Participation fee', 'map_url' => 'Google Maps link', 'meeting_url' => 'Meeting link',
+        'venue_locality' => 'City / town', 'venue_region' => 'State / UT', 'venue_postcode' => 'PIN code',
         'publish_at' => 'Publish at', 'meta_title' => 'Search title', 'meta_description' => 'Search description']);
     $isAwareness = $data['event_type'] === 'awareness_day';
     $mode = $isAwareness ? 'in_person' : ($data['mode'] !== '' ? $data['mode'] : 'in_person');
@@ -498,6 +502,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         'status' => $status, 'publish_at' => $status === 'scheduled' ? $publishAt : null,
         'meta_title' => $data['meta_title'] !== '' ? $data['meta_title'] : null, 'meta_description' => $data['meta_description'] !== '' ? $data['meta_description'] : null,
     ];
+    if (column_exists('events', 'venue_locality')) {
+        // structured venue (city, state, PIN) for the visible address and the Event structured data (migration 634)
+        $venue = !$isAwareness && $mode !== 'online';
+        $row['venue_locality'] = $venue && $data['venue_locality'] !== '' ? $data['venue_locality'] : null;
+        $row['venue_region'] = $venue && $data['venue_region'] !== '' ? $data['venue_region'] : null;
+        $row['venue_postcode'] = $venue && $data['venue_postcode'] !== '' ? $data['venue_postcode'] : null;
+    }
     if (column_exists('events', 'cancel_reason')) {
         if ($status === 'cancelled' && (!$event || $event['status'] !== 'cancelled')) {
             $row['cancelled_at'] = date('Y-m-d H:i:s');
@@ -535,6 +546,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         }
     } else {
         admin_log('event_created', ($isAwareness ? 'Awareness day' : 'Event') . ' #' . $id . ' "' . $data['title'] . '" created (' . $status . ')');
+    }
+    // SEO: after an address change of a public event (slug, or type /events/ <-> /hackathons/) older redirects with
+    // fragments or absolute URLs and menu links are re-pointed too, and loops are reported; a new address is released
+    $newUrl = event_url(['slug' => $row['slug'], 'event_type' => $row['event_type']]);
+    if ($event && event_url($event) !== $newUrl && in_array((string) $event['status'], ['published', 'cancelled'], true) && function_exists('seo_slug_changed')) {
+        $seoMove = seo_slug_changed('event', event_url($event), $newUrl);
+        if (!$moved && !empty($seoMove['ok']) && !empty($seoMove['source'])) {
+            $notes[] = (string) $seoMove['message'];
+        } elseif (!empty($seoMove['menus'])) {
+            $notes[] = (int) $seoMove['menus'] . ' menu link' . ((int) $seoMove['menus'] === 1 ? ' was' : 's were') . ' updated to the new address.';
+        }
+        if (!empty($seoMove['loops'])) {
+            $notes[] = 'Warning: the redirects list contains a loop - please check Redirects.';
+        }
+    } elseif ((!$event || event_url($event) !== $newUrl) && function_exists('seo_slug_claim')) {
+        seo_slug_claim($newUrl);
+    }
+    if (!$isAwareness && $mode !== 'online' && in_array($status, ['published', 'scheduled'], true) && column_exists('events', 'venue_locality')
+        && ($row['venue_locality'] === null || $row['venue_region'] === null)) {
+        $notes[] = 'Tip: add the city and state of the venue (and the PIN code) so search engines can show where the event takes place.';
+    }
+    if ($status === 'published' && function_exists('seo_indexnow_ping')) {
+        seo_indexnow_ping([$newUrl]);   // only when IndexNow is switched on (off by default)
     }
     if ($oldImage && $oldImage !== $image) {
         content_delete_image($oldImage);
@@ -691,6 +725,15 @@ admin_page_start($title, array_values(array_filter([
                         <span class="help">Shown on cards. For online events "Online" is used when empty.</span><?= field_error('location') ?></div>
                     <div class="form-group full" data-ph-when="mode=in_person|hybrid" data-ph-unless="event_type=awareness_day"><label for="venue_address">Full venue address</label>
                         <input type="text" id="venue_address" name="venue_address" maxlength="300" value="<?= e($v('venue_address')) ?>" placeholder="Building, street, area, city, PIN"><?= field_error('venue_address') ?></div>
+                    <?php if (column_exists('events', 'venue_locality')): ?>
+                        <div class="form-group" data-ph-when="mode=in_person|hybrid" data-ph-unless="event_type=awareness_day"><label for="venue_locality">City / town</label>
+                            <input type="text" id="venue_locality" name="venue_locality" maxlength="100" value="<?= e($v('venue_locality')) ?>" placeholder="e.g. New Delhi" autocomplete="off"><?= field_error('venue_locality') ?></div>
+                        <div class="form-group" data-ph-when="mode=in_person|hybrid" data-ph-unless="event_type=awareness_day"><label for="venue_region">State / Union Territory</label>
+                            <select id="venue_region" name="venue_region"><?= state_options((string) $v('venue_region')) ?></select><?= field_error('venue_region') ?></div>
+                        <div class="form-group" data-ph-when="mode=in_person|hybrid" data-ph-unless="event_type=awareness_day"><label for="venue_postcode">PIN code</label>
+                            <input type="text" id="venue_postcode" name="venue_postcode" maxlength="6" inputmode="numeric" pattern="[1-9][0-9]{5}" value="<?= e($v('venue_postcode')) ?>" placeholder="e.g. 110092" autocomplete="off">
+                            <span class="help">City, state and PIN code are shown with the venue and help search engines show where the event takes place.</span><?= field_error('venue_postcode') ?></div>
+                    <?php endif; ?>
                     <div class="form-group full" data-ph-when="mode=in_person|hybrid" data-ph-unless="event_type=awareness_day"><label for="map_url">Google Maps link</label>
                         <input type="url" id="map_url" name="map_url" maxlength="500" value="<?= e($v('map_url')) ?>" placeholder="https://maps.app.goo.gl/…">
                         <span class="help">Optional. Without it visitors get a Maps search for the venue.</span><?= field_error('map_url') ?></div>
@@ -817,6 +860,7 @@ admin_page_start($title, array_values(array_filter([
                     <div class="form-actions" style="margin-top:14px">
                         <button class="btn btn-primary" type="submit"><?= icon('check') ?>Save</button>
                         <?php if ($event): ?><a class="btn btn-ghost" href="<?= e(event_url($event)) ?>" target="_blank" rel="noopener"><?= icon('eye') ?><?= $isPublic ? 'View' : 'Preview' ?></a><?php endif; ?>
+                        <?php if ($event && function_exists('seo_entity_edit_url') && admin_can('seo.manage')): ?><a class="btn btn-ghost btn-sm" href="<?= e(seo_entity_edit_url('event', (int) $event['id'])) ?>"><?= icon('search') ?>SEO settings</a><?php endif; ?>
                     </div>
                 </section>
                 <section class="panel">

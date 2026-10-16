@@ -62,8 +62,10 @@ if ($method === 'POST' && $sub !== '') {
 }
 $category = programhub_event_category($event);
 $eventsPage = get_page('events');
-$crumbsBase = in_array($event['event_type'], HACKATHON_EVENT_TYPES, true) && $category
-    ? [[get_page('programs')['title'] ?? 'Programmes', page_url('programs')], [$category['title'], program_category_url($category)]]
+// Breadcrumb: Home > Programs & Events > Category > Event (the category page lives under /programs/, CRITIC C16);
+// events without a category: Home > Events > Event
+$crumbsBase = $category && get_page('programs')
+    ? [['Programs & Events', page_url('programs')], [$category['title'], program_category_url($category)]]
     : array_merge([[$eventsPage['title'] ?? 'Events', page_url('events')]], $category ? [[$category['title'], program_category_url($category)]] : []);
 $privateHeaders = function (): void {
     header('Cache-Control: no-store, private');
@@ -199,7 +201,7 @@ if ($sub === 'join') {
             if ($mode !== 'online') {
                 $map = programhub_map_url($event);
                 echo '<div class="ph-join-venue"><h3>' . icon('map-pin') . 'Venue</h3><p><strong>' . e(trim((string) $event['location']) ?: 'Venue to be announced') . '</strong>'
-                    . (trim((string) ($event['venue_address'] ?? '')) !== '' ? '<br>' . e((string) $event['venue_address']) : '') . '</p>'
+                    . (programhub_event_address($event) !== '' ? '<br>' . e(programhub_event_address($event)) : '') . '</p>'
                     . ($map !== '' ? '<p><a href="' . e($map) . '" target="_blank" rel="noopener noreferrer">' . icon('map-pin') . 'Open in Google Maps</a></p>' : '') . '</div>';
             }
             $files = programhub_resources_html($event, $access);
@@ -252,7 +254,7 @@ $report = $isAwareness || !$state['is_past'] ? '' : programhub_report_html($even
 $materials = $isAwareness ? '' : programhub_resources_html($event, $access, ['material', 'promo', 'slides', 'rules', 'other']);
 $reportFiles = $isAwareness ? '' : programhub_resources_html($event, $access, ['report']);
 $faqs = $isAwareness ? '' : programhub_event_faqs_html($event);
-$guidelines = trim(strip_tags((string) ($event['guidelines'] ?? ''))) !== '' ? clean_html((string) $event['guidelines']) : '';
+$guidelines = trim(strip_tags((string) ($event['guidelines'] ?? ''))) !== '' ? programhub_rich_images(clean_html((string) $event['guidelines'])) : '';
 $map = $isAwareness ? '' : programhub_map_url($event);
 $interestUrl = $category && (int) $category['interest_enabled'] === 1 ? program_category_url($category) . '#register' : '';
 if ($isAwareness) {
@@ -282,7 +284,7 @@ page_header($page, [
     'crumbs' => $crumbs,
     'noindex' => !$public,
     'buttons' => $bannerButtons,
-    'schema' => [event_schema($event, $canonical)],
+    'schema' => [programhub_event_schema(event_schema($event, $canonical), $event, $state)],
     'body_class' => 'ph-event-page',
 ]);
 
@@ -300,10 +302,14 @@ $heading = function (string $id, string $title, string $iconName): string {
         <?php elseif ($state['is_past'] && !$isAwareness): ?>
             <div class="alert alert-info mb-3" role="status"><?= icon('info') ?><div>This event took place on <?= e(date('d F Y', strtotime($event['start_datetime']))) ?>.<?= $related ? ' See our <a href="#related">upcoming events</a>.' : ' See our <a href="' . e(events_list_url()) . '">upcoming events</a>.' ?></div></div>
         <?php endif; ?>
+        <?php if ($isAwareness && function_exists('seo_awareness_notice') && ($awNotice = seo_awareness_notice($event)) !== ''): ?>
+            <div class="mb-3"><?= $awNotice ?></div>
+        <?php endif; ?>
         <div class="event-layout ph-event-layout">
             <div class="event-main">
                 <?php if ($event['image'] && is_file(ROOT_PATH . '/' . $event['image'])): [$iw, $ih] = content_image_size($event['image']); ?>
-                    <figure class="article-hero ph-poster"><img src="<?= e(url($event['image'])) ?>" alt="<?= e($event['title']) ?>"<?= $iw ? ' width="' . $iw . '" height="' . $ih . '"' : '' ?> fetchpriority="high"></figure>
+                    <figure class="article-hero ph-poster"><?= program_picture($event['image'], (string) $event['title'], ['fetchpriority' => 'high', 'sizes' => '(max-width: 900px) 100vw, 800px'] + ($iw ? ['width' => $iw, 'height' => $ih] : []),
+                        '<img src="' . e(url($event['image'])) . '" alt="' . e($event['title']) . '"' . ($iw ? ' width="' . $iw . '" height="' . $ih . '"' : '') . ' fetchpriority="high">') ?></figure>
                 <?php endif; ?>
                 <div class="ev-facts-strip">
                     <div><?= icon('calendar') ?><span><small>Date</small><strong><?= e($isAwareness || event_is_all_day($event) ? event_when($event, true) : date('l, d F Y', strtotime($event['start_datetime']))) ?></strong></span></div>
@@ -324,7 +330,7 @@ $heading = function (string $id, string $title, string $iconName): string {
 
                 <section class="ph-block" aria-labelledby="about-title">
                     <?= $heading('about', $isAwareness ? 'About this day' : 'About this event', 'info') ?>
-                    <div class="prose article-prose"><?= $event['description'] ?: '<p>' . e($event['summary']) . '</p>' ?></div>
+                    <div class="prose article-prose"><?= $event['description'] ? programhub_rich_images((string) $event['description']) : '<p>' . e($event['summary']) . '</p>' ?></div>
                 </section>
 
                 <?php if (!$isAwareness): ?>

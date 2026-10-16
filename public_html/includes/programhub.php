@@ -786,7 +786,7 @@ function programhub_send_participant_email(array $event, array $reg, string $kin
     $facts = '<table role="presentation" style="margin:14px 0;border-collapse:collapse;font-size:15px">'
         . '<tr><td style="padding:3px 14px 3px 0;color:#5e6e66">When</td><td style="padding:3px 0"><strong>' . e(event_when($event, true)) . '</strong></td></tr>'
         . '<tr><td style="padding:3px 14px 3px 0;color:#5e6e66">Where</td><td style="padding:3px 0">' . e(programhub_event_where($event, false))
-        . ($mode !== 'online' && trim((string) ($event['venue_address'] ?? '')) !== '' ? '<br>' . e((string) $event['venue_address']) : '') . '</td></tr>'
+        . ($mode !== 'online' && programhub_event_address($event) !== '' ? '<br>' . e(programhub_event_address($event)) : '') . '</td></tr>'
         . (!empty($reg['id']) ? '<tr><td style="padding:3px 14px 3px 0;color:#5e6e66">Reference</td><td style="padding:3px 0"><strong>' . e(programhub_registration_ref($reg)) . '</strong></td></tr>' : '')
         . '</table>';
     $intro = [
@@ -992,7 +992,7 @@ function programhub_google_calendar_url(array $ev): string
         $end = !empty($ev['end_datetime']) ? (int) strtotime((string) $ev['end_datetime']) : $start + 3600;
         $dates = gmdate('Ymd\THis\Z', $start) . '/' . gmdate('Ymd\THis\Z', $end);
     }
-    $where = event_mode($ev) === 'online' ? 'Online' : trim((string) $ev['location'] . (trim((string) ($ev['venue_address'] ?? '')) !== '' ? ', ' . $ev['venue_address'] : ''));
+    $where = event_mode($ev) === 'online' ? 'Online' : trim((string) $ev['location'] . (programhub_event_address($ev) !== '' ? ', ' . programhub_event_address($ev) : ''));
     return 'https://calendar.google.com/calendar/render?' . http_build_query([
         'action' => 'TEMPLATE', 'text' => (string) $ev['title'], 'dates' => $dates,
         'details' => trim((string) $ev['summary']) . "\n\nDetails: " . event_abs_url($ev), 'location' => $where,
@@ -1009,8 +1009,130 @@ function programhub_map_url(array $ev): string
     if ($map !== '' && preg_match('#^https://#i', $map) && filter_var($map, FILTER_VALIDATE_URL)) {
         return $map;
     }
-    $q = trim((string) (($ev['venue_address'] ?? '') ?: $ev['location']));
+    $q = trim(programhub_event_address($ev) ?: (string) $ev['location']);
     return $q !== '' && !preg_match('/^(online|to be announced|tba)$/i', $q) ? maps_search_url($q) : '';
+}
+
+// ----- Venue address, images and Event JSON-LD (SEO WP-7c) -----
+
+/** Structured venue fields of an event (migration 634): ['locality', 'region', 'postcode'], '' when not entered. */
+function programhub_event_venue_parts(array $ev): array
+{
+    $pin = preg_replace('/\s+/', '', (string) ($ev['venue_postcode'] ?? ''));
+    return [
+        'locality' => trim((string) ($ev['venue_locality'] ?? '')),
+        'region' => trim((string) ($ev['venue_region'] ?? '')),
+        'postcode' => preg_match('/^[1-9][0-9]{5}$/', $pin) ? $pin : '',
+    ];
+}
+
+/**
+ * Street part of the venue address when structured venue fields are entered: the editor's "full venue address" without
+ * trailing comma-separated parts that repeat the city, the state, the PIN code or "India"; else the venue name.
+ */
+function programhub_event_street(array $ev, array $parts): string
+{
+    $segs = array_values(array_filter(array_map('trim', explode(',', (string) preg_replace('/\s+/', ' ', (string) ($ev['venue_address'] ?? '')))), 'strlen'));
+    $drop = array_map('strtolower', array_filter([$parts['locality'], $parts['region'], 'India']));
+    $pinRe = $parts['postcode'] !== '' ? '/[\s\-]*' . substr($parts['postcode'], 0, 3) . '\s?' . substr($parts['postcode'], 3) . '$/' : '';
+    while ($segs) {
+        $i = count($segs) - 1;
+        if ($pinRe !== '') {
+            $segs[$i] = trim((string) preg_replace($pinRe, '', $segs[$i]));
+        }
+        if ($segs[$i] === '' || in_array(strtolower($segs[$i]), $drop, true)) {
+            array_pop($segs);
+            continue;
+        }
+        break;
+    }
+    return $segs ? implode(', ', $segs) : trim((string) ($ev['location'] ?? ''));
+}
+
+/**
+ * The venue address as shown to visitors. With structured venue fields: street, city, state PIN
+ * ("Community Hall, Laxmi Nagar, New Delhi, Delhi 110092"); otherwise the editor's full venue address as written.
+ * '' for online events and when nothing was entered.
+ */
+function programhub_event_address(array $ev): string
+{
+    if (event_mode($ev) === 'online') {
+        return '';
+    }
+    $parts = programhub_event_venue_parts($ev);
+    if ($parts['locality'] === '' && $parts['region'] === '' && $parts['postcode'] === '') {
+        return trim((string) preg_replace('/\s+/', ' ', (string) ($ev['venue_address'] ?? '')));
+    }
+    $street = trim((string) ($ev['venue_address'] ?? '')) !== '' ? programhub_event_street($ev, $parts) : '';
+    $tail = trim($parts['region'] . ' ' . $parts['postcode']);
+    return implode(', ', array_filter([$street, $parts['locality'], $tail], 'strlen'));
+}
+
+/**
+ * schema.org PostalAddress from the structured venue fields, or null when none was entered (event_schema() then keeps
+ * its own address parsed from the free text). Same parts as the visible address (programhub_event_address()).
+ */
+function programhub_event_postal_address(array $ev): ?array
+{
+    $parts = programhub_event_venue_parts($ev);
+    if ($parts['locality'] === '' && $parts['region'] === '' && $parts['postcode'] === '') {
+        return null;
+    }
+    return array_filter([
+        '@type' => 'PostalAddress', 'streetAddress' => programhub_event_street($ev, $parts), 'addressLocality' => $parts['locality'],
+        'addressRegion' => $parts['region'], 'postalCode' => $parts['postcode'], 'addressCountry' => 'IN',
+    ], function ($v) {
+        return $v !== '';
+    });
+}
+
+/**
+ * Accuracy fixes on event_schema() for the event page (CRITIC G-SD2/G-SD3, P2-5):
+ *  - the Place address comes from the structured venue fields (city, state, PIN) when an editor entered them;
+ *  - all-day events carry dates without a time (the page shows dates only);
+ *  - offers stay only while registration is open (a second guard next to event_schema() and the SEO core).
+ * The location never contains the meeting link: online attendance is a VirtualLocation of the public event page.
+ */
+function programhub_event_schema(array $schema, array $ev, ?array $state = null): array
+{
+    $types = $schema['@type'] ?? '';
+    if (!in_array(is_array($types) ? (string) reset($types) : (string) $types, ['Event', 'EducationEvent', 'SocialEvent', 'ExhibitionEvent', 'Festival', 'MusicEvent'], true)) {
+        return $schema;   // awareness days are a WebPage, not an Event
+    }
+    $address = programhub_event_postal_address($ev);
+    if ($address && isset($schema['location']) && is_array($schema['location'])) {
+        $fix = function (array $loc) use ($address, $ev): array {
+            if (($loc['@type'] ?? '') === 'Place') {
+                $loc['address'] = $address;
+                if (trim((string) ($loc['name'] ?? '')) === '') {
+                    $loc['name'] = (string) $ev['location'];
+                }
+            }
+            return $loc;
+        };
+        $schema['location'] = isset($schema['location']['@type']) ? $fix($schema['location']) : array_map(function ($l) use ($fix) {
+            return is_array($l) ? $fix($l) : $l;
+        }, $schema['location']);
+    }
+    if (event_is_all_day($ev)) {
+        $schema['startDate'] = date('Y-m-d', (int) strtotime((string) $ev['start_datetime']));
+        if (!empty($ev['end_datetime'])) {
+            $schema['endDate'] = date('Y-m-d', (int) strtotime((string) $ev['end_datetime']));
+        }
+    }
+    if (isset($schema['offers'])) {
+        $state = $state ?? event_state($ev);
+        if (($ev['status'] ?? '') !== 'published' || empty($state['can_register'])) {
+            unset($schema['offers']);
+        }
+    }
+    return $schema;
+}
+
+/** Rich text of an event (description, guidelines, report): inline images lazy, with real size, srcset and WebP. */
+function programhub_rich_images(string $html): string
+{
+    return function_exists('seo_filter_content_images') ? seo_filter_content_images($html) : $html;
 }
 
 /** Category for a section: its "category" setting, else the category of the page it is on. */
@@ -1056,7 +1178,9 @@ function program_category_card(array $cat, array $opts = []): string
     $count = (int) ($opts['upcoming'] ?? 0);
     $filter = program_category_group($cat) . ($count > 0 ? ' upcoming' : '');
     return '<article class="program-card pc-card tone-' . e($tone) . ' reveal tilt" style="--d:' . ($i % 4) . '" data-category="' . e($filter) . '">'
-        . '<div class="program-card-media' . (strpos($art, 'uploads/') === 0 ? ' is-photo' : '') . '"><img src="' . e(image_url($art)) . '" alt="" loading="lazy" width="480" height="360">'
+        . '<div class="program-card-media' . (strpos($art, 'uploads/') === 0 ? ' is-photo' : '') . '">'
+        . program_picture($art, '', ['width' => 480, 'height' => 360, 'sizes' => '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 300px'],
+            '<img src="' . e(image_url($art)) . '" alt="" loading="lazy" width="480" height="360">')
         . ($count > 0 ? '<span class="pc-count">' . icon('calendar') . $count . ' upcoming ' . ($count === 1 ? 'session' : 'sessions') . '</span>' : '') . '</div>'
         . '<div class="program-card-body"><span class="program-card-icon">' . icon((string) ($cat['icon'] ?: 'calendar')) . '</span>'
         . '<h3><a class="program-card-link" href="' . e($url) . '">' . e($cat['title']) . '</a></h3>'
@@ -1087,8 +1211,10 @@ function programhub_card_media(array $ev, string $link, ?string $photo = null): 
     } else {
         [$img, $isArt] = programhub_event_image($ev);
     }
-    return '<a class="event-media' . ($isArt ? ' is-art' : '') . '" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($img)) . '"'
-        . ($isArt ? '' : image_srcset_attr($img, '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px')) . ' alt="" loading="lazy" width="480" height="300"></a>';
+    $sizes = '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px';
+    $legacy = '<img src="' . e(image_url($img)) . '"' . ($isArt ? '' : image_srcset_attr($img, $sizes)) . ' alt="" loading="lazy" width="480" height="300">';
+    return '<a class="event-media' . ($isArt ? ' is-art' : '') . '" href="' . e($link) . '" tabindex="-1" aria-hidden="true">'
+        . program_picture($img, '', ['width' => 480, 'height' => 300] + ($isArt ? ['srcset' => ''] : ['sizes' => $sizes]), $legacy) . '</a>';
 }
 
 /** Event card with live status (date, time, venue / mode, eligibility, deadline, places). Rows from programhub_events(). */
@@ -1343,6 +1469,9 @@ function section_program_events(array $s, array $items, array $set, array $page)
                 ? '<a class="btn btn-primary" href="' . e(($isCategoryPage ? '' : program_category_url($cat)) . '#register') . '">' . icon('bell') . 'Register your interest</a>'
                 : '<a class="btn btn-primary" href="' . e(page_url('newsletter')) . '">' . icon('mail') . 'Get updates by email</a>')
             . '<a class="btn btn-ghost" href="' . e(events_list_url()) . '">' . icon('calendar') . 'All upcoming events</a></div></div>';
+    }
+    if (function_exists('seo_image_alt_prime')) {
+        seo_image_alt_prime(array_column($rows, 'image'));   // one media query for the card images
     }
     $html = '<div class="card-grid ph-event-grid">';
     foreach ($rows as $i => $ev) {
@@ -1805,10 +1934,15 @@ function section_partnership_enquiry(array $s, array $items, array $set, array $
     foreach ($kinds as [$ic, $t, $x]) {
         $html .= '<li><span class="icon-circle">' . icon($ic) . '</span><div><strong>' . e($t) . '</strong><span>' . e($x) . '</span></div></li>';
     }
-    $html .= '</ul>' . (setting('contact_email') !== '' ? '<p class="ph-mail">' . icon('mail') . '<span>Prefer email? Write to <a href="mailto:' . e(setting('contact_email')) . '">' . e(setting('contact_email')) . '</a></span></p>' : '') . '</div>';
+    // internal link to the "Become a Project Partner" page (WP-8), when it is published and this is not that page
+    $partnerPage = ($page['slug'] ?? '') !== 'partner-with-us' ? get_page('partner-with-us') : null;
+    $html .= '</ul>' . ($partnerPage && ($partnerPage['status'] ?? '') === 'published'
+            ? '<p class="ph-mail">' . icon('briefcase') . '<span><a href="' . e(page_url('partner-with-us')) . '">How project partnerships work</a></span></p>' : '')
+        . (setting('contact_email') !== '' ? '<p class="ph-mail">' . icon('mail') . '<span>Prefer email? Write to <a href="mailto:' . e(setting('contact_email')) . '">' . e(setting('contact_email')) . '</a></span></p>' : '') . '</div>';
     if (!$cat || (int) $cat['partnership_enabled'] !== 1) {
         return $html . '<div class="form-card ph-form-card"><p>Tell us about your organisation and how you would like to work together. Our team replies by email.</p>'
-            . '<a class="btn btn-primary" href="' . e(page_url('contact', ['type' => 'partnership'])) . '">' . icon('send') . 'Send a partnership enquiry</a></div></div>';
+            . '<a class="btn btn-primary" href="' . e(page_url('contact', ['type' => 'partnership'])) . '" data-dl-event="cta_click" data-dl-cta="partnership-enquiry" data-dl-location="partnership-section">'
+            . icon('send') . 'Send a partnership enquiry</a></div></div>';
     }
     $done = programhub_take_done('partnership', (int) $cat['id']);
     $html .= '<div class="form-card ph-form-card">';
@@ -1836,8 +1970,9 @@ function programhub_event_glance(array $ev, array $state): string
     $facts[] = [$mode === 'in_person' ? 'map-pin' : 'monitor', 'Mode', e(EVENT_MODES[$mode])];
     if ($mode !== 'online') {
         $venue = e(trim((string) $ev['location']) !== '' ? (string) $ev['location'] : 'Venue to be announced');
-        if (trim((string) ($ev['venue_address'] ?? '')) !== '') {
-            $venue .= '<br><span class="muted">' . e((string) $ev['venue_address']) . '</span>';
+        $address = programhub_event_address($ev);
+        if ($address !== '') {
+            $venue .= '<br><span class="muted">' . e($address) . '</span>';
         }
         $map = programhub_map_url($ev);
         if ($map !== '') {
@@ -1935,7 +2070,8 @@ function programhub_speakers_html(array $speakers): string
         }
         $role = SPEAKER_ROLES[$sp['role'] ?? 'speaker'] ?? 'Speaker';
         $html .= '<article class="ph-person reveal" style="--d:' . ($i % 4) . '">'
-            . ($photo !== '' ? '<img class="ph-avatar" src="' . e(url($photo)) . '" alt="" width="88" height="88" loading="lazy">' : '<span class="ph-avatar ph-initials" aria-hidden="true">' . e($initials) . '</span>')
+            . ($photo !== '' ? program_picture($photo, '', ['class' => 'ph-avatar', 'width' => 88, 'height' => 88, 'sizes' => '88px'],
+                '<img class="ph-avatar" src="' . e(url($photo)) . '" alt="" width="88" height="88" loading="lazy">') : '<span class="ph-avatar ph-initials" aria-hidden="true">' . e($initials) . '</span>')
             . '<div class="ph-person-body"><span class="ph-role">' . e($role) . '</span><h3>' . e((string) $sp['name']) . '</h3>'
             . (trim((string) ($sp['designation'] ?? '') . (string) ($sp['organisation'] ?? '')) !== '' ? '<p class="ph-person-meta">' . e(implode(', ', array_filter([trim((string) ($sp['designation'] ?? '')), trim((string) ($sp['organisation'] ?? ''))]))) . '</p>' : '')
             . (trim((string) ($sp['session_title'] ?? '')) !== '' ? '<p class="ph-person-session">' . icon('message') . '<span>' . e((string) $sp['session_title']) . '</span></p>' : '')
@@ -1954,7 +2090,7 @@ function programhub_partners_html(array $partners): string
     $html = '<ul class="ph-partners">';
     foreach ($partners as $p) {
         $logo = !empty($p['logo']) && strpos((string) $p['logo'], '..') === false && is_file(ROOT_PATH . '/' . $p['logo']) ? (string) $p['logo'] : '';
-        $inner = ($logo !== '' ? '<img src="' . e(url($logo)) . '" alt="' . e((string) $p['name']) . '" loading="lazy">' : '<span class="ph-partner-name">' . e((string) $p['name']) . '</span>')
+        $inner = ($logo !== '' ? program_picture($logo, (string) $p['name'], ['sizes' => '140px'], '<img src="' . e(url($logo)) . '" alt="' . e((string) $p['name']) . '" loading="lazy">') : '<span class="ph-partner-name">' . e((string) $p['name']) . '</span>')
             . '<small>' . e(EVENT_PARTNER_ROLES[$p['role'] ?? 'partner'] ?? 'Partner') . ($logo !== '' ? ' · ' . e((string) $p['name']) : '') . '</small>';
         $u = trim((string) ($p['website_url'] ?? ''));
         $html .= '<li>' . ($u !== '' && preg_match('#^https?://#i', $u) ? '<a href="' . e(safe_link($u)) . '" target="_blank" rel="noopener noreferrer nofollow">' . $inner . '</a>' : '<div>' . $inner . '</div>') . '</li>';
@@ -2034,7 +2170,7 @@ function programhub_report_html(array $ev): string
         $html .= '</div>';
     }
     if ($report && trim(strip_tags((string) $report['summary'])) !== '') {
-        $html .= '<div class="prose article-prose ph-report">' . clean_html((string) $report['summary']) . '</div>';
+        $html .= '<div class="prose article-prose ph-report">' . programhub_rich_images(clean_html((string) $report['summary'])) . '</div>';
     }
     if ($report && !empty($report['verified_at'])) {
         $html .= '<p class="ph-verified">' . icon('check-circle') . '<span>Figures checked by our team on ' . e(date('d M Y', strtotime((string) $report['verified_at']))) . '.</span></p>';
@@ -2688,6 +2824,18 @@ function migration_633_programhub_partner_intro(): void
         db_query("UPDATE page_sections SET intro = ? WHERE page_id = ? AND section_type = 'partnership_enquiry' AND intro = ?",
             [$start . '.', (int) $c['page_id'], $start . ' programmes.']);
     }
+}
+
+/**
+ * Structured venue fields (SEO WP-7c, CRITIC G-SD3): city, state and PIN code of an in-person / hybrid event, used for
+ * the visible address and the Event JSON-LD PostalAddress. Additive and empty: nothing is copied from the free-text
+ * address, so an editor's entry is never guessed (the JSON-LD keeps parsing a PIN from the text until they are filled).
+ */
+function migration_634_programhub_event_venue_fields(): void
+{
+    add_column_if_missing('events', 'venue_locality', 'VARCHAR(100) DEFAULT NULL AFTER venue_address');
+    add_column_if_missing('events', 'venue_region', 'VARCHAR(80) DEFAULT NULL AFTER venue_locality');
+    add_column_if_missing('events', 'venue_postcode', 'VARCHAR(10) DEFAULT NULL AFTER venue_region');
 }
 
 // =====================================================================

@@ -55,6 +55,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if ($data['status'] === 'published' && !$consent) {
         $errors['consent_confirmed'] = 'A story can be published only when written consent is on file. Tick the consent box or save it as a draft.';
     }
+    $eeat = [];
+    if (function_exists('seo_eeat_validate_post')) {
+        [$eeat, $eeatErrors] = seo_eeat_validate_post($_POST);   // author / reviewer / sources (SEO module)
+        $errors += $eeatErrors;
+    }
     if ($errors) {
         back_with_errors($errors, 'admin/' . $self, $_POST);
     }
@@ -101,7 +106,24 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if ($oldImage && $oldImage !== $image) {
         content_delete_image($oldImage);
     }
-    flash('success', 'Story saved' . ($data['status'] === 'published' ? ' and published.' : ' as ' . $data['status'] . '.'));
+    if ($eeat && function_exists('seo_eeat_save')) {
+        $eeatChanges = seo_eeat_save('story', (int) $id, $eeat, admin_id());
+        if ($eeatChanges) {
+            admin_log('seo_eeat_updated', 'Story #' . $id . ': ' . implode(', ', array_keys($eeatChanges)));
+        }
+    }
+    // SEO: a changed address of a public story gets a one-hop 301; a new or moved address is released from old redirects
+    $slugNote = '';
+    $wasPublic = $story && $story['status'] === 'published' && (int) $story['consent_confirmed'] === 1;
+    if ($wasPublic && $story['slug'] !== $row['slug'] && function_exists('seo_slug_changed')) {
+        $slugNote = ' ' . (string) (seo_slug_changed('story', story_url($story['slug']), story_url($row['slug']))['message'] ?? '');
+    } elseif ((!$story || $story['slug'] !== $row['slug']) && function_exists('seo_slug_claim')) {
+        seo_slug_claim(story_url($row['slug']));
+    }
+    if ($data['status'] === 'published' && $consent && strtotime((string) $publishedAt) <= time() && function_exists('seo_indexnow_ping')) {
+        seo_indexnow_ping([story_url($row['slug'])]);   // only when IndexNow is switched on (off by default)
+    }
+    flash('success', 'Story saved' . ($data['status'] === 'published' ? ' and published.' : ' as ' . $data['status'] . '.') . rtrim($slugNote));
     admin_redirect('story-edit.php?id=' . $id);
 }
 
@@ -173,8 +195,10 @@ admin_page_start($story ? 'Edit story' : 'New story', [['label' => 'All stories'
                 <div class="form-actions" style="margin-top:14px">
                     <button class="btn btn-primary" type="submit"><?= icon('check') ?>Save story</button>
                     <?php if ($story): ?><a class="btn btn-ghost" href="<?= e(story_url($story['slug'])) ?>" target="_blank" rel="noopener"><?= icon('eye') ?><?= $visible ? 'View' : 'Preview' ?></a><?php endif; ?>
+                    <?php if ($story && function_exists('seo_entity_edit_url') && admin_can('seo.manage')): ?><a class="btn btn-ghost btn-sm" href="<?= e(seo_entity_edit_url('story', (int) $story['id'])) ?>"><?= icon('search') ?>SEO settings</a><?php endif; ?>
                 </div>
             </section>
+            <?= function_exists('seo_eeat_admin_panel') ? seo_eeat_admin_panel('story', (int) $id) : '' ?>
             <section class="panel">
                 <div class="panel-head"><h2>Photo</h2></div>
                 <?php $img = $story['image'] ?? ''; ?>

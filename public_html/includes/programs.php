@@ -157,6 +157,20 @@ function program_options(bool $publishedOnly = false): array
 // ---------------------------------------------------------------------
 
 /**
+ * Card / photo <img> through the SEO images module when it is installed (seo_picture(): WebP <picture>, srcset,
+ * real size, lazy + async); otherwise, or when the file is missing, the existing markup ($legacy) unchanged.
+ */
+function program_picture(?string $path, string $alt, array $attrs, string $legacy): string
+{
+    $path = ltrim(trim((string) $path), '/');
+    if (!function_exists('seo_picture') || $path === '' || strpos($path, '..') !== false || !is_file(ROOT_PATH . '/' . $path)) {
+        return $legacy;
+    }
+    $html = seo_picture($path, $alt, ['fallback' => ''] + $attrs);
+    return $html !== '' ? $html : $legacy;
+}
+
+/**
  * Premium programme card. $opts: index (stagger), points (max key points, default 3), filter (bool: add data-category for filter chips)
  */
 function program_card(array $p, array $opts = []): string
@@ -169,7 +183,8 @@ function program_card(array $p, array $opts = []): string
     $points = array_slice(program_key_points($p), 0, (int) ($opts['points'] ?? 3));
     $html = '<article class="program-card tone-' . $tone . ' reveal tilt" style="--d:' . ($i % 4) . '"'
         . (!empty($opts['filter']) ? ' data-category="' . e(program_focus($p)) . '"' : '') . '>'
-        . '<div class="program-card-media' . ($isPhoto ? ' is-photo' : '') . '"><img src="' . e(image_url($art)) . '" alt="" loading="lazy" width="480" height="360"></div>'
+        . '<div class="program-card-media' . ($isPhoto ? ' is-photo' : '') . '">' . program_picture($art, '', ['width' => 480, 'height' => 360, 'sizes' => '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 300px'],
+            '<img src="' . e(image_url($art)) . '" alt="" loading="lazy" width="480" height="360">') . '</div>'
         . '<div class="program-card-body"><span class="program-card-icon">' . icon((string) ($p['icon'] ?: 'heart')) . '</span><h3><a class="program-card-link" href="' . e($url) . '">' . e($p['title']) . '</a></h3>'
         . '<p>' . e($p['summary']) . '</p>';
     if ($points) {
@@ -560,7 +575,9 @@ function program_related_card(string $type, array $row): string
             $meta = icon('calendar') . e(format_date($row['published_at']));
             $img = $row['image'] ?? null;
     }
-    return '<article class="related-card reveal"><a class="related-media" href="' . e($url) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($img)) . '" alt="" loading="lazy"></a>'
+    $legacy = '<img src="' . e(image_url($img)) . '" alt="" loading="lazy">';
+    return '<article class="related-card reveal"><a class="related-media" href="' . e($url) . '" tabindex="-1" aria-hidden="true">'
+        . program_picture($img && is_file(ROOT_PATH . '/' . ltrim((string) $img, '/')) ? (string) $img : 'assets/images/programs/general.svg', '', ['sizes' => '(max-width: 600px) 100vw, 360px'], $legacy) . '</a>'
         . '<div class="related-body">' . ($meta !== '' ? '<p class="related-meta">' . $meta . '</p>' : '')
         . '<h4><a href="' . e($url) . '">' . e($row['title']) . '</a></h4><p>' . e(excerpt($text, 120)) . '</p></div></article>';
 }

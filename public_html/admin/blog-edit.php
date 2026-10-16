@@ -53,6 +53,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if ($programId && !isset($programs[$programId])) {
         $errors['program_id'] = 'Please choose a valid programme.';
     }
+    $eeat = [];
+    if (function_exists('seo_eeat_validate_post')) {
+        [$eeat, $eeatErrors] = seo_eeat_validate_post($_POST);   // author / reviewer / sources (SEO module)
+        $errors += $eeatErrors;
+    }
     if ($errors) {
         back_with_errors($errors, 'admin/' . $self, $_POST);
     }
@@ -103,7 +108,24 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if ($oldImage && $oldImage !== $image) {
         content_delete_image($oldImage);
     }
-    flash('success', 'Post saved (' . $when . ').');
+    if ($eeat && function_exists('seo_eeat_save')) {
+        $eeatChanges = seo_eeat_save('post', (int) $id, $eeat, admin_id());
+        if ($eeatChanges) {
+            admin_log('seo_eeat_updated', 'Post #' . $id . ': ' . implode(', ', array_keys($eeatChanges)));
+        }
+    }
+    // SEO: a changed address of a published post gets a one-hop 301 (older redirects and menu links re-pointed);
+    // a new or moved address is released from any redirect that would hide it
+    $slugNote = '';
+    if ($post && $post['slug'] !== $row['slug'] && $post['status'] === 'published' && function_exists('seo_slug_changed')) {
+        $slugNote = ' ' . (string) (seo_slug_changed('post', post_url($post['slug']), post_url($row['slug']))['message'] ?? '');
+    } elseif ((!$post || $post['slug'] !== $row['slug']) && function_exists('seo_slug_claim')) {
+        seo_slug_claim(post_url($row['slug']));
+    }
+    if ($data['status'] === 'published' && strtotime((string) $publishedAt) <= time() && function_exists('seo_indexnow_ping')) {
+        seo_indexnow_ping([post_url($row['slug'])]);   // only when IndexNow is switched on (off by default)
+    }
+    flash('success', 'Post saved (' . $when . ').' . rtrim($slugNote));
     admin_redirect('blog-edit.php?id=' . $id);
 }
 
@@ -176,8 +198,10 @@ admin_page_start($post ? 'Edit post' : 'New post', [['label' => 'All posts', 'ur
                 <div class="form-actions" style="margin-top:14px">
                     <button class="btn btn-primary" type="submit"><?= icon('check') ?>Save post</button>
                     <?php if ($post): ?><a class="btn btn-ghost" href="<?= e(post_url($post['slug'])) ?>" target="_blank" rel="noopener"><?= icon('eye') ?><?= $isLive ? 'View' : 'Preview' ?></a><?php endif; ?>
+                    <?php if ($post && function_exists('seo_entity_edit_url') && admin_can('seo.manage')): ?><a class="btn btn-ghost btn-sm" href="<?= e(seo_entity_edit_url('post', (int) $post['id'])) ?>"><?= icon('search') ?>SEO settings</a><?php endif; ?>
                 </div>
             </section>
+            <?= function_exists('seo_eeat_admin_panel') ? seo_eeat_admin_panel('post', (int) $id) : '' ?>
             <section class="panel">
                 <div class="panel-head"><h2>Featured image</h2></div>
                 <?php $img = $post['image'] ?? ''; ?>

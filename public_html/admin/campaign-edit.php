@@ -112,6 +112,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($newImage || $removeImage) && $oldImage && !db_value('SELECT COUNT(*) FROM campaigns WHERE image = ?', [$oldImage])) {
         delete_upload($oldImage);
     }
+    // SEO: a changed address of a public campaign gets a one-hop 301; a new or moved address is released from old redirects
+    $public = ['active', 'completed', 'closed'];
+    if ($c && $c['slug'] !== $row['slug'] && in_array($c['status'], $public, true) && function_exists('seo_slug_changed')) {
+        $moved = seo_slug_changed('campaign', campaign_url($c['slug']), campaign_url($row['slug']));
+        if (!empty($moved['message'])) {
+            flash($moved['ok'] ? 'info' : 'warning', (string) $moved['message']);
+        }
+    } elseif ((!$c || $c['slug'] !== $row['slug']) && function_exists('seo_slug_claim')) {
+        seo_slug_claim(campaign_url($row['slug']));
+    }
+    if (in_array($data['status'], $public, true) && function_exists('seo_indexnow_ping')) {
+        seo_indexnow_ping([campaign_url($row['slug'])]);   // only when IndexNow is switched on (off by default)
+    }
     admin_redirect('campaign-view.php?id=' . $id);
 }
 
@@ -155,7 +168,8 @@ admin_page_start($c ? 'Edit campaign' : 'New campaign', $c ? [['label' => 'Campa
             <label class="checkbox mt-2"><input type="checkbox" name="is_featured" value="1"<?= (old('is_featured', $c['is_featured'] ?? 0)) ? ' checked' : '' ?>> <span>Featured (shown at the top of the campaign list)</span></label>
             <label class="checkbox mt-1"><input type="checkbox" name="is_urgent" value="1"<?= (old('is_urgent', $c['is_urgent'] ?? 0)) ? ' checked' : '' ?>> <span>Urgent (only for a genuine, current emergency)</span></label>
             <div class="form-actions"><button class="btn btn-primary" type="submit"><?= icon('check') ?>Save campaign</button>
-                <a class="btn btn-ghost" href="<?= e(admin_url($c ? 'campaign-view.php?id=' . $id : 'campaigns.php')) ?>">Cancel</a></div>
+                <a class="btn btn-ghost" href="<?= e(admin_url($c ? 'campaign-view.php?id=' . $id : 'campaigns.php')) ?>">Cancel</a>
+                <?php if ($c && function_exists('seo_entity_edit_url') && admin_can('seo.manage')): ?><a class="btn btn-ghost btn-sm" href="<?= e(seo_entity_edit_url('campaign', (int) $c['id'])) ?>"><?= icon('search') ?>SEO settings</a><?php endif; ?></div>
         </section>
         <section class="panel">
             <div class="panel-head"><h2>Target & dates</h2></div>

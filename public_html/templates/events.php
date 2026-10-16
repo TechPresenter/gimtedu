@@ -38,6 +38,9 @@ $p = paginate($total, 9);
 $events = db_rows("SELECT e.*, (SELECT COUNT(*) FROM event_registrations r WHERE r.event_id = e.id AND r.status IN (" . programhub_seat_status_sql() . ")) AS registered
                    FROM events e WHERE $where ORDER BY start_datetime " . ($when === 'past' ? 'DESC' : 'ASC') . ", id
                    LIMIT {$p['per_page']} OFFSET {$p['offset']}", $params);
+if (function_exists('seo_image_alt_prime')) {
+    seo_image_alt_prime(array_column($events, 'image'));   // one media query for the card images
+}
 $typeCounts = [];
 foreach (db_rows("SELECT event_type, COUNT(*) AS n FROM events WHERE status IN ('published','cancelled') AND COALESCE(end_datetime, start_datetime) " . ($when === 'past' ? '<' : '>=') . ' ? GROUP BY event_type', [$now]) as $r) {
     $typeCounts[$r['event_type']] = (int) $r['n'];

@@ -94,6 +94,9 @@ if (empty($page['banner_image'])) {
 if ($category['status'] !== 'published') {
     $opts['noindex'] = true;
 }
+if (function_exists('seo_eeat_prepare')) {
+    seo_eeat_prepare('page', (int) $page['id'], $canonical);   // reviewer / author Person nodes for the page graph (before page_header)
+}
 page_header($page, $opts);
 
 if ($category['status'] !== 'published') {
@@ -121,4 +124,10 @@ if (!$hasSubnav && count($links) > 2) {
 }
 
 render_sections($page);
+if (function_exists('seo_dates_line') && function_exists('seo_eeat_content_dates')) {
+    // "Last updated" (only a substantive update an editor recorded) and "Reviewed by ... on ..." (only when entered)
+    $eeatLine = seo_dates_line(null, seo_eeat_content_dates('page', (int) $page['id'], $page)['updated'], ['updated_label' => 'Last updated'])
+        . (function_exists('seo_review_line') ? seo_review_line('page', (int) $page['id']) : '');
+    echo $eeatLine !== '' ? '<div class="container seo-page-meta">' . $eeatLine . '</div>' : '';
+}
 page_footer();

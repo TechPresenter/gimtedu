@@ -81,6 +81,12 @@ page_header($page, [
 
 $presets = donation_presets();
 $daysLeft = campaign_days_left($c);
+if (function_exists('seo_image_alt_prime')) {
+    seo_image_alt_prime(array_values(array_filter(array_merge([(string) $c['image']], array_column($updates, 'image'), array_column($related, 'image')))));
+}
+// Hero = the page's LCP image: eager, fetchpriority="high", srcset + WebP; alt = media library alt, else the title
+$heroAlt = $c['image'] ? (function_exists('seo_image_alt') ? seo_image_alt((string) $c['image'], (string) $c['title']) : (string) $c['title'])
+    : 'Illustration: ' . campaign_category_label($c['category']);
 $facts = [];
 if ($c['location']) {
     $facts[] = [icon('map-pin'), e($c['location'])];
@@ -102,7 +108,8 @@ if ($program) {
     <div class="container detail-layout">
         <div class="fr-main">
             <figure class="detail-hero-img fr-hero-img">
-                <img src="<?= e(campaign_image($c)) ?>" alt="<?= e($c['image'] ? $c['title'] : 'Illustration: ' . campaign_category_label($c['category'])) ?>" width="960" height="540">
+                <?= campaign_picture($c, $heroAlt, ['width' => 960, 'height' => 540, 'fetchpriority' => 'high', 'sizes' => '(max-width: 991px) calc(100vw - 40px), 800px'],
+                    '<img src="' . e(campaign_image($c)) . '" alt="' . e($heroAlt) . '" width="960" height="540">') ?>
                 <?php if (!empty($c['is_urgent']) && $accepting): ?><span class="tag tag-urgent">Urgent</span><?php endif; ?>
             </figure>
             <?php if ($facts): ?>
@@ -114,11 +121,11 @@ if ($program) {
 
             <div class="fr-mobile-summary">
                 <?= ui_progress($raised, $goal, (int) $c['donor_count']) ?>
-                <a class="btn btn-donate btn-block" href="<?= e($accepting ? donate_url(['campaign' => $cid]) : donate_url()) ?>"><?= icon('heart') ?><?= $accepting ? 'Donate to this campaign' : 'Make a general donation' ?></a>
+                <a class="btn btn-donate btn-block" href="<?= e($accepting ? donate_url(['campaign' => $cid]) : donate_url()) ?>"<?= donation_dl_attrs('campaign_mobile', $c) ?>><?= icon('heart') ?><?= $accepting ? 'Donate to this campaign' : 'Make a general donation' ?></a>
             </div>
 
             <article class="prose fr-story" aria-label="About this campaign">
-                <?= clean_html((string) $c['description']) ?>
+                <?= function_exists('seo_filter_content_images') ? seo_filter_content_images(clean_html((string) $c['description'])) : clean_html((string) $c['description']) ?>
             </article>
 
             <section class="fr-block" id="updates" aria-labelledby="updates-title">
@@ -129,7 +136,9 @@ if ($program) {
                             <li class="reveal">
                                 <time datetime="<?= e(date('Y-m-d', strtotime($u['published_at'] ?: $u['created_at']))) ?>"><?= e(format_date($u['published_at'] ?: $u['created_at'])) ?></time>
                                 <h3><?= e($u['title']) ?></h3>
-                                <?php if ($u['image'] && is_file(ROOT_PATH . '/' . $u['image'])): ?><img src="<?= e(url($u['image'])) ?>" alt="<?= e($u['title']) ?>" loading="lazy"><?php endif; ?>
+                                <?php if ($u['image'] && is_file(ROOT_PATH . '/' . $u['image'])): $uAlt = function_exists('seo_image_alt') ? seo_image_alt((string) $u['image'], (string) $u['title']) : (string) $u['title']; ?><?= function_exists('cms_picture')
+                                    ? cms_picture((string) $u['image'], $uAlt, ['fallback' => '', 'sizes' => '(max-width: 991px) calc(100vw - 80px), 760px'], '<img src="' . e(url($u['image'])) . '" alt="' . e($uAlt) . '" loading="lazy">')
+                                    : '<img src="' . e(url($u['image'])) . '" alt="' . e($uAlt) . '" loading="lazy">' ?><?php endif; ?>
                                 <p><?= e_nl($u['body']) ?></p>
                             </li>
                         <?php endforeach; ?>
@@ -186,14 +195,14 @@ if ($program) {
                     <p class="fr-raise-label">Choose an amount</p>
                     <div class="fr-amounts fr-amounts-sm">
                         <?php foreach (array_slice($presets, 0, 4) as $a): ?>
-                            <a class="fr-amount" href="<?= e(donate_url(['campaign' => $cid, 'amount' => $a])) ?>"><?= e(money($a)) ?></a>
+                            <a class="fr-amount" href="<?= e(donate_url(['campaign' => $cid, 'amount' => $a])) ?>"<?= donation_dl_attrs('campaign_amount', $c) ?>><?= e(money($a)) ?></a>
                         <?php endforeach; ?>
                     </div>
                     <?php endif; ?>
-                    <a class="btn btn-donate btn-lg btn-block" href="<?= e(donate_url(['campaign' => $cid])) ?>"><?= icon('heart') ?>Donate to this campaign</a>
+                    <a class="btn btn-donate btn-lg btn-block" href="<?= e(donate_url(['campaign' => $cid])) ?>"<?= donation_dl_attrs('campaign_aside', $c) ?>><?= icon('heart') ?>Donate to this campaign</a>
                 <?php else: ?>
                     <div class="notice notice-green"><?= icon('check-circle') ?><div>This campaign is no longer accepting donations. Thank you to everyone who contributed.</div></div>
-                    <a class="btn btn-donate btn-block mt-2" href="<?= e(donate_url()) ?>"><?= icon('heart') ?>Make a general donation</a>
+                    <a class="btn btn-donate btn-block mt-2" href="<?= e(donate_url()) ?>"<?= donation_dl_attrs('campaign_closed') ?>><?= icon('heart') ?>Make a general donation</a>
                 <?php endif; ?>
                 <p class="verified-note"><?= icon('shield') ?><span>Amount raised includes only donations verified with our payment gateway or reconciled by our finance team.</span></p>
             </div>

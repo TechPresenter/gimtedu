@@ -265,10 +265,17 @@ function info_linkedin_url(?string $url): string
 
 function team_member_card(array $m, int $i = 0): string
 {
-    $photo = !empty($m['photo']) && is_file(ROOT_PATH . '/' . $m['photo']);
-    $html = '<article class="team-card reveal tilt" style="--d:' . ($i % 4) . '">'
+    // id="member-<id>": the target of author / reviewer links (seo_author_box) and of the Person @id; printed once per page
+    static $anchors = [];
+    $mid = (int) ($m['id'] ?? 0);
+    $anchor = $mid > 0 && !isset($anchors[$mid]) ? ' id="member-' . $mid . '"' : '';
+    $anchors[$mid] = true;
+    $photo = !empty($m['photo']) && strpos((string) $m['photo'], '..') === false && is_file(ROOT_PATH . '/' . $m['photo']);
+    $legacy = $photo ? '<img src="' . e(url($m['photo'])) . '" alt="' . e($m['name']) . '" loading="lazy" width="320" height="320">' : '';
+    $html = '<article class="team-card reveal tilt"' . $anchor . ' style="--d:' . ($i % 4) . '">'
         . '<div class="team-photo">' . ($photo
-            ? '<img src="' . e(url($m['photo'])) . '" alt="' . e($m['name']) . '" loading="lazy" width="320" height="320">'
+            ? (function_exists('cms_picture') ? cms_picture((string) $m['photo'], (string) $m['name'], ['fallback' => '', 'width' => 320, 'height' => 320,
+                'sizes' => '(max-width: 600px) 100vw, (max-width: 991px) 50vw, 300px'], $legacy) : $legacy)
             : '<span class="team-initials" aria-hidden="true">' . e(info_initials($m['name'])) . '</span>')
         . '</div><div class="team-body"><h3>' . e($m['name']) . '</h3><p class="team-role">' . e($m['designation']) . '</p>';
     $bio = trim((string) ($m['bio'] ?? ''));
@@ -289,6 +296,9 @@ function team_member_card(array $m, int $i = 0): string
 
 function team_grid_html(array $members): string
 {
+    if (function_exists('seo_image_alt_prime')) {
+        seo_image_alt_prime(array_values(array_filter(array_map('strval', array_column($members, 'photo')))));
+    }
     $html = '<div class="team-grid">';
     foreach (array_values($members) as $i => $m) {
         $html .= team_member_card($m, $i);

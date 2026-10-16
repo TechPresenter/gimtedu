@@ -192,18 +192,27 @@ function home_hero_figure(array $sl, bool $first): string
     }
     $attrs = ' width="' . $w . '" height="' . $h . '"'
         . ($first ? ' loading="eager" fetchpriority="high"' : ' loading="lazy"') . ' decoding="async"';
+    $sizes = '';
+    $pos = '';
     if ($isPhoto) {
         $positions = ['top' => 'center top', 'bottom' => 'center bottom', 'left' => 'left center', 'right' => 'right center'];
         $pos = $positions[(string) ($sl['image_position'] ?? '')] ?? '';
         // slot widths from modules/home.css: phones 100% - gutters (max 400px), tablets 460px, desktop 520px
-        $attrs .= image_srcset_attr($image, '(max-width: 444px) calc(100vw - 44px), (max-width: 767px) 400px, (max-width: 991px) 460px, 520px')
-            . ($pos !== '' ? ' style="object-position:' . $pos . '"' : '');
+        $sizes = '(max-width: 444px) calc(100vw - 44px), (max-width: 767px) 400px, (max-width: 991px) 460px, 520px';
+        $attrs .= image_srcset_attr($image, $sizes) . ($pos !== '' ? ' style="object-position:' . $pos . '"' : '');
     } elseif (!$isSvg) {
         // a raster drawing shown whole (style "Illustration"): smaller copies for its 240-470px slot
-        $attrs .= image_srcset_attr($image, '(max-width: 767px) 240px, (max-width: 991px) 300px, 470px');
+        $sizes = '(max-width: 767px) 240px, (max-width: 991px) 300px, 470px';
+        $attrs .= image_srcset_attr($image, $sizes);
     }
-    return '<div class="home-hero-figure' . ($isPhoto ? ' is-photo' : '') . '">'
-        . '<img src="' . e(url($image)) . '" alt="' . e($alt) . '"' . $attrs . '></div>';
+    $img = '<img src="' . e(url($image)) . '" alt="' . e($alt) . '"' . $attrs . '>';
+    if ($usable && !$isSvg && function_exists('cms_picture')) {
+        // uploaded photo: WebP <source> + srcset through the SEO images module; an empty alt falls back to the media
+        // library's alt text (a decorative illustration keeps alt="")
+        $img = cms_picture($image, $alt, ['width' => $w, 'height' => $h, 'loading' => $first ? 'eager' : 'lazy', 'decoding' => 'async', 'media_alt' => true]
+            + ($first ? ['fetchpriority' => 'high'] : []) + ($sizes !== '' ? ['sizes' => $sizes] : []) + ($pos !== '' ? ['style' => 'object-position:' . $pos] : []) + ['fallback' => ''], $img);
+    }
+    return '<div class="home-hero-figure' . ($isPhoto ? ' is-photo' : '') . '">' . $img . '</div>';
 }
 
 /** Full hero markup. The first slide's title is the page's single <h1> on the home page. */

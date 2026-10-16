@@ -52,6 +52,9 @@ if ($program) {
     ];
 }
 
+if (function_exists('seo_eeat_prepare')) {
+    seo_eeat_prepare('page', (int) $page['id'], $canonical);   // reviewer / author Person nodes for the page graph (before page_header)
+}
 page_header($page, $opts);
 
 // On-page navigation from the section anchors (when the editors have not placed a "subnav" section)
@@ -82,6 +85,9 @@ if ($program) {
             }
         }
         $related = program_related($program, $page);
+        if (function_exists('seo_image_alt_prime')) {
+            seo_image_alt_prime(array_merge(array_column($related['gallery'], 'image_path'), array_column($related['campaigns'], 'image'), array_column($related['events'], 'image')));
+        }
         $points = program_key_points($program);
         $others = array_values(array_filter(programs_all(), function ($p) use ($program) {
             return (int) $p['id'] !== (int) $program['id'];
@@ -113,7 +119,7 @@ if ($program) {
                     </div>
                     <div class="glance-actions">
                         <?php foreach ($actions as $i => [$ic, $label, $text, $href, $actTone]): ?>
-                            <a class="glance-action tone-<?= e($actTone) ?> reveal" style="--d:<?= $i ?>" href="<?= e($href) ?>">
+                            <a class="glance-action tone-<?= e($actTone) ?> reveal" style="--d:<?= $i ?>" href="<?= e($href) ?>"<?= $ic === 'briefcase' ? ' data-dl-event="cta_click" data-dl-cta="partnership-enquiry" data-dl-location="programme-page"' : '' ?>>
                                 <span class="work-icon"><?= icon($ic) ?></span>
                                 <span><strong><?= e($label) ?></strong><small><?= e($text) ?></small></span>
                                 <?= icon('chevron-right', 'tile-arrow') ?>
@@ -151,7 +157,8 @@ if ($program) {
                             <div class="related-head"><h3><?= icon('image') ?>Moments from the field</h3><a class="link-arrow" href="<?= e(page_url('gallery')) ?>">Photo gallery <?= icon('arrow-right') ?></a></div>
                             <div class="program-photos">
                                 <?php foreach ($related['gallery'] as $g): ?>
-                                    <a class="program-photo" href="<?= e(page_url('gallery')) ?>"><img src="<?= e(image_url($g['image_path'])) ?>" alt="<?= e($g['title']) ?>" loading="lazy"></a>
+                                    <a class="program-photo" href="<?= e(page_url('gallery')) ?>"><?= program_picture((string) $g['image_path'], (string) $g['title'], ['sizes' => '(max-width: 600px) 50vw, 200px'],
+                                        '<img src="' . e(image_url($g['image_path'])) . '" alt="' . e($g['title']) . '" loading="lazy">') ?></a>
                                 <?php endforeach; ?>
                             </div>
                         </div>
@@ -201,6 +208,12 @@ if ($program) {
 }
 
 render_sections($page, $hub);
+if (function_exists('seo_dates_line') && function_exists('seo_eeat_content_dates')) {
+    // "Last updated" (only a substantive update an editor recorded) and "Reviewed by ... on ..." (only when entered)
+    $eeatLine = seo_dates_line(null, seo_eeat_content_dates('page', (int) $page['id'], $page)['updated'], ['updated_label' => 'Last updated'])
+        . (function_exists('seo_review_line') ? seo_review_line('page', (int) $page['id']) : '');
+    echo $eeatLine !== '' ? '<div class="container seo-page-meta">' . $eeatLine . '</div>' : '';
+}
 if (!$sections && !$program) {
     echo '<section class="section"><div class="container narrow">' . empty_state('Details of this programme are being updated. Please check back soon.', 'All programmes', '/programs/') . '</div></section>';
 }

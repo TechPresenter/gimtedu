@@ -36,6 +36,14 @@ if ($segments) {
                      ORDER BY (program_id <=> ?) DESC, published_at DESC LIMIT 3', [$story['id'], $story['program_id']]);
     $published = $story['published_at'] ?: $story['created_at'];
 
+    // E-E-A-T (WP-6): accurate dates, author / reviewer Person nodes and sources (before page_header() prints the graph).
+    // The story's person_name is its subject, never its author.
+    $eeatDates = function_exists('seo_eeat_content_dates') ? seo_eeat_content_dates('story', (int) $story['id'], $story) : ['published' => $published, 'updated' => null];
+    $articleSchema = content_article_schema($story, $canonical);
+    if (function_exists('seo_eeat_article')) {
+        $articleSchema = seo_eeat_article($articleSchema, 'story', (int) $story['id'], $story, $canonical);
+    }
+    content_prime_images(array_merge([(string) $story['image']], array_column($more, 'image')));
     page_header($page, [
         'title' => $story['title'],
         'subtitle' => excerpt($story['excerpt'], 200),
@@ -48,7 +56,7 @@ if ($segments) {
         'crumbs' => [[$page['title'], page_url($page['slug'])]],
         'noindex' => !$visible,
         'buttons' => [],
-        'schema' => [content_article_schema($story, $canonical)],
+        'schema' => [$articleSchema],
     ]);
     ?>
     <section class="section article-section">
@@ -65,13 +73,16 @@ if ($segments) {
                         <?php if ($who): ?><span><?= icon('user') ?><?= e(implode(' · ', $who)) ?></span><?php endif; ?>
                         <span><?= icon('calendar') ?><time datetime="<?= e(date('c', strtotime($published))) ?>"><?= e(format_date($published, 'd F Y')) ?></time></span>
                         <span><?= icon('clock') ?><?= post_reading_time($story['content']) ?> min read</span>
+                        <?= function_exists('seo_dates_line') ? seo_dates_line($published, $eeatDates['updated'], ['wrap' => 'none', 'show_published' => false]) : '' ?>
                     </div>
-                    <?php if ($story['image'] && is_file(ROOT_PATH . '/' . $story['image'])): [$iw, $ih] = content_image_size($story['image']); ?>
-                        <figure class="article-hero"><img src="<?= e(url($story['image'])) ?>" alt="<?= e($story['title']) ?>"<?= $iw ? ' width="' . $iw . '" height="' . $ih . '"' : '' ?> fetchpriority="high"></figure>
+                    <?php if ($story['image'] && is_file(ROOT_PATH . '/' . $story['image'])): ?>
+                        <figure class="article-hero"><?= content_hero_picture($story['image'], $story['title'], '(max-width: 991px) calc(100vw - 40px), 820px') ?></figure>
                     <?php endif; ?>
-                    <div class="prose article-prose"><?= $story['content'] ?></div>
+                    <div class="prose article-prose"><?= content_body_html((string) $story['content']) ?></div>
+                    <?= function_exists('seo_review_line') ? seo_review_line('story', (int) $story['id']) . seo_sources_list('story', (int) $story['id']) : '' ?>
                     <?= content_program_box($story['program_id'] ? (int) $story['program_id'] : null, 'This story is part of our programme') ?>
                     <p class="consent-note"><?= icon('shield') ?><span>Shared with the written consent of the people involved. Names or details may be changed to protect privacy.</span></p>
+                    <?= function_exists('seo_author_box') ? seo_author_box('story', (int) $story['id'], null) : '' ?>
                     <div class="article-foot"><?= share_buttons($canonical, $story['title']) ?></div>
                 </article>
                 <aside class="article-aside">
@@ -118,6 +129,7 @@ render_sections($page, function () use ($stories, $p) {
     if (!$stories) {
         echo empty_state('Stories will be shared here with the consent of the people involved.', 'See our programmes', '/programs/');
     } else {
+        content_prime_images(array_column($stories, 'image'));
         echo '<div class="card-grid">';
         foreach ($stories as $i => $s) {
             echo story_card($s, $i);

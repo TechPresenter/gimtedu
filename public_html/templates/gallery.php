@@ -25,6 +25,13 @@ foreach ($items as $g) {
 }
 $otherSlug = $mediaType === 'video' ? 'gallery' : 'video-gallery';
 $otherPage = get_page($otherSlug);
+if ($mediaType === 'image') {
+    content_prime_images(array_column($items, 'image_path'));
+}
+// ImageGallery (photos) / VideoObjects with an editor-entered publication date (videos), merged into #webpage
+if (function_exists('seo_graph_add') && ($galleryNode = gallery_schema_node($items, $mediaType, abs_page_url($page['slug'])))) {
+    seo_graph_add($galleryNode);
+}
 
 page_header($page);
 render_sections($page, function () use ($items, $p, $counts, $mediaType, $otherPage, $otherSlug) {

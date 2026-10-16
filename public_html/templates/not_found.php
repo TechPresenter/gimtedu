@@ -7,7 +7,8 @@ if (!defined('PWF_APP')) {
 
 http_response_code(404);
 $page = current_page_row();
-page_header($page, ['banner' => false, 'noindex' => true, 'title' => $page['title'] ?: 'Page not found']);
+// No breadcrumb trail on a 404 (the SEO core also prints no canonical and no BreadcrumbList here: CRITIC C7)
+page_header($page, ['banner' => false, 'noindex' => true, 'title' => $page['title'] ?: 'Page not found', 'crumbs' => []]);
 $q = trim(mb_substr(get_str('q'), 0, 80));
 $results = [];
 if ($q !== '') {

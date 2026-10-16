@@ -52,7 +52,9 @@ $monthUrl = function (string $ym) use ($page, $currentMonth): string {
     return page_url($page['slug'], $ym === $currentMonth ? [] : ['month' => $ym]) . '#calendar';
 };
 
-page_header($page, ['noindex' => $month !== $currentMonth, 'meta_title' => $month !== $currentMonth ? $page['title'] . ' - ' . $monthLabel : ($page['meta_title'] ?: null)]);
+page_header($page, ['noindex' => $month !== $currentMonth, 'meta_title' => $month !== $currentMonth ? $page['title'] . ' - ' . $monthLabel : ($page['meta_title'] ?: null),
+    // the month actually shown (a requested month is clamped to the listed range): canonical = this month, the current month = the plain address
+    'canonical_query' => $month !== $currentMonth ? ['month' => $month] : []]);
 render_sections($page, function () use ($page, $month, $currentMonth, $minMonth, $maxMonth, $monthStart, $daysInMonth, $prevMonth, $nextMonth, $monthLabel, $events, $byDay, $typesPresent, $involvePage, $monthUrl) {
     $todayDay = date('Y-m') === $month ? (int) date('j') : 0;
     echo '<section class="section calendar-section" id="calendar"><div class="container">';
