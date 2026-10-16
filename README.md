@@ -1,4 +1,4 @@
-# Prerit Welfare Foundation — Website & Admin CMS (v3 · Upgrade 1)
+# Prerit Welfare Foundation — Website & Admin CMS (v3)
 
 A premium, fully dynamic NGO website with an admin CMS, written in **plain PHP 8, MySQL, HTML, CSS and vanilla JavaScript**.
 No frameworks, no Composer, no npm and no build step — upload the files to `public_html/` on any PHP/MySQL host (e.g. Hostinger) and it runs.
@@ -9,7 +9,30 @@ No frameworks, no Composer, no npm and no build step — upload the files to `pu
 
 ---
 
-## 0. What's new in v3 (Upgrade 1) and how to upgrade the live site
+## Quick start — one ZIP + one SQL
+
+The release consists of two files:
+
+* **`prerit-website.zip`** — the whole website. All files are directly at the root of the zip (no nested zips, no extra folder), including `.htaccess`, `install.php` and a ready **`pwf-config.php`** whose `INSTALL_KEY` and `APP_KEY` are already filled with unique random values.
+* **`prerit-database.sql`** — the complete database with every update already applied (pages, menus, settings, programme categories, SEO data). It contains **no** user accounts, passwords, donations, applications, payment or AI keys. It never drops anything: imported into a database that already has the website's tables, it stops at the first table ("Table 'website_settings' already exists") and changes nothing.
+
+**Path 1 — new installation (empty database)**
+1. **Upload and extract** `prerit-website.zip` in `public_html` (hPanel → File Manager → Upload → right-click → Extract). `index.php`, `install.php`, `pwf-config.php`, `admin/`, `assets/` must sit directly in `public_html`. Delete the zip.
+2. **Create a database** (hPanel → Databases → Management) and **import** `prerit-database.sql` in phpMyAdmin (Import → Go).
+3. **Edit `public_html/pwf-config.php`**: `DB_NAME`, `DB_USER`, `DB_PASS` (full names with the `u123…_` prefix). Change `BASE_URL` only for a different domain (https, no trailing slash). Leave `INSTALL_KEY` and `APP_KEY` as they are — never change `APP_KEY` later. The file is blocked from the web by `.htaccess`; moving it one folder above `public_html` is optional and even safer (that location is read first).
+4. **Domain and go live**: point the domain to the hosting, activate SSL (hPanel → Security → SSL; the `.htaccess` already redirects http/www to `https://preritwelfarefoundation.org`), open `https://YOUR-DOMAIN/install.php`, enter the `INSTALL_KEY` from `pwf-config.php`, create the first administrator, then **delete `install.php`**.
+
+**Path 2 — update the site that is already live (keep all data)**
+1. Back up files and database (hPanel → Backups; Admin → Backup & Data Retention).
+2. Upload `prerit-website.zip` into `public_html` and extract it, replacing files. Do not delete `uploads/`.
+3. Delete `public_html/install.php` and `public_html/pwf-config.php` (the live settings stay in the `pwf-config.php` one folder above `public_html`).
+4. **Do not import the SQL.** Open the home page once: the database updates itself (Audit Log → "database_upgraded"; Security Centre → "Database up to date"). This also clears the earlier "Illegal mix of collations" update error.
+
+Then: regenerate the Razorpay Key Secret (it was shared in a chat) and enter the keys in Admin → Fundraising → Payment Gateways; turn on two-step login; upload the seal; submit `sitemap.xml` in Google Search Console. Step-by-step in Hindi: **DEPLOY-HINDI.md**.
+
+---
+
+## 0. What's new in v3
 
 | Area | What changed | Where in the admin |
 |---|---|---|
@@ -22,15 +45,7 @@ No frameworks, no Composer, no npm and no build step — upload the files to `pu
 | **Authorization letters** | Volunteer-teacher authorization letters in the foundation's letter layout (letterhead, logo watermark, seal, school verification box), masked ID numbers only, reference numbers, public verification at `/verify-letter/`. | People → Authorization Letters |
 | **Pages** | Home "Our impact" section hidden; mega-menu tagline column removed; volunteer-teacher page shows only the form behind a Terms & Conditions pop-up; donate page shows only the form with the foundation seal; top bar "Programs & Events" dropdown; mobile swipeable menu strip; hero slider right-side images editable with preview; footer shows CIN, NGO ID, MCA registration, MSME and focus areas. | Pages, Settings, Dashboard hero card |
 
-**Upgrading the live site (keep all data):**
-1. Back up files and database (hPanel → Backups, and Admin → Backup & Data Retention).
-2. Upload `prerit-upgrade-1.zip` into `public_html` and extract it, replacing files. Do not delete anything; the zip contains no `install.php`, no root `.htaccess` (your HTTPS settings stay) and no user uploads. Keep `pwf-config.php` (outside `public_html`). If an old `install.php` is still on the server it now only answers "already installed" - delete it anyway.
-3. Open the home page once — migrations run automatically (Audit Log shows "database_upgraded"). Intended changes: menu links, page links and redirects to `/events-page/` now point to `/events/` (the old address redirects); the donate and volunteer-teacher pages show only their forms - their other sections, including any you added, are **hidden, not deleted** (switch them back on in Pages); the home "Our impact" counters are hidden; FAQ and privacy texts change only where they are still the original wording.
-4. Recommended: add `define('APP_KEY', '<40+ random letters and digits>');` to `pwf-config.php` before entering keys in the admin, and never change it afterwards.
-5. **Regenerate the Razorpay Key Secret** (it was shared in a chat), then enter the keys in Fundraising → Payment Gateways, test the connection and set up the webhook. Optional: Cashfree (sandbox first), OpenAI key (set a budget limit in OpenAI), analytics location source, seal and signature in Authorization Letters → Settings.
-6. Do **not** re-import `database.sql` on a site that has real data.
-
-Step-by-step in Hindi: **DEPLOY-HINDI.md** (section A).
+**Installing or upgrading:** see *Quick start* above.
 
 ---
 
@@ -93,26 +108,10 @@ Step-by-step in Hindi: **DEPLOY-HINDI.md** (section A).
 2. hPanel → **Files → File Manager → public_html**: delete the WordPress files (`wp-admin/`, `wp-content/`, `wp-includes/`, `wp-*.php`, `index.php`, `.htaccess`, `license.txt`, `readme.html`, `xmlrpc.php`). Keep `.well-known/` if present.
 3. (Optional) the old WordPress database can stay until you are happy with the new site; then delete it in hPanel → Databases.
 
-### Step 2 — Create a NEW database
-1. hPanel → **Databases → MySQL Databases** → create database + user. Use a password with **letters and numbers only** (avoids copy/paste and quoting problems). Note the full names (e.g. `u123456789_prerit`).
-2. **phpMyAdmin** → select that database → **Import** → choose `database.sql` → **Go**. You should see 51 tables.
+### Steps 2–6 — Database, upload, configuration, installer, HTTPS
+Follow **Quick start → Path 1** at the top of this guide (one ZIP, one SQL import, three values in `pwf-config.php`, then `install.php`). There is **no default admin account** anywhere: the installer creates the first administrator with your own password, locks itself, and Admin → Security Centre reminds you to delete `install.php`.
 
-### Step 3 — Upload the website
-1. Zip the **contents** of `public_html/` (or use the ready package), upload to hPanel **File Manager → public_html**, then **Extract**. Make sure `.htaccess` files are included (File Manager → Settings → show hidden files).
-2. Folder permissions: folders `755`, files `644`; `uploads/` and its sub-folders must be writable (default on Hostinger).
-
-### Step 4 — Private configuration
-1. Copy `pwf-config.sample.php` to **`pwf-config.php`** and fill in `BASE_URL`, `DB_NAME`, `DB_USER`, `DB_PASS`, a long random **`INSTALL_KEY`**, and (later) SMTP and Razorpay values.
-2. Upload it **one folder above `public_html`** (e.g. `/home/u123456789/domains/preritwelfarefoundation.org/pwf-config.php`). It can never be downloaded from the web there.
-   *If your host does not allow that, put the same `define(...)` lines at the top of `public_html/config.php`.*
-
-### Step 5 — Run the installer
-1. Open `https://YOUR-DOMAIN/install.php` — it checks PHP, extensions, folder permissions and the database.
-2. Enter the **INSTALL_KEY** and create the **first administrator** (name, email, a strong 12+ character password). There is **no default admin account** anywhere.
-3. The installer locks itself. Then set `INSTALL_KEY` back to `''` and delete `install.php` (Admin → Security Centre reminds you).
-
-### Step 6 — Enable HTTPS
-Activate SSL in hPanel, then in `public_html/.htaccess` uncomment the three **Force HTTPS** lines. Keep `BASE_URL` on `https://`.
+Developers building from the repository instead: `database.sql` is the base schema (the website brings it up to date on the first request), `pwf-config.sample.php` is the configuration template, and the contents of `public_html/` are the website files.
 
 ### Step 7 — First steps in the admin panel (`/admin/`)
 1. **My Profile → Two-step login**: turn it on (any authenticator app).
