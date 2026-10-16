@@ -191,4 +191,9 @@
 .terms-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); background: var(--green-50); }
 .terms-accept-row .link-button { color: var(--green-700); text-decoration: underline; font-weight: 600; }
 .terms-accept-row .link-button:hover { color: var(--green-600); }
+.terms-inline { margin-top: 10px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.terms-inline[hidden] { display: none; }
+.terms-inline summary { cursor: pointer; font-weight: 600; color: var(--green-700); }
+.terms-inline[open] summary { margin-bottom: 10px; }
+.terms-inline:target { outline: 3px solid var(--green-600); outline-offset: 2px; }
 @media (max-width: 480px) { .terms-actions .btn { flex: 1; justify-content: center; } }

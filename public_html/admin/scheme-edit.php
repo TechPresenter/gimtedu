@@ -175,7 +175,7 @@ admin_page_start($scheme ? 'Edit scheme' : 'New scheme');
             <?php if (!empty($s['image'])): ?><img src="<?= e(image_url($s['image'])) ?>" alt="Current scheme image" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;margin-bottom:12px"><?php endif; ?>
             <div class="form-group" style="margin-bottom:16px"><label for="image">Upload an image</label>
                 <input id="image" type="file" name="image" accept="image/jpeg,image/png,image/webp">
-                <span class="help">JPG, PNG or WebP, up to <?= (int) MAX_UPLOAD_MB ?> MB. Do not use government logos or emblems.</span><?= field_error('image') ?></div>
+                <span class="help">JPG, PNG or WebP, up to <?= e(upload_limit_label()) ?> MB. Do not use government logos or emblems.</span><?= field_error('image') ?></div>
             <?php if (!empty($s['image'])): ?><label class="checkbox"><input type="checkbox" name="remove_image" value="1"><span>Remove the image</span></label><?php endif; ?>
         </section>
     </div>

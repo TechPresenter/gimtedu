@@ -17,9 +17,15 @@ $classes = ['Primary (1-5)', 'Middle (6-8)', 'Secondary (9-10)', 'Senior Seconda
 $languages = recruitment_options('languages');
 $modes = recruitment_options('modes');
 
+$terms = teacher_terms();
+$hasTerms = (bool) $terms['lines'];   // with no terms text in Settings there is nothing to accept
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     recruitment_guard_post($slug, 'teacher', 5);
     [$consentRules, $consentLabels] = recruitment_consent_rules($consents);
+    if ($hasTerms) {
+        $consentRules['accept_terms'] = 'accepted';
+    }
     [$data, $errors] = validate($_POST, personal_rules($required) + [
         'qualification'       => 'required|min:2|max:150',
         'subjects'            => 'required|array|in:' . implode(',', $subjects),
@@ -29,11 +35,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'teaching_mode'       => 'required|in:' . implode(',', array_keys($modes)),
         'availability'        => 'required|in:' . implode(',', AVAILABILITY_OPTIONS),
         'motivation'          => 'required|text|min:30|max:2000',
-        'accept_terms'        => 'accepted',
     ] + $consentRules, $consentLabels + ['accept_terms' => 'Volunteer teacher terms & conditions', 'subjects' => 'Subjects', 'languages' => 'Teaching languages', 'teaching_mode' => 'Teaching mode', 'motivation' => 'Why you want to teach']);
+    $old = $_POST;
+    if ($hasTerms && !isset($errors['accept_terms']) && (string) ($_POST['terms_version'] ?? '') !== $terms['version']) {
+        // the terms changed after the form was loaded: the visitor accepted an older text
+        $errors['accept_terms'] = 'The terms & conditions were updated while you were filling in the form. Please read them again and accept them.';
+        unset($old['accept_terms']);
+    }
     $resume = recruitment_upload('resume', 'pdf', 'documents/teachers', false, $errors);
     if ($errors) {
-        back_with_errors($errors, page_url($slug) . '#apply', $_POST);
+        back_with_errors($errors, page_url($slug) . '#apply', $old);
     }
     try {
         $id = db_insert('teacher_applications', [
@@ -56,8 +67,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'availability'        => $data['availability'],
             'resume_path'         => $resume,
             'motivation'          => $data['motivation'],
-            'terms_accepted_at'   => date('Y-m-d H:i:s'),
-            'terms_version'       => teacher_terms()['version'],
+            'terms_accepted_at'   => $hasTerms ? date('Y-m-d H:i:s') : null,
+            'terms_version'       => $hasTerms ? $terms['version'] : null,
             'ip_address'          => client_ip(),
         ]);
     } catch (Throwable $e) {
@@ -90,18 +101,22 @@ if ($success) {
 }
 
 $user = current_user();
-render_sections($page, function () use ($user, $slug, $consents, $required, $subjects, $classes, $languages, $modes) {
+render_sections($page, function () use ($user, $slug, $consents, $required, $subjects, $classes, $languages, $modes, $terms, $hasTerms) {
     $mode = (string) old('teaching_mode', 'in_person');
     ?>
     <section class="section section-tint rc-apply-section" id="apply">
         <div class="container">
             <?= ui_heading('Volunteer teacher application', 'Apply to teach', 'Share what you can teach and when. Fields marked * are required.', true) ?>
             <div class="rc-apply-layout">
+                <?php if ($hasTerms): ?>
                 <div class="form-card rc-form-card terms-gated" data-terms-gate="teacher-terms">
                     <div class="terms-gate-bar" data-terms-bar hidden>
                         <span><?= icon('lock') ?>Please read and accept the terms &amp; conditions to fill in this form.</span>
                         <button type="button" class="btn btn-primary btn-sm" data-modal-open="teacher-terms"><?= icon('file-text') ?>Read &amp; accept</button>
                     </div>
+                <?php else: ?>
+                <div class="form-card rc-form-card">
+                <?php endif; ?>
                     <?= recruitment_form_open($slug, true) ?>
                         <h3 class="form-section-title"><?= icon('user') ?>Your details</h3>
                         <div class="form-grid">
@@ -163,10 +178,14 @@ render_sections($page, function () use ($user, $slug, $consents, $required, $sub
                         </div></div>
 
                         <?= recruitment_consent_html($consents) ?>
+                        <?php if ($hasTerms): ?>
                         <div class="form-group full terms-accept-row">
-                            <label class="checkbox"><input type="checkbox" name="accept_terms" value="1" required data-terms-checkbox<?= old_checked('accept_terms', '1') ?>><span>I have read and accept the <button type="button" class="link-button" data-modal-open="teacher-terms">Volunteer Teacher Terms &amp; Conditions</button>.<span class="req">*</span></span></label>
+                            <input type="hidden" name="terms_version" value="<?= e($terms['version']) ?>">
+                            <label class="checkbox"><input type="checkbox" name="accept_terms" value="1" required data-terms-checkbox<?= old_checked('accept_terms', '1') ?>><span>I have read and accept the <a class="link-button" href="#teacher-terms-text" data-modal-open="teacher-terms">Volunteer Teacher Terms &amp; Conditions</a>.<span class="req">*</span></span></label>
                             <?= field_error('accept_terms') ?>
+                            <?= teacher_terms_inline_html() ?>
                         </div>
+                        <?php endif; ?>
                         <div class="form-actions">
                             <button class="btn btn-blue btn-lg" type="submit" data-loading="Submitting…"><?= icon('send') ?>Submit application</button>
                         </div>

@@ -168,7 +168,7 @@ admin_page_start('Certificates & Reports', [['label' => 'Add document', 'url' =>
                 <div class="form-group full"><label for="category">Category</label><select id="category" name="category"><?= options_html(RESOURCE_CATEGORIES, (string) old('category', $d['category'] ?? ($cat ?: 'certification')), true, '') ?></select><?= field_error('category') ?></div>
                 <div class="form-group full"><label for="title">Title</label><input type="text" id="title" name="title" required maxlength="200" placeholder="e.g. Annual Report 2025-26" value="<?= e(old('title', $d['title'] ?? '')) ?>"><?= field_error('title') ?></div>
                 <div class="form-group full"><label for="description">Short description (optional)</label><textarea id="description" name="description" rows="3" maxlength="500"><?= e(old('description', $d['description'] ?? '')) ?></textarea><?= field_error('description') ?></div>
-                <div class="form-group full"><label for="file">PDF file (max <?= (int) MAX_UPLOAD_MB ?> MB)</label>
+                <div class="form-group full"><label for="file">PDF file (max <?= e(upload_limit_label()) ?> MB)</label>
                     <?php if (!empty($d['file_path'])): ?><p class="small mb-0">Current file: <a href="<?= e(url($d['file_path'])) ?>" target="_blank" rel="noopener"><?= e(basename($d['file_path'])) ?></a></p>
                         <label class="checkbox"><input type="checkbox" name="remove_file" value="1"><span>Remove the current PDF (use the external link instead)</span></label><?php endif; ?>
                     <input id="file" type="file" name="file" accept=".pdf,application/pdf"><?= field_error('file') ?><span class="help">PDF only. Uploading a new file replaces the current one.</span></div>

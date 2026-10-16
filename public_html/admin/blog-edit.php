@@ -184,7 +184,7 @@ admin_page_start($post ? 'Edit post' : 'New post', [['label' => 'All posts', 'ur
                 <img id="img-preview" class="mb-2" src="<?= e($img ? image_url($img) : 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7') ?>" alt="" width="640" height="400" style="width:100%;border-radius:10px;aspect-ratio:16/10;object-fit:cover;background:var(--green-50)"<?= $img ? '' : ' hidden' ?>>
                 <div class="form-group"><label for="image"><?= $img ? 'Replace image' : 'Upload image' ?></label>
                     <input id="image" type="file" name="image" accept=".jpg,.jpeg,.png,.webp" data-preview="#img-preview">
-                    <span class="help">JPG, PNG or WebP, up to <?= MAX_UPLOAD_MB ?> MB (resized to 1920px). Use photos of identifiable people only with their consent.</span><?= field_error('image') ?></div>
+                    <span class="help">JPG, PNG or WebP, up to <?= e(upload_limit_label()) ?> MB (resized to 1920px). Use photos of identifiable people only with their consent.</span><?= field_error('image') ?></div>
                 <?php if ($img): ?><label class="checkbox mt-1"><input type="checkbox" name="remove_image" value="1"><span>Remove the image</span></label><?php endif; ?>
             </section>
         </div>

@@ -44,7 +44,7 @@ $regBits = array_filter([
 
     <div class="container footer-grid">
         <div class="footer-about">
-            <a class="footer-brand" href="<?= e(url('/')) ?>" aria-label="<?= e(site_name()) ?>"><?= brand_lockup('footer') ?></a>
+            <a class="footer-brand" href="<?= e(url('/')) ?>"><?= brand_lockup('footer') ?><span class="sr-only"> - home</span></a>
             <?php if (setting('brand_slogan')): ?><p class="footer-slogan"><?= e(setting('brand_slogan')) ?></p><?php endif; ?>
             <p><?= e(setting('footer_about_text', setting('site_description'))) ?></p>
             <?php if (setting('focus_areas_text') !== ''): ?><p class="footer-focus"><?= e(setting('focus_areas_text')) ?></p><?php endif; ?>

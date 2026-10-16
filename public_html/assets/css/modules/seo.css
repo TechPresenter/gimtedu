@@ -1,0 +1,72 @@
+/* SEO WP-6 — E-E-A-T blocks: author box, review line, dates line, sources list (includes/seo-eeat.php).
+   Subtle, brand variables only; reuses .avatar, .muted and .sr-only from the base styles. No animation. */
+
+/* Author / publisher box */
+.seo-author {
+    display: flex; gap: 16px; align-items: flex-start;
+    margin-top: 28px; padding: 18px 20px;
+    background: var(--green-50); border: 1px solid var(--line); border-left: 4px solid var(--green-600);
+    border-radius: var(--radius); color: var(--ink);
+}
+.seo-author-media { flex: 0 0 auto; }
+.seo-author-photo { display: block; width: 64px; height: 64px; border-radius: 50%; object-fit: cover; background: var(--green-100); }
+.seo-author-logo { object-fit: contain; background: #fff; border: 1px solid var(--line); padding: 4px; }
+.seo-author .seo-author-avatar { width: 64px; height: 64px; font-size: 1.15rem; }
+.seo-author-body { min-width: 0; flex: 1 1 auto; }
+.seo-author-body p { margin: 0; }
+.seo-author-label { font-size: .78rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.seo-author-name { margin-top: 2px; line-height: 1.35; overflow-wrap: anywhere; }
+.seo-author-name strong { font-size: 1.05rem; color: var(--ink); }
+.seo-author-role { display: block; font-size: .88rem; color: var(--ink-soft); }
+.seo-author .seo-author-bio { margin-top: 8px; font-size: .92rem; color: var(--ink-soft); line-height: 1.6; overflow-wrap: anywhere; }
+.seo-author-more { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-size: .9rem; font-weight: 600; color: var(--green-700); }
+.seo-author-more .icon { width: 16px; height: 16px; }
+.seo-author-more:hover { color: var(--green-600); text-decoration: underline; }
+
+/* Reviewed by … on … */
+.seo-review {
+    display: flex; gap: 8px; align-items: flex-start;
+    margin: 18px 0 0; font-size: .88rem; color: var(--ink-soft); line-height: 1.5;
+}
+.seo-review .icon { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 2px; color: var(--green-600); }
+.seo-review a { font-weight: 600; color: var(--green-700); }
+
+/* Published / Updated */
+.seo-dates { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; margin: 0 0 16px; font-size: .88rem; color: var(--muted); }
+span.seo-dates { display: inline-flex; margin: 0; }
+.seo-date { display: inline-flex; align-items: center; gap: 6px; }
+.seo-date .icon { width: 16px; height: 16px; color: var(--green-600); }
+.seo-date time { color: var(--ink-soft); }
+
+/* Sources */
+.seo-sources { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); }
+.seo-sources-title { font-size: 1.05rem; margin: 0 0 10px; }
+.seo-sources-list { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; font-size: .92rem; color: var(--ink-soft); }
+.seo-sources-list a { color: var(--blue-600); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+.seo-sources-list a:hover { color: var(--blue-700); }
+.seo-source-host { font-size: .8rem; color: var(--muted); white-space: nowrap; }
+
+/* "Last updated / Reviewed by" strip under programme and category pages */
+.seo-page-meta { padding-top: 8px; padding-bottom: 28px; }
+.seo-page-meta .seo-dates { margin: 0; }
+.seo-page-meta .seo-review { margin-top: 8px; }
+
+/* Team cards linked from author boxes (/management-body/#member-12): clear the sticky header, mark the target */
+[id^="member-"] { scroll-margin-top: calc(var(--header-h, 84px) + 16px); }
+.team-card:target { outline: 3px solid var(--gold-500); outline-offset: 3px; }
+
+/* Keyboard focus stays clearly visible on the tinted box */
+.seo-author a:focus-visible, .seo-review a:focus-visible, .seo-sources a:focus-visible {
+    outline: 3px solid var(--blue-600); outline-offset: 2px; border-radius: 4px;
+}
+
+@media (max-width: 480px) {
+    .seo-author { padding: 16px; gap: 12px; }
+    .seo-author-photo, .seo-author .seo-author-avatar { width: 52px; height: 52px; }
+}
+
+@media print {
+    .seo-author { background: none; border-color: #999; }
+    .seo-sources-list a::after { content: " (" attr(href) ")"; font-size: .8em; color: #333; }
+    .seo-sources-list .sr-only { display: none; }
+}

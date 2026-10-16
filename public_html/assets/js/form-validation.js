@@ -84,7 +84,8 @@
         }
         if (field.type === 'file' && field.files && field.files[0]) {
             var maxMb = parseFloat(field.dataset.maxMb || '5');
-            if (field.files[0].size > maxMb * 1024 * 1024) { return 'The file is too large. Maximum size is ' + maxMb + ' MB.'; }
+            // no usable limit in the page (0, empty or not a number): the server still checks the size
+            if (maxMb > 0 && field.files[0].size > maxMb * 1024 * 1024) { return 'The file is too large. Maximum size is ' + maxMb + ' MB.'; }
             var accept = (field.getAttribute('accept') || '').toLowerCase();
             if (accept) {
                 var name = field.files[0].name.toLowerCase();

@@ -260,6 +260,12 @@ function old_selected(string $key, string $value, string $default = ''): string
     return (string) $current === $value ? ' selected' : '';
 }
 
+/** The upload limit for messages ("5", "1.9", "0.5"): MAX_UPLOAD_MB without a cast that would round it down to 0. */
+function upload_limit_label(): string
+{
+    return rtrim(rtrim(number_format((float) MAX_UPLOAD_MB, 2, '.', ''), '0'), '.');
+}
+
 /**
  * Validate and store an uploaded file.
  *
@@ -276,13 +282,13 @@ function handle_upload(string $field, string $kind, string $folder, bool $requir
         return $required ? ['error' => 'Please choose a file to upload.'] : [];
     }
     if ($file['error'] === UPLOAD_ERR_INI_SIZE || $file['error'] === UPLOAD_ERR_FORM_SIZE) {
-        return ['error' => 'The file is too large. Maximum size is ' . MAX_UPLOAD_MB . ' MB.'];
+        return ['error' => 'The file is too large. Maximum size is ' . upload_limit_label() . ' MB.'];
     }
     if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
         return ['error' => 'The file could not be uploaded. Please try again.'];
     }
     if ($file['size'] <= 0 || $file['size'] > MAX_UPLOAD_MB * 1024 * 1024) {
-        return ['error' => 'The file is too large. Maximum size is ' . MAX_UPLOAD_MB . ' MB.'];
+        return ['error' => 'The file is too large. Maximum size is ' . upload_limit_label() . ' MB.'];
     }
 
     $allowed = [

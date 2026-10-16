@@ -79,15 +79,18 @@ if (!defined('MAX_UPLOAD_MB')) {
     // "up to N MB" message on the site matches what the server really accepts
     $pwfUploadMb = 5;
     foreach (['upload_max_filesize', 'post_max_size'] as $pwfIniKey) {
+        // read the value the way PHP does: the whole-number part times the unit ("1.5M" is 1 MB for PHP)
         $pwfIni = trim((string) ini_get($pwfIniKey));
-        $pwfBytes = (float) $pwfIni;
+        $pwfBytes = (float) (int) $pwfIni;
         $pwfUnit = strtolower(substr($pwfIni, -1));
         $pwfBytes *= $pwfUnit === 'g' ? 1073741824 : ($pwfUnit === 'm' ? 1048576 : ($pwfUnit === 'k' ? 1024 : 1));
         if ($pwfBytes > 0) {
             $pwfUploadMb = min($pwfUploadMb, $pwfBytes / 1048576);
         }
     }
-    define('MAX_UPLOAD_MB', floor($pwfUploadMb) == $pwfUploadMb ? (int) $pwfUploadMb : round($pwfUploadMb, 1));
+    // rounded down, never above what the server accepts (1997K = 1.95 MB -> 1.9; 100K -> 0.09)
+    $pwfUploadMb = $pwfUploadMb >= 1 ? floor($pwfUploadMb * 10) / 10 : floor($pwfUploadMb * 100) / 100;
+    define('MAX_UPLOAD_MB', floor($pwfUploadMb) == $pwfUploadMb ? (int) $pwfUploadMb : $pwfUploadMb);
     unset($pwfUploadMb, $pwfIniKey, $pwfIni, $pwfBytes, $pwfUnit);
 }
 // Only if the site is behind Cloudflare or another proxy: the $_SERVER key that

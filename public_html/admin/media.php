@@ -99,7 +99,7 @@ admin_page_start('Media Library');
 ?>
 <div class="site-admin">
 <section class="panel">
-    <div class="panel-head"><h2><?= icon('upload') ?>Upload images</h2><span class="muted small">JPG, PNG or WebP, up to <?= (int) MAX_UPLOAD_MB ?> MB each. Large photos are resized to 1920 px.</span></div>
+    <div class="panel-head"><h2><?= icon('upload') ?>Upload images</h2><span class="muted small">JPG, PNG or WebP, up to <?= e(upload_limit_label()) ?> MB each. Large photos are resized to 1920 px.</span></div>
     <form method="post" action="<?= e(admin_url('media.php')) ?>" enctype="multipart/form-data" class="site-upload-box">
         <?= csrf_field() ?><input type="hidden" name="action" value="upload">
         <div class="form-grid">

@@ -223,39 +223,87 @@
     });
 
     /* ---------- Copy buttons ---------- */
+    var copyLive = function (msg) {
+        var live = document.getElementById('copy-live');
+        if (!live) {
+            live = document.createElement('span');
+            live.id = 'copy-live';
+            live.className = 'sr-only';
+            live.setAttribute('aria-live', 'polite');
+            document.body.appendChild(live);
+        }
+        live.textContent = msg;
+        return live;
+    };
+    // plain http (e.g. before SSL is switched on) or a refused clipboard: copy through a temporary text box
+    var copyWithTextarea = function (text) {
+        var ta = document.createElement('textarea');
+        var ok = false;
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+        document.body.removeChild(ta);
+        return ok;
+    };
     document.querySelectorAll('[data-copy]').forEach(function (btn) {
+        var original = btn.innerHTML;   // saved once, so a second click while "Copied" shows keeps the icon and label
+        var timer = null;
+        var show = function (label, msg) {
+            if (timer) { clearTimeout(timer); }
+            btn.textContent = label;
+            var live = copyLive(msg);
+            timer = setTimeout(function () { btn.innerHTML = original; live.textContent = ''; timer = null; }, 1500);
+        };
+        var done = function () { show('Copied', 'Copied to the clipboard'); };
+        var failed = function () { show('Copy failed', 'Could not copy. Please select the text and copy it with Ctrl+C.'); };
         btn.addEventListener('click', function () {
             var text = btn.getAttribute('data-copy');
-            var done = function () {
-                var html = btn.innerHTML;   // keep the icon
-                btn.textContent = 'Copied';
-                var live = document.getElementById('copy-live');
-                if (!live) {
-                    live = document.createElement('span');
-                    live.id = 'copy-live';
-                    live.className = 'sr-only';
-                    live.setAttribute('aria-live', 'polite');
-                    document.body.appendChild(live);
-                }
-                live.textContent = 'Copied to the clipboard';
-                setTimeout(function () { btn.innerHTML = html; live.textContent = ''; }, 1500);
-            };
             if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(text).then(done, function () {});
+                navigator.clipboard.writeText(text).then(done, function () {
+                    if (copyWithTextarea(text)) { done(); } else { failed(); }
+                    btn.focus();
+                });
                 return;
             }
-            // plain http (e.g. before SSL is switched on): copy through a temporary text box
-            var ta = document.createElement('textarea');
-            ta.value = text;
-            ta.setAttribute('readonly', '');
-            ta.style.position = 'fixed';
-            ta.style.opacity = '0';
-            document.body.appendChild(ta);
-            ta.select();
-            try { if (document.execCommand('copy')) { done(); } } catch (err) { /* ignore */ }
-            document.body.removeChild(ta);
+            if (copyWithTextarea(text)) { done(); } else { failed(); }
             btn.focus();
         });
+    });
+
+    /* ---------- Wide tables: a table that scrolls sideways can be scrolled with the keyboard ---------- */
+    var markScrollableTables = function () {
+        document.querySelectorAll('.table-wrap').forEach(function (wrap) {
+            var scrolls = wrap.clientWidth > 0 && wrap.scrollWidth > wrap.clientWidth + 1;
+            if (scrolls && !wrap.hasAttribute('tabindex')) {
+                wrap.setAttribute('tabindex', '0');
+                wrap.setAttribute('role', 'region');
+                wrap.setAttribute('data-scroll-region', '1');
+                if (!wrap.hasAttribute('aria-label') && !wrap.hasAttribute('aria-labelledby')) {
+                    var panel = wrap.closest('.panel, section');
+                    var head = wrap.querySelector('caption') || (panel ? panel.querySelector('h2, h3') : null);
+                    wrap.setAttribute('aria-label', (head ? head.textContent.trim() : 'Table') + ' (scroll sideways for more columns)');
+                    wrap.setAttribute('data-scroll-label', '1');
+                }
+            } else if (!scrolls && wrap.getAttribute('data-scroll-region') === '1') {
+                wrap.removeAttribute('tabindex');
+                wrap.removeAttribute('role');
+                wrap.removeAttribute('data-scroll-region');
+                if (wrap.getAttribute('data-scroll-label') === '1') {
+                    wrap.removeAttribute('aria-label');
+                    wrap.removeAttribute('data-scroll-label');
+                }
+            }
+        });
+    };
+    markScrollableTables();
+    var tableTimer = null;
+    window.addEventListener('resize', function () {
+        clearTimeout(tableTimer);
+        tableTimer = setTimeout(markScrollableTables, 200);
     });
 
     /* ---------- Print ---------- */

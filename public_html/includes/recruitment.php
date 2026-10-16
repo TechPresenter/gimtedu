@@ -899,6 +899,28 @@ function teacher_terms_modal_html(): string
         . '<button type="button" class="btn btn-primary" data-terms-accept>' . icon('check') . 'I accept</button></div></div></dialog>';
 }
 
+/**
+ * The same terms inside the form, as a disclosure (<details>), so they can be read without JavaScript. terms-gate.js
+ * hides it when the pop-up is available; the "Terms & Conditions" link in the checkbox label points here.
+ */
+function teacher_terms_inline_html(): string
+{
+    $t = teacher_terms();
+    if (!$t['lines']) {
+        return '';
+    }
+    $items = '';
+    foreach ($t['lines'] as $line) {
+        $items .= '<li>' . e($line) . '</li>';
+    }
+    return '<details class="terms-inline" id="teacher-terms-text" data-terms-inline><summary>' . e($t['title']) . '</summary>'
+        . ($t['intro'] !== '' ? '<p class="terms-intro">' . e($t['intro']) . '</p>' : '')
+        . '<ol class="terms-list">' . $items . '</ol>'
+        . '<p class="terms-links">Read in full: <a href="' . e(page_url('volunteer-policy')) . '">Volunteer Policy</a> · '
+        . '<a href="' . e(page_url('child-protection-policy')) . '">Child Protection Policy</a> · '
+        . '<a href="' . e(page_url('privacy-policy')) . '">Privacy Policy</a></p></details>';
+}
+
 /** Opening of an application form (CSRF, honeypot, upload limit). */
 function recruitment_form_open(string $slug, bool $files = false, string $id = 'application-form'): string
 {
@@ -923,7 +945,7 @@ function recruitment_file_field(string $name, string $label, bool $required, str
     $accept = $pdfOnly ? '.pdf,application/pdf' : '.pdf,.jpg,.jpeg,.png';
     return '<div class="form-group full"><label for="' . e($name) . '">' . e($label) . ($required ? '<span class="req">*</span>' : '') . '</label>'
         . '<input id="' . e($name) . '" type="file" name="' . e($name) . '" accept="' . $accept . '" data-max-mb="' . MAX_UPLOAD_MB . '"' . ($required ? ' required' : '') . '>'
-        . '<span class="help">' . icon('lock') . ' ' . e($help) . ' Maximum ' . MAX_UPLOAD_MB . ' MB. Stored privately and seen only by authorised staff.</span>'
+        . '<span class="help">' . icon('lock') . ' ' . e($help) . ' Maximum ' . upload_limit_label() . ' MB. Stored privately and seen only by authorised staff.</span>'
         . field_error($name) . '</div>';
 }
 

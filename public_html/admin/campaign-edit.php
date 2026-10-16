@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!empty($_FILES['image']['name']) && ($_FILES['image']['error'] ?? 4) !== UPLOAD_ERR_NO_FILE) {
         $newImage = admin_upload_image('image', 'campaigns', $data['title']);
         if (!$newImage) {
-            back_with_errors(['image' => 'The image could not be uploaded. Use a JPG, PNG or WebP file up to ' . MAX_UPLOAD_MB . ' MB.'], 'admin/' . $self, $_POST);
+            back_with_errors(['image' => 'The image could not be uploaded. Use a JPG, PNG or WebP file up to ' . upload_limit_label() . ' MB.'], 'admin/' . $self, $_POST);
         }
     }
 
@@ -169,7 +169,7 @@ admin_page_start($c ? 'Edit campaign' : 'New campaign', $c ? [['label' => 'Campa
                 <img src="<?= e(image_url($c['image'])) ?>" alt="Current image" style="width:100%;border-radius:10px;margin-bottom:10px;aspect-ratio:16/9;object-fit:cover">
                 <label class="checkbox mb-2"><input type="checkbox" name="remove_image" value="1"> <span>Remove the current image</span></label>
             <?php endif; ?>
-            <div class="form-group"><label for="image"><?= $c && $c['image'] ? 'Replace image' : 'Upload image' ?></label><input id="image" type="file" name="image" accept="image/jpeg,image/png,image/webp"><span class="help">JPG, PNG or WebP, up to <?= (int) MAX_UPLOAD_MB ?> MB, landscape 16:9 works best. Required to publish.</span><?= field_error('image') ?></div>
+            <div class="form-group"><label for="image"><?= $c && $c['image'] ? 'Replace image' : 'Upload image' ?></label><input id="image" type="file" name="image" accept="image/jpeg,image/png,image/webp"><span class="help">JPG, PNG or WebP, up to <?= e(upload_limit_label()) ?> MB, landscape 16:9 works best. Required to publish.</span><?= field_error('image') ?></div>
         </section>
         <?php if ($c && $c['submitted_by']): ?>
             <section class="panel">

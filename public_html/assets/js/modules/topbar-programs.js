@@ -1,8 +1,9 @@
 /* Top bar "Programs & Events" dropdown.
    Without JavaScript the panel opens on hover and keyboard focus (CSS). With JavaScript (.pe-js) it is shown only while
    the root has .open, so aria-expanded on the toggle always matches what is visible:
-   - the toggle button opens / closes it (click, Enter, Space; opening moves focus to the first link);
+   - the toggle button opens / closes it (click, Enter, Space; opening with the keyboard moves focus to the first link);
    - a mouse pointer resting on the item opens it and leaving closes it (touch taps do not, so a tap on the toggle works);
+     a click on the toggle while it is open from hovering keeps it open, the next click closes it;
    - Escape closes it and returns focus to the toggle; focus leaving the item or a click outside closes it.
    Its links are not in the Tab order while it is closed. */
 (function () {
@@ -28,12 +29,15 @@
 
     toggle.addEventListener('click', function (e) {
         e.preventDefault();
-        if (isOpen()) {
+        if (isOpen() && openedBy === 'hover') {
+            openedBy = 'toggle';   // the mouse opened it on the way to the button: the click keeps it open
+        } else if (isOpen()) {
             setOpen(false);
             hoverBlocked = true;
             return;
+        } else {
+            setOpen(true, 'toggle');
         }
-        setOpen(true, 'toggle');
         var first = menu.querySelector('a');
         if (first && e.detail === 0) { first.focus(); }   // keyboard activation (Enter / Space): go to the first link
     });
@@ -52,7 +56,7 @@
     root.addEventListener('pointerleave', function (e) {
         if (e.pointerType !== 'mouse') { return; }
         hoverBlocked = false;
-        if (isOpen() && openedBy === 'hover' && !root.contains(document.activeElement)) {
+        if (isOpen() && openedBy === 'hover' && !menu.contains(document.activeElement)) {
             closeTimer = setTimeout(function () { setOpen(false); }, 160);
         }
     });

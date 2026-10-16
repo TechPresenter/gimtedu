@@ -397,6 +397,15 @@ function member_export_data(int $userId): array
 
     $newsletter = db_row('SELECT email, status, consent_text, consented_at, source, created_at, updated_at FROM newsletter_subscribers WHERE email = ?', [$user['email']]);
 
+    // "notify me / register interest" sign-ups for programmes (own, or made with the verified account email)
+    $interests = [];
+    if (table_exists('program_interests')) {
+        [$where, $wParams] = member_interest_scope($user);
+        $interests = member_export_clean(db_rows("SELECT pi.id, c.title AS category, e.title AS event, pi.name, pi.email, pi.phone, pi.city, pi.message, pi.consent_at, pi.status, pi.notified_at, pi.created_at
+            FROM program_interests pi LEFT JOIN program_categories c ON c.id = pi.category_id LEFT JOIN events e ON e.id = pi.event_id
+            WHERE $where ORDER BY pi.id", $wParams));
+    }
+
     return [
         'export'                => ['generated_at' => date('c'), 'organisation' => site_name(), 'user_id' => (int) $userId,
                                     'note' => 'Personal data held about you by ' . site_name() . '. Passwords, security tokens and internal staff notes are not included.'],
@@ -407,6 +416,7 @@ function member_export_data(int $userId): array
         'donations'             => $donations,
         // own registrations and those made with the verified account email (as shown under My events); never the meeting link
         'event_registrations'   => member_export_clean(db_rows('SELECT er.*, e.title AS event_title, e.start_datetime AS event_start, e.location AS event_location FROM event_registrations er JOIN events e ON e.id = er.event_id WHERE er.user_id = ?' . (!empty($user['email_verified_at']) ? ' OR er.email = ?' : '') . ' ORDER BY er.id', !empty($user['email_verified_at']) ? [$userId, mb_strtolower((string) $user['email'])] : [$userId])),
+        'programme_interests'   => $interests,
         'certificates'          => member_export_clean(db_rows("SELECT * FROM certificates WHERE user_id = ? AND status = 'approved' ORDER BY id", [$userId])),
         'tasks'                 => member_export_clean(db_rows('SELECT * FROM tasks WHERE user_id = ? ORDER BY id', [$userId])),
         'notifications'         => db_rows('SELECT title, message, type, read_at, created_at FROM notifications WHERE user_id = ? ORDER BY id', [$userId]),
@@ -417,6 +427,15 @@ function member_export_data(int $userId): array
         'data_requests'         => member_export_clean(db_rows('SELECT id, email, request_type, details, status, response, completed_at, created_at FROM data_requests WHERE user_id = ? ORDER BY id', [$userId])),
         'account_activity'      => db_rows('SELECT action, created_at FROM activity_logs WHERE user_id = ? ORDER BY id DESC LIMIT 200', [$userId]),
     ];
+}
+
+/** WHERE clause (alias pi) for a user's programme interest sign-ups: own rows, or rows with the verified account email. */
+function member_interest_scope(array $user): array
+{
+    if (!empty($user['email_verified_at'])) {
+        return ['(pi.user_id = ? OR pi.email = ?)', [(int) $user['id'], mb_strtolower((string) $user['email'])]];
+    }
+    return ['pi.user_id = ?', [(int) $user['id']]];
 }
 
 /** Send a JSON download of the export and stop. */
@@ -467,6 +486,10 @@ function member_anonymise_account(int $userId): bool
         delete_upload($user['avatar']);
     }
     db_query('DELETE FROM newsletter_subscribers WHERE email = ?', [$user['email']]);
+    if (table_exists('program_interests')) {   // consent-based "notify me" sign-ups: nothing to retain
+        [$where, $wParams] = member_interest_scope($user);
+        db_query("DELETE pi FROM program_interests pi WHERE $where", $wParams);
+    }
     db_update('users', [
         'name' => 'Deleted user', 'email' => 'deleted-' . $userId . '@invalid.local', 'mobile' => null, 'address' => null,
         'city' => null, 'state' => null, 'pincode' => null, 'avatar' => null, 'status' => 'deactivated',

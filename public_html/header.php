@@ -173,7 +173,7 @@ if (setting('mobile_nav_strip', '1') === '1') {
 
 <header class="site-header<?= $headerUser ? ' has-user' : '' ?>" id="site-header">
     <div class="container header-inner">
-        <a class="brand" href="<?= e(url('/')) ?>" aria-label="<?= e(site_name()) ?> - home"><?= brand_lockup('header') ?></a>
+        <a class="brand" href="<?= e(url('/')) ?>"><?= brand_lockup('header') ?><span class="sr-only"> - home</span></a>
 
         <nav class="main-nav" id="main-nav" aria-label="Main navigation">
             <div class="nav-mobile-head">

@@ -586,8 +586,8 @@ case 'profile':
                             <?= member_avatar($user, 'md-avatar-lg') ?>
                             <div class="form-group">
                                 <label for="avatar">Profile photo</label>
-                                <input id="avatar" type="file" name="avatar" accept=".jpg,.jpeg,.png,.webp" data-max-mb="<?= (int) MAX_UPLOAD_MB ?>" aria-describedby="avatar-help">
-                                <span class="help" id="avatar-help">JPG, PNG or WebP, up to <?= (int) MAX_UPLOAD_MB ?> MB. Optional.</span>
+                                <input id="avatar" type="file" name="avatar" accept=".jpg,.jpeg,.png,.webp" data-max-mb="<?= e(upload_limit_label()) ?>" aria-describedby="avatar-help">
+                                <span class="help" id="avatar-help">JPG, PNG or WebP, up to <?= e(upload_limit_label()) ?> MB. Optional.</span>
                                 <?= field_error('avatar') ?>
                                 <?php if (!empty($user['avatar'])): ?><label class="checkbox"><input type="checkbox" name="remove_avatar" value="1"><span>Remove my photo</span></label><?php endif; ?>
                             </div>

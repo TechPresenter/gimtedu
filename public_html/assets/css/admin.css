@@ -166,3 +166,10 @@ a.stat-card:hover { border-color: var(--green-400); color: var(--ink); }
 
 .form-grid > .form-actions.full, .form-grid > .full { grid-column: 1 / -1; }
 .table-wrap { position: relative; }
+
+/* Links inside sentences are underlined so they stand out from the text around them (WCAG 1.4.1). */
+.admin-content p a:not([class]), .admin-content .alert a:not([class]), .admin-content .help a:not([class]), .admin-content .note-box a:not([class]) {
+    text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px;
+}
+/* a wide table that scrolls sideways is focusable (admin.js) and shows where the focus is */
+.table-wrap[data-scroll-region]:focus-visible { outline: 3px solid var(--green-600); outline-offset: 2px; }

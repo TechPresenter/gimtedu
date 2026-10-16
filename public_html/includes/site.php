@@ -455,7 +455,7 @@ function site_image_input(string $name, string $id, string $value, string $fileN
         $html .= '<label class="site-upload btn btn-ghost btn-sm" for="' . e($id) . '-file">' . icon('upload') . 'Upload new</label>'
             . '<input type="file" class="site-file" id="' . e($id) . '-file" name="' . e($fileName) . '" accept=".jpg,.jpeg,.png,.webp" aria-label="Upload a new image" data-image-file>';
     }
-    return $html . '</div><span class="help">JPG, PNG or WebP up to ' . (int) MAX_UPLOAD_MB . ' MB. Without JavaScript, paste a path from the media library or clear the box to remove the image.</span></div></div>';
+    return $html . '</div><span class="help">JPG, PNG or WebP up to ' . upload_limit_label() . ' MB. Without JavaScript, paste a path from the media library or clear the box to remove the image.</span></div></div>';
 }
 
 /**

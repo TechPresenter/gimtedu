@@ -113,3 +113,10 @@
 @media (prefers-reduced-motion: reduce) {
     .ph-admin * { scroll-behavior: auto !important; }
 }
+
+/* Programme categories list: the page address sits under the category name; the Interest column (also shown on the
+   Interest list tab) and the decorative category art are left out on laptop widths so the Actions column stays
+   visible without scrolling. */
+.ph-admin .ph-cat-page { display: block; margin-top: 2px; font-size: .78rem; line-height: 1.4; overflow-wrap: normal; }
+.ph-admin .ph-cat-page a { color: var(--ink-soft); }
+@media (max-width: 1439px) { .ph-admin .ph-col-wide { display: none; } }

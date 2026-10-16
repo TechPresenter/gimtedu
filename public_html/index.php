@@ -3,7 +3,7 @@
  * Front controller. Every clean URL (/about/, /campaign/<slug>/, /dashboard/donations/ ...) arrives here
  * through .htaccess. The request is resolved to a row in `pages` and rendered by templates/<template>.php.
  *
- * Special routes: /sitemap.xml, /robots.txt, /api/help/, /api/<name>/ (function api_<name>())
+ * Special routes: /sitemap.xml, /robots.txt, /api/help/, /api/<name>/ (names listed in PUBLIC_API below)
  * Old addresses (*.php, WordPress paths) are answered with 301 redirects from the `redirects` table.
  */
 
@@ -44,11 +44,25 @@ if ($path === 'robots.txt') {
 if ($path === 'api/help') {
     help_api();
 }
-// Module JSON endpoints: /api/<name>/ is answered by function api_<name>() (e.g. api/chat -> api_chat()), which must exit.
+// Module JSON endpoints: only the names listed in PUBLIC_API are public (a helper that merely happens to be called
+// api_something is never reachable). The handler sends its own JSON and exits; other methods get 405 here.
+const PUBLIC_API = [
+    'chat'    => ['fn' => 'api_chat', 'methods' => ['GET', 'POST']],   // includes/assistant.php
+    'collect' => ['fn' => 'api_collect', 'methods' => ['POST']],       // includes/analytics.php
+];
 if (preg_match('#^api/([a-z][a-z0-9\-]{1,30})$#', $path, $apiMatch)) {
-    $apiFn = 'api_' . str_replace('-', '_', $apiMatch[1]);
-    if (function_exists($apiFn)) {
-        $apiFn();
+    $api = PUBLIC_API[$apiMatch[1]] ?? null;
+    if ($api && function_exists($api['fn'])) {
+        $apiMethods = in_array('GET', $api['methods'], true) ? array_merge($api['methods'], ['HEAD']) : $api['methods'];
+        if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', $apiMethods, true)) {
+            http_response_code(405);
+            header('Allow: ' . implode(', ', $apiMethods));
+            header('Content-Type: application/json; charset=utf-8');
+            header('Cache-Control: no-store');
+            echo json_encode(['ok' => false, 'error' => 'method']);
+            exit;
+        }
+        call_user_func($api['fn']);
         exit;
     }
     http_response_code(404);

@@ -202,7 +202,7 @@ admin_page_start('Photo & Video Gallery', [['label' => 'View ' . ($type === 'vid
 
 <?php if ($type === 'image'): ?>
     <section class="panel" id="upload">
-        <div class="panel-head"><h2>Upload photos</h2><span class="muted small">Up to 20 photos at a time · JPG, PNG or WebP · max <?= MAX_UPLOAD_MB ?> MB each</span></div>
+        <div class="panel-head"><h2>Upload photos</h2><span class="muted small">Up to 20 photos at a time · JPG, PNG or WebP · max <?= e(upload_limit_label()) ?> MB each</span></div>
         <form method="post" enctype="multipart/form-data" action="<?= e(admin_url('gallery.php')) ?>" class="form-grid" data-validate>
             <?= csrf_field() ?><input type="hidden" name="action" value="upload">
             <div class="form-group full"><label for="images">Photos<span class="req">*</span></label>

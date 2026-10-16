@@ -41,7 +41,7 @@ function csrf_verify(string $back = 'index.php'): void
         exit('Method not allowed');
     }
     if (empty($_POST) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
-        flash('error', 'The upload was too large for the server. Please choose a smaller file (maximum ' . MAX_UPLOAD_MB . ' MB).');
+        flash('error', 'The upload was too large for the server. Please choose a smaller file (maximum ' . upload_limit_label() . ' MB).');
         redirect($back);
     }
     if (!csrf_valid()) {

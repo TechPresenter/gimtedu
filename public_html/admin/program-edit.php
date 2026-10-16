@@ -286,7 +286,7 @@ admin_page_start($program ? 'Edit programme' : 'New programme');
             <img src="<?= e(image_url(program_art($p))) ?>" alt="Current programme image" style="width:100%;max-height:200px;object-fit:contain;background:var(--green-50);border-radius:10px;margin-bottom:12px">
             <div class="form-group" style="margin-bottom:16px"><label for="cover_image">Upload a photo (optional)</label>
                 <input id="cover_image" type="file" name="cover_image" accept="image/jpeg,image/png,image/webp">
-                <span class="help">JPG, PNG or WebP, up to <?= (int) MAX_UPLOAD_MB ?> MB. Without a photo the programme illustration is used. Publish photos of identifiable people only with their consent.</span><?= field_error('cover_image') ?></div>
+                <span class="help">JPG, PNG or WebP, up to <?= e(upload_limit_label()) ?> MB. Without a photo the programme illustration is used. Publish photos of identifiable people only with their consent.</span><?= field_error('cover_image') ?></div>
             <?php if (!empty($p['cover_image'])): ?>
                 <label class="checkbox"><input type="checkbox" name="remove_cover" value="1"><span>Remove the photo (use the illustration)</span></label>
             <?php endif; ?>
