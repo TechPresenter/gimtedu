@@ -1038,7 +1038,7 @@ function seo_awareness_groups(bool $refresh = false): array
 
 /**
  * Canonical edition of an awareness day (event row or slug). Returns the edition array of seo_awareness_groups() plus
- * 'is_self', 'group' and 'editions' (count), or null when the event is not a published awareness day or the feature is
+ * 'is_self' (= 'is_canonical'), 'group' and 'editions' (count), or null when the event is not a published awareness day or the feature is
  * off. WP-2: leave a row out of sitemaps when the result is not null and 'is_self' is false.
  */
 function seo_awareness_canonical($event): ?array
@@ -1064,6 +1064,7 @@ function seo_awareness_canonical($event): ?array
     }
     $c = $groups[$key]['canonical'];
     $c['is_self'] = $c['slug'] === $slug;
+    $c['is_canonical'] = $c['is_self'];
     $c['group'] = $key;
     $c['editions'] = count($groups[$key]['editions']);
     return $c;
@@ -1619,7 +1620,7 @@ function seo_head_tags(string $part = 'all'): string
         $out .= seo_head_meta($seo);
     }
     if ($part === 'all' || $part === 'graph') {
-        $out .= '    ' . json_ld(seo_graph_document()) . "\n";
+        $out .= ($part === 'all' ? '    ' : '') . json_ld(seo_graph_document()) . "\n";
         $GLOBALS['seo_graph_printed'] = true;
     }
     return $out;
@@ -2168,7 +2169,9 @@ function seo_parse_address(string $text): array
     if ($parts) {
         $out['addressLocality'] = array_pop($parts);
     }
-    $out['streetAddress'] = $parts ? implode(', ', $parts) : ($out['addressLocality'] ?? $text);
+    if ($parts) {
+        $out['streetAddress'] = implode(', ', $parts);   // otherwise the caller's streetAddress stays as written
+    }
     $out['addressCountry'] = 'IN';
     return $out;
 }
