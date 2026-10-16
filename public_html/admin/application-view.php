@@ -203,9 +203,11 @@ switch ($type) {
             'Skills' => $row['skills'], 'Resume' => $resumeLink, 'Motivation' => $row['motivation']];
 }
 
-admin_page_start($t['title'] . ' ' . $row['application_no'], [
+admin_page_start($t['title'] . ' ' . $row['application_no'], array_merge([
     ['label' => 'All ' . strtolower($t['plural']), 'url' => admin_url('applications.php?type=' . $type), 'icon' => 'list', 'style' => 'ghost'],
-]);
+], $type === 'teacher' && admin_can('letters.manage') ? [
+    ['label' => 'Generate authorization letter', 'url' => admin_url('letter-edit.php?application=' . $id), 'icon' => 'file-text'],
+] : []));
 echo recruitment_admin_css();
 ?>
 <div class="admin-grid-main">

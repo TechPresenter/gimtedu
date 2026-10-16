@@ -1,8 +1,8 @@
 <?php
 /**
  * Website settings, grouped in tabs: branding, contact, header & footer, social links, NGO registration,
- * donations & bank (+ read-only payment gateway status), email, accounts, recruitment, SEO & analytics, data retention.
- * Secrets (database, SMTP and Razorpay keys) live in the configuration file only and are never shown or stored here.
+ * donations & bank (+ short payment gateway status; keys are managed in Payment Gateways), email, accounts, recruitment,
+ * SEO & analytics, data retention. Database and SMTP secrets live in the configuration file only and are never shown here.
  */
 require_once __DIR__ . '/includes/auth.php';
 require_permission('settings.manage');
@@ -74,19 +74,13 @@ $val = function (string $key, array $def) {
         <?php if ($tab === 'ngo'): ?>
             <div class="alert alert-warning"><?= icon('alert-triangle') ?><div><strong>Enter only verified details - leave blank if not applicable; blank values are never shown.</strong> Copy each number exactly from the official certificate. Wrong registration numbers mislead donors and can have legal consequences.</div></div>
         <?php elseif ($tab === 'donations'):
-            $keyId = (string) RAZORPAY_KEY_ID;
-            $mode = $keyId === '' || (string) RAZORPAY_KEY_SECRET === '' ? 'not configured' : (strpos($keyId, 'rzp_live_') === 0 ? 'live mode' : (strpos($keyId, 'rzp_test_') === 0 ? 'test mode' : 'unknown key type'));
-            $modeBadge = ['not configured' => 'badge-gray', 'live mode' => 'badge-green', 'test mode' => 'badge-gold'][$mode] ?? 'badge-red'; ?>
+            $gwActive = active_gateways(); ?>
             <section class="panel site-warning">
-                <div class="panel-head"><h2><?= icon('shield') ?>Online payment gateway (Razorpay)</h2><span class="badge <?= $modeBadge ?>"><?= e(ucfirst($mode)) ?></span></div>
-                <ul class="site-status-list">
-                    <li><span>Status</span><strong><?= e(ucfirst($mode)) ?></strong></li>
-                    <li><span>Key ID</span><code><?= $keyId !== '' ? e(substr($keyId, 0, 9) . str_repeat('•', 6)) : 'not set' ?></code></li>
-                    <li><span>Webhook secret set</span><strong><?= (string) RAZORPAY_WEBHOOK_SECRET !== '' ? 'Yes' : 'No' ?></strong></li>
-                    <li><span>Webhook URL (enter in the Razorpay dashboard)</span><span><code><?= e(abs_url('payment-webhook.php')) ?></code> <button type="button" class="btn btn-ghost btn-sm" data-copy-text="<?= e(abs_url('payment-webhook.php')) ?>"><?= icon('copy') ?><span>Copy</span></button></span></li>
-                    <li><span>Webhook events</span><span>payment.captured, payment.authorized, payment.failed, order.paid, refund.processed</span></li>
-                </ul>
-                <p class="help mt-2 mb-0">The keys are kept in the configuration file (pwf-config.php or config.php) on the server - never in the database or this panel. Use test keys (rzp_test_…) until the foundation's merchant account is approved, then replace them with live keys.<?= $mode === 'test mode' ? ' In test mode no real money is collected and donation pages show a "test mode" notice.' : '' ?></p>
+                <div class="panel-head"><h2><?= icon('shield') ?>Online payment gateways</h2><span class="badge <?= $gwActive ? 'badge-green' : 'badge-gray' ?>"><?= $gwActive ? e(implode(' + ', array_map('gateway_label', $gwActive))) . (payment_test_mode() ? ' (test mode)' : '') : 'Not active' ?></span></div>
+                <p class="mb-0"><?= $gwActive
+                    ? 'Donors can pay online through ' . e(implode(' or ', array_map('gateway_label', $gwActive))) . '.'
+                    : (setting('online_donations_enabled', '1') === '1' ? 'No payment gateway is ready yet, so the donate page shows the other ways to give.' : 'Online donations are switched off below.') ?>
+                    <?php if (admin_can('payments.configure')): ?><a href="<?= e(admin_url('payment-gateways.php')) ?>">Set up Razorpay and Cashfree keys, webhooks and the gateway choice in Payment Gateways</a>.<?php else: ?>Keys and webhooks are managed by an administrator in Payment Gateways.<?php endif; ?></p>
             </section>
         <?php elseif ($tab === 'email'): ?>
             <section class="panel">

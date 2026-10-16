@@ -101,6 +101,9 @@ try {
             }
             // Never trust the payload: the order must be PAID with a SUCCESS payment of the exact amount (API).
             $check = cashfree_confirm_donation($donation, 'webhook');
+            if ($check['state'] === 'error') {
+                throw new RuntimeException('Cashfree API not reachable - asking Cashfree to retry this webhook');
+            }
             if ($check['state'] === 'paid') {
                 $result = 'donation confirmed';
             } else {

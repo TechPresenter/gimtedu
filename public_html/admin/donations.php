@@ -94,6 +94,8 @@ $statuses = ['success', 'pending', 'failed', 'refunded'];
 $q = mb_substr(clean_string($_GET['q'] ?? ''), 0, 100);
 $status = in_array($_GET['status'] ?? '', $statuses, true) ? (string) $_GET['status'] : '';
 $method = isset(DONATION_METHODS[$_GET['method'] ?? '']) ? (string) $_GET['method'] : '';
+$gatewayFilters = ['razorpay' => 'Razorpay', 'cashfree' => 'Cashfree', 'offline' => 'Offline (no gateway)'];
+$gatewayFilter = isset($gatewayFilters[$_GET['gateway'] ?? '']) ? (string) $_GET['gateway'] : '';
 $campaignId = (string) ($_GET['campaign'] ?? '');
 $range = admin_date_range('all');
 $params = [];
@@ -105,6 +107,13 @@ if ($status !== '') {
 if ($method !== '') {
     $where .= ' AND d.payment_method = ?';
     $params[] = $method;
+}
+if ($gatewayFilter === 'offline') {
+    $where .= " AND d.payment_method <> 'online'";
+} elseif ($gatewayFilter === 'cashfree') {
+    $where .= " AND d.payment_method = 'online' AND d.gateway = 'cashfree'";
+} elseif ($gatewayFilter === 'razorpay') {
+    $where .= " AND d.payment_method = 'online' AND d.gateway <> 'cashfree'";   // every online row before Cashfree was added
 }
 if ($campaignId === 'general') {
     $where .= ' AND d.campaign_id IS NULL';
@@ -121,13 +130,15 @@ if (isset($_GET['export'])) {
     require_permission('exports.run');
     // every column has a unique alias, so the row keys never collide (d.status / r.status)
     $rows = db_rows("SELECT d.donation_ref, COALESCE(d.paid_at, d.created_at) AS date, d.donor_name, d.donor_email, d.donor_phone, d.donor_pan, d.donor_address,
-                            d.amount, d.currency, d.status AS donation_status, d.payment_method, d.gateway_method, d.gateway_order_id, d.gateway_payment_id,
+                            d.amount, d.currency, d.status AS donation_status, d.payment_method,
+                            CASE WHEN d.payment_method <> 'online' THEN 'Offline' WHEN d.gateway = 'cashfree' THEN 'Cashfree' ELSE 'Razorpay' END AS gateway_name,
+                            d.gateway_method, d.gateway_order_id, d.gateway_payment_id,
                             d.offline_reference, d.verified_via, IF(d.reconciled_at IS NULL, 'No', 'Yes') AS reconciled, c.title AS campaign,
                             r.receipt_no, r.status AS receipt_status, d.is_anonymous
                      FROM donations d LEFT JOIN campaigns c ON c.id = d.campaign_id LEFT JOIN donation_receipts r ON r.donation_id = d.id
                      $where ORDER BY d.created_at DESC", $params);
     admin_log('donations_exported', count($rows) . ' rows');
-    send_csv('donations-' . date('Ymd-His') . '.csv', ['Reference', 'Date', 'Donor', 'Email', 'Phone', 'PAN', 'Address', 'Amount', 'Currency', 'Status', 'Method', 'Gateway method',
+    send_csv('donations-' . date('Ymd-His') . '.csv', ['Reference', 'Date', 'Donor', 'Email', 'Phone', 'PAN', 'Address', 'Amount', 'Currency', 'Status', 'Method', 'Gateway', 'Gateway method',
         'Order ID', 'Payment ID', 'Transaction / cheque ref', 'Verified via', 'Reconciled', 'Campaign', 'Receipt No', 'Receipt status', 'Anonymous'], $rows);
 }
 
@@ -160,16 +171,17 @@ $extra = '<select name="campaign" aria-label="Campaign" style="max-width:100%;mi
 foreach ($campaigns as $c) {
     $extra .= '<option value="' . (int) $c['id'] . '"' . ($campaignId === (string) $c['id'] ? ' selected' : '') . '>' . e(excerpt($c['title'], 45)) . '</option>';
 }
-$extra .= '</select><select name="method" aria-label="Payment method"><option value="">All methods</option>' . options_html(DONATION_METHODS, $method, true, '') . '</select>';
+$extra .= '</select><select name="method" aria-label="Payment method"><option value="">All methods</option>' . options_html(DONATION_METHODS, $method, true, '') . '</select>'
+    . '<select name="gateway" aria-label="Payment gateway"><option value="">All gateways</option>' . options_html($gatewayFilters, $gatewayFilter, true, '') . '</select>';
 $hidden = array_filter(['range' => $_GET['range'] ?? '', 'from' => $_GET['from'] ?? '', 'to' => $_GET['to'] ?? ''], function ($v) { return is_string($v) && $v !== ''; });
-admin_filter_bar($statuses, ['placeholder' => 'Reference, donor, email, phone, PAN or payment ID', 'html' => $extra, 'hidden' => $hidden, 'active' => $method !== '' || $campaignId !== '']);
+admin_filter_bar($statuses, ['placeholder' => 'Reference, donor, email, phone, PAN or payment ID', 'html' => $extra, 'hidden' => $hidden, 'active' => $method !== '' || $campaignId !== '' || $gatewayFilter !== '']);
 echo admin_range_picker($range);
 ?>
 <section class="panel">
     <div class="table-meta"><span><?= number_format($p['total']) ?> record(s) · <?= e($range['label']) ?></span><span>Only <strong>Success</strong> counts towards totals and public figures</span></div>
     <?php if ($rows): ?>
         <div class="table-wrap"><table class="table">
-            <thead><tr><th>Date</th><th>Reference</th><th>Donor</th><th>Towards</th><th>Amount</th><th>Method</th><th>Status</th><th>Receipt</th></tr></thead>
+            <thead><tr><th>Date</th><th>Reference</th><th>Donor</th><th>Towards</th><th>Amount</th><th>Method / gateway</th><th>Status</th><th>Receipt</th></tr></thead>
             <tbody>
             <?php foreach ($rows as $d): ?>
                 <tr>
@@ -178,7 +190,7 @@ echo admin_range_picker($range);
                     <td><?= e($d['donor_name']) ?><?= $d['is_anonymous'] ? ' <span class="badge badge-gray">Anonymous</span>' : '' ?><br><small class="muted"><?= e($d['donor_email']) ?></small></td>
                     <td><?= e(excerpt($d['campaign_title'] ?: 'General fund', 40)) ?></td>
                     <td class="nowrap"><strong><?= e(money($d['amount'], true)) ?></strong></td>
-                    <td><?= e(DONATION_METHODS[$d['payment_method']] ?? $d['payment_method']) ?><?= $d['gateway_method'] ? '<br><small class="muted">' . e($d['gateway_method']) . '</small>' : '' ?></td>
+                    <td><?php if ($d['payment_method'] === 'online'): ?><span class="gw-tag gw-tag-<?= e(donation_gateway($d)) ?>"><?= e(gateway_label(donation_gateway($d))) ?></span><?php else: ?><?= e(DONATION_METHODS[$d['payment_method']] ?? $d['payment_method']) ?><?php endif; ?><?= $d['gateway_method'] ? '<br><small class="muted">' . e(gateway_method_label($d['gateway_method'])) . '</small>' : '' ?></td>
                     <td><?= status_badge($d['status']) ?><?= $d['status'] === 'success' && $d['reconciled_at'] ? '<br><small class="muted">Reconciled</small>' : '' ?></td>
                     <td class="nowrap"><?= $d['receipt_no'] ? e($d['receipt_no']) . ($d['receipt_status'] === 'cancelled' ? ' <span class="badge badge-red">Cancelled</span>' : '') : '<span class="muted">—</span>' ?></td>
                 </tr>

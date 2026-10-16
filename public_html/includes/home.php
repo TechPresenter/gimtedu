@@ -542,8 +542,8 @@ function insights_setup_checklist(): array
             'hint' => 'Add the office phone number and email (and upload a new logo if needed).', 'url' => 'settings.php'],
         ['done' => setting('registration_number') !== '' && setting('pan_number') !== '', 'label' => 'Registration details',
             'hint' => 'Enter the verified registration number and PAN (12A/80G/CSR-1 when available). Blank values are never shown publicly.', 'url' => 'settings.php'],
-        ['done' => RAZORPAY_KEY_ID !== '' && RAZORPAY_KEY_SECRET !== '' && RAZORPAY_WEBHOOK_SECRET !== '', 'label' => 'Online payments (Razorpay)',
-            'hint' => 'Add the Razorpay key id, key secret and webhook secret in pwf-config.php.', 'url' => 'security.php'],
+        ['done' => payment_setup_complete(), 'label' => 'Online payments (Razorpay / Cashfree)',
+            'hint' => 'Enter the gateway keys (and the Razorpay webhook secret) in Payment Gateways and test the connection.', 'url' => 'payment-gateways.php'],
         ['done' => MAIL_ENABLED && SMTP_HOST !== '', 'label' => 'Email delivery (SMTP)',
             'hint' => MAIL_ENABLED
                 ? 'Set SMTP_HOST, SMTP_USER and SMTP_PASS in pwf-config.php so receipts and replies are delivered reliably.'
@@ -578,7 +578,7 @@ function security_health_checks(): array
         $display ? 'Set APP_ENV to production (this switches display_errors off).' : '');
     $private = is_file(dirname(ROOT_PATH) . '/pwf-config.php');
     $add($private ? 'ok' : 'warn', 'Private configuration file outside public_html', $private ? 'pwf-config.php was found one folder above the website.' : 'No pwf-config.php found above public_html.',
-        $private ? '' : 'Create ../pwf-config.php (outside public_html) and move the database password, Razorpay and SMTP secrets into it.');
+        $private ? '' : 'Create ../pwf-config.php (outside public_html) and move the database password and SMTP secrets into it (payment keys can be entered encrypted in Payment Gateways).');
     $add(INSTALL_KEY === '' ? 'ok' : 'warn', 'Installer key cleared', INSTALL_KEY === '' ? 'INSTALL_KEY is empty.' : 'INSTALL_KEY is still set.',
         INSTALL_KEY === '' ? '' : 'After installation, set INSTALL_KEY to an empty string in pwf-config.php.');
     $installer = is_file(ROOT_PATH . '/install.php');
@@ -591,15 +591,9 @@ function security_health_checks(): array
         $ok = is_file(ROOT_PATH . '/' . $file);
         $add($ok ? 'ok' : 'bad', $title, $ok ? $file . ' is present.' : $file . ' is missing.', $ok ? '' : 'Upload ' . $file . ' again from the original website package.');
     }
-    if (RAZORPAY_KEY_ID === '' || RAZORPAY_KEY_SECRET === '') {
-        $add('warn', 'Online payments', 'Razorpay keys are not configured - online donations are unavailable.', 'Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in pwf-config.php once the merchant account is approved.');
-    } elseif (strpos(RAZORPAY_KEY_ID, 'rzp_test_') === 0) {
-        $add('warn', 'Online payments', 'Razorpay is in TEST mode - no real money is collected.', 'Replace the test keys with live keys (rzp_live_…) when you are ready to accept donations.');
-    } else {
-        $add('ok', 'Online payments', 'Live Razorpay keys are configured.');
+    foreach (payment_health_checks() as [$payStatus, $payTitle, $payDetail, $payFix]) {   // includes/gateways.php
+        $add($payStatus, $payTitle, $payDetail, $payFix);
     }
-    $add(RAZORPAY_WEBHOOK_SECRET !== '' ? 'ok' : 'warn', 'Payment webhook secret', RAZORPAY_WEBHOOK_SECRET !== '' ? 'Webhook secret is set (payments are confirmed even if the donor closes the browser).' : 'No webhook secret configured.',
-        RAZORPAY_WEBHOOK_SECRET !== '' ? '' : 'In the Razorpay dashboard add the webhook ' . abs_url('payment-webhook.php') . ' and put its secret in RAZORPAY_WEBHOOK_SECRET.');
     if (!MAIL_ENABLED) {
         $add('bad', 'Email sending switched on', 'MAIL_ENABLED is false in pwf-config.php, so no email is sent: verification links, password resets, receipts, replies and notifications are not delivered, and new members cannot verify their accounts.',
             'Remove define(\'MAIL_ENABLED\', false) from pwf-config.php (or set it to true). Until then, untick "Require email verification" in Settings or mark new accounts verified in Users.');

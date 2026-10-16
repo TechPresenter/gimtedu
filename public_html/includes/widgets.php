@@ -130,14 +130,20 @@ function render_floating_widgets(): string
             ? '<a class="fab fab-call" href="tel:' . e(preg_replace('/[^\d+]/', '', $phone)) . '" data-tip="Call us" aria-label="Call us">' . icon('phone') . '</a>'
             : '<a class="fab fab-call" href="' . e(page_url('contact')) . '" data-tip="Contact us" aria-label="Contact us">' . icon('mail') . '</a>';
     }
-    if (setting('widget_help_enabled', '1') === '1') {
+    // AI website assistant (includes/assistant.php) switched on with an API key: the help button opens the AI chat
+    // (render_assistant_widget() prints the panel); otherwise the automated FAQ helper below works as before.
+    $aiAssistant = function_exists('assistant_active') && assistant_active();
+    if ($aiAssistant) {
+        $html .= '<button type="button" class="fab fab-help fab-ai" data-ai-toggle aria-haspopup="dialog" aria-expanded="false" aria-controls="ai-assistant" data-tip="Ask our website assistant" aria-label="Open the website assistant (AI chat)">'
+            . icon('message') . '<span class="fab-ai-badge" aria-hidden="true">AI</span></button>';
+    } elseif (setting('widget_help_enabled', '1') === '1') {
         $html .= '<button type="button" class="fab fab-help" data-help-toggle aria-expanded="false" aria-controls="help-panel" data-tip="Help assistant" aria-label="Open help assistant">' . icon('message') . '</button>';
     }
     $html .= '</div>';
     if (setting('widget_back_to_top', '1') === '1') {
         $html .= '<button type="button" class="back-to-top" data-back-to-top aria-label="Back to top"><svg class="btt-ring" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="20"/></svg>' . icon('arrow-up') . '</button>';
     }
-    if (setting('widget_help_enabled', '1') === '1') {
+    if (!$aiAssistant && setting('widget_help_enabled', '1') === '1') {
         $html .= render_help_panel();
     }
     return $html;
@@ -181,8 +187,19 @@ function help_api(): void
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
     header('X-Robots-Tag: noindex');
-    $q = mb_strtolower(trim(mb_substr(get_str('q'), 0, 120)));
-    $words = array_values(array_filter(preg_split('/[^\p{L}\p{N}]+/u', $q), function ($w) {
+    echo json_encode(help_search(get_str('q')), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+/**
+ * FAQ search used by the help assistant and as the AI assistant's fallback:
+ * ['answers' => [['q','a'], ...max 3], 'links' => [['label','url'], ...max 4], 'fallback' => '', 'faq_url', 'contact_url']
+ */
+function help_search(string $query): array
+{
+    $q = mb_strtolower(trim(mb_substr($query, 0, 160)));
+    // \p{M}: Devanagari vowel signs belong to the word (दान, सहायता), they must not split it
+    $words = array_values(array_filter(preg_split('/[^\p{L}\p{M}\p{N}]+/u', $q), function ($w) {
         return mb_strlen($w) >= 3 && !in_array($w, ['the', 'and', 'for', 'how', 'can', 'what', 'where', 'with', 'you', 'your', 'are', 'does', 'want', 'need'], true);
     }));
     $intents = [
@@ -234,14 +251,13 @@ function help_api(): void
             $answers[] = ['q' => $r['question'], 'a' => excerpt($r['answer'], 320)];
         }
     }
-    echo json_encode([
+    return [
         'answers' => $answers,
         'links' => array_slice($links, 0, 4),
         'fallback' => (!$answers && !$links) ? 'Sorry, I could not find an answer to that. Please try other words, browse the FAQ, or contact our team.' : '',
         'faq_url' => page_url('faq'),
         'contact_url' => page_url('contact'),
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    exit;
+    ];
 }
 
 /** Cookie banner - only when Google Analytics is configured (first-party stats need no cookies). */

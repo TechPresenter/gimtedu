@@ -1,7 +1,8 @@
 <?php
 /**
  * One donation: details, gateway ids, webhook events, and actions:
- * re-check with Razorpay (captures an authorised payment of the exact amount), check refunds with Razorpay,
+ * re-check with the gateway (Razorpay: captures an authorised payment of the exact amount; Cashfree: order PAID with a
+ * SUCCESS payment of the exact amount), check refunds with the gateway, refund through Razorpay or Cashfree,
  * mark reconciled, add note, website name visibility, refund (donations.manage); resend receipt (receipts.manage).
  */
 require_once __DIR__ . '/includes/auth.php';
@@ -19,6 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $action = (string) ($_POST['action'] ?? '');
     $admin = current_admin();
+    $gw = donation_gateway($d);
+    $gwName = gateway_label($gw);
     require_permission($action === 'resend' ? 'receipts.manage' : 'donations.manage');
 
     switch ($action) {
@@ -27,8 +30,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('info', 'Only pending or failed online donations with a gateway order can be re-checked.');
                 break;
             }
-            if (!razorpay_configured()) {
-                flash('error', 'Razorpay keys are not configured.');
+            if (!gateway_configured($gw)) {
+                flash('error', $gwName . ' keys are not configured (Payment Gateways).');
+                break;
+            }
+            if ($gw === 'cashfree') {
+                $check = cashfree_confirm_donation($d, 'admin_recheck', admin_id());
+                admin_log('donation_rechecked', 'Donation #' . $id . ' ' . $d['donation_ref'] . ' Cashfree re-check: ' . $check['state'] . ($check['payment'] ? ' (' . $check['payment']['id'] . ')' : ''));
+                $messages = [
+                    'paid'    => ['success', 'Cashfree confirmed that the order is paid with a successful payment of the exact amount. The donation is now verified and a receipt has been issued.'],
+                    'pending' => ['info', 'Cashfree shows a payment that is still being processed. Check again in a few minutes; the donation remains ' . $d['status'] . '.'],
+                    'failed'  => ['warning', 'Cashfree has no successful payment of the exact amount for this order' . ($check['message'] !== '' ? ' (' . $check['message'] . ')' : '') . '. The donation is not counted.'],
+                    'none'    => ['warning', 'Cashfree has no payment attempt for this order yet. The donation remains ' . $d['status'] . '.'],
+                ];
+                [$type, $msg] = $messages[$check['state']] ?? ['error', 'Cashfree could not be reached or did not return the order. Please try again later.'];
+                flash($type, $msg);
                 break;
             }
             $payment = razorpay_find_captured_payment($d);
@@ -47,22 +63,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('info', 'Only verified online donations with a gateway payment can be checked for refunds.');
                 break;
             }
-            if (!razorpay_configured()) {
-                flash('error', 'Razorpay keys are not configured.');
+            if (!gateway_configured($gw)) {
+                flash('error', $gwName . ' keys are not configured (Payment Gateways).');
                 break;
             }
-            $payment = razorpay_fetch_payment((string) $d['gateway_payment_id']);
+            $payment = $gw === 'cashfree' ? cashfree_refund_state($d) : razorpay_fetch_payment((string) $d['gateway_payment_id']);
             if (!$payment) {
-                flash('error', 'Razorpay did not return this payment. Please try again later.');
+                flash('error', $gwName . ' did not return this payment. Please try again later.');
                 break;
             }
             $res = apply_gateway_refund_state($d, $payment, null, 'admin check', admin_id());
             admin_log('donation_refund_checked', 'Donation #' . $id . ' ' . $d['donation_ref'] . ': ' . $res);
             $messages = [
-                'donation refunded' => ['success', 'Razorpay shows the full amount refunded. The donation is now marked refunded and its receipt cancelled.'],
-                'partial refund applied' => ['success', 'Razorpay shows a partial refund. The donation amount now shows the net amount kept and the revised receipt was emailed.'],
-                'partial refund already applied' => ['info', 'The donation already reflects the partial refund shown by Razorpay.'],
-                'not confirmed: gateway shows no refund' => ['info', 'Razorpay shows no refund for this payment. Nothing was changed.'],
+                'donation refunded' => ['success', $gwName . ' shows the full amount refunded. The donation is now marked refunded and its receipt cancelled.'],
+                'partial refund applied' => ['success', $gwName . ' shows a partial refund. The donation amount now shows the net amount kept and the revised receipt was emailed.'],
+                'partial refund already applied' => ['info', 'The donation already reflects the partial refund shown by ' . $gwName . '.'],
+                'not confirmed: gateway shows no refund' => ['info', $gwName . ' shows no refund for this payment. Nothing was changed.'],
             ];
             [$type, $msg] = $messages[$res] ?? ['warning', 'Nothing was changed (' . $res . ').'];
             flash($type, $msg);
@@ -121,19 +137,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
             if ($d['payment_method'] === 'online' && $d['gateway_payment_id']) {
-                if (!razorpay_configured()) {
-                    flash('error', 'Razorpay keys are not configured, so the refund cannot be sent.');
+                if (!gateway_configured($gw)) {
+                    flash('error', $gwName . ' keys are not configured, so the refund cannot be sent.');
                     break;
                 }
-                $res = razorpay_refund($d, $reason);
+                $res = $gw === 'cashfree' ? cashfree_refund($d, $reason) : razorpay_refund($d, $reason);
                 if (!$res['ok']) {
                     admin_log('donation_refund_failed', 'Donation #' . $id . ' ' . $d['donation_ref'] . ': ' . $res['error']);
-                    flash('error', 'Razorpay did not accept the refund: ' . $res['error']);
+                    flash('error', $gwName . ' did not accept the refund: ' . $res['error']);
                     break;
                 }
-                mark_donation_refunded($id, (string) $res['refund']['id'], 'Full refund via Razorpay (' . ($res['refund']['status'] ?? 'created') . '): ' . $reason, admin_id());
-                admin_log('donation_refund_requested', 'Donation #' . $id . ' ' . $d['donation_ref'] . ' Razorpay refund ' . $res['refund']['id'] . ': ' . $reason);
-                flash('success', 'Refund ' . $res['refund']['id'] . ' created with Razorpay. The donation is now marked refunded and its receipt cancelled.');
+                mark_donation_refunded($id, (string) $res['refund']['id'], 'Full refund via ' . $gwName . ' (' . ($res['refund']['status'] ?? 'created') . '): ' . $reason, admin_id());
+                admin_log('donation_refund_requested', 'Donation #' . $id . ' ' . $d['donation_ref'] . ' ' . $gwName . ' refund ' . $res['refund']['id'] . ': ' . $reason);
+                flash('success', 'Refund ' . $res['refund']['id'] . ' created with ' . $gwName . '. The donation is now marked refunded and its receipt cancelled.'
+                    . ($gw === 'cashfree' && ($res['refund']['status'] ?? '') !== 'success' ? ' Cashfree processes the refund in the background; if it fails, a note appears on this donation.' : ''));
             } else {
                 $ref = mb_substr(clean_string($_POST['refund_reference'] ?? ''), 0, 80);
                 if ($ref === '') {
@@ -181,6 +198,8 @@ if (!$d) {
 $events = db_rows('SELECT * FROM payment_webhook_events WHERE donation_id = ? ORDER BY received_at DESC, id DESC LIMIT 50', [$id]);
 $canManage = admin_can('donations.manage');
 $isOnline = $d['payment_method'] === 'online';
+$gw = donation_gateway($d);
+$gwName = gateway_label($gw);
 $actions = [['label' => 'All donations', 'url' => admin_url('donations.php'), 'icon' => 'list', 'style' => 'ghost']];
 if ($d['receipt_no']) {
     $actions[] = ['label' => 'View receipt', 'url' => page_url('donation-receipt', ['ref' => $d['donation_ref']]), 'icon' => 'printer'];
@@ -191,7 +210,7 @@ admin_page_start('Donation ' . $d['donation_ref'], $actions);
     <div>
         <section class="panel">
             <div class="panel-head"><h2><?= e(money($d['amount'], true)) ?> <small class="muted"><?= e($d['currency']) ?></small></h2><?= status_badge($d['status']) ?></div>
-            <?php if ($d['status'] === 'pending'): ?><div class="alert alert-warning mb-2"><?= icon('clock') ?><div>Pending - not counted in any total. It becomes successful only when Razorpay confirms a captured payment (checkout, webhook or re-check).</div></div><?php endif; ?>
+            <?php if ($d['status'] === 'pending'): ?><div class="alert alert-warning mb-2"><?= icon('clock') ?><div>Pending - not counted in any total. It becomes successful only when <?= e($gwName) ?> confirms a <?= $gw === 'cashfree' ? 'successful' : 'captured' ?> payment (checkout, webhook or re-check).</div></div><?php endif; ?>
             <?php details_list([
                 'Reference' => $d['donation_ref'],
                 'Donor' => [e($d['donor_name']) . ($d['is_anonymous'] ? ' <span class="badge badge-gray" title="Name hidden on the website">Anonymous</span>' : '')],
@@ -207,7 +226,7 @@ admin_page_start('Donation ' . $d['donation_ref'], $actions);
             <div class="panel-head"><h2>Payment &amp; verification</h2></div>
             <?php details_list([
                 'Method' => DONATION_METHODS[$d['payment_method']] ?? $d['payment_method'],
-                'Gateway' => $d['gateway'] . ($d['gateway_method'] ? ' (' . $d['gateway_method'] . ')' : ''),
+                'Gateway' => $isOnline ? $gwName . ($d['gateway_method'] ? ' (' . gateway_method_label($d['gateway_method']) . ')' : '') . (gateway_configured($gw) ? '' : ' - keys not configured') : 'Offline',
                 'Order ID' => $d['gateway_order_id'] ?: '-',
                 'Payment ID' => $d['gateway_payment_id'] ?: '-',
                 'Transaction / cheque reference' => $d['offline_reference'] ?: null,
@@ -221,7 +240,7 @@ admin_page_start('Donation ' . $d['donation_ref'], $actions);
             <?php if ($d['admin_notes']): ?><h3 class="mt-3">Notes &amp; history</h3><div class="note-box"><?= e($d['admin_notes']) ?></div><?php endif; ?>
         </section>
         <section class="panel">
-            <div class="panel-head"><h2>Webhook events</h2><span class="muted small">Signed notifications from Razorpay</span></div>
+            <div class="panel-head"><h2>Webhook events</h2><span class="muted small">Signed notifications from <?= e($isOnline ? $gwName : 'the payment gateway') ?></span></div>
             <?php if ($events): ?>
                 <div class="table-wrap"><table class="table">
                     <thead><tr><th>Received</th><th>Event</th><th>Event ID</th><th>Result</th></tr></thead>
@@ -237,8 +256,8 @@ admin_page_start('Donation ' . $d['donation_ref'], $actions);
     <div>
         <?php if ($canManage && $isOnline && in_array($d['status'], ['pending', 'failed'], true) && $d['gateway_order_id']): ?>
             <section class="panel">
-                <div class="panel-head"><h2>Re-check with Razorpay</h2></div>
-                <p class="small muted">Asks Razorpay whether this order has a captured payment of exactly <?= e(money($d['amount'], true)) ?>. The donation is marked successful only if Razorpay confirms it.</p>
+                <div class="panel-head"><h2>Re-check with <?= e($gwName) ?></h2></div>
+                <p class="small muted">Asks <?= e($gwName) ?> whether this order has a <?= $gw === 'cashfree' ? 'successful' : 'captured' ?> payment of exactly <?= e(money($d['amount'], true)) ?>. The donation is marked successful only if <?= e($gwName) ?> confirms it.</p>
                 <form method="post"><?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="recheck">
                     <button class="btn btn-primary btn-block" type="submit"><?= icon('refresh') ?>Re-check payment status</button></form>
             </section>
@@ -259,7 +278,7 @@ admin_page_start('Donation ' . $d['donation_ref'], $actions);
                         <form method="post" data-confirm="Remove the reconciliation mark?"><?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="reconcile"><input type="hidden" name="undo" value="1">
                             <button class="btn btn-ghost btn-sm" type="submit">Undo</button></form>
                     <?php else: ?>
-                        <p class="small muted">Mark after matching this donation with the Razorpay settlement or bank statement.</p>
+                        <p class="small muted">Mark after matching this donation with the <?= e($isOnline ? $gwName . ' settlement' : 'bank statement') ?><?= $isOnline ? ' or bank statement' : '' ?>.</p>
                         <form method="post"><?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="reconcile">
                             <div class="form-group mb-2"><label for="rec_note">Settlement / statement reference</label><input id="rec_note" name="note" maxlength="255"></div>
                             <button class="btn btn-primary btn-block" type="submit"><?= icon('check') ?>Mark as reconciled</button></form>
@@ -271,17 +290,17 @@ admin_page_start('Donation ' . $d['donation_ref'], $actions);
                     <form method="post"<?= $d['is_anonymous'] ? ' data-confirm="Show this donor\'s name on the website? Do this only when the donor has agreed."' : '' ?>><?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="visibility"><input type="hidden" name="hide" value="<?= $d['is_anonymous'] ? '0' : '1' ?>">
                         <button class="btn btn-ghost btn-sm btn-block" type="submit"><?= icon($d['is_anonymous'] ? 'eye' : 'lock') ?><?= $d['is_anonymous'] ? 'Show name on website (donor agreed)' : 'Hide name on website' ?></button></form>
                 </section>
-                <?php if ($isOnline && $d['gateway_payment_id'] && razorpay_configured()): ?>
+                <?php if ($isOnline && $d['gateway_payment_id'] && gateway_configured($gw)): ?>
                     <section class="panel">
-                        <div class="panel-head"><h2>Refunds at Razorpay</h2></div>
-                        <p class="small muted">Use this if a refund was made in the Razorpay Dashboard or a refund notification was missed. A partial refund lowers the amount to the net amount kept and re-sends the revised receipt; a full refund marks the donation refunded.</p>
+                        <div class="panel-head"><h2>Refunds at <?= e($gwName) ?></h2></div>
+                        <p class="small muted">Use this if a refund was made in the <?= e($gwName) ?> dashboard or a refund notification was missed. A partial refund lowers the amount to the net amount kept and re-sends the revised receipt; a full refund marks the donation refunded.</p>
                         <form method="post"><?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="sync_refund">
-                            <button class="btn btn-ghost btn-sm btn-block" type="submit"><?= icon('refresh') ?>Check refunds with Razorpay</button></form>
+                            <button class="btn btn-ghost btn-sm btn-block" type="submit"><?= icon('refresh') ?>Check refunds with <?= e($gwName) ?></button></form>
                     </section>
                 <?php endif; ?>
                 <section class="panel">
                     <div class="panel-head"><h2>Refund</h2></div>
-                    <p class="small muted"><?= $isOnline && $d['gateway_payment_id'] ? 'Refunds the remaining ' . e(money($d['amount'], true)) . ' through Razorpay to the original payment method.' : 'For an offline donation: record a refund that has already been paid back by bank transfer or cheque.' ?>
+                    <p class="small muted"><?= $isOnline && $d['gateway_payment_id'] ? 'Refunds the remaining ' . e(money($d['amount'], true)) . ' through ' . e($gwName) . ' to the original payment method.' : 'For an offline donation: record a refund that has already been paid back by bank transfer or cheque.' ?>
                         The donation is removed from verified totals and its receipt is cancelled.</p>
                     <form method="post" data-validate data-confirm="Refund <?= e(money($d['amount'], true)) ?> to <?= e($d['donor_name']) ?>? This cannot be undone.">
                         <?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="refund">
@@ -290,7 +309,7 @@ admin_page_start('Donation ' . $d['donation_ref'], $actions);
                             <div class="form-group mb-2"><label for="refund_reference">Refund bank / cheque reference<span class="req">*</span></label><input id="refund_reference" name="refund_reference" required maxlength="80"></div>
                         <?php endif; ?>
                         <div class="form-group mb-2"><label for="confirm_ref">Type <strong><?= e($d['donation_ref']) ?></strong> to confirm<span class="req">*</span></label><input id="confirm_ref" name="confirm_ref" required autocomplete="off"></div>
-                        <button class="btn btn-danger btn-block" type="submit"><?= icon('refresh') ?><?= $isOnline && $d['gateway_payment_id'] ? 'Refund via Razorpay' : 'Mark as refunded' ?></button>
+                        <button class="btn btn-danger btn-block" type="submit"><?= icon('refresh') ?><?= $isOnline && $d['gateway_payment_id'] ? 'Refund via ' . e($gwName) : 'Mark as refunded' ?></button>
                     </form>
                 </section>
             <?php endif; ?>

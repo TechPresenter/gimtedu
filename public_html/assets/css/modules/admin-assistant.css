@@ -1,0 +1,31 @@
+/* Admin > AI Assistant (admin/assistant.php) */
+.ai-admin .h4 { font-size: 1rem; margin: 0 0 .6rem; }
+.ai-admin .panel { scroll-margin-top: 80px; }
+.ai-admin-error { align-items: flex-start; }
+.ai-admin-error > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ai-admin-error p { margin: .35rem 0 0; }
+.ai-admin-inline { margin: 0; flex: none; }
+.ai-admin-test { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.ai-admin-test strong { display: inline-flex; align-items: center; gap: 8px; }
+.ai-admin-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.ai-admin-chips span { padding: 5px 12px; border-radius: 999px; border: 1px solid rgba(20, 107, 67, .3); background: #fff; color: var(--green-700); font-size: .8rem; font-weight: 600; }
+.ai-admin-rank, .ai-admin-top { margin: 0 0 1rem; padding-left: 1.4em; display: grid; gap: 6px; }
+.ai-admin-rank a { font-weight: 600; }
+.ai-admin-top li span:first-child { overflow-wrap: anywhere; }
+.ai-admin-details summary { cursor: pointer; color: var(--ink-soft); }
+.ai-admin-details summary:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 2px; }
+.ai-admin-pre { margin: .6rem 0 0; max-height: 420px; overflow: auto; padding: 12px 14px; border-radius: 10px; background: #f6f8f7; border: 1px solid var(--line); font-size: .8rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-admin-answer { margin-top: 6px; padding: 8px 10px; border-left: 3px solid var(--line); overflow-wrap: anywhere; }
+.ai-admin-log td { vertical-align: top; overflow-wrap: anywhere; }
+.ai-admin-log td:nth-child(2), .ai-admin-log td:nth-child(3) { min-width: 200px; }
+.ai-admin-logging { display: flex; align-items: flex-end; gap: 14px 20px; flex-wrap: wrap; padding: 12px 14px; margin-bottom: 1rem; border-radius: 12px; background: var(--green-50); border: 1px solid var(--line); }
+.ai-admin-logging .checkbox { flex: 1 1 320px; }
+.ai-admin-logging .form-group { flex: 0 0 180px; }
+.ai-admin-delete { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.ai-admin-danger { color: var(--red-600); border-color: var(--red-600); }
+.ai-admin-danger:hover { background: var(--red-600); color: #fff; }
+.ai-admin code { font-size: .85em; overflow-wrap: anywhere; }
+@media (max-width: 700px) {
+    .ai-admin-logging .form-group { flex: 1 1 100%; }
+    .ai-admin-log td:nth-child(2), .ai-admin-log td:nth-child(3) { min-width: 160px; }
+}

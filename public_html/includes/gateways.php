@@ -242,8 +242,11 @@ function cashfree_request(string $method, string $endpoint, array $data = [], ?a
         CURLOPT_SSL_VERIFYHOST => 2,
     ];
     if ($method === 'POST') {
+        $precision = ini_get('serialize_precision');
+        ini_set('serialize_precision', '-1');   // amounts as 1501.5, never 1501.4999999999999
         $options[CURLOPT_POST] = true;
         $options[CURLOPT_POSTFIELDS] = json_encode($data ?: new stdClass());
+        ini_set('serialize_precision', (string) $precision);
     }
     curl_setopt_array($ch, $options);
     $body = curl_exec($ch);
@@ -658,6 +661,67 @@ function gateway_last_test(string $gateway): ?array
 function gateway_save_test(string $gateway, array $result): void
 {
     save_setting($gateway . '_last_test', json_encode(['ok' => (bool) $result['ok'], 'message' => (string) $result['message'], 'at' => date('Y-m-d H:i:s')]));
+}
+
+// ---------------------------------------------------------------------
+// Dashboard set-up checklist + Security Centre (includes/home.php calls these)
+// ---------------------------------------------------------------------
+
+/** At least one gateway is offered and each offered gateway can confirm payments in the background. */
+function payment_setup_complete(): bool
+{
+    $active = active_gateways();
+    if (!$active) {
+        return false;
+    }
+    return !in_array('razorpay', $active, true) || razorpay_webhook_secret() !== '';
+}
+
+/** Health checks: list of [status ok|warn|bad, title, detail, fix]. */
+function payment_health_checks(): array
+{
+    $checks = [];
+    $where = 'Admin > Payment Gateways';
+    foreach (['razorpay_key_secret', 'razorpay_webhook_secret', 'cashfree_secret_key'] as $name) {
+        if (secret_unreadable($name)) {
+            $checks[] = ['bad', 'Payment secrets readable', 'A saved payment secret can no longer be decrypted (APP_KEY or the database credentials in pwf-config.php changed).', 'Enter the secret again in ' . $where . '.'];
+            break;
+        }
+    }
+    $active = active_gateways();
+    if (!$active) {
+        $off = setting('online_donations_enabled', '1') !== '1';
+        $checks[] = ['warn', 'Online payments', $off ? 'Online donations are switched off in Settings > Donations & bank.' : 'No payment gateway has its keys - online donations are unavailable.',
+            $off ? 'Switch online donations on once a gateway is set up.' : 'Enter the Razorpay or Cashfree keys in ' . $where . ' once the merchant account is approved.'];
+        return $checks;
+    }
+    if (in_array('razorpay', $active, true)) {
+        $mode = razorpay_mode();
+        if ($mode === 'test') {
+            $checks[] = ['warn', 'Online payments (Razorpay)', 'Razorpay is in TEST mode - no real money is collected.', 'Enter live keys (rzp_live_…) in ' . $where . ' when you are ready to accept donations.'];
+        } elseif ($mode === 'live') {
+            $checks[] = ['ok', 'Online payments (Razorpay)', 'Live Razorpay keys are configured.', ''];
+        } else {
+            $checks[] = ['bad', 'Online payments (Razorpay)', 'The Razorpay Key ID does not look like a Razorpay key (rzp_test_… or rzp_live_…).', 'Check the Key ID in ' . $where . '.'];
+        }
+        $hook = razorpay_webhook_secret() !== '';
+        $checks[] = [$hook ? 'ok' : 'warn', 'Razorpay webhook secret', $hook ? 'Webhook secret is set (payments are confirmed even if the donor closes the browser).' : 'No Razorpay webhook secret configured.',
+            $hook ? '' : 'In the Razorpay dashboard add the webhook ' . abs_url('payment-webhook.php') . ' and enter its secret in ' . $where . '.'];
+    }
+    if (in_array('cashfree', $active, true)) {
+        $prod = cashfree_env() === 'production';
+        $testKey = stripos(cashfree_app_id(), 'TEST') === 0 || strpos(cashfree_secret_key(), '_test_') !== false;
+        if ($prod && $testKey) {
+            $checks[] = ['bad', 'Online payments (Cashfree)', 'Cashfree is set to Production but the keys look like sandbox (test) keys.', 'Enter the Production App ID and Secret Key in ' . $where . '.'];
+        } else {
+            $checks[] = [$prod ? 'ok' : 'warn', 'Online payments (Cashfree)', $prod ? 'Cashfree Production keys are configured.' : 'Cashfree is in SANDBOX (test) mode - no real money is collected.',
+                $prod ? '' : 'Switch the environment to Production and enter the Production keys in ' . $where . ' when you are ready.'];
+        }
+        $seen = (int) db_value("SELECT COUNT(*) FROM payment_webhook_events WHERE gateway = 'cashfree'") > 0;
+        $checks[] = [$seen ? 'ok' : 'warn', 'Cashfree webhook', $seen ? 'Signed Cashfree notifications are being received.' : 'No signed Cashfree notification has been received yet.',
+            $seen ? '' : 'Add ' . abs_url('cashfree-webhook.php') . ' in the Cashfree dashboard (Developers > Webhooks). This turns green after the first notification.'];
+    }
+    return $checks;
 }
 
 // =====================================================================
