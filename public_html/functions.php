@@ -43,6 +43,65 @@ if (PHP_SAPI !== 'cli' && !defined('PWF_NO_SESSION') && session_status() === PHP
         'samesite' => 'Lax',
     ]);
     session_start();
+    // what the session held when this request began, and PHP's own cache header (pwf_anonymous_cache_headers() below)
+    $GLOBALS['pwfSessionKeysAtStart'] = array_keys($_SESSION);
+    foreach (headers_list() as $pwfHeader) {
+        if (stripos($pwfHeader, 'cache-control:') === 0) {
+            $GLOBALS['pwfSessionCacheControl'] = $pwfHeader;
+        }
+    }
+    unset($pwfHeader);
+}
+
+// ---------------------------------------------------------------------
+// Browser caching of HTML (Upgrade 2, performance). PHP's session sends "Cache-Control: no-store, no-cache,
+// must-revalidate" with every response, which also keeps pages out of the browser's back/forward cache. For a plain
+// page view by a signed-out visitor, header.php calls pwf_anonymous_cache_headers() to send
+// "Cache-Control: private, no-cache" instead: shared caches never store the page and the browser must ask the server
+// again before reusing it, but Back/Forward can restore it instantly. The CSRF token in the page belongs to the
+// visitor's session, so a restored form still submits.
+// Everything else keeps no-store: signed-in visitors (and a session waiting for its two-step code), member, sign-in,
+// donation-status, application-status and letter pages, previews and private (token) views, anything that set its
+// own Cache-Control, non-GET requests, error pages, any query parameter that is not on the list below, and any
+// session that carries more than the anonymous basics (messages, form input, application results, event access,
+// queued analytics events...).
+// ---------------------------------------------------------------------
+const PWF_CACHE_QUERY_KEYS = ['page', 'category', 'q', 'program', 'type', 'month', 'when', 'closed', 'campaign', 'amount', 'area', 'position',
+    'gclid', 'fbclid', 'msclkid', 'dclid', 'gbraid', 'wbraid', 'yclid', 'twclid', 'igshid', 'mc_cid', 'mc_eid', '_ga', '_gl', 'ref_src'];
+const PWF_CACHE_SESSION_KEYS = ['csrf_token', 'pwf_an', 'attr', 'viewed_posts', 'ai_chat'];
+const PWF_NO_STORE_TEMPLATES = ['member', 'donation_success', 'donation_failed', 'donation_receipt', 'login', 'register', 'forgot_password',
+    'reset_password', 'verify_email', 'logout', 'application_status', 'verify_letter'];
+
+function pwf_anonymous_cache_headers(array $page): void
+{
+    if (PHP_SAPI === 'cli' || headers_sent() || session_status() !== PHP_SESSION_ACTIVE
+        || !in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true)
+        || http_response_code() !== 200
+        || !empty($_SESSION['uid']) || current_user() !== null
+        || in_array((string) ($page['template'] ?? ''), PWF_NO_STORE_TEMPLATES, true)
+        || ($page['status'] ?? 'published') !== 'published'
+        || !empty($GLOBALS['seo']['private'])) {
+        return;
+    }
+    foreach (headers_list() as $sent) {
+        // a page that chose its own caching (private event pages, downloads...) or is marked nofollow keeps it
+        if ((stripos($sent, 'cache-control:') === 0 && $sent !== ($GLOBALS['pwfSessionCacheControl'] ?? ''))
+            || (stripos($sent, 'x-robots-tag:') === 0 && stripos($sent, 'nofollow') !== false)) {
+            return;
+        }
+    }
+    foreach (array_keys($_GET) as $key) {
+        if (!in_array((string) $key, PWF_CACHE_QUERY_KEYS, true) && strpos((string) $key, 'utm_') !== 0) {
+            return;
+        }
+    }
+    $keys = array_merge($GLOBALS['pwfSessionKeysAtStart'] ?? [], array_keys($_SESSION));
+    if (array_diff(array_map('strval', $keys), PWF_CACHE_SESSION_KEYS)) {
+        return;
+    }
+    header('Cache-Control: private, no-cache');
+    header_remove('Expires');
+    header_remove('Pragma');
 }
 
 // ---------------------------------------------------------------------

@@ -389,7 +389,16 @@ function brand_lockup(string $variant = 'header'): string
     $name = site_name();
     $first = strtok($name, ' ');
     $rest = trim(substr($name, strlen((string) $first)));
-    return '<img class="brand-emblem" src="' . e(site_logo()) . '" alt="" width="64" height="64">'
+    // the emblem is shown 46-60 px wide: the built-in logo has 128 and 192 px copies (the 320 px file stays for sharing,
+    // print and the few places that show it larger); sizes follow enhance.css, responsive.css and member.css
+    $emblem = '<img class="brand-emblem" src="' . e(site_logo()) . '" alt="" width="64" height="64">';
+    if (setting('logo_path') === '' && is_file(ROOT_PATH . '/assets/images/logo-128.png') && is_file(ROOT_PATH . '/assets/images/logo-192.png')) {
+        $sizes = ['header' => '(max-width: 767px) 46px, (max-width: 1279px) 54px, 60px', 'mobile' => '46px', 'footer' => '58px', 'full' => '(max-width: 560px) 46px, 58px'];
+        $emblem = '<img class="brand-emblem" src="' . e(url('assets/images/logo-128.png')) . '" srcset="' . e(url('assets/images/logo-128.png')) . ' 128w, '
+            . e(url('assets/images/logo-192.png')) . ' 192w, ' . e(url('assets/images/logo.png')) . ' 320w" sizes="' . e($sizes[$variant] ?? '60px') . '" alt="" width="64" height="64"'
+            . ($variant === 'footer' ? ' loading="lazy" decoding="async"' : '') . '>';
+    }
+    return $emblem
         // the spaces keep the words apart in the accessible name / page text (not rendered between flex items)
         . '<span class="brand-word"><span class="brand-name">' . e(mb_strtoupper((string) $first)) . '</span> '
         . '<span class="brand-sub">' . e(mb_strtoupper($rest)) . '</span> '

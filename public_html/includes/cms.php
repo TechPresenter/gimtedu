@@ -348,6 +348,17 @@ function render_sections(array $page, ?callable $module = null, string $position
     }
     if ($module && !$hasModule && $position === 'before') {
         $module();
+    } else {
+        // an image + text block at the top of the page (after an optional in-page menu) holds the largest paint on
+        // phones: its image loads at once with high priority instead of lazily (section_split -> ui_split 'lcp')
+        foreach ($sections as $i => $s) {
+            if ($s['section_type'] !== 'subnav') {
+                if ($s['section_type'] === 'split') {
+                    $sections[$i]['_lcp'] = true;
+                }
+                break;
+            }
+        }
     }
     foreach ($sections as $s) {
         if ($s['section_type'] === 'module') {
@@ -529,6 +540,7 @@ function section_split(array $s, array $items, array $set, array $page): string
         'image' => $s['image'] ?: ($set['fallback_image'] ?? 'assets/images/hero/community.svg'),
         'image_alt' => $set['image_alt'] ?? '', 'reverse' => !empty($set['reverse']),
         'actions' => $set['buttons'] ?? [],
+        'lcp' => !empty($s['_lcp']),
     ]);
 }
 

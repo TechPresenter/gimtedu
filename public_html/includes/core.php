@@ -88,6 +88,154 @@ function asset(string $path): string
     return url($path) . '?v=' . $v;
 }
 
+// ---------------------------------------------------------------------
+// Public stylesheets (Upgrade 2, performance): one cached file instead of 15 render-blocking requests
+// ---------------------------------------------------------------------
+
+/**
+ * Module stylesheets that only style their own templates. Every rule in them is scoped to classes that only those
+ * templates print (member.css: acc-* sign-in pages and md-* member area; letters.css: lv-* on /verify-letter/), so
+ * leaving them out elsewhere changes nothing on screen. Every other public module file loads on every page.
+ */
+const PUBLIC_CSS_TEMPLATE_ONLY = [
+    'member.css'  => ['login', 'register', 'forgot_password', 'reset_password', 'verify_email', 'member'],
+    'letters.css' => ['verify_letter'],
+];
+
+/**
+ * Public stylesheets of a page in cascade order (paths below ROOT_PATH): style.css, enhance.css, the public module
+ * files (assets/css/modules/*.css without admin-*, alphabetical), responsive.css. '' as template = all module files.
+ */
+function public_css_files(string $template = ''): array
+{
+    $files = ['assets/css/style.css', 'assets/css/enhance.css'];
+    foreach (glob(ROOT_PATH . '/assets/css/modules/*.css') ?: [] as $moduleCss) {
+        $name = basename($moduleCss);
+        if (strpos($name, 'admin-') === 0) {
+            continue;
+        }
+        if ($template !== '' && isset(PUBLIC_CSS_TEMPLATE_ONLY[$name]) && !in_array($template, PUBLIC_CSS_TEMPLATE_ONLY[$name], true)) {
+            continue;
+        }
+        $files[] = 'assets/css/modules/' . $name;
+    }
+    $files[] = 'assets/css/responsive.css';
+    return $files;
+}
+
+/**
+ * URL of one cached stylesheet holding $files in the same order (assets/cache/css-<set>-<version>.css). It is built
+ * on the first request after any source file changes: the version is a hash of the names, sizes and modification
+ * times, so uploaded CSS changes are picked up at once and browsers never keep an outdated copy. Comments and
+ * indentation are left out and url() references are rewritten for the cache folder; nothing else changes.
+ * Returns '' when the bundle cannot be written (the caller then links the files one by one, as before) or when
+ * pwf-config.php sets define('PWF_CSS_BUNDLE', false).
+ */
+function css_bundle_url(array $files): string
+{
+    if (defined('PWF_CSS_BUNDLE') && !PWF_CSS_BUNDLE) {
+        return '';
+    }
+    $stamp = [];
+    foreach ($files as $file) {
+        $full = ROOT_PATH . '/' . $file;
+        if (!is_file($full)) {
+            return '';
+        }
+        $stamp[] = $file . ':' . filesize($full) . ':' . filemtime($full);
+    }
+    if (!$stamp) {
+        return '';
+    }
+    $set = substr(md5(implode('|', $files)), 0, 8);
+    $name = 'css-' . $set . '-' . substr(md5('bundle-v1|' . implode('|', $stamp)), 0, 12) . '.css';
+    $dir = ROOT_PATH . '/assets/cache';
+    if (!is_file($dir . '/' . $name) && !css_bundle_build($files, $dir, $set, $name)) {
+        return '';
+    }
+    return url('assets/cache/' . $name);
+}
+
+/** Write a bundle (temporary file + rename, so a visitor never gets half a file) and drop older builds of the set. */
+function css_bundle_build(array $files, string $dir, string $set, string $name): bool
+{
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+        return false;
+    }
+    if (!is_writable($dir)) {
+        return false;
+    }
+    if (!is_file($dir . '/index.html')) {
+        @file_put_contents($dir . '/index.html', "<!doctype html><meta charset=\"utf-8\"><title>403</title>\n");
+    }
+    $css = '/* Generated from ' . implode(', ', $files) . ' - do not edit: change the source files instead. */' . "\n";
+    foreach ($files as $file) {
+        $source = @file_get_contents(ROOT_PATH . '/' . $file);
+        if ($source === false) {
+            return false;
+        }
+        $css .= css_bundle_compact(css_bundle_rebase($source, dirname($file))) . "\n";
+    }
+    $tmp = $dir . '/.tmp-' . bin2hex(random_bytes(6)) . '.css';   // dot files are never served (.htaccess)
+    if (@file_put_contents($tmp, $css) !== strlen($css)) {
+        @unlink($tmp);
+        return false;
+    }
+    @chmod($tmp, 0644);
+    if (!@rename($tmp, $dir . '/' . $name)) {
+        @unlink($tmp);
+        return is_file($dir . '/' . $name);
+    }
+    // older builds of this set are kept for ten minutes, for pages that were sent just before the change
+    foreach (glob($dir . '/css-' . $set . '-*.css') ?: [] as $old) {
+        if (basename($old) !== $name && (int) @filemtime($old) < time() - 600) {
+            @unlink($old);
+        }
+    }
+    return true;
+}
+
+/** Rewrite the relative url() references of a CSS file in $fromDir (e.g. assets/css/modules) for assets/cache/. */
+function css_bundle_rebase(string $css, string $fromDir): string
+{
+    return (string) preg_replace_callback('/url\(\s*([\'"]?)([^\'")]*)\1\s*\)/i', function (array $m) use ($fromDir): string {
+        $ref = trim($m[2]);
+        if ($ref === '' || preg_match('#^(data:|[a-z][a-z0-9+.\-]*:|/|\#)#i', $ref)) {
+            return $m[0];
+        }
+        $parts = [];
+        foreach (explode('/', $fromDir . '/' . $ref) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                array_pop($parts);
+                continue;
+            }
+            $parts[] = $part;
+        }
+        $path = implode('/', $parts);
+        $rel = strpos($path, 'assets/') === 0 ? '../' . substr($path, 7) : '../../' . $path;
+        return 'url(' . $m[1] . $rel . $m[1] . ')';
+    }, $css);
+}
+
+/** Drop comments and indentation; quoted strings are kept exactly as written. */
+function css_bundle_compact(string $css): string
+{
+    $strings = '"(?:[^"\\\\\n]|\\\\.)*"|\'(?:[^\'\\\\\n]|\\\\.)*\'';
+    $out = preg_replace_callback('~(' . $strings . ')|/\*.*?\*/~s', function (array $m): string {
+        return $m[1] ?? '';
+    }, $css);
+    if ($out === null) {
+        return $css;
+    }
+    $lines = preg_replace_callback('~(' . $strings . ')|\s*\n\s*~', function (array $m): string {
+        return ($m[1] ?? '') !== '' ? $m[1] : "\n";
+    }, $out);
+    return trim($lines === null ? $out : $lines);
+}
+
 /**
  * srcset value for an uploaded public image with resized copies ('' when there are none: old uploads, SVG fallbacks).
  * Use with a sizes attribute; src stays the original file.

@@ -82,6 +82,7 @@ ErrorDocument 404 /index.php
 # ---------------------------------------------------------------------
 <IfModule mod_deflate.c>
     AddOutputFilterByType DEFLATE text/html text/css application/javascript text/javascript image/svg+xml application/json text/plain application/xml text/xml text/calendar
+    AddOutputFilterByType DEFLATE application/ld+json application/manifest+json image/x-icon image/vnd.microsoft.icon
 </IfModule>
 <IfModule mod_expires.c>
     ExpiresActive On
@@ -93,8 +94,17 @@ ErrorDocument 404 /index.php
     ExpiresByType image/webp "access plus 6 months"
     ExpiresByType image/svg+xml "access plus 6 months"
     ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType image/gif "access plus 6 months"
+    ExpiresByType image/avif "access plus 6 months"
+    ExpiresByType image/x-icon "access plus 6 months"
+    ExpiresByType image/vnd.microsoft.icon "access plus 6 months"
+    ExpiresByType font/woff "access plus 1 year"
+    ExpiresByType application/font-woff "access plus 1 year"
+    ExpiresByType application/pdf "access plus 1 month"
 </IfModule>
 <IfModule mod_mime.c>
     AddType font/woff2 .woff2
+    AddType font/woff .woff
     AddType image/webp .webp
+    AddType image/avif .avif
 </IfModule>

@@ -40,6 +40,11 @@ $ogLarge = !$ogSize || ($ogSize[0] >= 600 && $ogSize[0] !== $ogSize[1]);
 $ogTitle = !empty($seo['is_home']) ? $fullTitle : (string) ($seo['title'] ?? $fullTitle);
 }
 $headerUser = current_user();
+// a signed-out visitor's plain page view may stay in the browser's back/forward cache (functions.php); every other
+// response keeps PHP's no-store
+if (function_exists('pwf_anonymous_cache_headers')) {
+    pwf_anonymous_cache_headers(isset($page) && is_array($page) ? $page : []);
+}
 $mainMenu = menu_tree('main');
 $topbarMenu = setting('topbar_enabled', '1') === '1' ? menu_tree('topbar') : [];
 // "Programs & Events" dropdown (top bar on desktop, chip group in the mobile menu): categories + events/hackathon links
@@ -111,18 +116,38 @@ if (setting('mobile_nav_strip', '1') === '1') {
     <meta name="twitter:image:alt" content="<?= e($ogImageAlt !== '' ? $ogImageAlt : $ogTitle) ?>">
     <?php if (function_exists('seo_verification_tags')): ?><?= seo_verification_tags() ?><?php elseif (setting('google_site_verification')): ?><meta name="google-site-verification" content="<?= e(setting('google_site_verification')) ?>"><?php endif; ?>
 <?php endif; ?>
-    <link rel="icon" type="image/png" href="<?= e(setting('favicon_path') ? image_url(setting('favicon_path')) : asset('assets/images/favicon.png')) ?>">
+<?php if (setting('favicon_path')): ?>
+    <link rel="icon" type="image/png" href="<?= e(image_url(setting('favicon_path'))) ?>">
+<?php else: /* built-in set in multiples of 48 px (Google Search shows site icons from these); /favicon.ico is at the web root */ ?>
+    <link rel="icon" type="image/png" sizes="48x48" href="<?= e(asset('assets/images/favicon-48.png')) ?>">
+    <link rel="icon" type="image/png" sizes="96x96" href="<?= e(asset('assets/images/favicon-96.png')) ?>">
+    <link rel="icon" type="image/png" sizes="192x192" href="<?= e(asset('assets/images/favicon-192.png')) ?>">
+<?php endif; ?>
     <link rel="apple-touch-icon" href="<?= e(asset('assets/images/apple-touch-icon.png')) ?>">
     <?php /* only the three files that draw most of the first screen (UI 600, hero/banner title 800, body text 400); the other weights load on demand and their metric-matched fallbacks (style.css) keep the swap from shifting the layout */ ?>
     <link rel="preload" href="<?= e(url('assets/fonts/poppins-latin-600-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="<?= e(url('assets/fonts/poppins-latin-800-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="<?= e(url('assets/fonts/noto-sans-latin-400-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="<?= e(asset('assets/css/style.css')) ?>">
-    <link rel="stylesheet" href="<?= e(asset('assets/css/enhance.css')) ?>">
-    <?php foreach (glob(ROOT_PATH . '/assets/css/modules/*.css') ?: [] as $moduleCss): if (strpos(basename($moduleCss), 'admin-') === 0) { continue; } ?>
-    <link rel="stylesheet" href="<?= e(asset('assets/css/modules/' . basename($moduleCss))) ?>">
+    <?php
+    // Stylesheets: style.css, enhance.css, the public module files, responsive.css - in that order, as ONE cached file
+    // (includes/core.php css_bundle_url(), rebuilt when a source file changes); one by one when assets/cache/ cannot
+    // be written. member.css and letters.css only load on their own templates (PUBLIC_CSS_TEMPLATE_ONLY).
+    if (function_exists('css_bundle_url')) {
+        $cssFiles = public_css_files((string) (isset($page) && is_array($page) ? ($page['template'] ?? '') : ''));
+        $cssBundle = css_bundle_url($cssFiles);
+        $cssLinks = $cssBundle !== '' ? [$cssBundle] : array_map('asset', $cssFiles);
+    } else {
+        $cssLinks = [asset('assets/css/style.css'), asset('assets/css/enhance.css')];
+        foreach (glob(ROOT_PATH . '/assets/css/modules/*.css') ?: [] as $moduleCss) {
+            if (strpos(basename($moduleCss), 'admin-') !== 0) {
+                $cssLinks[] = asset('assets/css/modules/' . basename($moduleCss));
+            }
+        }
+        $cssLinks[] = asset('assets/css/responsive.css');
+    }
+    foreach ($cssLinks as $cssHref): ?>
+    <link rel="stylesheet" href="<?= e($cssHref) ?>">
     <?php endforeach; ?>
-    <link rel="stylesheet" href="<?= e(asset('assets/css/responsive.css')) ?>">
     <?php if ($seoHead) { echo seo_head_tags('graph'); } else { foreach (seo_schemas() as $schema) { echo json_ld($schema) . "\n"; } } ?>
 </head>
 <body class="<?= e($GLOBALS['bodyClass'] ?? '') ?>" data-motion="<?= $motion ? 'on' : 'off' ?>">
