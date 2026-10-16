@@ -14,6 +14,7 @@
 2. **फ़ाइलें अपलोड करें:**
    - File Manager → `public_html` खोलें → `prerit-upgrade-1.zip` (इसमें सिर्फ़ `public_html` की फ़ाइलें हैं) अपलोड करें → **Extract** करें → पूछे तो **Replace / Overwrite** चुनें।
    - कुछ भी डिलीट न करें: `uploads/` फ़ोल्डर (आपकी photos/documents) और public_html के बाहर रखी `pwf-config.php` वैसी ही रहेंगी।
+   - इस zip में मुख्य `.htaccess` भी नहीं है, ताकि अगर आपने उसमें "Force HTTPS" चालू किया है तो वह वैसा ही रहे।
    - इस zip में `install.php` नहीं है, इसलिए installer दोबारा नहीं आएगा। अगर पुरानी `install.php` सर्वर पर पड़ी है तो वह अब सिर्फ़ "already installed" दिखाएगी — फिर भी उसे डिलीट कर दें।
 3. **वेबसाइट एक बार खोलें:** `https://preritwelfarefoundation.org/` खोलते ही database अपने-आप अपडेट हो जाता है (नई tables, settings, pages)। पुराना कोई डेटा न हटता है, न बदलता है। जाँचने के लिए: Admin → System → **Audit Log** में "database_upgraded" दिखेगा (Security Centre में "Database up to date")। अगर कोई update fail हो, तो Dashboard पर लाल सूचना दिखेगी और वह हर 10 मिनट में अपने-आप दोबारा चलेगा।
    - जानबूझकर होने वाले बदलाव: `/events-page/` वाले menu links, page links और redirects अब `/events/` पर जाते हैं (पुराना पता redirect होता है); Donate और Volunteer Teacher pages पर अब सिर्फ़ form दिखता है — बाकी sections (आपके जोड़े हुए भी) **hidden** हो जाते हैं, डिलीट नहीं होते (Admin → Pages में फिर से चालू कर सकते हैं); होम पेज का "Our impact" हिस्सा hidden हो जाता है।

@@ -1,4 +1,50 @@
-# Test report — Prerit Welfare Foundation website v2
+# Test report — Prerit Welfare Foundation website v3 (Upgrade 1)
+
+**Date:** 16 October 2026 · **Stack tested:** Apache 2.4, PHP 8.3 (code checked for PHP 7.4 syntax by a token scanner — no 7.4 interpreter was available), MariaDB, Chromium (Playwright), local mocks of the Razorpay, Cashfree, OpenAI and geo-IP APIs. **Real Razorpay/Cashfree/OpenAI endpoints could not be reached from the test environment** — do one small real payment, one sandbox Cashfree payment + refund and one chatbot question after deploying.
+
+## 1. Upgrade of a live-like site (the owner's procedure)
+
+| Check | Result |
+|---|---|
+| v2 production copy with live-like data (₹500 verified donation + receipt, pending and offline donations, member, volunteer + teacher applications, event registration, newsletter, enquiry) and owner edits (section text, meta description, hero title, phone, FAQ) | prepared |
+| New files copied over the old ones (no delete, no `install.php`, no uploads), `pwf-config.php` unchanged (no `APP_KEY`) | ✅ first request ran all migrations in ≈1 s; applied list = code's migration list |
+| User data | ✅ 40/51 v2 tables byte-identical; the other 11 changed only by intended migrations; donation, receipt, sessions, owner edits preserved |
+| 10 parallel first requests | ✅ one upgrade (database lock), no duplicate rows; a request that cannot get the lock in 10 s gets a 503 "try again" page instead of a half-upgraded site |
+| Site installed from the earlier v2 package | ✅ converges to the final v2 state (catch-up migration) |
+| Failing migration | ✅ retried at most every 10 minutes, one log line per try, shown to administrators (Dashboard, Security Centre) |
+| Fresh install (database.sql + installer over HTTP) | ✅ wrong key refused, admin created, migrations ran; public crawl 373 URLs / admin 2,116 URLs, 0 issues |
+| Crawl of the upgraded copy | ✅ public 373 URLs, 0 issues · admin 2,195 URLs, 1 intentional 404 (receipt page without reference) |
+
+## 2. New modules — independent adversarial QA (issues found → fixed)
+
+| Module | Builder tests | QA findings fixed |
+|---|---|---|
+| Payment gateways (Razorpay admin keys, Cashfree order/verify/webhook/refund) | all pass against mocks; Razorpay regression with constants and admin keys | 7 (incl. a Cashfree order-renewal race, 2-letter names, filter crash) |
+| AI assistant (OpenAI) | all pass against a mock incl. XSS sanitising, CSRF, limits, fallback | 11 |
+| Deep analytics | traffic simulation, forged/replayed beacons, consent, DNT, staff exclusion, exports | 9 |
+| Mobile menu strip + hero images | layout checks 390–1920 px, CLS, uploads | 9 |
+| Programs & Events | 74/74 public + 114/114 admin checks; 20 parallel registrations for 5 seats → exactly 5 | 10 |
+| Authorization letters + teacher terms | print layout on A4, masking, permissions, verify page | 8 (incl. full Aadhaar entered in free text) |
+| Release check (upgrade path, regression, review of integration code) | 33 findings | 28 fixed, 1 not a bug, 1 owner decision (minimum PHP version stays 8.0 for the installer) |
+
+## 3. Final regression
+
+* `php -l` on every PHP file, `node --check` on every JS file, PHP 7.4 token scan of changed files: 0 issues.
+* Crawls of the development site: public 378 URLs, 0 issues; admin 2,670 URLs (only 404s for deleted test events still referenced by analytics rows).
+* axe-core (accessibility) on 13 public and 9 admin pages at 390 px and 1366 px: 0 serious/critical issues.
+* Header/top bar at 1280–1920 px (signed in and out): one row, no overlap; mobile strip and menu: no horizontal overflow, no console errors.
+
+## 4. To check on the live site after deploying
+
+1. Open the home page once, then Admin → Audit Log shows "database_upgraded"; Dashboard shows "Database up to date".
+2. Razorpay: regenerate the Key Secret, enter keys in Payment Gateways, **Test connection**, then one small real donation → receipt email → refund test if wanted.
+3. Cashfree (optional): sandbox keys → one sandbox payment and refund → then production.
+4. AI assistant (optional): add the OpenAI key + budget limit, ask a few questions in English and Hindi.
+5. Upload the seal (Authorization Letters → Settings), print one test letter and compare it with the original letterhead.
+
+---
+
+# Earlier test report — website v2
 
 **Date:** 15 October 2026 · **Stack tested:** Apache 2.4 (mod_rewrite, .htaccess) · PHP 8.3 · MariaDB · Chromium (Playwright) · local Razorpay API mock (test mode)
 
