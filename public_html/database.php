@@ -20,7 +20,10 @@ function db(): PDO
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES   => false,
             ]);
-            $pdo->exec("SET time_zone = '+05:30'");
+            // SET NAMES: one collation for the whole session. Some hosts (e.g. MariaDB with skip-character-set-client-handshake)
+            // give the connection utf8mb4_unicode_ci while bound parameters stay utf8mb4_general_ci, and then comparing a
+            // function result such as MD5(...) with a parameter fails with "Illegal mix of collations".
+            $pdo->exec("SET NAMES utf8mb4, time_zone = '+05:30'");
         } catch (PDOException $e) {
             error_log('Database connection failed: ' . $e->getMessage());
             if (defined('PWF_INSTALLER')) {

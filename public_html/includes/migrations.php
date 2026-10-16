@@ -92,7 +92,8 @@ function migration_list(): array
 /** Signature of the migration set in the code (changes whenever a migration is added, renamed or removed). */
 function migration_signature(array $list): string
 {
-    return $list ? max($list) . ':' . count($list) . ':' . substr(sha1(implode(',', array_keys($list))), 0, 10) : '';
+    // MIGRATIONS_REVISION is raised when an existing migration is corrected, so a fixed upload retries at once
+    return $list ? max($list) . ':' . count($list) . ':' . substr(sha1(implode(',', array_keys($list))), 0, 10) . ':r' . MIGRATIONS_REVISION : '';
 }
 
 /**
@@ -114,6 +115,8 @@ function migration_failure(): ?array
 
 /** Minutes to wait before a failed migration is tried again (each try writes one error_log line). */
 const MIGRATION_RETRY_MINUTES = 10;
+/** Raise when a migration's code is corrected (2: hash checks independent of the database collation). */
+const MIGRATIONS_REVISION = 2;
 
 /**
  * Run pending migrations. Cheap when nothing is pending (one setting read).
@@ -265,7 +268,7 @@ function migration_100_v2_final_catchup(): void
         db_query('UPDATE pages SET meta_description = ? WHERE slug = ? AND meta_description <=> ?', [$p['final'], $p['slug'], $p['early']]);
     }
     foreach ($meta['faq_changed'] as $q) {
-        db_query('UPDATE faqs SET question = ?, answer = ? WHERE question = ? AND MD5(answer) = ?', [$q['question'], $q['answer'], $q['early_question'], $q['early_md5']]);
+        db_query('UPDATE faqs SET question = ?, answer = ? WHERE question = ? AND MD5(answer) = BINARY ?', [$q['question'], $q['answer'], $q['early_question'], $q['early_md5']]);
     }
     foreach ($early ? $meta['faq_new'] : [] as $q) {
         if (!db_value('SELECT COUNT(*) FROM faqs WHERE question = ?', [$q['question']])) {
@@ -282,7 +285,7 @@ function migration_100_v2_final_catchup(): void
     foreach ($sections as $s) {
         $id = db_value("SELECT s.id FROM page_sections s JOIN pages p ON p.id = s.page_id
                         WHERE p.slug = ? AND s.section_type = ? AND s.sort_order = ?
-                          AND MD5(CONCAT_WS('|', s.title, s.intro, s.body, s.items, s.settings, s.image, s.pill, s.background)) = ?",
+                          AND MD5(CONCAT_WS('|', s.title, s.intro, s.body, s.items, s.settings, s.image, s.pill, s.background)) = BINARY ?",
             [$s['page'], $s['type'], $s['sort'], $s['early_md5']]);
         if ($id) {
             $set = $s['set'];
@@ -363,7 +366,7 @@ const FAQ_DONATE_ONLINE_V2 = "When online donation is available, go to the Donat
 function migration_106_faq_gateway_wording(): void
 {
     db_query("UPDATE faqs SET answer = REPLACE(answer, 'in the secure Razorpay checkout', 'in the secure checkout of our payment gateway')
-              WHERE question = 'How can I donate online?' AND MD5(answer) = ?", [md5(FAQ_DONATE_ONLINE_V2)]);
+              WHERE question = 'How can I donate online?' AND MD5(answer) = BINARY ?", [md5(FAQ_DONATE_ONLINE_V2)]);
 }
 
 /** Privacy policy cookie wording now that our own return-visit cookie also asks for consent (seeded text only). */
@@ -387,7 +390,7 @@ function migration_109_faq_gateway_neutral(): void
 {
     $named = str_replace('in the secure Razorpay checkout', 'in the secure checkout of our payment gateway (Razorpay or Cashfree)', FAQ_DONATE_ONLINE_V2);
     db_query("UPDATE faqs SET answer = REPLACE(answer, 'in the secure checkout of our payment gateway (Razorpay or Cashfree)', 'in the secure checkout of our payment gateway')
-              WHERE question = 'How can I donate online?' AND MD5(answer) = ?", [md5($named)]);
+              WHERE question = 'How can I donate online?' AND MD5(answer) = BINARY ?", [md5($named)]);
 }
 
 // The footer link to /verify-letter/ is added by migration_701_verify_letter_link (includes/letters.php), after

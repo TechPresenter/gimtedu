@@ -273,8 +273,8 @@ function seo_content_apply_page(string $slug, array $seed, ?string $newTitle, ?s
     $changed = [];
     if ($newTitle !== null && seo_content_title_ok($newTitle)) {
         // empty meta_title, or (W2 category pages) the seeded meta_title; and the page title itself is still seeded
-        $sql = "UPDATE pages SET meta_title = ? WHERE slug = ? AND MD5(title) = ? AND (meta_title IS NULL OR meta_title = ''"
-            . ($seedMetaTitle !== null ? ' OR MD5(meta_title) = ?' : '') . ')';
+        $sql = "UPDATE pages SET meta_title = ? WHERE slug = ? AND MD5(title) = BINARY ? AND (meta_title IS NULL OR meta_title = ''"
+            . ($seedMetaTitle !== null ? ' OR MD5(meta_title) = BINARY ?' : '') . ')';
         $params = [$newTitle, $slug, md5($seedTitle)];
         if ($seedMetaTitle !== null) {
             $params[] = md5($seedMetaTitle);
@@ -285,7 +285,7 @@ function seo_content_apply_page(string $slug, array $seed, ?string $newTitle, ?s
     }
     if ($newDesc !== null && $seedDesc !== null && $newDesc !== $seedDesc && seo_content_description_ok($newDesc)) {
         // exact (byte) comparison with the seeded text: any admin edit, even a single character, is kept
-        if (db_query('UPDATE pages SET meta_description = ? WHERE slug = ? AND MD5(meta_description) = ?', [$newDesc, $slug, md5($seedDesc)])->rowCount() > 0) {
+        if (db_query('UPDATE pages SET meta_description = ? WHERE slug = ? AND MD5(meta_description) = BINARY ?', [$newDesc, $slug, md5($seedDesc)])->rowCount() > 0) {
             $changed[] = $slug . ' description';
         }
     }
@@ -297,7 +297,7 @@ function seo_content_seeded_section(string $slug, string $type, int $sort, strin
 {
     $row = db_row("SELECT s.* FROM page_sections s JOIN pages p ON p.id = s.page_id
                    WHERE p.slug = ? AND s.section_type = ? AND s.sort_order = ?
-                     AND MD5(CONCAT_WS('|', s.title, s.intro, s.body, s.items, s.settings, s.image, s.pill, s.background)) = ?
+                     AND MD5(CONCAT_WS('|', s.title, s.intro, s.body, s.items, s.settings, s.image, s.pill, s.background)) = BINARY ?
                    ORDER BY s.id LIMIT 1", [$slug, $type, $sort, $md5]);
     return $row ?: null;
 }
@@ -454,7 +454,7 @@ function migration_872_seo_content_cannibalisation_copy(): void
         ['volunteer-staff', 'Volunteer Staff Application', 'Work With Us: Staff Positions'],
         ['campaigns', 'Donate / Fundraise', 'Fundraising Campaigns'],
     ] as [$slug, $old, $new]) {
-        if (db_query('UPDATE pages SET title = ? WHERE slug = ? AND MD5(title) = ?', [$new, $slug, md5($old)])->rowCount() > 0) {
+        if (db_query('UPDATE pages SET title = ? WHERE slug = ? AND MD5(title) = BINARY ?', [$new, $slug, md5($old)])->rowCount() > 0) {
             $changes[] = $slug . ' title';
         }
     }
