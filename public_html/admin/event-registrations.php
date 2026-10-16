@@ -43,12 +43,12 @@ $evLabel = function (array $ev): string {
 // =====================================================================
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     admin_post_only($self);
-    $action = (string) ($_POST['action'] ?? '');
+    $action = programhub_admin_param($_POST, 'action');
     $back = admin_back($self);
 
     // ----- Bulk actions -------------------------------------------------
     if ($action === 'bulk') {
-        $bulk = (string) ($_POST['bulk_action'] ?? '');
+        $bulk = programhub_admin_param($_POST, 'bulk_action');
         $regs = $loadRegs((array) ($_POST['ids'] ?? []));
         if (!isset(PH_BULK_ACTIONS[$bulk]) || !$regs) {
             flash('error', !$regs ? 'Select at least one registration first.' : 'Choose an action.');
@@ -127,7 +127,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     }
     if ($action === 'email') {
         [$data, $errors] = validate($_POST, ['subject' => 'required|min:3|max:150', 'message' => 'required|text|min:10|max:5000']);
-        $statuses = array_values(array_intersect(array_map('strval', (array) ($_POST['to'] ?? [])), array_keys(EVENT_REG_STATUSES)));
+        $statuses = array_values(array_intersect(array_filter((array) ($_POST['to'] ?? []), 'is_string'), array_keys(EVENT_REG_STATUSES)));
         if (!$statuses) {
             $errors['to'] = 'Choose who should receive the email.';
         }
@@ -229,7 +229,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $viewUrl = $self . '&view=' . $regId;
     $rlabel = $evLabel($event) . ' registration #' . $regId;
     if ($action === 'status') {
-        $new = (string) ($_POST['status'] ?? '');
+        $new = programhub_admin_param($_POST, 'status');
         if (!isset(EVENT_REG_STATUSES[$new]) || $new === $reg['status']) {
             flash('info', 'The status was not changed.');
             admin_redirect($viewUrl);
@@ -382,7 +382,7 @@ if ($event && $viewId) {
 // =====================================================================
 // Lists
 // =====================================================================
-$status = isset(EVENT_REG_STATUSES[$_GET['status'] ?? '']) ? (string) $_GET['status'] : '';
+$status = isset(EVENT_REG_STATUSES[programhub_admin_param($_GET, 'status')]) ? (string) $_GET['status'] : '';
 $q = trim(mb_substr(clean_string($_GET['q'] ?? ''), 0, 100));
 $minor = ($_GET['minor'] ?? '') === '1';
 $filterEvent = !$event ? (int) ($_GET['e'] ?? 0) : 0;

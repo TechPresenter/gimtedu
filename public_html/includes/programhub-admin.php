@@ -84,6 +84,12 @@ function programhub_admin_lines(string $text, int $maxLen = 200, int $max = 20):
     return $out;
 }
 
+/** A request parameter as a string ('' / $default when missing or not a plain value, e.g. ?status[]=x). */
+function programhub_admin_param(array $source, string $key, string $default = ''): string
+{
+    return isset($source[$key]) && is_scalar($source[$key]) ? (string) $source[$key] : $default;
+}
+
 /** JSON for a list column, or null when empty. */
 function programhub_admin_json(array $list): ?string
 {
@@ -323,14 +329,18 @@ function programhub_admin_change_category_slug(array $cat, string $newSlug): arr
     $newUrl = '/' . $newPath . '/';
     db_update('program_categories', ['slug' => $newSlug], 'id = :id', ['id' => (int) $cat['id']]);
     $notes = [];
-    if (!empty($cat['page_id'])) {
-        $page = db_row('SELECT id, slug FROM pages WHERE id = ?', [(int) $cat['page_id']]);
-        if ($page && $page['slug'] === $oldPath) {
-            db_update('pages', ['slug' => $newPath, 'updated_by' => admin_id()], 'id = :id', ['id' => (int) $page['id']]);
-        }
+    $page = !empty($cat['page_id']) ? db_row('SELECT id, slug FROM pages WHERE id = ?', [(int) $cat['page_id']]) : null;
+    if ($page) {
         // the closing call-to-action links to /events/?category=<slug>
         db_query('UPDATE page_sections SET settings = REPLACE(settings, ?, ?), items = REPLACE(items, ?, ?) WHERE page_id = ?',
-            ['category=' . $cat['slug'] . '"', 'category=' . $newSlug . '"', 'category=' . $cat['slug'] . '"', 'category=' . $newSlug . '"', (int) $cat['page_id']]);
+            ['category=' . $cat['slug'] . '"', 'category=' . $newSlug . '"', 'category=' . $cat['slug'] . '"', 'category=' . $newSlug . '"', (int) $page['id']]);
+    }
+    if ($page && $page['slug'] !== $oldPath) {
+        // the landing page has its own address (changed in Admin > Pages): it stays where it is
+        return ['The category\'s landing page keeps its own address /' . $page['slug'] . '/ (change it in Pages if needed).'];
+    }
+    if ($page) {
+        db_update('pages', ['slug' => $newPath, 'updated_by' => admin_id()], 'id = :id', ['id' => (int) $page['id']]);
     }
     db_query('DELETE FROM redirects WHERE source_path IN (?, ?)', [$newPath, $newPath . '/']);
     db_query('INSERT INTO redirects (source_path, target_url, status_code) VALUES (?, ?, 301)

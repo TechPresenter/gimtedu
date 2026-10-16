@@ -159,7 +159,8 @@ if ($tab === 'donations') {
     $notes[] = 'Counts only – no personal details are shown in reports. Open Help Requests or Scholarships for individual cases.';
 } elseif ($tab === 'events') {
     $rows = db_rows("SELECT e.title, e.event_type, e.start_datetime, e.status, e.capacity,
-                            SUM(r.status = 'registered') registered, SUM(r.status = 'attended') attended, SUM(r.status = 'cancelled') cancelled
+                            SUM(r.status IN ('registered','confirmed','no_show')) registered, SUM(r.status = 'attended') attended, SUM(r.status = 'cancelled') cancelled,
+                            SUM(r.status = 'waitlisted') waitlisted, SUM(r.status = 'no_show') no_show
                      FROM events e LEFT JOIN event_registrations r ON r.event_id = e.id
                      WHERE e.start_datetime BETWEEN ? AND ? AND e.status IN ('published','archived','cancelled')
                      GROUP BY e.id ORDER BY e.start_datetime DESC", $params);
@@ -168,13 +169,13 @@ if ($tab === 'donations') {
     $past = array_filter($rows, function ($r) { return strtotime($r['start_datetime']) < time() && $r['status'] !== 'cancelled'; });
     $kpis = [['calendar', '', number_format(count($rows)), 'Events in this period'], ['check-circle', 'blue', number_format(count($past)), 'Held (past, not cancelled)'],
         ['users', 'gold', number_format($totReg), 'Registrations (not cancelled)'], ['award', '', $totReg ? insights_pct((float) $totAtt, (float) $totReg, 0) : '–', 'Attendance (marked attended)']];
-    $reports['events'] = ['Registrations and attendance per event', ['Event', 'Type', 'Date', 'Status', 'Capacity', 'Registered', 'Attended', 'Cancelled', 'Attendance'],
+    $reports['events'] = ['Registrations and attendance per event', ['Event', 'Type', 'Date', 'Status', 'Capacity', 'Registered', 'Attended', 'No-show', 'Waiting list', 'Cancelled', 'Attendance'],
         array_map(function ($r) {
             $active = (int) $r['registered'] + (int) $r['attended'];
             return [$r['title'], humanize($r['event_type']), format_date($r['start_datetime'], 'd M Y'), humanize($r['status']), $r['capacity'] ? (int) $r['capacity'] : '–',
-                $active, (int) $r['attended'], (int) $r['cancelled'], $active && strtotime($r['start_datetime']) < time() ? insights_pct((float) $r['attended'], (float) $active, 0) : '–'];
+                $active, (int) $r['attended'], (int) $r['no_show'], (int) $r['waitlisted'], (int) $r['cancelled'], $active && strtotime($r['start_datetime']) < time() ? insights_pct((float) $r['attended'], (float) $active, 0) : '–'];
         }, $rows), []];
-    $notes[] = 'Filtered by event date. “Registered” includes people later marked as attended; attendance is shown for past events only.';
+    $notes[] = 'Filtered by event date. “Registered” counts everyone holding a place (registered, confirmed, attended, no-show); the waiting list is shown separately. Attendance is shown for past events only.';
 } elseif ($tab === 'communication') {
     $enqStatuses = application_statuses('contact_enquiries');
     $enq = db_rows('SELECT type, status, COUNT(*) n FROM contact_enquiries WHERE created_at BETWEEN ? AND ? GROUP BY type, status', $params);

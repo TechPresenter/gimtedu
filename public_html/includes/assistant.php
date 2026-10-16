@@ -28,6 +28,8 @@ const AI_DEFAULT_MODEL = 'gpt-4.1-mini';
 const AI_MAX_INPUT = 600;          // characters per visitor message
 const AI_HISTORY_TURNS = 6;        // question + answer pairs kept in the session
 const AI_CONTEXT_BUDGET = 7600;    // characters of website knowledge per request
+const AI_MIN_SNIPPETS = 2000;      // characters always left for the best-matching website snippets
+const AI_EXTRA_MAX = 2500;         // characters of admin-written extra knowledge (admin form limit = what is sent)
 
 // =====================================================================
 // Settings
@@ -176,10 +178,22 @@ function assistant_session_hash(): string
     return substr(assistant_hmac('sid|' . $_SESSION['ai_chat']['sid']), 0, 16);
 }
 
-/** Rate-limit bucket for the visitor's network: keyed hash of IP + date (rotates daily, rows deleted after 2 days). */
+/**
+ * Rate-limit bucket for the visitor's network: keyed hash of IP + date (rotates daily, rows deleted within 2 days).
+ * IPv6 addresses count per /64 network - one home or mobile connection can use any address in its /64.
+ */
 function assistant_ip_bucket(): string
 {
-    return 'ip:' . substr(assistant_hmac('ip|' . client_ip() . '|' . date('Y-m-d')), 0, 40);
+    $ip = client_ip();
+    if (strpos($ip, ':') !== false) {
+        $bin = @inet_pton($ip);
+        if (is_string($bin) && strlen($bin) === 16) {
+            $ip = substr($bin, 0, 12) === str_repeat("\0", 10) . "\xff\xff"
+                ? inet_ntop(substr($bin, 12))                                  // IPv4-mapped (::ffff:1.2.3.4): the IPv4 address
+                : inet_ntop(substr($bin, 0, 8) . str_repeat("\0", 8)) . '/64';
+        }
+    }
+    return 'ip:' . substr(assistant_hmac('ip|' . $ip . '|' . date('Y-m-d')), 0, 40);
 }
 
 /** Count one request in the current clock hour and return the new total for the bucket. */
@@ -245,13 +259,31 @@ function assistant_cleanup(): int
 {
     try {
         $deleted = db_query('DELETE FROM ai_chat_logs WHERE created_at < NOW() - INTERVAL ' . assistant_retention_days() . ' DAY')->rowCount();
-        db_query('DELETE FROM ai_rate_limits WHERE window_start < NOW() - INTERVAL 2 DAY');
+        db_query('DELETE FROM ai_rate_limits WHERE window_start < NOW() - INTERVAL 1 DAY');   // daily run: gone within 2 days
         db_query('DELETE FROM ai_usage_daily WHERE day < CURDATE() - INTERVAL 800 DAY');
         return $deleted;
     } catch (Throwable $e) {
         error_log('AI assistant cleanup: ' . $e->getMessage());
         return 0;
     }
+}
+
+/**
+ * Run the retention clean-up at most once a day, from any public page or chat request (also while the assistant
+ * is switched off), so expired records never depend on traffic or on an administrator opening the admin page.
+ */
+function assistant_cleanup_if_due(): void
+{
+    $last = setting('ai_cleanup_last');
+    if ($last !== '' && strtotime($last) > time() - 86400) {
+        return;
+    }
+    try {
+        save_setting('ai_cleanup_last', date('Y-m-d H:i:s'));
+    } catch (Throwable $e) {
+        return;   // settings table not writable: try again on a later request
+    }
+    assistant_cleanup();
 }
 
 // =====================================================================
@@ -261,7 +293,7 @@ function assistant_cleanup(): int
 /** 'hi' (Devanagari), 'hinglish' (Hindi in Latin letters) or 'en'. */
 function assistant_detect_lang(string $text): string
 {
-    if (preg_match('/\p{Devanagari}/u', $text)) {
+    if (preg_match('/[\x{0900}-\x{0963}\x{0971}-\x{097F}]/u', $text)) {   // Devanagari letters (not digits)
         return 'hi';
     }
     $markers = preg_match_all('/\b(kya|kaise|kaisa|kaisi|kahan|kahaan|kab|kaun|kyun|kyu|mujhe|mujhko|muje|mera|meri|mere|hamara|hai|hain|nahi|nahin|nhi|karna|karni|karein|krna|krdo|kardo|karo|chahiye|chahta|chahti|aap|apna|apni|batao|bataye|bataiye|btao|daan|naukri|naukari|madad|sahayata|kripya|kaha|hoga|hogi|milega|milegi|sakta|sakti|sakte|wala|wali|liye|lie|bhi|aur|yojana|padhai|swayamsevak)\b/i', $text);
@@ -808,11 +840,11 @@ function assistant_build_context(string $question, string $previous = ''): array
     $extra = trim(str_replace("\r", '', setting('ai_extra_knowledge')));
     $text = $core;
     if ($extra !== '') {
-        $text .= "\n## Additional facts from the foundation\n" . mb_substr($extra, 0, 2500);
+        $text .= "\n## Additional facts from the foundation\n" . mb_substr($extra, 0, AI_EXTRA_MAX);
     }
     $used = [];
     $snips = [];
-    $budget = AI_CONTEXT_BUDGET - mb_strlen($text) - 60;
+    $budget = max(AI_MIN_SNIPPETS, AI_CONTEXT_BUDGET - mb_strlen($text) - 60);
     foreach (assistant_rank($question, $previous, 14) as $d) {
         if ($budget < 140) {
             break;
@@ -1308,9 +1340,7 @@ function api_chat(): void
     $lang = assistant_detect_lang($message);
     $sessionHash = assistant_session_hash();
 
-    if (random_int(1, 50) === 1) {
-        assistant_cleanup();
-    }
+    assistant_cleanup_if_due();
 
     // ---- rate limits: this visit (session) and this network (hashed IP), per hour
     $now = time();
@@ -1373,6 +1403,10 @@ function api_chat(): void
     assistant_usage_add(['messages' => 1, 'ai_calls' => 1]);
     $res = assistant_openai_chat($messages);
     if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
+        // Re-open the same session WITHOUT sending its cookie again: if the visitor signed in or out in another
+        // tab meanwhile (new session id), re-sending the old id would overwrite the browser's new cookie and
+        // sign them out. If the old session no longer exists, the turn is simply not remembered.
+        ini_set('session.use_cookies', '0');
         @session_start();
     }
 
@@ -1402,6 +1436,7 @@ function api_chat(): void
 
 function render_assistant_widget(): string
 {
+    assistant_cleanup_if_due();   // retention runs daily even when the assistant is off
     if (!assistant_active()) {
         return '';
     }
@@ -1530,7 +1565,7 @@ function migration_303_ai_privacy_disclosure(): void
         . '<h3>Conversation records</h3>'
         . '<p>When conversation records are switched on, we keep each question and reply (shortened, without your IP address or name; a random code groups the messages of one visit) to improve the website\'s answers. Only authorised staff can see them, and they are deleted automatically after a limited period set by our administrator (30 days by default). To prevent misuse, we count requests using a temporary code derived from your IP address that cannot be turned back into the address and is deleted within two days. The last few messages of your conversation are kept only for your current visit (in your session on our server), until you close the browser or clear the chat.</p>'
         . '<h3>Your choice</h3>'
-        . '<p>Using the assistant is entirely optional. If you do not want your questions processed by OpenAI, simply do not use it - every page, FAQ and form on this website works without it, and you can always <a href="/contact/">contact us</a> directly. The assistant is not an emergency service: in an emergency, call 112.</p>';
+        . '<p>Using the assistant is entirely optional. If you do not want your questions processed by OpenAI, simply do not use it - every page, FAQ and form on this website works without it, and you can always <a href="' . e(page_url('contact')) . '">contact us</a> directly. The assistant is not an emergency service: in an emergency, call 112.</p>';
     db_insert('page_sections', [
         'page_id' => $pageId, 'section_type' => 'richtext', 'anchor' => 'ai-assistant', 'title' => 'AI assistant',
         'body' => $body, 'background' => 'white', 'status' => 'visible', 'sort_order' => 65,

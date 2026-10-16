@@ -36,6 +36,7 @@
         tooLong: 'Please keep your question under ' + maxLen + ' characters.',
         failed: 'Sorry, the assistant could not be reached. Please try again in a moment.',
         expired: 'Your session has expired. Please reload the page and try again.',
+        cookies: 'Please allow cookies for this website: the assistant needs the session cookie to keep your conversation secure.',
         retry: 'Try again',
         reload: 'Reload page',
         cleared: 'Chat cleared.'
@@ -85,7 +86,8 @@
     });
     panel.querySelector('[data-ai-close]').addEventListener('click', closePanel);
     document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && isOpen() && !e.defaultPrevented) {
+        // not while an input method (e.g. a Hindi keyboard) is composing: there Escape cancels the composition
+        if (e.key === 'Escape' && isOpen() && !e.defaultPrevented && !e.isComposing) {
             e.preventDefault();
             closePanel();
         }
@@ -280,7 +282,8 @@
                 if ((res.status === 200 || res.status === 429) && d.html) {
                     addMsg('bot', { html: d.html, cls: d.fallback ? 'is-fallback' : '' });
                 } else if (res.status === 403) {
-                    addError(d.message || T.expired, 'reload');
+                    // without cookies every request fails the security check: reloading cannot help
+                    if (navigator.cookieEnabled === false) { addError(T.cookies, null); } else { addError(d.message || T.expired, 'reload'); }
                 } else if (res.status === 422) {
                     addError(d.message || T.tooLong, null);
                 } else {

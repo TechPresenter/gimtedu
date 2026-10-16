@@ -51,7 +51,7 @@ $label = function (?array $ev): string {
 // =====================================================================
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     admin_post_only($tabSelf);
-    $action = (string) ($_POST['action'] ?? 'save');
+    $action = programhub_admin_param($_POST, 'action', 'save');
 
     // ----- Delete / duplicate / cancel ----------------------------------
     if ($action === 'delete' && $event) {
@@ -580,7 +580,7 @@ $v = function (string $key, $default = '') use ($event) {
 };
 $presetCat = !$event ? (int) ($_GET['category'] ?? 0) : 0;
 $presetCatRow = $presetCat ? program_category_by_id($presetCat) : null;
-$typeDefault = isset(EVENT_TYPES[$_GET['type'] ?? '']) ? (string) $_GET['type'] : ($presetCatRow['default_event_type'] ?? 'workshop');
+$typeDefault = isset(EVENT_TYPES[programhub_admin_param($_GET, 'type')]) ? (string) $_GET['type'] : ($presetCatRow['default_event_type'] ?? 'workshop');
 if (!isset(EVENT_TYPES[$typeDefault])) {
     $typeDefault = 'workshop';
 }

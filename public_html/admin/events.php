@@ -8,14 +8,14 @@ require_once __DIR__ . '/includes/auth.php';
 require_permission('events.manage');
 
 $canPeople = admin_can('events.registrations');
-$tab = (string) ($_GET['tab'] ?? 'events');
+$tab = programhub_admin_param($_GET, 'tab', 'events');
 if (!in_array($tab, ['events', 'awareness', 'settings'], true) || ($tab === 'settings' && !$canPeople)) {
     $tab = 'events';
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     admin_post_only('events.php');
-    $action = (string) ($_POST['action'] ?? '');
+    $action = programhub_admin_param($_POST, 'action');
     $back = admin_back('events.php');
 
     if ($action === 'settings') {
@@ -74,12 +74,12 @@ if ($tab === 'settings') {
 // ---------------------------------------------------------------------
 $status = in_array($_GET['status'] ?? '', EVENT_STATUSES, true) ? (string) $_GET['status'] : '';
 $when = in_array($_GET['when'] ?? '', ['upcoming', 'past', 'all'], true) ? (string) $_GET['when'] : 'upcoming';
-$type = (string) ($_GET['type'] ?? '');
+$type = programhub_admin_param($_GET, 'type');
 if (!isset(EVENT_TYPES[$type]) || $type === 'awareness_day') {
     $type = '';
 }
 $categoryId = (int) ($_GET['category'] ?? 0);
-$mode = isset(EVENT_MODES[$_GET['mode'] ?? '']) ? (string) $_GET['mode'] : '';
+$mode = isset(EVENT_MODES[programhub_admin_param($_GET, 'mode')]) ? (string) $_GET['mode'] : '';
 $q = trim(mb_substr(clean_string($_GET['q'] ?? ''), 0, 100));
 $rows = [];
 $p = ['total' => 0];

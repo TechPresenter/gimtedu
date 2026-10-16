@@ -137,8 +137,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $errors['ai_suggestions'] = 'Each quick question can have up to 90 characters: "' . mb_substr($l, 0, 40) . '…" is too long.';
             }
         }
-        if (mb_strlen($extra) > 4000) {
-            $errors['ai_extra_knowledge'] = 'Extra knowledge can have up to 4,000 characters (currently ' . number_format(mb_strlen($extra)) . ').';
+        if (mb_strlen($extra) > AI_EXTRA_MAX) {
+            $errors['ai_extra_knowledge'] = 'Extra knowledge can have up to ' . number_format(AI_EXTRA_MAX) . ' characters (currently ' . number_format(mb_strlen($extra)) . ').';
         }
         if ($errors) {
             back_with_errors($errors, 'admin/assistant.php#content', $_POST);
@@ -266,7 +266,7 @@ admin_page_start('AI Assistant (chatbot)', [
 <div class="ai-admin">
 <div class="stat-cards">
     <div class="stat-card"><span class="icon-circle<?= $active ? '' : ' gold' ?>"><?= icon($active ? 'check-circle' : 'zap') ?></span><div><strong><?= $active ? 'On' : ($enabled ? 'On - no key' : 'Off') ?></strong><small><?= $active ? 'Visitors can chat with the assistant' : 'Visitors see the FAQ helper' ?></small></div></div>
-    <div class="stat-card"><span class="icon-circle blue"><?= icon('message') ?></span><div><strong><?= number_format($callsToday) ?> / <?= number_format($cap) ?></strong><small>AI replies today / daily limit</small></div></div>
+    <div class="stat-card"><span class="icon-circle blue"><?= icon('message') ?></span><div><strong><?= number_format($callsToday) ?> / <?= number_format($cap) ?></strong><small>AI requests today / daily limit</small></div></div>
     <div class="stat-card"><span class="icon-circle"><?= icon('bar-chart') ?></span><div><strong><?= number_format($periods['Last 7 days']['messages']) ?></strong><small>Messages, last 7 days</small></div></div>
     <div class="stat-card"><span class="icon-circle gold"><?= icon('life-buoy') ?></span><div><strong><?= $fallbackShare ?>%</strong><small>Answered from FAQs (30 days)</small></div></div>
 </div>
@@ -378,9 +378,12 @@ admin_page_start('AI Assistant (chatbot)', [
         </div>
         <div class="form-group full">
             <label for="ai_extra_knowledge">Extra knowledge (facts the assistant may use)</label>
-            <textarea id="ai_extra_knowledge" name="ai_extra_knowledge" rows="8" maxlength="4000" aria-describedby="extra-help"><?= e($val('ai_extra_knowledge')) ?></textarea>
-            <span class="help" id="extra-help">Short, factual notes that are not on the website yet - for example the timing of a coming camp or how long application reviews usually take. Visitors may see anything written here, so <strong>never</strong> add personal data, passwords, internal notes or unverified claims (figures, tax benefits, registrations). Up to 4,000 characters. Everything else (pages, programmes, campaigns, events, schemes, FAQs, blog posts) is read from the website automatically.</span>
+            <textarea id="ai_extra_knowledge" name="ai_extra_knowledge" rows="8" maxlength="<?= AI_EXTRA_MAX ?>" aria-describedby="extra-help"><?= e($val('ai_extra_knowledge')) ?></textarea>
+            <span class="help" id="extra-help">Short, factual notes that are not on the website yet - for example the timing of a coming camp or how long application reviews usually take. Visitors may see anything written here, so <strong>never</strong> add personal data, passwords, internal notes or unverified claims (figures, tax benefits, registrations). Up to <?= number_format(AI_EXTRA_MAX) ?> characters (all of it is sent with every question). Everything else (pages, programmes, campaigns, events, schemes, FAQs, blog posts) is read from the website automatically.</span>
             <?= field_error('ai_extra_knowledge') ?>
+            <?php if (mb_strlen(setting('ai_extra_knowledge')) > AI_EXTRA_MAX): ?>
+                <p class="alert alert-warning mt-1 mb-0">The saved text has <?= number_format(mb_strlen(setting('ai_extra_knowledge'))) ?> characters; only the first <?= number_format(AI_EXTRA_MAX) ?> are used. Please shorten it.</p>
+            <?php endif; ?>
         </div>
     </div>
     <div class="form-actions mt-2"><button class="btn btn-primary" type="submit"><?= icon('check') ?>Save greeting &amp; knowledge</button></div>

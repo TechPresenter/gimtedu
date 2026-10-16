@@ -19,7 +19,7 @@ const PH_INTEREST_STATUSES = ['new' => 'New', 'contacted' => 'Contacted', 'notif
 // ---------------------------------------------------------------------
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     admin_post_only('program-categories.php');
-    $action = (string) ($_POST['action'] ?? '');
+    $action = programhub_admin_param($_POST, 'action');
     $back = admin_back('program-categories.php');
 
     if (in_array($action, ['interest_status', 'interest_delete'], true)) {
@@ -35,7 +35,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             admin_log('program_interests_deleted', $n . ' interest sign-up(s) deleted (#' . implode(', #', array_slice($ids, 0, 30)) . ')');
             flash('success', $n . ' sign-up' . ($n === 1 ? '' : 's') . ' deleted.');
         } else {
-            $status = (string) ($_POST['status'] ?? '');
+            $status = programhub_admin_param($_POST, 'status');
             if (!isset(PH_INTEREST_STATUSES[$status])) {
                 flash('error', 'Choose a status.');
                 admin_redirect($back);
@@ -87,7 +87,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 // ---------------------------------------------------------------------
 if ($tab === 'interests') {
     $q = trim(mb_substr(clean_string($_GET['q'] ?? ''), 0, 100));
-    $status = isset(PH_INTEREST_STATUSES[$_GET['status'] ?? '']) ? (string) $_GET['status'] : '';
+    $status = isset(PH_INTEREST_STATUSES[programhub_admin_param($_GET, 'status')]) ? (string) $_GET['status'] : '';
     $catId = (int) ($_GET['category'] ?? 0);
     $params = [];
     $where = 'WHERE 1=1' . search_where(['i.name', 'i.email', 'i.phone', 'i.city'], $q, $params);

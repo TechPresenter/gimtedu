@@ -7,7 +7,7 @@
 require_once __DIR__ . '/includes/auth.php';
 require_permission('events.manage');
 
-$idParam = (string) ($_GET['id'] ?? $_POST['id'] ?? '');
+$idParam = programhub_admin_param($_GET, 'id', programhub_admin_param($_POST, 'id'));
 $isNew = $idParam === 'new';
 $id = $isNew ? 0 : (int) $idParam;
 $pt = $id ? db_row('SELECT * FROM partners WHERE id = ?', [$id]) : null;
@@ -20,7 +20,7 @@ $self = 'partners.php' . ($pt ? '?id=' . $id : ($isNew ? '?id=new' : ''));
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     admin_post_only($self);
-    $action = (string) ($_POST['action'] ?? 'save');
+    $action = programhub_admin_param($_POST, 'action', 'save');
 
     if ($action === 'toggle' && $pt) {
         $new = $pt['status'] === 'active' ? 'hidden' : 'active';
@@ -202,7 +202,7 @@ if ($editing) {
 // ---------------------------------------------------------------------
 $q = trim(mb_substr(clean_string($_GET['q'] ?? ''), 0, 100));
 $status = in_array($_GET['status'] ?? '', ['active', 'hidden'], true) ? (string) $_GET['status'] : '';
-$type = isset(PARTNER_TYPES[$_GET['type'] ?? '']) ? (string) $_GET['type'] : '';
+$type = isset(PARTNER_TYPES[programhub_admin_param($_GET, 'type')]) ? (string) $_GET['type'] : '';
 $params = [];
 $where = 'WHERE 1=1' . search_where(['p.name', 'p.description'], $q, $params);
 if ($status !== '') {

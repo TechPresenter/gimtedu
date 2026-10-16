@@ -118,8 +118,9 @@ if (isset($_GET['export'])) {
         ['Reference', 'Type', 'Status', 'Name', 'Email', 'Phone', 'Subject', 'Message', 'Handler', 'Received', 'Updated'], $rows);
 }
 
-$view = isset($_GET['id']) ? db_row('SELECT e.*, u.name AS handler_name, a.name AS account_name FROM contact_enquiries e
-    LEFT JOIN users u ON u.id = e.handled_by LEFT JOIN users a ON a.id = e.user_id WHERE e.id = ?', [(int) $_GET['id']]) : null;
+$view = isset($_GET['id']) ? db_row('SELECT e.*, u.name AS handler_name, a.name AS account_name, pc.title AS category_title, ev.title AS event_title FROM contact_enquiries e
+    LEFT JOIN users u ON u.id = e.handled_by LEFT JOIN users a ON a.id = e.user_id
+    LEFT JOIN program_categories pc ON pc.id = e.category_id LEFT JOIN events ev ON ev.id = e.event_id WHERE e.id = ?', [(int) $_GET['id']]) : null;
 
 $typeCounts = [];
 foreach (db_rows("SELECT type, COUNT(*) n, SUM(status = 'new') n_new FROM contact_enquiries GROUP BY type") as $c) {
@@ -147,6 +148,10 @@ if ($view):
                     'From' => $view['name'],
                     'Email' => ['<a href="mailto:' . e($view['email']) . '">' . e($view['email']) . '</a>'],
                     'Phone' => $view['phone'] ? ['<a href="tel:' . e($view['phone']) . '">' . e($view['phone']) . '</a>'] : '',
+                    'Organisation' => (string) ($view['organisation'] ?? ''),
+                    'Enquiring as' => !empty($view['partner_kind']) ? (PARTNERSHIP_KINDS[$view['partner_kind']] ?? humanize($view['partner_kind'])) : '',
+                    'Programme category' => (string) ($view['category_title'] ?? ''),
+                    'Event' => (string) ($view['event_title'] ?? ''),
                     'Account' => $view['account_name'] ? $view['account_name'] . ' (registered user #' . (int) $view['user_id'] . ')' : '',
                     'Received' => format_date($view['created_at'], 'd M Y, h:i A'),
                     'Handler' => $view['handler_name'] ?: 'Not assigned',

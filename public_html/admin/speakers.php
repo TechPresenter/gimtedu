@@ -7,7 +7,7 @@
 require_once __DIR__ . '/includes/auth.php';
 require_permission('events.manage');
 
-$idParam = (string) ($_GET['id'] ?? $_POST['id'] ?? '');
+$idParam = programhub_admin_param($_GET, 'id', programhub_admin_param($_POST, 'id'));
 $isNew = $idParam === 'new';
 $id = $isNew ? 0 : (int) $idParam;
 $sp = $id ? db_row('SELECT * FROM speakers WHERE id = ?', [$id]) : null;
@@ -20,7 +20,7 @@ $self = 'speakers.php' . ($sp ? '?id=' . $id : ($isNew ? '?id=new' : ''));
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     admin_post_only($self);
-    $action = (string) ($_POST['action'] ?? 'save');
+    $action = programhub_admin_param($_POST, 'action', 'save');
 
     if ($action === 'toggle' && $sp) {
         $new = $sp['status'] === 'active' ? 'hidden' : 'active';

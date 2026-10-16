@@ -26,7 +26,7 @@ $cardFields = ['icon' => ['icon', 'Icon'], 'title' => ['text', 'Title'], 'text' 
 // ---------------------------------------------------------------------
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     admin_post_only($self);
-    $action = (string) ($_POST['action'] ?? 'save');
+    $action = programhub_admin_param($_POST, 'action', 'save');
 
     if ($action === 'delete' && $cat) {
         $events = (int) db_value('SELECT COUNT(*) FROM events WHERE category_id = ?', [$id]);

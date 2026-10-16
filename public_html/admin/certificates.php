@@ -112,8 +112,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 // Preview
 // ---------------------------------------------------------------------
 if (isset($_GET['preview'])) {
-    $cert = db_row('SELECT c.*, u.email AS user_email, i.name AS issuer, a.name AS approver FROM certificates c JOIN users u ON u.id = c.user_id
-                     LEFT JOIN users i ON i.id = c.issued_by LEFT JOIN users a ON a.id = c.approved_by WHERE c.id = ?', [(int) $_GET['preview']]);
+    $cert = db_row('SELECT c.*, u.email AS user_email, i.name AS issuer, a.name AS approver, ev.title AS event_title FROM certificates c JOIN users u ON u.id = c.user_id
+                     LEFT JOIN users i ON i.id = c.issued_by LEFT JOIN users a ON a.id = c.approved_by LEFT JOIN events ev ON ev.id = c.event_id WHERE c.id = ?', [(int) $_GET['preview']]);
     if (!$cert) {
         flash('error', 'Certificate not found.');
         admin_redirect('certificates.php');
@@ -126,7 +126,7 @@ if (isset($_GET['preview'])) {
             <h2><?= e($cert['recipient_name']) ?> <small class="muted">&lt;<?= e($cert['user_email']) ?>&gt;</small></h2>
             <?= status_badge($cert['status']) ?>
         </div>
-        <p class="small muted">Issued by <?= e($cert['issuer'] ?: '-') ?> on <?= e(format_date($cert['created_at'], 'd M Y, h:i A')) ?><?= $cert['approved_at'] ? ' · Approved by ' . e($cert['approver'] ?: '-') . ' on ' . e(format_date($cert['approved_at'], 'd M Y, h:i A')) : '' ?></p>
+        <p class="small muted">Issued by <?= e($cert['issuer'] ?: '-') ?> on <?= e(format_date($cert['created_at'], 'd M Y, h:i A')) ?><?= $cert['approved_at'] ? ' · Approved by ' . e($cert['approver'] ?: '-') . ' on ' . e(format_date($cert['approved_at'], 'd M Y, h:i A')) : '' ?><?= !empty($cert['event_title']) ? ' · Event: ' . (admin_can('events.manage') ? '<a href="' . e(admin_url('event-edit.php?id=' . (int) $cert['event_id'])) . '">' . e($cert['event_title']) . '</a>' : e($cert['event_title'])) : '' ?></p>
         <div class="btn-row">
             <?php if ($cert['status'] === 'pending'): ?>
                 <form method="post" class="inline-form" data-confirm="Approve this certificate? The recipient will be able to see and print it."><?= csrf_field() ?><input type="hidden" name="action" value="approve"><input type="hidden" name="id" value="<?= (int) $cert['id'] ?>"><input type="hidden" name="return_to" value="certificates.php?preview=<?= (int) $cert['id'] ?>"><button class="btn btn-primary btn-sm" type="submit"><?= icon('check') ?>Approve &amp; notify</button></form>
