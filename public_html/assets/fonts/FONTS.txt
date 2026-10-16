@@ -1,0 +1,15 @@
+Web fonts used by the website and the admin panel (self-hosted; loaded by assets/css/style.css)
+
+Poppins 4.004 - Indian Type Foundry / The Poppins Project Authors - SIL Open Font License 1.1 (OFL-LICENSE.txt)
+  poppins-latin-{400,500,600,700,800}-normal.woff2       @fontsource/poppins 5.3.0, Latin subset
+  poppins-devanagari-{400,500,600,700,800}-normal.woff2  @fontsource/poppins 5.3.0, Devanagari subset
+  poppins-rupee-{400,500,600,700,800}-normal.woff2       the rupee sign (U+20B9) only, subset with fontTools
+                                                          from the @fontsource/poppins 5.3.0 latin-ext files
+
+Noto Sans 2.015 - The Noto Project Authors - SIL Open Font License 1.1 (NOTO-SANS-OFL-LICENSE.txt)
+  noto-sans-latin-{400,600}-{normal,italic}.woff2        @fontsource/noto-sans 5.3.0, Latin subset
+  noto-sans-rupee-{400,600}-normal.woff2                 the rupee sign (U+20B9) only, subset with fontTools
+                                                          from the @fontsource/noto-sans 5.3.0 latin-ext files
+
+Poppins: headings, navigation, buttons, labels, badges, figures, and every Devanagari (Hindi) character.
+Noto Sans: running text (paragraphs, lists, answers, policy text, table cells, form help, inputs).

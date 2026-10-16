@@ -173,3 +173,9 @@ a.stat-card:hover { border-color: var(--green-400); color: var(--ink); }
 }
 /* a wide table that scrolls sideways is focusable (admin.js) and shows where the focus is */
 .table-wrap[data-scroll-region]:focus-visible { outline: 3px solid var(--green-600); outline-offset: 2px; }
+
+/* ---------- Typography ----------
+   Same faces as the website (style.css): Poppins for the panel chrome, headings, labels, badges and figures;
+   Noto Sans for running text, table cells, help text and inputs. Small status tags and chart values stay Poppins. */
+:where(.admin-body) :where(.event-mini-date, .pg-src, .pg-hint, .chart-bar) { font-family: var(--font-heading); }
+:where(.admin-body) :where(.table, .stat-card, .kpi, [class*="-value"]) { font-variant-numeric: tabular-nums; }

@@ -599,3 +599,6 @@ body[data-motion="off"] .tilt { transform: none !important; }
 /* ---------- Typography: Devanagari ---------- */
 /* letter-spacing pulls Devanagari words apart at the headline bar (shirorekha): Hindi text is never tracked */
 .hindi, [lang="hi"] { letter-spacing: 0; }
+/* the motto used as a tagline is always the 500 cut, as in the hero, footer and call-to-action bands, whatever the
+   weight of the sentence around it: the brand line looks the same everywhere and one Devanagari file serves them all */
+.banner-text .hindi, .ngo-tagline, .md-welcome-text .hindi, .md-cert-tagline, .receipt-foot .hindi { font-weight: 500; }

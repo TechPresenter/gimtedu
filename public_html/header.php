@@ -113,11 +113,10 @@ if (setting('mobile_nav_strip', '1') === '1') {
 <?php endif; ?>
     <link rel="icon" type="image/png" href="<?= e(setting('favicon_path') ? image_url(setting('favicon_path')) : asset('assets/images/favicon.png')) ?>">
     <link rel="apple-touch-icon" href="<?= e(asset('assets/images/apple-touch-icon.png')) ?>">
-    <?php /* every Latin weight used above the fold is ~8 KB: preloading them avoids text reflowing when the font swaps in (layout shift) */ ?>
-    <link rel="preload" href="<?= e(url('assets/fonts/poppins-latin-400-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="<?= e(url('assets/fonts/poppins-latin-500-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
+    <?php /* only the three files that draw most of the first screen (UI 600, hero/banner title 800, body text 400); the other weights load on demand and their metric-matched fallbacks (style.css) keep the swap from shifting the layout */ ?>
     <link rel="preload" href="<?= e(url('assets/fonts/poppins-latin-600-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="<?= e(url('assets/fonts/poppins-latin-800-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="<?= e(url('assets/fonts/noto-sans-latin-400-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="<?= e(asset('assets/css/style.css')) ?>">
     <link rel="stylesheet" href="<?= e(asset('assets/css/enhance.css')) ?>">
     <?php foreach (glob(ROOT_PATH . '/assets/css/modules/*.css') ?: [] as $moduleCss): if (strpos(basename($moduleCss), 'admin-') === 0) { continue; } ?>

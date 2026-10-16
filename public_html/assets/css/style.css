@@ -7,8 +7,8 @@
    Poppins   - headings, navigation, buttons, labels, badges, stats (the brand voice).
                Latin AND Devanagari faces share the one family name, so every Hindi character next to
                Poppins text is drawn by real Poppins Devanagari at the same weight (no faux bold).
-   Noto Sans - running text (paragraphs, lists, answers, policy text, table cells, form help):
-               a humanist text face with a matching Devanagari, more legible than Poppins at 15-18 px.
+   Noto Sans - running text (paragraphs, lists, answers, policy text, table cells, form help): a humanist
+               text face, more legible than Poppins at 14-18 px; Hindi inside it is drawn by Poppins Devanagari.
    unicode-range: a file is downloaded only when the page shows a character it covers (Devanagari files
    only load on pages with Hindi). The rupee sign has its own ~0.6 KB file, so a price never pulls in a
    40 KB Devanagari file. Faces declared later win where ranges overlap (U+200C-200D -> Devanagari). */
@@ -36,24 +36,34 @@
 @font-face { font-family: "Poppins Devanagari"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/poppins-devanagari-600-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
 @font-face { font-family: "Poppins Devanagari"; font-style: normal; font-weight: 700; font-display: swap; src: url("../fonts/poppins-devanagari-700-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
 @font-face { font-family: "Poppins Devanagari"; font-style: normal; font-weight: 800; font-display: swap; src: url("../fonts/poppins-devanagari-800-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
-/* Noto Sans - running text: 400 + 600 (bold text in paragraphs maps to the real 600, never a faux bold) + italics */
-@font-face { font-family: "Noto Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("../fonts/noto-sans-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: "Noto Sans"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/noto-sans-latin-600-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: "Noto Sans"; font-style: italic; font-weight: 400; font-display: swap; src: url("../fonts/noto-sans-latin-400-italic.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: "Noto Sans"; font-style: italic; font-weight: 600; font-display: swap; src: url("../fonts/noto-sans-latin-600-italic.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: "Noto Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("../fonts/noto-sans-devanagari-400-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
-@font-face { font-family: "Noto Sans"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/noto-sans-devanagari-600-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
-@font-face { font-family: "Noto Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("../fonts/noto-sans-rupee-400-normal.woff2") format("woff2"); unicode-range: U+20B9; }
-@font-face { font-family: "Noto Sans"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/noto-sans-rupee-600-normal.woff2") format("woff2"); unicode-range: U+20B9; }
+/* Noto Sans - running text, Latin only (Devanagari in running text falls through to Poppins Devanagari, so the
+   whole site uses one Hindi design). Two real weights: 400 serves 100-450 and 600 serves 451-900, so bold or
+   medium text in a paragraph uses the real 600, never a synthesised bold. Italics for <em> and quotes. */
+@font-face { font-family: "Noto Sans"; font-style: normal; font-weight: 100 450; font-display: swap; src: url("../fonts/noto-sans-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Noto Sans"; font-style: normal; font-weight: 451 900; font-display: swap; src: url("../fonts/noto-sans-latin-600-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Noto Sans"; font-style: italic; font-weight: 100 450; font-display: swap; src: url("../fonts/noto-sans-latin-400-italic.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Noto Sans"; font-style: italic; font-weight: 451 900; font-display: swap; src: url("../fonts/noto-sans-latin-600-italic.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Noto Sans"; font-style: normal; font-weight: 100 450; font-display: swap; src: url("../fonts/noto-sans-rupee-400-normal.woff2") format("woff2"); unicode-range: U+20B9; }
+@font-face { font-family: "Noto Sans"; font-style: normal; font-weight: 451 900; font-display: swap; src: url("../fonts/noto-sans-rupee-600-normal.woff2") format("woff2"); unicode-range: U+20B9; }
 /* Metric-matched fallbacks: while a web font is still downloading, text is drawn in a local Arial / Liberation
    Sans / Roboto scaled to the web font's width and line metrics, so the swap moves nothing (no layout shift).
-   Regular Arial and Roboto have the same widths; their bolds differ, hence the separate Roboto bold faces. */
-@font-face { font-family: "Poppins Fallback"; font-weight: 100 500; src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("LiberationSans"), local("Roboto"), local("Roboto-Regular"); size-adjust: 113.9%; ascent-override: 92.2%; descent-override: 30.7%; line-gap-override: 8.8%; }
-@font-face { font-family: "Poppins Fallback"; font-weight: 600 900; src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("LiberationSans-Bold"); size-adjust: 108%; ascent-override: 97.2%; descent-override: 32.4%; line-gap-override: 9.3%; }
-@font-face { font-family: "Poppins Fallback Roboto"; font-weight: 600 900; src: local("Roboto Bold"), local("Roboto-Bold"); size-adjust: 114.8%; ascent-override: 91.5%; descent-override: 30.5%; line-gap-override: 8.7%; }
-@font-face { font-family: "Noto Sans Fallback"; font-weight: 100 500; src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("LiberationSans"), local("Roboto"), local("Roboto-Regular"); size-adjust: 107.2%; ascent-override: 99.7%; descent-override: 27.3%; line-gap-override: 0%; }
-@font-face { font-family: "Noto Sans Fallback"; font-weight: 600 900; src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("LiberationSans-Bold"); size-adjust: 103.4%; ascent-override: 103.4%; descent-override: 28.3%; line-gap-override: 0%; }
-@font-face { font-family: "Noto Sans Fallback Roboto"; font-weight: 600 900; src: local("Roboto Bold"), local("Roboto-Bold"); size-adjust: 109.8%; ascent-override: 97.3%; descent-override: 26.7%; line-gap-override: 0%; }
+   One fallback face per weight (widths differ by weight), measured on the site's own text: UI labels for the
+   Poppins weights that set navigation and buttons, sentences for the text face. Arial / Liberation Sans first
+   (Windows, macOS, iOS, Linux), then Roboto (Android has no Arial). */
+@font-face { font-family: "Poppins Fallback"; font-weight: 100 450; src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("LiberationSans"); size-adjust: 111.3%; ascent-override: 94.3%; descent-override: 31.4%; line-gap-override: 9.0%; }
+@font-face { font-family: "Poppins Fallback"; font-weight: 451 550; src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("LiberationSans"); size-adjust: 112.4%; ascent-override: 93.4%; descent-override: 31.1%; line-gap-override: 8.9%; }
+@font-face { font-family: "Poppins Fallback"; font-weight: 551 650; src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("LiberationSans-Bold"); size-adjust: 105.8%; ascent-override: 99.2%; descent-override: 33.1%; line-gap-override: 9.5%; }
+@font-face { font-family: "Poppins Fallback"; font-weight: 651 750; src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("LiberationSans-Bold"); size-adjust: 107.5%; ascent-override: 97.7%; descent-override: 32.6%; line-gap-override: 9.3%; }
+@font-face { font-family: "Poppins Fallback"; font-weight: 751 900; src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("LiberationSans-Bold"); size-adjust: 109.0%; ascent-override: 96.3%; descent-override: 32.1%; line-gap-override: 9.2%; }
+@font-face { font-family: "Poppins Fallback Roboto"; font-weight: 100 450; src: local("Roboto"), local("Roboto-Regular"); size-adjust: 112.2%; ascent-override: 93.6%; descent-override: 31.2%; line-gap-override: 8.9%; }
+@font-face { font-family: "Poppins Fallback Roboto"; font-weight: 451 550; src: local("Roboto"), local("Roboto-Regular"); size-adjust: 113.3%; ascent-override: 92.7%; descent-override: 30.9%; line-gap-override: 8.8%; }
+@font-face { font-family: "Poppins Fallback Roboto"; font-weight: 551 650; src: local("Roboto Bold"), local("Roboto-Bold"); size-adjust: 112.7%; ascent-override: 93.2%; descent-override: 31.1%; line-gap-override: 8.9%; }
+@font-face { font-family: "Poppins Fallback Roboto"; font-weight: 651 750; src: local("Roboto Bold"), local("Roboto-Bold"); size-adjust: 114.5%; ascent-override: 91.7%; descent-override: 30.6%; line-gap-override: 8.7%; }
+@font-face { font-family: "Poppins Fallback Roboto"; font-weight: 751 900; src: local("Roboto Bold"), local("Roboto-Bold"); size-adjust: 115.5%; ascent-override: 90.9%; descent-override: 30.3%; line-gap-override: 8.7%; }
+@font-face { font-family: "Noto Sans Fallback"; font-weight: 100 450; src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("LiberationSans"); size-adjust: 107.2%; ascent-override: 99.7%; descent-override: 27.3%; line-gap-override: 0%; }
+@font-face { font-family: "Noto Sans Fallback"; font-weight: 451 900; src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("LiberationSans-Bold"); size-adjust: 103.4%; ascent-override: 103.4%; descent-override: 28.3%; line-gap-override: 0%; }
+@font-face { font-family: "Noto Sans Fallback Roboto"; font-weight: 100 450; src: local("Roboto"), local("Roboto-Regular"); size-adjust: 107.3%; ascent-override: 99.6%; descent-override: 27.3%; line-gap-override: 0%; }
+@font-face { font-family: "Noto Sans Fallback Roboto"; font-weight: 451 900; src: local("Roboto Bold"), local("Roboto-Bold"); size-adjust: 109.8%; ascent-override: 97.3%; descent-override: 26.7%; line-gap-override: 0%; }
 
 :root {
     /* Brand palette */
@@ -104,7 +114,7 @@
     --hero-gradient: linear-gradient(125deg, #0b4a2c 0%, #146B43 55%, #1a7a4d 100%);
     /* Typography: Poppins = brand / UI / headings, Noto Sans = running text (see @font-face above) */
     --font-heading: "Poppins", "Poppins Fallback", "Poppins Fallback Roboto", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Devanagari", "Nirmala UI", "Mangal", sans-serif;
-    --font-body: "Noto Sans", "Noto Sans Fallback", "Noto Sans Fallback Roboto", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Devanagari", "Nirmala UI", "Mangal", sans-serif;
+    --font-body: "Noto Sans", "Noto Sans Fallback", "Noto Sans Fallback Roboto", "Poppins", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Devanagari", "Nirmala UI", "Mangal", sans-serif;
     --font: var(--font-heading);
     --font-hindi: var(--font-heading);     /* the "Poppins" family includes the Devanagari faces */
     /* type scale (major third on a 16 px base, opening up to a fourth for the large sizes; fluid 360-1366 px) */
@@ -162,25 +172,38 @@ h4 { font-size: var(--fs-h4); line-height: 1.35; letter-spacing: -.005em; font-w
 /* optimizeLegibility only on headings (it is costly on long text); balanced lines, no lonely last word */
 h1, h2, h3, h4, h5, h6 { text-rendering: optimizeLegibility; text-wrap: balance; }
 
+ul, ol { margin: 0 0 1em; padding-left: 1.3em; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 2rem 0; }
+table { border-collapse: collapse; width: 100%; }
+:where(button, input, select, textarea) { font: inherit; color: inherit; }   /* zero specificity: the type rules below pick the face */
+:focus-visible { outline: 3px solid var(--gold-400); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
 /* ---------- Typography: which face where ----------
    Running text (paragraphs, list items, answers, policy text, table cells, form help, inputs) uses the
    text face; everything that speaks for the brand - headings, navigation, buttons, labels, badges, chips,
    stats, prices, eyebrows, titles - stays in Poppins. :where() keeps both rules at zero specificity, so a
    component that sets its own font-family still wins. */
-:where(p, li, dd, blockquote, figcaption, address, td, .help, .form-note, .faq-answer, .prose, input, textarea, select) { font-family: var(--font-body); }
+:where(p, li, dd, blockquote, figcaption, address, td, .help, .form-note, .faq-answer, .prose, .alert > div, input, textarea, select) { font-family: var(--font-body); }
 :where(h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, header, nav, .site-header, .topbar, .announce-bar, .pe-menu, .dropdown, .breadcrumb, .breadcrumbs, .pagination, .tabs,
-       .btn, button, label, legend, summary, th, dt, caption, .pill, .tag, .eyebrow, .stat, .countdown, .meta-list, .link-list,
-       [class*="badge"], [class*="chip"], [class*="eyebrow"], [class*="tagline"], [class*="-title"], [class*="-label"], [class*="amount"], [class*="-num"], [class*="count"],
-       [class*="stat-"], [class*="stat "], [class$="stat"], [class*="stats"]),
+       .btn, button, label, legend, summary, th, dt, caption, .pill, .tag, .eyebrow, .stat, .countdown, .meta-list, .link-list, .link-arrow,
+       .marquee, .marquee-cta, .home-glass-card, .footer-reg, .footer-focus, .footer-slogan, .team-role, .story-person, .fr-summary-for,
+       [class*="badge"], [class*="chip"], [class*="eyebrow"], [class*="tagline"], [class*="-title"], [class*="-label"], [class*="amount"], [class$="-num"], [class*="-num "], [class*="count"],
+       [class*="stat-"], [class*="stat "], [class$="stat"], [class*="stats"], [class*="-value"]),
 :where(header, nav, .site-header, .topbar, .announce-bar, .pe-menu, .dropdown, .breadcrumb, .breadcrumbs, .pagination, .tabs,
-       .btn, button, label, legend, summary, th, dt, .pill, .tag, .stat, .countdown, .meta-list, .link-list,
-       [class*="badge"], [class*="chip"], [class*="eyebrow"], [class*="tagline"], [class*="-title"], [class*="-label"], [class*="amount"], [class*="-num"], [class*="count"],
-       [class*="stat-"], [class*="stat "], [class$="stat"], [class*="stats"])
+       .btn, button, label, legend, summary, th, dt, .pill, .tag, .stat, .countdown, .meta-list, .link-list, .link-arrow,
+       .marquee, .marquee-cta, .home-glass-card, .footer-reg, .footer-focus, .footer-slogan, .team-role, .story-person, .fr-summary-for,
+       [class*="badge"], [class*="chip"], [class*="eyebrow"], [class*="tagline"], [class*="-title"], [class*="-label"], [class*="amount"], [class$="-num"], [class*="-num "], [class*="count"],
+       [class*="stat-"], [class*="stat "], [class$="stat"], [class*="stats"], [class*="-value"])
     :where(p, li, dd, blockquote, figcaption, address, td, .help, .form-note, .faq-answer, .prose, input, textarea, select) { font-family: var(--font-heading); }
+/* sentences that sit inside a label are running text too (consent check boxes, the descriptions in highlight and
+   account-type cards): same face as the help text around them. Declared after the rule above, so it wins over "label". */
+:where(.checkbox, .highlight strong + span, .acc-type-card small) { font-family: var(--font-body); }
 /* running text: comfortable measure and rag */
 :where(p, li, dd, blockquote) { text-wrap: pretty; }
 .prose > :is(p, ul, ol, blockquote, dl), .faq-answer > :is(p, ul, ol), .lead { max-width: var(--measure); }
 :where(.text-center, .center) > .lead, .section-head.center > p { margin-left: auto; margin-right: auto; }
+.section-head.center > p, :where(.text-center, .center) > .lead { text-wrap: balance; }   /* centred intro text: even lines */
 /* bold inside running text uses the real 600 of the text face */
 :where(p, li, dd, td, blockquote, .faq-answer, .prose) :where(strong, b) { font-weight: 600; }
 /* Devanagari: taller line boxes so matras never touch the next line; no letter-spacing (it breaks the headline bar) */
@@ -190,12 +213,6 @@ h1, h2, h3, h4, h5, h6 { text-rendering: optimizeLegibility; text-wrap: balance;
 :where(table, td, th, .table, .kv, [class*="amount"], [class*="stat"], .countdown, .receipt) { font-variant-numeric: tabular-nums; }
 /* light text on dark green / coloured fills: grayscale antialiasing keeps it crisp instead of bloated (macOS) */
 :where(.hero, .home-hero, .page-banner, .section-green, .stats-band, .cta-band, .quote-band, .donate-summary, .site-footer, .footer-cta, .topbar, .nl-band, .acc-panel, .md-side, .md-summary, .help-head, .ai-head, .marquee-cta.tone-green, .btn-primary, .btn-blue, .btn-danger, .admin-sidebar) { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-ul, ol { margin: 0 0 1em; padding-left: 1.3em; }
-hr { border: 0; border-top: 1px solid var(--line); margin: 2rem 0; }
-table { border-collapse: collapse; width: 100%; }
-button, input, select, textarea { font: inherit; color: inherit; }
-:focus-visible { outline: 3px solid var(--gold-400); outline-offset: 2px; }
-[hidden] { display: none !important; }
 
 .container { width: 100%; max-width: var(--container); margin: 0 auto; padding: 0 20px; }
 .container.narrow { max-width: 860px; }
@@ -323,7 +340,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .hero-slide.is-active { opacity: 1; visibility: visible; position: relative; }
 .hero-content { padding: 80px 0 90px; max-width: 640px; }
-.hero-eyebrow { display: inline-block; text-transform: uppercase; letter-spacing: .14em; font-size: .8rem; font-weight: 600; color: #e9ffef; margin-bottom: 14px; }
+.hero-eyebrow { display: inline-block; text-transform: uppercase; letter-spacing: .12em; font-size: .8rem; font-weight: 600; color: #e9ffef; margin-bottom: 14px; }
 .hero h1, .hero h2.hero-title { color: #fff; font-size: clamp(2rem, 4.6vw, 3.4rem); font-weight: 800; line-height: 1.12; margin-bottom: 18px; letter-spacing: var(--tracking-display); }
 .hero p { font-size: 1.08rem; color: rgba(255, 255, 255, .92); max-width: 540px; margin-bottom: 28px; }
 .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
@@ -815,7 +832,7 @@ html { scroll-padding-top: calc(var(--header-h) + 64px); }
 /* Page banner with illustration */
 .page-banner .banner-inner { display: grid; grid-template-columns: 1fr; align-items: center; gap: 30px; }
 .page-banner.has-art .banner-inner { grid-template-columns: 1.4fr .6fr; }
-.banner-eyebrow { display: inline-block; text-transform: uppercase; letter-spacing: .14em; font-size: .75rem; font-weight: 600; color: #e9ffef; margin-bottom: 10px; }
+.banner-eyebrow { display: inline-block; text-transform: uppercase; letter-spacing: .12em; font-size: .75rem; font-weight: 600; color: #e9ffef; margin-bottom: 10px; }
 .banner-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 22px; }
 .banner-actions .btn-light { background: rgba(255,255,255,.14); color: #fff; border-color: rgba(255,255,255,.5); }
 .banner-actions .btn-light:hover { background: #fff; color: var(--green-700); }
