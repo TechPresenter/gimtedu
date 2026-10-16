@@ -57,7 +57,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         }
         $missing = array_values(array_filter($choice === 'both' ? ['razorpay', 'cashfree'] : [$choice], function ($g) { return !gateway_configured($g); }));
         if ($missing) {
-            flash('warning', 'Saved. ' . implode(' and ', array_map('gateway_label', $missing)) . ' has no keys yet, so ' . ($choice === 'both' && count($missing) === 1 ? 'donors will only see the other gateway until the keys are entered.' : 'online donations stay unavailable until the keys are entered below.'));
+            flash('warning', 'Saved. ' . implode(' and ', array_map('gateway_label', $missing)) . (count($missing) > 1 ? ' have' : ' has') . ' no keys yet, so ' . ($choice === 'both' && count($missing) === 1 ? 'donors will only see the other gateway until the keys are entered.' : 'online donations stay unavailable until the keys are entered below.'));
         } else {
             flash('success', 'Saved. ' . ($choice === 'both' ? 'Donors choose between Razorpay and Cashfree (Razorpay is pre-selected).' : 'Donors pay with ' . gateway_label($choice) . '.'));
         }
@@ -269,10 +269,10 @@ $passwordField = function (string $gateway) {
         . '<span class="help" id="' . $gateway . '_pw_help">Needed to save any change to these keys. This protects the payment settings if someone else gets hold of an open admin session.</span>'
         . field_error($gateway . '_password') . '</div>';
 };
-$copyRow = function (string $label, string $value, string $id) {
+$copyRow = function (string $label, string $value, string $id, string $gatewayName) {
     return '<div class="pg-copy"><span class="pg-copy-label" id="' . $id . '">' . e($label) . '</span>'
         . '<code>' . e($value) . '</code>'
-        . '<button type="button" class="btn btn-ghost btn-sm" data-copy="' . e($value) . '" aria-label="Copy ' . e(mb_strtolower($label)) . '">' . icon('copy') . 'Copy</button></div>';
+        . '<button type="button" class="btn btn-ghost btn-sm" data-copy="' . e($value) . '" aria-label="Copy the ' . e($gatewayName) . ' webhook URL">' . icon('copy') . 'Copy</button></div>';
 };
 
 admin_page_start('Payment Gateways', [
@@ -371,7 +371,7 @@ $choiceLabels = ['razorpay' => 'Razorpay only', 'cashfree' => 'Cashfree only', '
     <?php endif; ?>
 
     <h3 class="pg-sub">Webhook</h3>
-    <?= $copyRow('Webhook URL', $rzpHook, 'rzp-hook-label') ?>
+    <?= $copyRow('Webhook URL', $rzpHook, 'rzp-hook-label', 'Razorpay') ?>
     <p class="small mb-1">Active events to tick in Razorpay:</p>
     <ul class="pg-events">
         <?php foreach (['payment.authorized' => 'capture a payment even if the donor closes the browser', 'payment.captured' => 'confirm the donation', 'order.paid' => 'confirm the donation', 'payment.failed' => 'record a failed attempt', 'refund.processed' => 'keep refunds and totals correct'] as $ev => $why): ?>
@@ -453,7 +453,7 @@ $choiceLabels = ['razorpay' => 'Razorpay only', 'cashfree' => 'Cashfree only', '
     <?php endif; ?>
 
     <h3 class="pg-sub">Webhook</h3>
-    <?= $copyRow('Webhook URL', $cfHook, 'cf-hook-label') ?>
+    <?= $copyRow('Webhook URL', $cfHook, 'cf-hook-label', 'Cashfree') ?>
     <p class="small mb-1">Events to select in Cashfree (Payment Gateway, webhook version 2023-08-01):</p>
     <ul class="pg-events">
         <?php foreach (['PAYMENT_SUCCESS_WEBHOOK' => 'payment success - confirm the donation', 'PAYMENT_FAILED_WEBHOOK' => 'payment failed', 'PAYMENT_USER_DROPPED_WEBHOOK' => 'payment dropped by the donor', 'REFUND_STATUS_WEBHOOK' => 'refund status - keep refunds and totals correct'] as $ev => $why): ?>

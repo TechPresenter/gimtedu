@@ -50,8 +50,12 @@ h1, h2, h3, h4 { color: var(--ink); letter-spacing: -.01em; }
 .topbar-inner { min-height: 44px; gap: 10px 18px; padding-top: 6px; padding-bottom: 8px; }
 @media (min-width: 1200px) {
     .topbar-inner { flex-wrap: nowrap; height: 46px; padding-top: 0; padding-bottom: 3px; }
-    .topbar-left, .topbar-right, .topbar-apply { flex-wrap: nowrap; white-space: nowrap; }
+    /* .topbar prefix: must beat the later ".topbar-apply { flex-wrap: wrap }" (the chips wrapped out of the bar at 1500px+) */
+    .topbar .topbar-left, .topbar .topbar-right, .topbar .topbar-apply { flex-wrap: nowrap; white-space: nowrap; }
     .topbar-left { min-width: 0; overflow: hidden; }
+    .topbar-apply { flex-shrink: 0; }
+    /* welcome text + email + four apply chips + login never fit in one 1320px row: the apply links win */
+    .topbar.has-apply .topbar-welcome { display: none; }
 }
 @media (min-width: 1200px) and (max-width: 1499px) { .topbar-welcome { display: none; } }
 .topbar-left { gap: 16px; }
@@ -133,6 +137,19 @@ h1, h2, h3, h4 { color: var(--ink); letter-spacing: -.01em; }
 }
 .dropdown.mega::before { left: 50%; }
 .dropdown.mega .dropdown-list { grid-template-columns: 1fr 1fr; }
+/* Desktop header must stay on one line inside its 1280px content box: 1280-1319px is tight, and signed-in
+   visitors also get the notifications bell (it pushed the Donate button out of the page at 1280px). */
+@media (min-width: 1280px) and (max-width: 1319px) {
+    .header-inner { gap: 12px; }
+}
+@media (min-width: 1280px) {
+    .site-header.has-user .header-inner { gap: 12px; }
+    .site-header.has-user .nav-item > a { font-size: .84rem; padding-left: 5px; padding-right: 5px; }
+    .site-header.has-user .has-dropdown > a { padding-right: 1px; }
+    .site-header.has-user .nav-item > a::after { left: 5px; right: 5px; }
+    .site-header.has-user .header-actions { gap: 8px; }
+    .site-header.has-user .header-donate { padding: .72em 1.05em; }
+}
 
 .header-actions { display: flex; align-items: center; gap: 10px; }
 .header-icon { position: relative; width: 42px; height: 42px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: var(--green-700); background: var(--green-50); border: 1px solid var(--line); transition: transform .2s, background .2s; }
@@ -147,6 +164,70 @@ h1, h2, h3, h4 { color: var(--ink); letter-spacing: -.01em; }
 .nav-open .burger span:nth-child(2) { opacity: 0; }
 .nav-open .burger span:nth-child(3) { top: 6px; transform: rotate(-45deg); }
 .nav-close { display: none; }
+
+/* ---------- Quick-links strip: the main menu as swipeable pills under the header bar (< 1280px) ----------
+   Server-rendered with a fixed height (no layout shift). script.js ([data-hscroll]) centres the active pill,
+   adds the edge fades and the "more" hints; without JavaScript it is a plain scrollable row of links. */
+@property --fade-l { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --fade-r { syntax: "<length>"; inherits: false; initial-value: 0px; }
+.nav-strip { display: none; }
+[data-hscroll] {
+    --fade-l: 0px; --fade-r: 0px;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
+    transition: --fade-l .25s var(--ease), --fade-r .25s var(--ease);
+}
+.js [data-hscroll] { scrollbar-width: none; }
+.js [data-hscroll]::-webkit-scrollbar { display: none; }
+[data-hscroll].is-overflowing:not(.at-start) { --fade-l: 34px; }
+[data-hscroll].is-overflowing:not(.at-end) { --fade-r: 60px; }
+.hscroll-hint {
+    position: absolute; top: 50%; z-index: 2; width: 28px; height: 28px; margin-top: -14px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--green-700);
+    background: #fff; border: 1px solid rgba(20, 107, 67, .16); box-shadow: 0 3px 10px rgba(13, 50, 30, .16);
+    opacity: 0; visibility: hidden; transform: scale(.85); transition: opacity .2s, visibility .2s, transform .2s var(--ease), background .2s;
+}
+.hscroll-hint svg { width: 15px; height: 15px; }
+.hscroll-hint:hover { background: var(--green-50); }
+.hscroll-prev { left: 6px; }
+.hscroll-next { right: 6px; }
+[data-hscroll].is-overflowing:not(.at-start) ~ .hscroll-prev,
+[data-hscroll].is-overflowing:not(.at-end) ~ .hscroll-next { opacity: 1; visibility: visible; transform: none; }
+[data-hscroll].is-overflowing:not(.at-end) ~ .hscroll-next.is-nudging { animation: hscroll-nudge 1.4s var(--ease) .6s 2; }
+@keyframes hscroll-nudge { 0%, 100% { translate: 0 0; } 45% { translate: 4px 0; } }
+
+@media (max-width: 1279px) {
+    .nav-strip { display: block; position: relative; height: var(--nav-strip-h); border-top: 1px solid rgba(20, 107, 67, .08); }
+    .nav-strip-scroller {
+        height: 100%; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x proximity; scroll-padding-inline: 44px;
+    }
+    .nav-strip-list { list-style: none; margin: 0; padding: 0 17px; height: 100%; width: max-content; min-width: 100%; display: flex; align-items: center; gap: 2px; }
+    .nav-strip-list > li { flex: none; }
+    .nav-pill { display: flex; align-items: center; height: 44px; padding: 0 3px; scroll-snap-align: start; color: var(--ink); text-decoration: none; -webkit-tap-highlight-color: transparent; }
+    .nav-pill > span {
+        display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 15px; border-radius: 999px; white-space: nowrap;
+        font-size: .84rem; font-weight: 500; line-height: 1; color: var(--ink);
+        background: var(--green-50); border: 1px solid rgba(20, 107, 67, .13);
+        transition: background .2s, color .2s, border-color .2s, box-shadow .2s;
+    }
+    .nav-pill:hover > span { background: var(--green-100); border-color: rgba(20, 107, 67, .28); color: var(--green-700); }
+    .nav-pill:active > span { transform: scale(.97); }
+    .nav-pill.is-active > span {
+        background: linear-gradient(135deg, var(--green-600), var(--green-700)); border-color: var(--green-700); color: #fff; font-weight: 600;
+        box-shadow: 0 4px 12px rgba(20, 107, 67, .28), inset 0 1px 0 rgba(255, 255, 255, .14);
+    }
+    .nav-pill.is-active > span::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--gold-500); box-shadow: 0 0 0 3px rgba(244, 201, 0, .28); flex: none; }
+    /* focus ring hugs the pill and stays inside the strip (the scroller would clip a larger one) */
+    .nav-pill:focus-visible { outline: none; }
+    .nav-pill:focus-visible > span { outline: 3px solid var(--gold-500); outline-offset: 2px; box-shadow: 0 0 0 2px var(--green-800); }
+    .nav-pill.is-active:focus-visible > span { box-shadow: 0 0 0 2px #fff; }
+    .nav-strip .hscroll-hint { width: 30px; height: 30px; margin-top: -15px; }
+    body.nav-open .nav-strip [data-hscroll] ~ .hscroll-hint { visibility: hidden; }
+}
+@media (max-width: 480px) {
+    .nav-strip-list { padding: 0 13px; }
+}
 
 /* ---------- Toasts (flash messages) ---------- */
 .toast-stack { position: fixed; top: 18px; right: 18px; z-index: 400; display: grid; gap: 10px; width: min(420px, calc(100vw - 32px)); margin: 0; }

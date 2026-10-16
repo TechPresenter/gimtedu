@@ -39,7 +39,7 @@
             if (el !== siteHeader && el.tagName !== 'SCRIPT' && el.tagName !== 'STYLE') { inertEls.push(el); }
         });
         if (siteHeader) {
-            siteHeader.querySelectorAll('.header-inner > .brand, .header-actions, .scroll-progress').forEach(function (el) { inertEls.push(el); });
+            siteHeader.querySelectorAll('.header-inner > .brand, .header-actions, .nav-strip, .scroll-progress').forEach(function (el) { inertEls.push(el); });
         }
         inertEls.forEach(function (el) { el.setAttribute('inert', ''); });
     }
@@ -160,6 +160,71 @@
         });
         closeNav();
         closeLightbox();
+    });
+
+    /* ---------- Horizontal scroll rows ([data-hscroll]): quick-links strip, drawer apply chips ----------
+       Marks the row as overflowing / at the start / at the end (CSS edge fades), adds pointer-only "more"
+       hints (keyboard users Tab through the links, which scroll themselves into view) and, for the strip,
+       centres the active pill once on load. Instant scrolling of an inner row is not a layout shift. */
+    var chevron = function (d) {
+        return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="' + d + '" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    };
+    document.querySelectorAll('[data-hscroll]').forEach(function (row) {
+        var host = row.parentElement;
+        if (!host) { return; }
+        if (getComputedStyle(host).position === 'static') { host.style.position = 'relative'; }
+        function hint(cls, dir, d) {
+            var h = document.createElement('span');
+            h.className = 'hscroll-hint ' + cls;
+            h.setAttribute('aria-hidden', 'true');
+            h.innerHTML = chevron(d);
+            h.addEventListener('click', function () {
+                row.scrollBy({ left: dir * Math.max(120, row.clientWidth * 0.7), behavior: reduceMotion ? 'auto' : 'smooth' });
+            });
+            host.appendChild(h);
+            return h;
+        }
+        hint('hscroll-prev', -1, 'M15 18l-6-6 6-6');
+        var next = hint('hscroll-next', 1, 'M9 18l6-6-6-6');
+        var queued = false;
+        function update() {
+            queued = false;
+            var max = row.scrollWidth - row.clientWidth;
+            var x = Math.abs(row.scrollLeft);
+            row.classList.toggle('is-overflowing', max > 2);
+            row.classList.toggle('at-start', x <= 2);
+            row.classList.toggle('at-end', x >= max - 2);
+        }
+        function queue() { if (!queued) { queued = true; requestAnimationFrame(update); } }
+        var activeSel = row.getAttribute('data-hscroll-active');
+        var active = activeSel ? row.querySelector(activeSel) : null;
+        if (active && row.scrollWidth > row.clientWidth) {
+            var a = active.getBoundingClientRect(), r = row.getBoundingClientRect();
+            // only when the pill is hidden or under an edge fade
+            if (a.left < r.left + 40 || a.right > r.right - 64) {
+                row.scrollLeft += (a.left + a.width / 2) - (r.left + r.width / 2);
+            }
+        }
+        update();
+        if (!reduceMotion && row.classList.contains('is-overflowing') && !row.classList.contains('at-end')) {
+            next.classList.add('is-nudging');
+            next.addEventListener('animationend', function () { next.classList.remove('is-nudging'); });
+        }
+        // Keyboard: a link that Tab moves to is always shown whole, clear of the edge fades. Browsers do not
+        // scroll a partly visible link, so align it with the row's snap position (no fight with scroll-snap).
+        row.addEventListener('focusin', function (e) {
+            var el = e.target;
+            requestAnimationFrame(function () {
+                var a = el.getBoundingClientRect(), r = row.getBoundingClientRect();
+                if (a.left < r.left + 34 || a.right > r.right - 60) {
+                    row.scrollLeft += a.left - (r.left + (parseFloat(getComputedStyle(row).scrollPaddingLeft) || 0));
+                }
+            });
+        });
+        row.addEventListener('scroll', queue, { passive: true });
+        window.addEventListener('resize', queue);
+        if ('ResizeObserver' in window) { new ResizeObserver(queue).observe(row); }
+        if (document.fonts && document.fonts.ready) { document.fonts.ready.then(queue); }
     });
 
     /* ---------- Sticky glass header, scroll progress, back to top, parallax ---------- */

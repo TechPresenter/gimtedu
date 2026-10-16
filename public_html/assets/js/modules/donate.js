@@ -77,15 +77,28 @@
             say('The payment window could not be opened. Please try again.');
             return;
         }
-        var result = cashfree.checkout({ paymentSessionId: cfBtn.getAttribute('data-session'), redirectTarget: '_modal' });
+        var result;
+        try {
+            result = cashfree.checkout({ paymentSessionId: cfBtn.getAttribute('data-session'), redirectTarget: '_modal' });
+        } catch (e) {
+            opening = false;
+            cfBtn.disabled = false;
+            say('The payment window could not be opened. Please try again.');
+            return;
+        }
         if (!result || typeof result.then !== 'function') {
             return;   // the SDK redirects the page itself
         }
         result.then(function (res) {
             res = res || {};
             if (res.redirect) {
-                say('Redirecting to complete the payment…');
-                return;   // Cashfree returns to /donate/?cf_order=... afterwards
+                // The bank page opens outside this window; Cashfree returns to /donate/?cf_order=... when it is done.
+                // Meanwhile the donor can ask us to check the payment from here.
+                awaitingRedirect = true;
+                cfBtn.disabled = false;
+                cfBtn.textContent = 'I have completed the payment - check status';
+                say('Complete the payment in the Cashfree window that opened. Then press the button to check your payment.');
+                return;
             }
             // Payment finished (any outcome) or the window was closed: our server asks Cashfree what happened.
             verify(res.error ? 'Checking whether a payment was made…' : 'Confirming your payment with Cashfree…');
@@ -93,12 +106,19 @@
             verify('Checking whether a payment was made…');
         });
     }
-    cfBtn.addEventListener('click', openCheckout);
+    var awaitingRedirect = false;
+    cfBtn.addEventListener('click', function () {
+        if (awaitingRedirect) {
+            verify('Checking the payment with Cashfree…');
+            return;
+        }
+        openCheckout();
+    });
     if (cfBtn.hasAttribute('data-autoopen')) {
         window.addEventListener('load', function () { setTimeout(openCheckout, 400); });
     }
     // Restore the button if the page is shown again from the back/forward cache.
     window.addEventListener('pageshow', function (ev) {
-        if (ev.persisted) { opening = false; cfBtn.disabled = false; cfBtn.innerHTML = label; say(''); }
+        if (ev.persisted) { opening = false; awaitingRedirect = false; cfBtn.disabled = false; cfBtn.innerHTML = label; say(''); }
     });
 })();

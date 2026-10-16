@@ -446,6 +446,11 @@ admin_page_start($user['name'], [['label' => 'All users', 'url' => admin_url('us
                 </table></div>
             <?php endif; ?>
         </section>
+
+        <?php // website visits while signed in (deep analytics; staff with "analytics.deep" only)
+        if (admin_can('analytics.deep') && function_exists('analytics_user_activity_panel')) {
+            echo analytics_user_activity_panel((int) $user['id']);
+        } ?>
     </div>
 
     <aside>

@@ -1,7 +1,8 @@
 <?php
 /**
- * Programmes overview (/programs/): the page's sections plus the full programme directory
- * (filter chips by focus area + premium cards) at the "module" section position.
+ * Programmes overview (/programs/): the page's sections - including the Programs & Events category cards
+ * (section type program_categories_grid) - plus the core programme directory ("Our core programmes":
+ * filter chips by focus area + premium cards) at the "module" section position.
  */
 if (!defined('PWF_APP')) {
     http_response_code(403);
@@ -11,9 +12,13 @@ if (!defined('PWF_APP')) {
 $page = current_page_row();
 $programs = programs_all();
 
+// ItemList: the Programs & Events categories first, then the core programmes
 $list = [];
-foreach ($programs as $i => $p) {
-    $list[] = ['@type' => 'ListItem', 'position' => $i + 1, 'name' => $p['title'], 'url' => abs_url(ltrim(substr(program_url($p), strlen(base_path())), '/'))];
+foreach (program_categories_all() as $c) {
+    $list[] = ['@type' => 'ListItem', 'position' => count($list) + 1, 'name' => $c['title'], 'url' => program_category_abs_url($c)];
+}
+foreach ($programs as $p) {
+    $list[] = ['@type' => 'ListItem', 'position' => count($list) + 1, 'name' => $p['title'], 'url' => abs_url(ltrim(substr(program_url($p), strlen(base_path())), '/'))];
 }
 page_header($page, ['schema' => $list ? [[
     '@context' => 'https://schema.org', '@type' => 'ItemList', 'name' => $page['title'], 'itemListElement' => $list,

@@ -110,7 +110,7 @@ render_sections($page, function () use ($page, $month, $currentMonth, $minMonth,
         if ($items) {
             echo '<ul class="cal-items">';
             foreach (array_slice($items, 0, 3) as $ev) {
-                echo '<li><a class="cal-chip t-' . e($ev['event_type']) . ($ev['status'] === 'cancelled' ? ' is-cancelled' : '') . '" href="' . e(event_url($ev['slug'])) . '" title="' . e($ev['title']) . '">'
+                echo '<li><a class="cal-chip t-' . e($ev['event_type']) . ($ev['status'] === 'cancelled' ? ' is-cancelled' : '') . '" href="' . e(event_url($ev)) . '" title="' . e($ev['title']) . '">'
                     . e(event_short_title($ev)) . ($ev['status'] === 'cancelled' ? ' (cancelled)' : '') . '</a></li>';
             }
             if (count($items) > 3) {
@@ -139,10 +139,10 @@ render_sections($page, function () use ($page, $month, $currentMonth, $minMonth,
                 echo '<article class="cal-entry t-' . e($ev['event_type']) . '">'
                     . '<span class="ev-chip ev-type-' . e($ev['event_type']) . '">' . icon(EVENT_TYPE_ICONS[$ev['event_type']] ?? 'calendar') . e(event_type_label($ev['event_type'])) . '</span>'
                     . ($ev['status'] === 'cancelled' ? ' <span class="badge badge-red">Cancelled</span>' : '')
-                    . '<h3><a href="' . e(event_url($ev['slug'])) . '">' . e(event_short_title($ev)) . '</a></h3>'
+                    . '<h3><a href="' . e(event_url($ev)) . '">' . e(event_short_title($ev)) . '</a></h3>'
                     . '<p>' . e(excerpt((string) $ev['summary'], 220)) . '</p>'
                     . (!$aw ? '<p class="cal-entry-meta"><span>' . icon('clock') . e(event_when($ev)) . '</span><span>' . icon(event_is_online($ev) ? 'monitor' : 'map-pin') . e($ev['location']) . '</span></p>' : '')
-                    . '<p class="cal-entry-links"><a class="link-arrow" href="' . e(event_url($ev['slug'])) . '">' . ($aw ? 'How to take part' : 'Event details') . icon('arrow-right') . '<span class="sr-only">: ' . e($ev['title']) . '</span></a>'
+                    . '<p class="cal-entry-links"><a class="link-arrow" href="' . e(event_url($ev)) . '">' . ($aw ? 'How to take part' : 'Event details') . icon('arrow-right') . '<span class="sr-only">: ' . e($ev['title']) . '</span></a>'
                     . ($aw ? '<a class="link-arrow" href="' . e(page_url($involvePage)) . '">Organise an awareness activity with us' . icon('arrow-right') . '</a>' : '')
                     . '</p></article>';
             }
@@ -162,7 +162,7 @@ render_sections($page, function () use ($page, $month, $currentMonth, $minMonth,
                 echo '<p><a class="btn btn-outline btn-sm" href="' . e($monthUrl($nextMonthWithItems)) . '" rel="nofollow">' . icon('calendar') . 'Go to ' . e(date('F Y', strtotime($nextMonthWithItems . '-01'))) . '</a></p>';
             }
         } else {
-            echo empty_state('Awareness days and events will be added to this calendar soon.', 'See our events', '/events-page/');
+            echo empty_state('Awareness days and events will be added to this calendar soon.', 'See our events', '/events/');
         }
     }
     echo '</div>';

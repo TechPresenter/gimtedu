@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('error', 'Donation not found.');
         admin_redirect('donations.php');
     }
-    $action = (string) ($_POST['action'] ?? '');
+    $action = post_str('action');
     $admin = current_admin();
     $gw = donation_gateway($d);
     $gwName = gateway_label($gw);

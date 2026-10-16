@@ -7,7 +7,7 @@
  */
 (function () {
     'use strict';
-    var panel = document.getElementById('ai-assistant');
+    var panel = document.getElementById('ai-chat');
     if (!panel) { return; }
 
     var endpoint = panel.getAttribute('data-endpoint');
@@ -76,7 +76,7 @@
     }
 
     document.addEventListener('click', function (e) {
-        var t = e.target.closest ? e.target.closest('[data-ai-toggle], [data-help-toggle], a[href="#ai-assistant"]') : null;
+        var t = e.target.closest ? e.target.closest('[data-ai-toggle], [data-help-toggle], a[href="#ai-chat"]') : null;
         if (!t) { return; }
         // the FAQ helper owns [data-help-toggle] whenever it is on the page
         if (t.hasAttribute('data-help-toggle') && document.getElementById('help-panel')) { return; }

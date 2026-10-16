@@ -93,6 +93,7 @@ if (admin_can('logs.view')) {
                               WHERE l.is_staff = 1 ORDER BY l.id DESC LIMIT 8');
 }
 $checklist = is_administrator() ? insights_setup_checklist() : [];
+$heroShortcut = admin_can('pages.manage') && function_exists('home_hero_admin_summary') ? home_hero_admin_summary() : null;
 
 $quick = array_values(array_filter([
     admin_can('campaigns.manage') ? ['New campaign', 'campaign-edit.php', 'plus', 'donate'] : null,
@@ -210,6 +211,23 @@ admin_page_start('Dashboard');
     </div>
 
     <aside class="insight-col">
+        <?php if ($heroShortcut): $hs = $heroShortcut; ?>
+            <section class="panel hero-shortcut" aria-labelledby="hero-shortcut-title">
+                <a class="hero-shortcut-link" href="<?= e(admin_url($hs['href'])) ?>">
+                    <span class="hero-shortcut-thumbs" aria-hidden="true">
+                        <?php foreach (array_slice($hs['thumbs'], 0, 4) as [$src, $isPhoto]): ?>
+                            <img src="<?= e($src) ?>" alt="" width="96" height="72" loading="lazy" class="<?= $isPhoto ? 'is-photo' : 'is-art' ?>">
+                        <?php endforeach; ?>
+                        <?php if (!$hs['thumbs']): ?><span class="hero-shortcut-empty"><?= icon('image') ?></span><?php endif; ?>
+                    </span>
+                    <span class="hero-shortcut-text">
+                        <strong id="hero-shortcut-title">Homepage hero slider — change slide text &amp; right-side images</strong>
+                        <small><?php if (!$hs['exists']): ?>No hero slider on the home page yet - open Home › Sections to add one.<?php else: ?><?= (int) $hs['slides'] ?> slide<?= $hs['slides'] === 1 ? '' : 's' ?> · <?= (int) $hs['photos'] ?> photo<?= $hs['photos'] === 1 ? '' : 's' ?>, <?= (int) ($hs['slides'] - $hs['photos']) ?> illustration<?= $hs['slides'] - $hs['photos'] === 1 ? '' : 's' ?><?= $hs['hidden'] ? ' · hidden from the website' : '' ?><?php endif; ?></small>
+                    </span>
+                    <span class="btn btn-primary btn-sm hero-shortcut-btn" aria-hidden="true"><?= icon('edit') ?>Edit slides</span>
+                </a>
+            </section>
+        <?php endif; ?>
         <?php if ($quick): ?>
             <section class="panel">
                 <div class="panel-head"><h2>Quick actions</h2></div>

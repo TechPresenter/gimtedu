@@ -22,7 +22,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $back = admin_back('letters.php');
         $lid = (int) ($_POST['id'] ?? 0);
         $l = $lid ? db_row('SELECT id, ref_no, status, application_id FROM authorization_letters WHERE id = ?', [$lid]) : null;
-        $reason = mb_substr(clean_string($_POST['reason'] ?? ''), 0, 255);
+        // the reason is stored, logged and added to the application history: never with a full Aadhaar number
+        $reason = mb_substr(letter_mask_aadhaar_in_text(clean_string($_POST['reason'] ?? '')), 0, 255);
         if (!$l) {
             flash('error', 'Letter not found.');
         } elseif ($l['status'] === 'revoked') {
@@ -45,7 +46,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         [$data, $errors] = validate($_POST, [
             'ref_prefix' => 'required|max:12', 'next_seq' => 'integer|min:1|max:999999',
             'addressee' => 'required|min:3|max:160', 'subject' => 'required|min:5|max:255', 'salutation' => 'required|min:2|max:80',
-            'body' => 'required|text|min:30|max:2000', 'enclosures' => 'text|max:1500', 'closing' => 'max:255',
+            'body' => 'required|text|min:30|max:1600', 'enclosures' => 'text|max:1500', 'closing' => 'max:255',
             'signatory_name' => 'max:120', 'signatory_designation' => 'max:120',
         ], ['ref_prefix' => 'Reference prefix', 'next_seq' => 'Next number', 'addressee' => 'Addressed to', 'body' => 'Letter text', 'closing' => 'Closing line']);
         $prefix = strtoupper($data['ref_prefix']);
@@ -59,8 +60,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         if (!isset($errors['next_seq']) && $data['next_seq'] !== '' && (int) $data['next_seq'] <= $maxSeq) {
             $errors['next_seq'] = 'The next number must be higher than ' . $maxSeq . ', the last number already used in ' . $year . '.';
         }
+        foreach (['addressee', 'subject', 'salutation', 'body', 'enclosures', 'closing', 'signatory_name', 'signatory_designation'] as $f) {
+            if (!isset($errors[$f]) && letter_find_aadhaar((string) ($data[$f] ?? ''))) {
+                $errors[$f] = 'This contains a full Aadhaar number, which is never stored or printed. Use the placeholder {id_number} instead.';
+            }
+        }
         if ($errors) {
-            back_with_errors($errors, 'admin/letters.php?tab=settings', $_POST);
+            $old = [];
+            foreach ($_POST as $k => $value) {   // no full Aadhaar number is kept in the session
+                $old[$k] = is_string($value) ? letter_mask_aadhaar_in_text($value) : $value;
+            }
+            back_with_errors($errors, 'admin/letters.php?tab=settings', $old);
         }
         $values = [
             'ref_prefix' => $prefix, 'addressee' => $data['addressee'], 'subject' => $data['subject'], 'salutation' => $data['salutation'],
@@ -235,7 +245,7 @@ admin_page_start('Authorization Letters', $actions);
                     <?php foreach ($rows as $r): ?>
                         <tr>
                             <td><a href="<?= e(admin_url('letter-print.php?id=' . (int) $r['id'])) ?>"><strong><?= e($r['ref_no']) ?></strong></a><br><small class="muted"><?= e(format_date($r['letter_date'])) ?></small></td>
-                            <td><?= e($r['candidate_name']) ?><br><small class="muted"><?= e($r['id_label'] . ' ' . $r['id_masked']) ?></small>
+                            <td><?= e($r['candidate_name']) ?><br><small class="muted"><?= e($r['id_label']) ?> <span class="al-nowrap"><?= e($r['id_masked']) ?></span></small>
                                 <?php if ($r['application_no']): ?><br><small class="muted"><?= icon('link') ?><?= e($r['application_no']) ?></small><?php endif; ?></td>
                             <td><?= e($r['school_name']) ?><br><small class="muted"><?= e($r['district'] . ', ' . $r['state']) ?></small></td>
                             <td><?= status_badge($r['status'] === 'issued' ? 'valid' : 'revoked') ?>
@@ -301,9 +311,9 @@ admin_page_start('Authorization Letters', $actions);
                 <div class="form-group full"><label for="s_salutation">Salutation <span class="req">*</span></label>
                     <input id="s_salutation" type="text" name="salutation" required maxlength="80" value="<?= e($sv('salutation')) ?>"><?= field_error('salutation') ?></div>
                 <div class="form-group full"><label for="s_body">Letter text <span class="req">*</span></label>
-                    <textarea id="s_body" name="body" required rows="8" maxlength="2000"><?= e($sv('body')) ?></textarea>
+                    <textarea id="s_body" name="body" required rows="8" maxlength="1600"><?= e($sv('body')) ?></textarea>
                     <span class="help">Empty line between paragraphs; **double stars** for bold. Placeholders: <?= e(implode(' ', array_keys(letter_placeholders()))) ?></span><?= field_error('body') ?></div>
-                <div class="form-group full"><label for="s_enclosures">Enclosures (one per line)</label>
+                <div class="form-group full"><label for="s_enclosures">Enclosures (one per line, at most 8)</label>
                     <textarea id="s_enclosures" name="enclosures" rows="4" maxlength="1500"><?= e($sv('enclosures')) ?></textarea><?= field_error('enclosures') ?></div>
                 <div class="form-group full"><label for="s_closing">Closing line</label>
                     <input id="s_closing" type="text" name="closing" maxlength="255" value="<?= e($sv('closing')) ?>"><?= field_error('closing') ?></div>

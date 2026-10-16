@@ -543,7 +543,7 @@ function program_related_card(string $type, array $row): string
             $img = $row['image'] ?? null;
             break;
         case 'event':
-            $url = event_url($row['slug']);
+            $url = event_url($row);
             $text = $row['summary'] ?? '';
             $meta = icon('calendar') . e(format_date($row['start_datetime'], 'D, d M Y')) . (!empty($row['location']) ? ' · ' . e($row['location']) : '');
             $img = $row['image'] ?? null;

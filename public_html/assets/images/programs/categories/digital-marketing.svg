@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360" role="img" aria-label="Digital Marketing">
+<title>Digital Marketing</title>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f08a24"/><stop offset="1" stop-color="#b9530a"/></linearGradient>
+<radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.5"/></radialGradient></defs>
+<circle cx="240" cy="182" r="150" fill="url(#glow)"/>
+<circle cx="240" cy="182" r="150" fill="none" stroke="#f08a24" stroke-opacity="0.28" stroke-width="2" stroke-dasharray="6 10"/>
+<circle cx="240" cy="182" r="118" fill="none" stroke="#f08a24" stroke-opacity="0.12" stroke-width="16"/>
+<path d="M74 84h64a12 12 0 0 1 12 12v30a12 12 0 0 1-12 12H102l-16 14v-14H74a12 12 0 0 1-12-12V96a12 12 0 0 1 12-12z" fill="#ffffff" stroke="#f08a24" stroke-width="3"/><path d="M106 122l-12-11a7 7 0 0 1 10-10l2 2 2-2a7 7 0 0 1 10 10z" fill="#f08a24"/><path d="M368 238l38-38M384 200h22v22" fill="none" stroke="#2CA65A" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><g stroke="#2386b5" stroke-width="4" stroke-linecap="round" opacity="0.8"><path d="M378 82l-6 30M392 82l-6 30M368 92h30M366 104h30"/></g><path d="M96 258C98.16 267.84 98.16 267.84 108 270C98.16 272.16 98.16 272.16 96 282C93.84 272.16 93.84 272.16 84 270C93.84 267.84 93.84 267.84 96 258z" fill="#F4C900" opacity="1"/>
+<g transform="translate(176 270) scale(0.7)"><circle cx="0" cy="0" r="13.0" fill="#2CA65A"/><path d="M-20.0 36.0c10.0-16.0 30.0-22.0 44.0-12.0-14.0 2.0-26.0 12.0-30.0 26.0z" fill="#2CA65A"/></g><g transform="translate(298 270) scale(0.7)"><circle cx="0" cy="0" r="13.0" fill="#2386b5"/><path d="M-20.0 36.0c10.0-16.0 30.0-22.0 44.0-12.0-14.0 2.0-26.0 12.0-30.0 26.0z" fill="#2386b5"/></g>
+<circle cx="240" cy="182" r="92" fill="url(#g)"/>
+<circle cx="240" cy="182" r="92" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="10"/>
+<g transform="translate(192 134) scale(4)" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></g>
+</svg>

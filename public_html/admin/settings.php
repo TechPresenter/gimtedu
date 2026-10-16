@@ -79,7 +79,7 @@ $val = function (string $key, array $def) {
                 <div class="panel-head"><h2><?= icon('shield') ?>Online payment gateways</h2><span class="badge <?= $gwActive ? 'badge-green' : 'badge-gray' ?>"><?= $gwActive ? e(implode(' + ', array_map('gateway_label', $gwActive))) . (payment_test_mode() ? ' (test mode)' : '') : 'Not active' ?></span></div>
                 <p class="mb-0"><?= $gwActive
                     ? 'Donors can pay online through ' . e(implode(' or ', array_map('gateway_label', $gwActive))) . '.'
-                    : (setting('online_donations_enabled', '1') === '1' ? 'No payment gateway is ready yet, so the donate page shows the other ways to give.' : 'Online donations are switched off below.') ?>
+                    : (setting('online_donations_enabled', '1') === '1' ? (gateway_configured('razorpay') || gateway_configured('cashfree') ? 'The gateway chosen in Payment Gateways has no keys yet' : 'No payment gateway is ready yet') . ', so the donate page shows the other ways to give.' : 'Online donations are switched off below.') ?>
                     <?php if (admin_can('payments.configure')): ?><a href="<?= e(admin_url('payment-gateways.php')) ?>">Set up Razorpay and Cashfree keys, webhooks and the gateway choice in Payment Gateways</a>.<?php else: ?>Keys and webhooks are managed by an administrator in Payment Gateways.<?php endif; ?></p>
             </section>
         <?php elseif ($tab === 'email'): ?>

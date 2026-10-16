@@ -80,8 +80,23 @@
     animation: hero-spin 50s linear infinite;
 }
 .home-hero .home-hero-figure img { position: relative; width: 100%; max-width: 470px; height: auto; margin: 0 auto; }
-.home-hero-figure.is-photo::before { display: none; }
-.home-hero .home-hero-figure.is-photo img { aspect-ratio: 4 / 3; object-fit: cover; border-radius: 28px; border: 6px solid rgba(255, 255, 255, .18); animation: none; box-shadow: 0 30px 60px rgba(0, 0, 0, .3); }
+
+/* Uploaded photo (Admin > Pages > Home > Hero slider > right-side image): a fixed 4:3 rounded frame, reserved
+   before the file loads (no layout shift), photo cropped to fill it, gold offset frame + dot grid accents. */
+.home-hero-figure.is-photo { max-width: 520px; aspect-ratio: 4 / 3; isolation: isolate; }
+.home-hero-figure.is-photo::before {
+    inset: auto -18px -18px auto; width: 64%; height: 64%; border-radius: 30px; z-index: -1;
+    border: 2px solid rgba(244, 201, 0, .6); background: linear-gradient(135deg, rgba(244, 201, 0, .1), rgba(244, 201, 0, 0) 60%); animation: none;
+}
+.home-hero-figure.is-photo::after {
+    content: ""; position: absolute; left: -26px; top: -26px; z-index: -1; width: 132px; height: 132px; pointer-events: none;
+    background-image: radial-gradient(rgba(255, 255, 255, .38) 1.6px, transparent 1.8px); background-size: 15px 15px;
+}
+.home-hero .home-hero-figure.is-photo img {
+    display: block; width: 100%; height: 100%; max-width: none; object-fit: cover; object-position: center;
+    border-radius: 28px; border: 6px solid rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .08);
+    box-shadow: 0 30px 60px rgba(0, 18, 9, .35), 0 0 0 1px rgba(255, 255, 255, .1);
+}
 
 /* Glass card with the foundation's slogan */
 .home-glass-card {
@@ -201,6 +216,8 @@
     .home-hero .hero-actions { justify-content: center; }
     .home-hero .hero-art { padding: 20px 0 84px; }
     .home-hero-figure { max-width: 300px; }
+    .home-hero-figure.is-photo { max-width: 460px; }
+    .home-hero-figure.is-photo::before { inset: auto -12px -12px auto; }
     .home-glass-card { left: 0; right: auto; bottom: 70px; min-width: 0; max-width: 220px; padding: 10px 12px; } /* left side: clear of the floating buttons */
     .home-hero .hero-hindi { color: #fff3c4; }
     .home-hero .hero-eyebrow { background: rgba(6, 42, 25, .45); }
@@ -218,6 +235,11 @@
     .home-hero .hero-eyebrow { font-size: .66rem; letter-spacing: .08em; padding: 6px 12px 6px 10px; max-width: 100%; }
     .home-hero .hero-actions .btn-lg { padding: .85em 1.3em; font-size: .92rem; }
     .home-hero-figure { max-width: 240px; }
+    /* phones: a compact 3:2 photo below the text, inset from the edges */
+    .home-hero-figure.is-photo { width: calc(100% - 12px); max-width: 400px; aspect-ratio: 3 / 2; }
+    .home-hero .home-hero-figure.is-photo img { border-radius: 22px; border-width: 4px; }
+    .home-hero-figure.is-photo::before { inset: auto -8px -8px auto; border-radius: 24px; }
+    .home-hero-figure.is-photo::after { left: -14px; top: -14px; width: 90px; height: 90px; }
     .home-glass-card { display: none; }
     .hero-shape-blob { width: 260px; height: 260px; }
     .hero-shape-leaf { left: 8%; bottom: 10%; }

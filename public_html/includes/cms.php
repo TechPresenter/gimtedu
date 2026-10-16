@@ -13,7 +13,7 @@ if (!defined('PWF_APP')) {
 }
 
 /** Templates that accept extra path segments, e.g. /campaign/<slug>/ or /dashboard/<section>/. */
-const PARAM_TEMPLATES = ['campaign_detail', 'event_detail', 'blog', 'stories', 'member', 'schemes', 'gallery'];
+const PARAM_TEMPLATES = ['campaign_detail', 'event_detail', 'events', 'blog', 'stories', 'member', 'schemes', 'gallery'];
 /** Pages that only open from a private link (?ref=&token=): the admin shows no "View on website" link for them. */
 const LINKLESS_TEMPLATES = ['donation_success', 'donation_failed', 'donation_receipt', 'not_found'];
 
@@ -32,7 +32,7 @@ const TEMPLATE_LABELS = [
     'stories' => 'Success stories', 'schemes' => 'Welfare schemes', 'contact' => 'Contact form', 'feedback' => 'Feedback form',
     'faq' => 'FAQ', 'sitemap' => 'HTML sitemap', 'not_found' => '404 page', 'login' => 'Login', 'register' => 'Register',
     'forgot_password' => 'Forgot password', 'reset_password' => 'Reset password', 'verify_email' => 'Verify email',
-    'member' => 'Member dashboard', 'logout' => 'Logout',
+    'member' => 'Member dashboard', 'logout' => 'Logout', 'program_category' => 'Programs & Events category',
 ];
 
 // ---------------------------------------------------------------------
@@ -85,12 +85,52 @@ function abs_page_url(string $slug = 'home', array $query = []): string
 }
 
 function campaign_url(string $slug): string { return page_url('campaign/' . $slug); }
-function event_url(string $slug): string    { return page_url('event-details/' . $slug); }
 function post_url(string $slug): string     { return page_url('blog/' . $slug); }
 function story_url(string $slug): string    { return page_url('success-stories/' . $slug); }
 function scheme_url(string $slug): string   { return page_url('schemes/' . $slug); }
 function member_url(string $section = ''): string { return page_url('dashboard' . ($section !== '' ? '/' . $section : '')); }
 function donate_url(array $query = []): string    { return page_url('donate', $query); }
+
+/** Event types whose pages live under /hackathons/<slug>/ (every other event: /events/<slug>/). */
+const HACKATHON_EVENT_TYPES = ['hackathon', 'innovation_challenge'];
+
+/**
+ * Canonical address of an event: /events/<slug>/, or /hackathons/<slug>/ for hackathons and innovation challenges.
+ * Pass the event row (uses slug + event_type), or a slug - the type is then looked up (one query per request).
+ */
+function event_url($event, ?string $type = null): string
+{
+    if (is_array($event)) {
+        $slug = (string) ($event['slug'] ?? '');
+        $type = $type ?? (isset($event['event_type']) ? (string) $event['event_type'] : null);
+    } else {
+        $slug = (string) $event;
+    }
+    if ($type === null) {
+        $type = in_array($slug, hackathon_event_slugs(), true) ? 'hackathon' : 'event';
+    }
+    return page_url((in_array($type, HACKATHON_EVENT_TYPES, true) ? 'hackathons/' : 'events/') . $slug);
+}
+
+/** Absolute canonical URL of an event (for emails, Open Graph, JSON-LD, .ics, sitemap). */
+function event_abs_url($event, ?string $type = null): string
+{
+    return rtrim(BASE_URL, '/') . substr(event_url($event, $type), strlen(base_path()));
+}
+
+/** Slugs of hackathon-type events, loaded once per request (used when event_url() only gets a slug). */
+function hackathon_event_slugs(bool $refresh = false): array
+{
+    static $slugs = null;
+    if ($slugs === null || $refresh) {
+        try {
+            $slugs = array_column(db_rows("SELECT slug FROM events WHERE event_type IN ('hackathon', 'innovation_challenge')"), 'slug');
+        } catch (Throwable $e) {
+            $slugs = [];
+        }
+    }
+    return $slugs;
+}
 
 /** Programme URL: the linked page's slug, or /programs/<slug>/. */
 function program_url(array $program): string
@@ -1068,8 +1108,13 @@ function share_buttons(string $absUrl, string $title): string
 function sitemap_entries(): array
 {
     $entries = [];
-    foreach (db_rows("SELECT slug, title, updated_at, created_at, template FROM pages WHERE status = 'published' AND show_in_sitemap = 1 AND noindex = 0 ORDER BY sort_order, title") as $p) {
-        $entries[] = ['loc' => abs_page_url($p['slug']), 'lastmod' => $p['updated_at'] ?: $p['created_at'], 'title' => $p['title'], 'group' => 'Pages'];
+    // category pages of unpublished programme categories are not listed
+    $hiddenPages = function_exists('program_category_hidden_page_ids') ? program_category_hidden_page_ids() : [];
+    foreach (db_rows("SELECT id, slug, title, updated_at, created_at, template FROM pages WHERE status = 'published' AND show_in_sitemap = 1 AND noindex = 0 ORDER BY sort_order, title") as $p) {
+        if (in_array((int) $p['id'], $hiddenPages, true)) {
+            continue;
+        }
+        $entries[] = ['loc' => abs_page_url($p['slug']), 'lastmod' => $p['updated_at'] ?: $p['created_at'], 'title' => $p['title'], 'group' => $p['template'] === 'program_category' ? 'Programs & Events' : 'Pages'];
     }
     $add = function (string $sql, string $group, callable $urlFn) use (&$entries) {
         try {
@@ -1081,8 +1126,15 @@ function sitemap_entries(): array
         }
     };
     $add("SELECT slug, title, updated_at, created_at FROM campaigns WHERE status IN ('active','completed','closed') ORDER BY created_at DESC", 'Campaigns', 'campaign_url');
-    $add("SELECT slug, title, updated_at, created_at FROM events WHERE status = 'published'
-          AND NOT (event_type = 'awareness_day' AND COALESCE(end_datetime, start_datetime) < NOW()) ORDER BY start_datetime DESC", 'Events', 'event_url');
+    // events: canonical /events/<slug>/ or /hackathons/<slug>/; drafts, scheduled, archived and cancelled events are not listed
+    try {
+        foreach (db_rows("SELECT slug, title, event_type, updated_at, created_at FROM events WHERE status = 'published'
+                          AND NOT (event_type = 'awareness_day' AND COALESCE(end_datetime, start_datetime) < NOW()) ORDER BY start_datetime DESC") as $r) {
+            $entries[] = ['loc' => event_abs_url($r), 'lastmod' => $r['updated_at'] ?: $r['created_at'], 'title' => $r['title'], 'group' => 'Events'];
+        }
+    } catch (Throwable $e) {
+        error_log('Sitemap query failed: ' . $e->getMessage());
+    }
     $add("SELECT slug, title, updated_at, created_at FROM blog_posts WHERE status = 'published' AND published_at <= NOW() ORDER BY published_at DESC", 'Articles', 'post_url');
     // same visibility rule as the story pages (a scheduled story is not listed before its date)
     $add("SELECT slug, title, updated_at, created_at FROM success_stories WHERE status = 'published' AND consent_confirmed = 1

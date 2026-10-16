@@ -478,7 +478,7 @@ function assistant_documents(): array
             }
             $byId[(int) $p['id']] = $p;
             $text = trim(($p['banner_subtitle'] ?? '') . ' ' . ($p['meta_description'] ?? ''));
-            $docs[] = ['kind' => 'page', 'title' => $p['title'], 'url' => page_url($p['slug']), 'text' => $text];
+            $docs[] = ['kind' => 'page', 'title' => $p['title'], 'url' => page_url($p['slug']), 'text' => $text, 'weight' => $p['template'] === 'policy' ? 0.6 : 1.1];
         }
         if ($byId) {
             $in = implode(',', array_keys($byId));
@@ -498,6 +498,7 @@ function assistant_documents(): array
                 $docs[] = [
                     'kind' => 'page', 'title' => $p['title'] . (trim((string) $s['title']) !== '' ? ' › ' . trim(strip_tags((string) $s['title'])) : ''),
                     'url' => page_url($p['slug']) . $anchor, 'text' => mb_substr($text, 0, 1500),
+                    'weight' => $p['template'] === 'policy' ? 0.6 : 1.0,   // policies match many words; prefer the page itself
                 ];
             }
         }
@@ -524,7 +525,7 @@ function assistant_documents(): array
     }
     try {
         foreach (assistant_upcoming_events(30) as $ev) {
-            $docs[] = ['kind' => 'event', 'title' => 'Event: ' . $ev['title'], 'url' => event_url($ev['slug']), 'text' => assistant_event_line($ev, false)];
+            $docs[] = ['kind' => 'event', 'title' => 'Event: ' . $ev['title'], 'url' => event_url($ev['slug'], (string) $ev['event_type']), 'text' => assistant_event_line($ev, false)];
         }
     } catch (Throwable $e) {
         error_log('AI assistant events: ' . $e->getMessage());
@@ -590,6 +591,11 @@ function assistant_rank(string $question, string $previous = '', int $limit = 12
     foreach (assistant_tokens($previous) as $t => $n) {
         $q[$t] = ($q[$t] ?? 0) + 0.5;
     }
+    // "someone asked me for money / a fee for a job (internship, volunteering, scholarship)" is a fraud question
+    if (array_intersect_key($q, ['job' => 1, 'internship' => 1, 'volunteer' => 1, 'scholarship' => 1, 'certificate' => 1])
+        && preg_match('/(money|fee|fees|pay|paid|payment|charge|charged|paisa|paise|rupees|deposit|पैसे|पैसा|फीस|शुल्क)/iu', $question)) {
+        $q['fraud'] = ($q['fraud'] ?? 0) + 1;
+    }
     if (!$q) {
         return [];
     }
@@ -625,6 +631,7 @@ function assistant_rank(string $question, string $previous = '', int $limit = 12
         }
         if ($score > 0) {
             $score *= 1 + 0.25 * ($hits - 1);   // documents matching several words of the question first
+            $score *= (float) ($docs[$i]['weight'] ?? 1.0);
             $scored[$i] = $score;
         }
     }
@@ -648,7 +655,7 @@ function assistant_key_links(): array
         'Volunteer Teacher Programme (apply to teach)' => 'volunteer-teacher', 'Jobs / staff application' => 'volunteer-staff',
         'Internships' => 'internships', 'Scholarship application' => 'scholarship', 'Membership' => 'membership',
         'Request help (education, health, livelihood, food, relief)' => 'request-help', 'Start a fundraiser' => 'start-a-fundraiser',
-        'Events' => 'events-page', 'Application status (track with reference number)' => 'application-status',
+        'Events' => ['events', 'events-page'], 'Hackathons & innovation challenges' => 'hackathons', 'Application status (track with reference number)' => 'application-status',
         'Report fraud or misuse' => 'report-fraud', 'Grievance redressal' => 'grievance-redressal', 'Contact us' => 'contact', 'FAQ' => 'faq',
         'Our programmes' => 'programs', 'Welfare schemes guidance' => 'schemes', 'About us' => 'about', 'NGO details & registration' => 'ngo-details',
         'Financial transparency' => 'financial-transparency',
@@ -656,18 +663,25 @@ function assistant_key_links(): array
         'Privacy policy' => 'privacy-policy', 'Donation & refund policy' => 'donation-refund-policy',
     ];
     $published = [];
+    $all = [];
+    foreach ($wanted as $slugs) {
+        $all = array_merge($all, (array) $slugs);
+    }
     try {
-        $in = implode(',', array_fill(0, count($wanted), '?'));
-        foreach (db_rows("SELECT slug FROM pages WHERE status = 'published' AND slug IN ($in)", array_values($wanted)) as $r) {
+        $in = implode(',', array_fill(0, count($all), '?'));
+        foreach (db_rows("SELECT slug FROM pages WHERE status = 'published' AND slug IN ($in)", $all) as $r) {
             $published[$r['slug']] = true;
         }
     } catch (Throwable $e) {
         return [];
     }
     $out = [];
-    foreach ($wanted as $label => $slug) {
-        if (isset($published[$slug])) {
-            $out[$label] = page_url($slug);
+    foreach ($wanted as $label => $slugs) {
+        foreach ((array) $slugs as $slug) {   // first published candidate (pages may be renamed)
+            if (isset($published[$slug])) {
+                $out[$label] = page_url($slug);
+                break;
+            }
         }
     }
     return $out;
@@ -773,10 +787,10 @@ function assistant_core_facts(): string
         if ($events) {
             foreach ($events as $ev) {
                 $when = function_exists('event_when') ? event_when($ev) : format_date($ev['start_datetime']);
-                $L[] = '- ' . $ev['title'] . ' (' . $when . ($ev['location'] ? ', ' . $ev['location'] : '') . '): ' . event_url($ev['slug']);
+                $L[] = '- ' . $ev['title'] . ' (' . $when . ($ev['location'] ? ', ' . $ev['location'] : '') . '): ' . event_url($ev['slug'], (string) $ev['event_type']);
             }
         } else {
-            $L[] = '- No upcoming events are published right now (see ' . page_url('events-page') . ' later).';
+            $L[] = '- No upcoming events are published right now (see ' . (assistant_key_links()['Events'] ?? page_url('contact')) . ' later).';
         }
     } catch (Throwable $e) {
         error_log('AI assistant core facts: ' . $e->getMessage());
@@ -1397,10 +1411,11 @@ function render_assistant_widget(): string
         $isHi = preg_match('/\p{Devanagari}/u', $s) === 1;
         $chips .= '<button type="button" class="ai-chip' . ($isHi ? ' hindi' : '') . '"' . ($isHi ? ' lang="hi"' : '') . ' data-ai-ask>' . e($s) . '</button>';
     }
+    $all = settings_all();
     $greetEn = setting('ai_greeting_en', assistant_default_greeting('en'));
-    $greetHi = setting('ai_greeting_hi', assistant_default_greeting('hi'));
+    $greetHi = array_key_exists('ai_greeting_hi', $all) ? trim($all['ai_greeting_hi']) : assistant_default_greeting('hi');   // may be emptied by the admin
     $privacy = page_url('privacy-policy') . '#ai-assistant';
-    return '<div class="ai-panel" id="ai-assistant" role="dialog" aria-modal="true" aria-labelledby="ai-title" aria-describedby="ai-desc" hidden'
+    return '<div class="ai-panel" id="ai-chat" role="dialog" aria-modal="true" aria-labelledby="ai-title" aria-describedby="ai-desc" hidden'
         . ' data-endpoint="' . e(url('/api/chat/')) . '" data-csrf="' . e(csrf_token()) . '" data-max="' . AI_MAX_INPUT . '">'
         . '<header class="ai-head">'
         . '<span class="ai-avatar" aria-hidden="true">' . icon('message') . '<span class="ai-avatar-dot"></span></span>'
@@ -1420,7 +1435,7 @@ function render_assistant_widget(): string
         . '<form class="ai-form" data-ai-form novalidate>'
         . '<label class="sr-only" for="ai-input">Your question (English, हिंदी or Hinglish)</label>'
         . '<textarea id="ai-input" rows="1" maxlength="' . AI_MAX_INPUT . '" placeholder="Ask in English, हिंदी or Hinglish…" autocomplete="off" aria-describedby="ai-count ai-foot-note"></textarea>'
-        . '<span class="ai-count" id="ai-count" aria-live="polite"></span>'
+        . '<span class="ai-count" id="ai-count"></span>'
         . '<button type="submit" class="ai-send" aria-label="Send question">' . icon('send') . '</button>'
         . '</form>'
         . '<p class="ai-foot" id="ai-foot-note">AI can make mistakes · don\'t share personal details · messages are processed by OpenAI · <a href="' . e($privacy) . '">Privacy</a></p>'
@@ -1513,7 +1528,7 @@ function migration_303_ai_privacy_disclosure(): void
         . '<h3>Please do not share personal information</h3>'
         . '<p>Do not type Aadhaar, PAN, bank account, card, UPI PIN, OTP, password, health or other sensitive details in the chat. Applications, donations and requests for help are made only through the forms on this website. The foundation never asks for an OTP, PIN or password.</p>'
         . '<h3>Conversation records</h3>'
-        . '<p>When conversation records are switched on, we keep each question and reply (shortened, without your IP address or name; a random code groups the messages of one visit) to improve the website\'s answers. Only authorised staff can see them, and they are deleted automatically after a limited period set by our administrator (30 days by default). To prevent misuse, we count requests using a temporary code derived from your IP address that cannot be turned back into the address and is deleted within two days. The last few messages of your conversation are kept in your browser session only until it ends or you clear the chat.</p>'
+        . '<p>When conversation records are switched on, we keep each question and reply (shortened, without your IP address or name; a random code groups the messages of one visit) to improve the website\'s answers. Only authorised staff can see them, and they are deleted automatically after a limited period set by our administrator (30 days by default). To prevent misuse, we count requests using a temporary code derived from your IP address that cannot be turned back into the address and is deleted within two days. The last few messages of your conversation are kept only for your current visit (in your session on our server), until you close the browser or clear the chat.</p>'
         . '<h3>Your choice</h3>'
         . '<p>Using the assistant is entirely optional. If you do not want your questions processed by OpenAI, simply do not use it - every page, FAQ and form on this website works without it, and you can always <a href="/contact/">contact us</a> directly. The assistant is not an emergency service: in an emergency, call 112.</p>';
     db_insert('page_sections', [

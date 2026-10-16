@@ -125,6 +125,43 @@ function home_slogan_card(): string
     return $html . '</ul></div>';
 }
 
+/** Fallback right-side illustration (used when a slide has no image or its file is missing). */
+const HOME_HERO_FALLBACK_IMAGE = 'assets/images/hero/community.svg';
+
+/**
+ * Right-side image of a hero slide. Photos (or image_style "photo") fill a fixed 4:3 rounded frame
+ * (3:2 on phones) with object-fit: cover, so the box is reserved before the file loads (no layout shift);
+ * SVG illustrations (or image_style "illustration") are shown whole, as before. The first slide loads
+ * eagerly with high priority, later slides lazily. Uploaded photos get srcset (640/1080 px copies).
+ */
+function home_hero_figure(array $sl, bool $first): string
+{
+    $image = trim((string) ($sl['image'] ?? ''));
+    $usable = $image !== '' && strpos($image, '..') === false && preg_match('#^(uploads|assets/images)/#', $image)
+        && is_file(ROOT_PATH . '/' . $image);
+    $alt = $usable ? trim((string) ($sl['image_alt'] ?? '')) : '';
+    if (!$usable) {
+        $image = HOME_HERO_FALLBACK_IMAGE;
+    }
+    $isSvg = (bool) preg_match('/\.svg$/i', $image);
+    $style = (string) ($sl['image_style'] ?? '');
+    $isPhoto = $usable && ($style === 'photo' || ($style !== 'illustration' && !$isSvg));
+    [$w, $h] = [480, 360];
+    if (!$isSvg && ($size = @getimagesize(ROOT_PATH . '/' . $image))) {
+        [$w, $h] = [(int) $size[0], (int) $size[1]];
+    }
+    $attrs = ' width="' . $w . '" height="' . $h . '"'
+        . ($first ? ' loading="eager" fetchpriority="high"' : ' loading="lazy"') . ' decoding="async"';
+    if ($isPhoto) {
+        $positions = ['top' => 'center top', 'bottom' => 'center bottom', 'left' => 'left center', 'right' => 'right center'];
+        $pos = $positions[(string) ($sl['image_position'] ?? '')] ?? '';
+        $attrs .= image_srcset_attr($image, '(max-width: 767px) calc(100vw - 32px), (max-width: 991px) 460px, 520px')
+            . ($pos !== '' ? ' style="object-position:' . $pos . '"' : '');
+    }
+    return '<div class="home-hero-figure' . ($isPhoto ? ' is-photo' : '') . '">'
+        . '<img src="' . e(url($image)) . '" alt="' . e($alt) . '"' . $attrs . '></div>';
+}
+
 /** Full hero markup. The first slide's title is the page's single <h1> on the home page. */
 function home_hero_html(array $slides, array $set, array $page): string
 {
@@ -146,8 +183,6 @@ function home_hero_html(array $slides, array $set, array $page): string
                     'icon' => $isDonate ? 'heart' : ($n === 1 ? 'arrow-right' : '')];
             }
         }
-        $image = (string) ($sl['image'] ?? '');
-        $isPhoto = $image !== '' && !preg_match('/\.svg$/i', $image);
         $html .= '<div class="hero-slide' . ($i === 0 ? ' is-active' : '') . '" role="group" aria-roledescription="slide" aria-label="' . ($i + 1) . ' of ' . $count . '"'
             . ($i === 0 ? '' : ' aria-hidden="true"') . '>'
             . '<div class="hero-content">'
@@ -156,10 +191,7 @@ function home_hero_html(array $slides, array $set, array $page): string
             . (!empty($sl['text']) ? '<p class="hero-text">' . home_mixed_text((string) $sl['text']) . '</p>' : '')
             . ($buttons ? ui_buttons($buttons, 'hero-actions') : '')
             . '</div>'
-            . '<div class="hero-art"><div class="home-hero-figure' . ($isPhoto ? ' is-photo' : '') . '">'
-            . '<img src="' . e(image_url($image ?: null, 'assets/images/hero/community.svg')) . '" alt="' . e((string) ($sl['image_alt'] ?? '')) . '" width="480" height="360"'
-            . ($i === 0 ? ' fetchpriority="high"' : ' loading="lazy"') . ' decoding="async"></div>'
-            . $card . '</div>'
+            . '<div class="hero-art">' . home_hero_figure($sl, $i === 0) . $card . '</div>'
             . '</div>';
     }
     $html .= '</div>';
@@ -183,12 +215,18 @@ function section_schema_hero_slider(): array
     return [
         'label' => 'Hero slider (home page)',
         'fields' => [],
+        'items_title' => 'Slides (text on the left, image on the right)',
+        'item_label' => 'Slide',
         'items' => [
             'eyebrow' => ['text', 'Small heading above the title'],
             'title' => ['text', 'Title (use "हिंदी – English" to show a Hindi line above the English title)'],
             'text' => ['textarea', 'Text'],
-            'image' => ['image', 'Illustration or photo'],
-            'image_alt' => ['text', 'Image description (leave empty for decorative illustrations)'],
+            'image' => ['image', 'Right-side image (photo or illustration)',
+                'Shown on the right of the slide on computers and below the text on phones. Recommended: a landscape photo of 1200 × 900 px (4:3), JPG, PNG or WebP, up to ' . (int) MAX_UPLOAD_MB . ' MB - it is cropped to fill a rounded frame. SVG illustrations are shown whole. Publish photos of identifiable people only with their consent (a parent\'s or guardian\'s for children). Remove the image to show the default illustration.'],
+            'image_alt' => ['text', 'Image description (alt text)', 'What the photo shows, for people using screen readers - e.g. "Volunteers teaching children at a community learning circle". Leave empty for decorative illustrations.'],
+            'image_style' => ['select', 'Image style', ['' => 'Auto - photos fill the frame, SVG illustrations fit', 'photo' => 'Photo - fill the rounded frame (cropped)', 'illustration' => 'Illustration - show the whole image, no frame'],
+                'Choose "Illustration" for a PNG drawing with a transparent background.'],
+            'image_position' => ['select', 'Photo focus (the part kept when the photo is cropped)', ['' => 'Centre', 'top' => 'Top (e.g. faces near the top)', 'bottom' => 'Bottom', 'left' => 'Left', 'right' => 'Right']],
             'button1_label' => ['text', 'Main button text'],
             'button1_url' => ['url', 'Main button link'],
             'button2_label' => ['text', 'Second button text'],
@@ -198,7 +236,7 @@ function section_schema_hero_slider(): array
             'label' => ['text', 'Slider name for screen readers (e.g. Highlights from our work)'],
             'hide_card' => ['checkbox', 'Hide the slogan card on the illustration'],
         ],
-        'help' => 'Full-width banner at the top of the page. The first slide\'s title is the page\'s main heading. Slides change every few seconds (paused on hover, never for visitors who prefer reduced motion). Publish identifiable photos of people only with their consent.',
+        'help' => 'Full-width banner at the top of the page. Each slide has text on the left and a right-side image: upload a photo, choose one from the Media Library or remove it to show the default illustration. The first slide\'s title is the page\'s main heading. Slides change every few seconds (paused on hover, never for visitors who prefer reduced motion). Publish identifiable photos of people only with their consent.',
     ];
 }
 
@@ -208,6 +246,42 @@ function section_hero_slider(array $s, array $items, array $set, array $page): s
         return is_array($i) && trim((string) ($i['title'] ?? '')) !== '';
     }));
     return $slides ? home_hero_html($slides, $set, $page) : '';
+}
+
+/**
+ * Admin shortcut data for the home page hero slider (dashboard card, page editor callout):
+ * ['href' => 'page-edit.php?…' (relative to admin/), 'exists', 'hidden', 'slides', 'photos', 'thumbs' => [[url, isPhoto, alt]]].
+ * Null when there is no home page.
+ */
+function home_hero_admin_summary(): ?array
+{
+    try {
+        $homeId = (int) db_value("SELECT id FROM pages WHERE slug = 'home' LIMIT 1");
+        $row = $homeId ? db_row("SELECT id, items, status FROM page_sections WHERE page_id = ? AND section_type = 'hero_slider'
+                                 ORDER BY (status = 'visible') DESC, sort_order, id LIMIT 1", [$homeId]) : null;
+    } catch (Throwable $e) {
+        return null;
+    }
+    if (!$homeId) {
+        return null;
+    }
+    $out = ['page_id' => $homeId, 'exists' => (bool) $row, 'hidden' => $row && $row['status'] !== 'visible', 'slides' => 0, 'photos' => 0, 'thumbs' => [],
+        'href' => 'page-edit.php?id=' . $homeId . '&tab=sections' . ($row ? '&open=' . (int) $row['id'] . '#section-' . (int) $row['id'] : '')];
+    foreach ($row ? json_field($row['items']) : [] as $sl) {
+        if (!is_array($sl) || trim((string) ($sl['title'] ?? '')) === '') {
+            continue;
+        }
+        $out['slides']++;
+        $img = trim((string) ($sl['image'] ?? ''));
+        $usable = $img !== '' && strpos($img, '..') === false && preg_match('#^(uploads|assets/images)/#', $img) && is_file(ROOT_PATH . '/' . $img);
+        $img = $usable ? $img : HOME_HERO_FALLBACK_IMAGE;
+        $style = (string) ($sl['image_style'] ?? '');
+        $isPhoto = $usable && ($style === 'photo' || ($style !== 'illustration' && !preg_match('/\.svg$/i', $img)));
+        $out['photos'] += $isPhoto ? 1 : 0;
+        $small = function_exists('image_variant_path') ? image_variant_path($img, 640) : '';
+        $out['thumbs'][] = [url($small !== '' && is_file(ROOT_PATH . '/' . $small) ? $small : $img), $isPhoto];
+    }
+    return $out;
 }
 
 function section_schema_impact_counters(): array
@@ -816,4 +890,14 @@ function retention_run(): array
         + db_query('DELETE FROM email_verifications WHERE expires_at < NOW()')->rowCount()
         + db_query('DELETE FROM password_resets WHERE created_at < NOW() - INTERVAL 30 DAY')->rowCount();
     return $done;
+}
+
+// =====================================================================
+// Design / UI migrations (500-599): run once automatically (includes/migrations.php)
+// =====================================================================
+
+/** Quick-links strip under the header on phones & tablets: on by default; an admin's choice is never overwritten. */
+function migration_501_mobile_nav_strip(): void
+{
+    add_setting_if_missing('mobile_nav_strip', '1');
 }

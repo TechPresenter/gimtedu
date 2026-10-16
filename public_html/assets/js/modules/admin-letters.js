@@ -18,10 +18,25 @@
         return map[p] || map.they;
     }
 
+    /* Verhoeff checksum of Aadhaar numbers (same check as letter_verhoeff_ok() on the server) */
+    var VD = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 0, 6, 7, 8, 9, 5], [2, 3, 4, 0, 1, 7, 8, 9, 5, 6], [3, 4, 0, 1, 2, 8, 9, 5, 6, 7],
+        [4, 0, 1, 2, 3, 9, 5, 6, 7, 8], [5, 9, 8, 7, 6, 0, 4, 3, 2, 1], [6, 5, 9, 8, 7, 1, 0, 4, 3, 2], [7, 6, 5, 9, 8, 2, 1, 0, 4, 3],
+        [8, 7, 6, 5, 9, 3, 2, 1, 0, 4], [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]];
+    var VP = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 5, 7, 6, 2, 8, 3, 0, 9, 4], [5, 8, 0, 3, 7, 9, 6, 1, 4, 2], [8, 9, 1, 6, 0, 4, 3, 5, 2, 7],
+        [9, 4, 5, 3, 1, 2, 6, 8, 7, 0], [4, 2, 8, 6, 5, 7, 3, 9, 0, 1], [2, 7, 9, 3, 8, 0, 6, 4, 1, 5], [7, 0, 4, 6, 9, 1, 3, 2, 5, 8]];
+    function verhoeffOk(num) {
+        var c = 0;
+        num.split('').reverse().forEach(function (ch, i) { c = VD[c][VP[i % 8][+ch]]; });
+        return c === 0;
+    }
+
     function maskId(type, raw) {
         var v = (raw || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
         if (v === '') { return { masked: '', error: '' }; }
         if (type === 'aadhaar') {
+            if (/^\d{12}$/.test(v) && (/^[01]/.test(v) || !verhoeffOk(v))) {
+                return { masked: '', error: 'This is not a valid 12-digit Aadhaar number. Please check it, or enter only its last 4 digits.' };
+            }
             if (/^\d{12}$/.test(v) || /^\d{4}$/.test(v)) { return { masked: 'XXXX XXXX ' + v.slice(-4), error: '' }; }
             return { masked: '', error: 'Enter the 12-digit Aadhaar number or only its last 4 digits.' };
         }
@@ -160,16 +175,32 @@
         var wrap = document.querySelector('[data-al-wrap]');
         var note = document.querySelector('[data-al-fit-note]');
 
+        /* print layout can differ from the screen by a few pixels (font hinting), so keep ~1.5 mm spare */
+        var SLACK = 6;
+        var overflowing = false;
+        var box = sheet.querySelector('.al-verify-box');
+        /* natural height of the content (the verification box normally sits at the bottom through margin-top: auto) */
+        var fits = function () {
+            if (!box) { return main.scrollHeight <= main.clientHeight; }
+            var pad = parseFloat(getComputedStyle(main).paddingBottom) || 0;
+            return box.offsetTop + box.offsetHeight + pad + SLACK <= main.clientHeight;
+        };
         var fit = function () {
             if (!main) { return; }
+            var savedZoom = wrap ? wrap.style.zoom : '';
+            if (wrap) { wrap.style.zoom = ''; }   // measure at the real A4 size
+            sheet.classList.add('is-measuring');
             var scale = 1;
             sheet.style.setProperty('--al-scale', '1');
-            while (main.scrollHeight > main.clientHeight + 1 && scale > 0.79) {
+            while (!fits() && scale > 0.79) {
                 scale = Math.round((scale - 0.02) * 100) / 100;
                 sheet.style.setProperty('--al-scale', String(scale));
             }
+            overflowing = !fits();
+            sheet.classList.remove('is-measuring');
+            if (wrap) { wrap.style.zoom = savedZoom; }
             if (!note) { return; }
-            if (main.scrollHeight > main.clientHeight + 1) {
+            if (overflowing) {
                 note.textContent = 'This letter is too long for one A4 page, so the end would be cut off. Please shorten the letter text, enclosures or address (Edit).';
                 note.hidden = false;
             } else if (scale < 1) {
@@ -205,15 +236,19 @@
             if (!beacon || Date.now() - lastSent < 5000) { return; }
             lastSent = Date.now();
             var data = new FormData(beacon);
-            if (navigator.sendBeacon && navigator.sendBeacon(beacon.action, data)) { return; }
+            var target = beacon.getAttribute('action');   // not beacon.action: the form has an input named "action"
+            if (navigator.sendBeacon && navigator.sendBeacon(target, data)) { return; }
             if (window.fetch) {
-                fetch(beacon.action, { method: 'POST', body: data, credentials: 'same-origin', keepalive: true }).catch(function () {});
+                fetch(target, { method: 'POST', body: data, credentials: 'same-origin', keepalive: true }).catch(function () {});
             }
         };
         window.addEventListener('beforeprint', function () { fit(); logPrint(); });
 
         document.querySelectorAll('[data-al-print]').forEach(function (btn) {
-            btn.addEventListener('click', function () { window.print(); });
+            btn.addEventListener('click', function () {
+                if (overflowing && !window.confirm('This letter does not fit on one A4 page and the end would be cut off. Print anyway?')) { return; }
+                window.print();
+            });
         });
         document.addEventListener('click', function (e) {
             var close = e.target.closest ? e.target.closest('.alert-close') : null;

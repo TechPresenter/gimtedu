@@ -884,7 +884,7 @@ function site_section_form(array $s, array $page, array $errors = []): string
     if ($itemDefs === 'strings') {
         $html .= '<h4 class="site-sub">Items</h4><div class="form-grid">' . site_field_html('items_strings', $p . '-items', ['strings', 'List items'], $items) . '</div>';
     } elseif (is_array($itemDefs) && $itemDefs) {
-        $html .= '<h4 class="site-sub">Items</h4>' . site_repeater_html('items', $p . '-items', $itemDefs, $items, 'items_files', 'Item', $items ? 1 : 2, ['upload_url' => $uploadUrl]);
+        $html .= '<h4 class="site-sub">' . e((string) ($schema['items_title'] ?? 'Items')) . '</h4>' . site_repeater_html('items', $p . '-items', $itemDefs, $items, 'items_files', (string) ($schema['item_label'] ?? 'Item'), $items ? 1 : 2, ['upload_url' => $uploadUrl]);
     }
     $jsonItems = $items ? json_encode(array_values($items), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : '';
 
@@ -1001,6 +1001,7 @@ function site_settings_tabs(): array
         'header' => ['Header & footer', 'layers', [
             'topbar_enabled' => ['checkbox', 'Show the top bar above the header (welcome text, email, apply links, login)'],
             'topbar_text' => ['text', 'Top bar welcome text', '', ['max' => 150]],
+            'mobile_nav_strip' => ['checkbox', 'Phones & tablets: show the main menu as a swipeable row of links under the header', 'The top-level items of Admin > Menus > Main menu appear as pills below the logo bar on screens narrower than 1280 px; the menu button still opens the full menu with all sub-pages.'],
             'header_cta_label' => ['text', 'Header button text', 'e.g. Donate Now', ['max' => 40, 'required' => true]],
             'header_cta_url' => ['link', 'Header button link', 'e.g. /donate/', ['required' => true]],
             'footer_about_text' => ['textarea', 'Footer "about" text', '', ['max' => 600]],

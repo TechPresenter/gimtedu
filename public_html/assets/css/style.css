@@ -60,7 +60,9 @@
     --font: "Poppins", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
     --font-hindi: "Poppins Devanagari", "Noto Sans Devanagari", "Mangal", sans-serif;
     --container: 1320px;
-    --header-h: 84px;
+    --header-bar-h: 84px;      /* the header bar itself (logo, menu, donate) */
+    --header-h: 84px;          /* everything that stays stuck at the top: header bar (+ quick-links strip below 1280px) */
+    --nav-strip-h: 0px;
     --ease: cubic-bezier(.22, .61, .36, 1);
 }
 
@@ -160,7 +162,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ---------- Header & navigation ---------- */
 .site-header { position: sticky; top: 0; z-index: 100; background: #fff; box-shadow: 0 1px 0 var(--line); transition: box-shadow .25s; }
 .site-header.is-scrolled { box-shadow: 0 6px 24px rgba(16, 52, 32, .10); }
-.header-inner { display: flex; align-items: center; gap: 24px; min-height: var(--header-h); }
+.header-inner { display: flex; align-items: center; gap: 24px; min-height: var(--header-bar-h); }
 .brand { display: flex; align-items: center; gap: 12px; color: var(--ink); flex-shrink: 0; }
 .brand img { width: 72px; height: 72px; object-fit: contain; }
 .brand-text { display: none; flex-direction: column; line-height: 1.2; }

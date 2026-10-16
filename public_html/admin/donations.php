@@ -91,12 +91,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Filters
 // ---------------------------------------------------------------------
 $statuses = ['success', 'pending', 'failed', 'refunded'];
-$q = mb_substr(clean_string($_GET['q'] ?? ''), 0, 100);
-$status = in_array($_GET['status'] ?? '', $statuses, true) ? (string) $_GET['status'] : '';
-$method = isset(DONATION_METHODS[$_GET['method'] ?? '']) ? (string) $_GET['method'] : '';
+// get_str(): a filter sent as an array (?gateway[]=x) is ignored instead of breaking the page
+$q = mb_substr(clean_string(get_str('q')), 0, 100);
+$status = in_array(get_str('status'), $statuses, true) ? get_str('status') : '';
+$method = isset(DONATION_METHODS[get_str('method')]) ? get_str('method') : '';
 $gatewayFilters = ['razorpay' => 'Razorpay', 'cashfree' => 'Cashfree', 'offline' => 'Offline (no gateway)'];
-$gatewayFilter = isset($gatewayFilters[$_GET['gateway'] ?? '']) ? (string) $_GET['gateway'] : '';
-$campaignId = (string) ($_GET['campaign'] ?? '');
+$gatewayFilter = isset($gatewayFilters[get_str('gateway')]) ? get_str('gateway') : '';
+$campaignId = get_str('campaign');
 $range = admin_date_range('all');
 $params = [];
 $where = 'WHERE 1=1' . search_where(['d.donation_ref', 'd.donor_name', 'd.donor_email', 'd.donor_phone', 'd.gateway_payment_id', 'd.gateway_order_id', 'd.donor_pan', 'd.offline_reference'], $q, $params);

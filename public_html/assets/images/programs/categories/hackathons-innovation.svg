@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360" role="img" aria-label="Hackathons &amp; Innovation Challenges">
+<title>Hackathons &amp; Innovation Challenges</title>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2a8fd4"/><stop offset="1" stop-color="#155a91"/></linearGradient>
+<radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.5"/></radialGradient></defs>
+<circle cx="240" cy="182" r="150" fill="url(#glow)"/>
+<circle cx="240" cy="182" r="150" fill="none" stroke="#2a8fd4" stroke-opacity="0.28" stroke-width="2" stroke-dasharray="6 10"/>
+<circle cx="240" cy="182" r="118" fill="none" stroke="#2a8fd4" stroke-opacity="0.12" stroke-width="16"/>
+<path d="M370 76h40v16a20 20 0 0 1-40 0z" fill="#F4C900"/><path d="M370 82h-10a10 10 0 0 0 10 14M410 82h10a10 10 0 0 1-10 14" fill="none" stroke="#F4C900" stroke-width="4"/><rect x="386" y="110" width="8" height="12" fill="#F4C900"/><rect x="376" y="122" width="28" height="7" rx="3" fill="#d9b300"/><path d="M96 256a22 22 0 1 1 30 0c-4 4-5 8-5 12h-20c0-4-1-8-5-12z" fill="#ffffff" stroke="#2CA65A" stroke-width="4"/><path d="M103 276h16M105 284h12" stroke="#2CA65A" stroke-width="4" stroke-linecap="round"/><g fill="none" stroke="#2386b5" stroke-width="4" stroke-linecap="round" opacity="0.7"><path d="M84 96c-8 0-8 6-8 12s-4 8-8 8c4 0 8 2 8 8s0 12 8 12"/><path d="M398 236c8 0 8 6 8 12s4 8 8 8c-4 0-8 2-8 8s0 12-8 12"/></g>
+<g transform="translate(176 270) scale(0.7)"><circle cx="0" cy="0" r="13.0" fill="#2CA65A"/><path d="M-20.0 36.0c10.0-16.0 30.0-22.0 44.0-12.0-14.0 2.0-26.0 12.0-30.0 26.0z" fill="#2CA65A"/></g><g transform="translate(298 270) scale(0.7)"><circle cx="0" cy="0" r="13.0" fill="#2386b5"/><path d="M-20.0 36.0c10.0-16.0 30.0-22.0 44.0-12.0-14.0 2.0-26.0 12.0-30.0 26.0z" fill="#2386b5"/></g>
+<circle cx="240" cy="182" r="92" fill="url(#g)"/>
+<circle cx="240" cy="182" r="92" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="10"/>
+<g transform="translate(192 134) scale(4)" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/><line x1="14" y1="4" x2="10" y2="20"/></g>
+</svg>

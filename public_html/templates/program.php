@@ -89,12 +89,12 @@ if ($program) {
         $tone = program_tone($program);
         $actions = [
             ['life-buoy', 'Request support', 'For yourself or someone you know', page_url('request-help'), 'blue'],
-            ['briefcase', 'Partner with us', 'Schools, colleges, companies and groups', page_url('contact'), 'orange'],
+            ['briefcase', 'Partner with us', 'Schools, colleges, companies and groups', page_url('contact', ['type' => 'partnership']), 'orange'],
             ['flag', 'Start a fundraiser', 'Raise funds for a cause you care about', page_url('start-a-fundraiser'), 'gold'],
             ['id-card', 'Become a member', 'Join the foundation and support its mission', page_url('membership'), 'green'],
         ];
         $follow = [
-            ['calendar', 'Events & drives', page_url('events-page')],
+            ['calendar', 'Events & drives', page_url('events')],
             ['star', 'Success stories', page_url('success-stories')],
             ['image', 'Photo gallery', page_url('gallery')],
             ['mail', 'Newsletter', page_url('newsletter')],
@@ -130,7 +130,7 @@ if ($program) {
                     <?php endif; ?>
                     <?php if ($related['events']): ?>
                         <div class="program-related">
-                            <div class="related-head"><h3><?= icon('calendar') ?>Upcoming events</h3><a class="link-arrow" href="<?= e(page_url('events-page')) ?>">All events <?= icon('arrow-right') ?></a></div>
+                            <div class="related-head"><h3><?= icon('calendar') ?>Upcoming events</h3><a class="link-arrow" href="<?= e(page_url('events')) ?>">All events <?= icon('arrow-right') ?></a></div>
                             <div class="related-grid"><?php foreach ($related['events'] as $ev) { echo program_related_card('event', $ev); } ?></div>
                         </div>
                     <?php endif; ?>

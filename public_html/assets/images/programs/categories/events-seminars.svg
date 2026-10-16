@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360" role="img" aria-label="Events, Seminars &amp; Awareness Campaigns">
+<title>Events, Seminars &amp; Awareness Campaigns</title>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#23a05a"/><stop offset="1" stop-color="#0f5d35"/></linearGradient>
+<radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.5"/></radialGradient></defs>
+<circle cx="240" cy="182" r="150" fill="url(#glow)"/>
+<circle cx="240" cy="182" r="150" fill="none" stroke="#23a05a" stroke-opacity="0.28" stroke-width="2" stroke-dasharray="6 10"/>
+<circle cx="240" cy="182" r="118" fill="none" stroke="#23a05a" stroke-opacity="0.12" stroke-width="16"/>
+<path d="M68 86h56a10 10 0 0 1 10 10v26a10 10 0 0 1-10 10H96l-14 12v-12H68a10 10 0 0 1-10-10V96a10 10 0 0 1 10-10z" fill="#ffffff" stroke="#2CA65A" stroke-width="3"/><g fill="#2CA65A"><circle cx="80" cy="109" r="4"/><circle cx="96" cy="109" r="4"/><circle cx="112" cy="109" r="4"/></g><rect x="362" y="228" width="50" height="46" rx="7" fill="#ffffff" stroke="#2386b5" stroke-width="3"/><rect x="362" y="228" width="50" height="13" rx="6" fill="#2386b5"/><g fill="#F4C900"><rect x="372" y="250" width="9" height="8" rx="2"/><rect x="386" y="250" width="9" height="8" rx="2"/><rect x="372" y="262" width="9" height="7" rx="2"/></g><rect x="380" y="84" width="12" height="6" rx="2" fill="#F4C900" transform="rotate(0 386 87)"/><rect x="404" y="100" width="12" height="6" rx="2" fill="#f08a24" transform="rotate(30 410 103)"/><rect x="366" y="112" width="12" height="6" rx="2" fill="#2386b5" transform="rotate(-20 372 115)"/><rect x="96" y="268" width="12" height="6" rx="2" fill="#F4C900" transform="rotate(15 102 271)"/><rect x="124" y="290" width="12" height="6" rx="2" fill="#f08a24" transform="rotate(-30 130 293)"/>
+<g transform="translate(176 270) scale(0.7)"><circle cx="0" cy="0" r="13.0" fill="#2CA65A"/><path d="M-20.0 36.0c10.0-16.0 30.0-22.0 44.0-12.0-14.0 2.0-26.0 12.0-30.0 26.0z" fill="#2CA65A"/></g><g transform="translate(298 270) scale(0.7)"><circle cx="0" cy="0" r="13.0" fill="#2386b5"/><path d="M-20.0 36.0c10.0-16.0 30.0-22.0 44.0-12.0-14.0 2.0-26.0 12.0-30.0 26.0z" fill="#2386b5"/></g>
+<circle cx="240" cy="182" r="92" fill="url(#g)"/>
+<circle cx="240" cy="182" r="92" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="10"/>
+<g transform="translate(192 134) scale(4)" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/><path d="M8 11l3-3 2 2 3-3"/></g>
+</svg>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360" role="img" aria-label="Machine Learning &amp; Data Science">
+<title>Machine Learning &amp; Data Science</title>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2386b5"/><stop offset="1" stop-color="#0d3f58"/></linearGradient>
+<radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.5"/></radialGradient></defs>
+<circle cx="240" cy="182" r="150" fill="url(#glow)"/>
+<circle cx="240" cy="182" r="150" fill="none" stroke="#2386b5" stroke-opacity="0.28" stroke-width="2" stroke-dasharray="6 10"/>
+<circle cx="240" cy="182" r="118" fill="none" stroke="#2386b5" stroke-opacity="0.12" stroke-width="16"/>
+<rect x="74" y="262" width="12" height="28" rx="3" fill="#2386b5" opacity="0.85"/><rect x="92" y="244" width="12" height="46" rx="3" fill="#2CA65A" opacity="0.85"/><rect x="110" y="254" width="12" height="36" rx="3" fill="#F4C900" opacity="0.85"/><rect x="128" y="228" width="12" height="62" rx="3" fill="#2386b5" opacity="0.85"/><path d="M330 120l26-18 22 10 30-30" fill="none" stroke="#F4C900" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="334" cy="140" r="5" fill="#2CA65A"/><circle cx="356" cy="128" r="5" fill="#2386b5"/><circle cx="372" cy="146" r="5" fill="#2CA65A"/><circle cx="396" cy="118" r="5" fill="#2386b5"/><circle cx="412" cy="132" r="5" fill="#F4C900"/><path d="M108 74C110.52 85.48 110.52 85.48 122 88C110.52 90.52 110.52 90.52 108 102C105.48 90.52 105.48 90.52 94 88C105.48 85.48 105.48 85.48 108 74z" fill="#F4C900" opacity="1"/>
+<g transform="translate(176 270) scale(0.7)"><circle cx="0" cy="0" r="13.0" fill="#2CA65A"/><path d="M-20.0 36.0c10.0-16.0 30.0-22.0 44.0-12.0-14.0 2.0-26.0 12.0-30.0 26.0z" fill="#2CA65A"/></g><g transform="translate(298 270) scale(0.7)"><circle cx="0" cy="0" r="13.0" fill="#2386b5"/><path d="M-20.0 36.0c10.0-16.0 30.0-22.0 44.0-12.0-14.0 2.0-26.0 12.0-30.0 26.0z" fill="#2386b5"/></g>
+<circle cx="240" cy="182" r="92" fill="url(#g)"/>
+<circle cx="240" cy="182" r="92" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="10"/>
+<g transform="translate(192 134) scale(4)" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></g>
+</svg>

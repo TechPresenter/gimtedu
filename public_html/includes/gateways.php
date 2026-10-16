@@ -295,16 +295,22 @@ function cashfree_create_order(array $donation, string $campaignTitle = ''): ?ar
         $meta['notify_url'] = $notify;
     }
     $customerId = !empty($donation['user_id']) ? 'pwf_user_' . (int) $donation['user_id'] : 'pwf_guest_' . (int) $donation['id'];
+    // Only customer_id and customer_phone are required. Cashfree accepts a name / email of 3-100 characters, so a
+    // short name (e.g. "Om") or a very long email address is left out instead of making the order fail.
+    $customer = ['customer_id' => $customerId, 'customer_phone' => $phone];
+    $name = trim(mb_substr((string) $donation['donor_name'], 0, 100));
+    if (mb_strlen($name) >= 3) {
+        $customer['customer_name'] = $name;
+    }
+    $email = (string) $donation['donor_email'];
+    if (strlen($email) >= 3 && strlen($email) <= 100) {
+        $customer['customer_email'] = $email;
+    }
     [$status, $order] = cashfree_request('POST', 'orders', [
         'order_id'       => $orderId,
         'order_amount'   => round((float) $donation['amount'], 2),
         'order_currency' => $donation['currency'] ?: 'INR',
-        'customer_details' => [
-            'customer_id'    => $customerId,
-            'customer_name'  => mb_substr((string) $donation['donor_name'], 0, 100),
-            'customer_email' => (string) $donation['donor_email'],
-            'customer_phone' => $phone,
-        ],
+        'customer_details' => $customer,
         'order_meta'     => $meta,
         'order_note'     => mb_substr('Donation ' . $donation['donation_ref'] . ' - ' . ($campaignTitle !== '' ? $campaignTitle : 'General donation'), 0, 200),
         'order_tags'     => ['donation_ref' => (string) $donation['donation_ref']],
@@ -314,7 +320,7 @@ function cashfree_create_order(array $donation, string $campaignTitle = ''): ?ar
         || !is_string($order['payment_session_id'] ?? null) || $order['payment_session_id'] === ''
         || strlen($order['payment_session_id']) > 500) {
         error_log('Cashfree order creation failed for ' . $donation['donation_ref'] . ': HTTP ' . $status
-            . (is_array($order) && isset($order['code']) ? ' ' . preg_replace('/[^a-z_]/', '', (string) $order['code']) : ''));
+            . (is_array($order) && isset($order['code']) ? ' ' . preg_replace('/[^a-z_.]/', '', (string) $order['code']) : ''));
         return null;
     }
     return ['order_id' => $orderId, 'session' => (string) $order['payment_session_id']];
@@ -509,13 +515,41 @@ function cashfree_payment_session(array $donation): ?array
     if ($order === null && $orderId !== '' && $session !== '') {
         return ['session' => $session, 'paid' => false];   // Cashfree not reachable right now: try the stored session
     }
-    // Expired / terminated (or unknown) order: start a new order for the same donation.
-    $campaignTitle = $donation['campaign_id'] ? (string) db_value('SELECT title FROM campaigns WHERE id = ?', [$donation['campaign_id']]) : '';
-    $new = cashfree_create_order($donation, $campaignTitle);
-    if (!$new) {
+    // Expired / terminated (or unknown) order: start a new order for the same donation. Only one request per donation
+    // may do this at a time; a request that waited uses the order the other one stored. Otherwise two page loads at
+    // the same moment (double click, two tabs) could show the donor a session for an order that is not stored on the
+    // donation - a payment on it would never be recorded.
+    $lock = 'pwf_cf_order_' . (int) $donation['id'];
+    if ((int) db_value('SELECT GET_LOCK(?, 20)', [$lock]) !== 1) {
         return null;
     }
-    db_update('donations', ['gateway_order_id' => $new['order_id'], 'gateway_session_id' => $new['session']], 'id = :id', ['id' => (int) $donation['id']]);
+    try {
+        $current = db_row('SELECT status, gateway_order_id, gateway_session_id FROM donations WHERE id = ?', [(int) $donation['id']]);
+        if (!$current || !in_array($current['status'], ['pending', 'failed'], true)) {
+            return $current && $current['status'] === 'success' ? ['session' => '', 'paid' => true] : null;
+        }
+        if ((string) $current['gateway_order_id'] !== $orderId) {
+            // Another request renewed the order meanwhile.
+            $stored = (string) ($current['gateway_session_id'] ?? '');
+            if ($stored === '' || !cashfree_order_id_valid((string) $current['gateway_order_id'])) {
+                return null;
+            }
+            cashfree_remember_order((string) $current['gateway_order_id']);
+            return ['session' => $stored, 'paid' => false];
+        }
+        $campaignTitle = $donation['campaign_id'] ? (string) db_value('SELECT title FROM campaigns WHERE id = ?', [$donation['campaign_id']]) : '';
+        $new = cashfree_create_order($donation, $campaignTitle);
+        if (!$new) {
+            return null;
+        }
+        $n = db_query("UPDATE donations SET gateway_order_id = ?, gateway_session_id = ? WHERE id = ? AND COALESCE(gateway_order_id, '') = ?",
+            [$new['order_id'], $new['session'], (int) $donation['id'], $orderId])->rowCount();
+        if ($n !== 1) {
+            return null;
+        }
+    } finally {
+        db_value('SELECT RELEASE_LOCK(?)', [$lock]);
+    }
     log_activity('donation_order_renewed', 'Donation ' . $donation['donation_ref'] . ': new Cashfree order ' . $new['order_id'] . ' (previous order ' . ($orderId !== '' ? $orderId : '-') . ' expired)');
     cashfree_remember_order($new['order_id']);
     return ['session' => $new['session'], 'paid' => false];
@@ -577,7 +611,7 @@ function cashfree_refund(array $donation, string $reason = ''): array
     [$status, $refund] = cashfree_request('POST', 'orders/' . rawurlencode((string) $donation['gateway_order_id']) . '/refunds', [
         'refund_amount' => round($amountPaise / 100, 2),
         'refund_id'     => $refundId,
-        'refund_note'   => mb_substr($note !== '' ? $note : 'Donation refund', 0, 100),
+        'refund_note'   => mb_substr(strlen($note) >= 3 ? $note : 'Donation refund', 0, 100),   // Cashfree: 3-100 characters
         'refund_speed'  => 'STANDARD',
     ]);
     if ($status === 200 && is_array($refund) && ($refund['refund_id'] ?? '') === $refundId
@@ -691,8 +725,13 @@ function payment_health_checks(): array
     $active = active_gateways();
     if (!$active) {
         $off = setting('online_donations_enabled', '1') !== '1';
-        $checks[] = ['warn', 'Online payments', $off ? 'Online donations are switched off in Settings > Donations & bank.' : 'No payment gateway has its keys - online donations are unavailable.',
-            $off ? 'Switch online donations on once a gateway is set up.' : 'Enter the Razorpay or Cashfree keys in ' . $where . ' once the merchant account is approved.'];
+        $chosen = gateway_choice() === 'both' ? ['razorpay', 'cashfree'] : [gateway_choice()];
+        $ready = array_values(array_filter(array_keys(PAYMENT_GATEWAYS), 'gateway_configured'));
+        $detail = $ready
+            ? 'The chosen gateway (' . implode(' / ', array_map('gateway_label', $chosen)) . ') has no keys - online donations are unavailable, although ' . implode(' and ', array_map('gateway_label', $ready)) . ' has keys.'
+            : 'No payment gateway has its keys - online donations are unavailable.';
+        $checks[] = ['warn', 'Online payments', $off ? 'Online donations are switched off in Settings > Donations & bank.' : $detail,
+            $off ? 'Switch online donations on once a gateway is set up.' : ($ready ? 'Choose ' . implode(' or ', array_map('gateway_label', $ready)) . ' under "Which gateway do donors use?" in ' . $where . ', or enter the missing keys there.' : 'Enter the Razorpay or Cashfree keys in ' . $where . ' once the merchant account is approved.')];
         return $checks;
     }
     if (in_array('razorpay', $active, true)) {

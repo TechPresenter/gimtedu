@@ -134,7 +134,7 @@ function render_floating_widgets(): string
     // (render_assistant_widget() prints the panel); otherwise the automated FAQ helper below works as before.
     $aiAssistant = function_exists('assistant_active') && assistant_active();
     if ($aiAssistant) {
-        $html .= '<button type="button" class="fab fab-help fab-ai" data-ai-toggle aria-haspopup="dialog" aria-expanded="false" aria-controls="ai-assistant" data-tip="Ask our website assistant" aria-label="Open the website assistant (AI chat)">'
+        $html .= '<button type="button" class="fab fab-help fab-ai" data-ai-toggle aria-haspopup="dialog" aria-expanded="false" aria-controls="ai-chat" data-tip="Ask our website assistant" aria-label="Open the website assistant (AI chat)">'
             . icon('message') . '<span class="fab-ai-badge" aria-hidden="true">AI</span></button>';
     } elseif (setting('widget_help_enabled', '1') === '1') {
         $html .= '<button type="button" class="fab fab-help" data-help-toggle aria-expanded="false" aria-controls="help-panel" data-tip="Help assistant" aria-label="Open help assistant">' . icon('message') . '</button>';
@@ -214,7 +214,7 @@ function help_search(string $query): array
         'scholar|fees|study' => ['Scholarship application', page_url('scholarship')],
         'scheme|yojana|योजना' => ['Welfare schemes', page_url('schemes')],
         'fraud|scam|fake|cheat|धोखा' => ['Report fraud or misuse', page_url('report-fraud')],
-        'event|camp|drive|calendar' => ['Upcoming events', page_url('events-page')],
+        'event|camp|drive|calendar|hackathon' => ['Upcoming events', page_url(get_page('events') ? 'events' : 'events-page')],
         'campaign|flood|relief|disaster' => ['Campaigns', page_url('campaigns')],
         'contact|phone|email|address|office' => ['Contact us', page_url('contact')],
         'member' => ['Membership', page_url('membership')],
@@ -260,14 +260,26 @@ function help_search(string $query): array
     ];
 }
 
-/** Cookie banner - only when Google Analytics is configured (first-party stats need no cookies). */
+/**
+ * Cookie banner - when Google Analytics is configured and/or our own statistics may set the first-party visitor
+ * cookie pwf_vid (deep analytics, persistent id "only with consent"). Basic first-party statistics need no cookie.
+ */
 function render_consent_banner(): string
 {
-    if (!ga_enabled()) {
+    $ga = ga_enabled();
+    $own = function_exists('analytics_consent_banner_needed') && analytics_consent_banner_needed();
+    if (!$ga && !$own) {
         return '';
     }
-    return '<div class="consent-banner" data-consent-banner data-ga="' . e(setting('ga_measurement_id')) . '" hidden role="region" aria-label="Cookie consent"><div class="container consent-inner">'
-        . '<p>' . icon('info') . 'We would like to use Google Analytics cookies to understand how visitors use this website. You can say no - the website works fully either way. See our <a href="' . e(page_url('privacy-policy')) . '">privacy policy</a>.</p>'
+    if ($ga && $own) {
+        $text = 'We would like to use analytics cookies - Google Analytics and our own first-party cookie that recognises return visits - to understand how visitors use this website. No advertising cookies. You can say no - the website works fully either way. See our <a href="' . e(page_url('privacy-policy') . '#website-analytics-details') . '">privacy policy</a>.';
+    } elseif ($own) {
+        $text = 'May we set one first-party cookie (no third parties, no advertising) so our own website statistics can recognise return visits? Visits are still counted anonymously without it, and the website works fully either way. See our <a href="' . e(page_url('privacy-policy') . '#website-analytics-details') . '">privacy policy</a>.';
+    } else {
+        $text = 'We would like to use Google Analytics cookies to understand how visitors use this website. You can say no - the website works fully either way. See our <a href="' . e(page_url('privacy-policy')) . '">privacy policy</a>.';
+    }
+    return '<div class="consent-banner" data-consent-banner data-ga="' . ($ga ? e(setting('ga_measurement_id')) : '') . '" hidden role="region" aria-label="Cookie consent"><div class="container consent-inner">'
+        . '<p>' . icon('info') . '<span>' . $text . '</span></p>'
         . '<div class="btn-row"><button type="button" class="btn btn-primary btn-sm" data-consent="yes">Allow analytics</button><button type="button" class="btn btn-ghost btn-sm" data-consent="no">No, thanks</button></div></div></div>';
 }
 

@@ -41,9 +41,35 @@ $contactEmail = setting('contact_email');
 $contactPhone = setting('contact_phone');
 $motion = setting('motion_effects_enabled', '1') === '1';
 $unread = $headerUser ? unread_notification_count((int) $headerUser['id']) : 0;
+$navActiveId = nav_active_top_id($mainMenu);
+// Phones & tablets (< 1280px): the main menu's top-level items as a swipeable strip under the header bar
+// (Admin > Settings > Header & footer). An item without its own link ("#" or empty) opens its first sub-item.
+$navStrip = [];
+if (setting('mobile_nav_strip', '1') === '1') {
+    foreach ($mainMenu as $navItem) {
+        $raw = trim((string) $navItem['raw_url']);
+        $href = $navItem['url'];
+        $newTab = $navItem['new_tab'];
+        if ($raw === '' || $raw === '#') {
+            if (!$navItem['children']) {
+                continue;
+            }
+            $href = $navItem['children'][0]['url'];
+            $newTab = $navItem['children'][0]['new_tab'];
+        }
+        $isActive = $navActiveId !== null && $navItem['id'] === $navActiveId;
+        $hrefPath = trim((string) parse_url($href, PHP_URL_PATH), '/');
+        $base = trim(base_path(), '/');
+        if ($base !== '' && strpos($hrefPath, $base) === 0) {
+            $hrefPath = trim(substr($hrefPath, strlen($base)), '/');
+        }
+        $navStrip[] = ['label' => $navItem['label'], 'url' => $href, 'new_tab' => $newTab, 'active' => $isActive,
+            'page' => $isActive && $hrefPath === route_path()];
+    }
+}
 ?>
 <!DOCTYPE html>
-<html lang="en-IN">
+<html lang="en-IN"<?= $navStrip ? ' class="has-nav-strip"' : '' ?>>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -70,6 +96,9 @@ $unread = $headerUser ? unread_notification_count((int) $headerUser['id']) : 0;
     <?php if (setting('google_site_verification')): ?><meta name="google-site-verification" content="<?= e(setting('google_site_verification')) ?>"><?php endif; ?>
     <link rel="icon" type="image/png" href="<?= e(setting('favicon_path') ? image_url(setting('favicon_path')) : asset('assets/images/favicon.png')) ?>">
     <link rel="apple-touch-icon" href="<?= e(asset('assets/images/apple-touch-icon.png')) ?>">
+    <?php /* every Latin weight used above the fold is ~8 KB: preloading them avoids text reflowing when the font swaps in (layout shift) */ ?>
+    <link rel="preload" href="<?= e(url('assets/fonts/poppins-latin-400-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="<?= e(url('assets/fonts/poppins-latin-500-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="<?= e(url('assets/fonts/poppins-latin-600-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="<?= e(url('assets/fonts/poppins-latin-800-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="<?= e(asset('assets/css/style.css')) ?>">
@@ -85,7 +114,7 @@ $unread = $headerUser ? unread_notification_count((int) $headerUser['id']) : 0;
 <?= render_announcement_bar() ?>
 
 <?php if (setting('topbar_enabled', '1') === '1'): ?>
-<div class="topbar">
+<div class="topbar<?= $topbarMenu ? ' has-apply' : '' ?>">
     <div class="container topbar-inner">
         <div class="topbar-left">
             <span class="topbar-welcome"><?= e(setting('topbar_text', 'Welcome to ' . site_name())) ?></span>
@@ -115,7 +144,7 @@ $unread = $headerUser ? unread_notification_count((int) $headerUser['id']) : 0;
 </div>
 <?php endif; ?>
 
-<header class="site-header" id="site-header">
+<header class="site-header<?= $headerUser ? ' has-user' : '' ?>" id="site-header">
     <div class="container header-inner">
         <a class="brand" href="<?= e(url('/')) ?>" aria-label="<?= e(site_name()) ?> - home"><?= brand_lockup('header') ?></a>
 
@@ -124,9 +153,18 @@ $unread = $headerUser ? unread_notification_count((int) $headerUser['id']) : 0;
                 <a class="brand brand-sm" href="<?= e(url('/')) ?>" aria-label="<?= e(site_name()) ?> - home"><?= brand_lockup('mobile') ?></a>
                 <button type="button" class="nav-close" data-nav-toggle aria-label="Close menu"><?= icon('x') ?></button>
             </div>
+            <?php if ($topbarMenu): ?>
+                <div class="nav-mobile-apply" role="group" aria-labelledby="nav-apply-title">
+                    <p class="nav-apply-title" id="nav-apply-title"><?= icon('briefcase') ?>Apply</p>
+                    <div class="nav-apply-row" data-hscroll data-hscroll-active=".is-active">
+                        <?php foreach ($topbarMenu as $item): $applyActive = menu_item_active($item); ?>
+                            <a class="apply-chip<?= $applyActive ? ' is-active' : '' ?>" href="<?= e($item['url']) ?>"<?= $applyActive ? ' aria-current="page"' : '' ?><?= $item['new_tab'] ? ' target="_blank" rel="noopener"' : '' ?>><?= $item['icon'] ? icon($item['icon']) : '' ?><span><?= e($item['label']) ?></span></a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
             <ul class="nav-list">
-                <?php $navActiveId = nav_active_top_id($mainMenu);
-                foreach ($mainMenu as $navItem):
+                <?php foreach ($mainMenu as $navItem):
                     $navChildren = $navItem['children'];
                     $navMega = count($navChildren) > 7;
                     $navActive = $navActiveId !== null && $navItem['id'] === $navActiveId;
@@ -156,11 +194,6 @@ $unread = $headerUser ? unread_notification_count((int) $headerUser['id']) : 0;
                     <?php endif; ?>
                 </li>
             </ul>
-            <div class="nav-mobile-apply">
-                <?php foreach ($topbarMenu as $item): ?>
-                    <a class="apply-chip" href="<?= e($item['url']) ?>"><?= $item['icon'] ? icon($item['icon']) : '' ?><?= e($item['label']) ?></a>
-                <?php endforeach; ?>
-            </div>
         </nav>
 
         <div class="header-actions">
@@ -175,6 +208,17 @@ $unread = $headerUser ? unread_notification_count((int) $headerUser['id']) : 0;
             </button>
         </div>
     </div>
+    <?php if ($navStrip): ?>
+        <nav class="nav-strip" id="nav-strip" aria-label="Quick links">
+            <div class="nav-strip-scroller" data-hscroll data-hscroll-active=".is-active">
+                <ul class="nav-strip-list">
+                    <?php foreach ($navStrip as $pill): ?>
+                        <li><a class="nav-pill<?= $pill['active'] ? ' is-active' : '' ?>" href="<?= e($pill['url']) ?>"<?= $pill['active'] ? ' aria-current="' . ($pill['page'] ? 'page' : 'true') . '"' : '' ?><?= $pill['new_tab'] ? ' target="_blank" rel="noopener"' : '' ?>><span><?= e($pill['label']) ?></span></a></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        </nav>
+    <?php endif; ?>
     <div class="scroll-progress" aria-hidden="true"><span></span></div>
 </header>
 

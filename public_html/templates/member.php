@@ -179,13 +179,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
         case 'events':
             if ($action === 'cancel') {
-                $regId = (int) ($_POST['registration_id'] ?? 0);
-                $reg = db_row("SELECT er.id, e.title FROM event_registrations er JOIN events e ON e.id = er.event_id
-                               WHERE er.id = ? AND er.user_id = ? AND er.status = 'registered' AND e.start_datetime > NOW()", [$regId, $uid]);
+                // own registration (or one made with the verified account email); a freed seat goes to the waiting list
+                $reg = programhub_member_cancel($user, (int) ($_POST['registration_id'] ?? 0));
                 if ($reg) {
-                    db_query("UPDATE event_registrations SET status = 'cancelled' WHERE id = ? AND user_id = ?", [$regId, $uid]);
-                    log_activity('event_registration_cancelled', 'Cancelled registration #' . $regId, $uid);
-                    flash('success', 'Your registration for "' . $reg['title'] . '" has been cancelled.');
+                    log_activity('event_registration_cancelled', 'Cancelled registration #' . $reg['id'], $uid);
+                    flash('success', 'Your registration for "' . $reg['event_title'] . '" has been cancelled.');
                 } else {
                     flash('error', 'This registration can no longer be cancelled.');
                 }
@@ -454,9 +452,9 @@ case 'overview':
     foreach ($apps as $a) {
         $byStatus[$a['status']] = ($byStatus[$a['status']] ?? 0) + 1;
     }
-    $upcoming = db_rows("SELECT er.id, e.title, e.slug, e.start_datetime, e.location FROM event_registrations er JOIN events e ON e.id = er.event_id
-                          WHERE er.user_id = ? AND er.status = 'registered' AND e.status = 'published' AND e.start_datetime >= NOW()
-                          ORDER BY e.start_datetime", [$uid]);
+    $upcoming = array_reverse(array_values(array_filter(programhub_member_registrations($user), function ($r) {
+        return in_array($r['status'], ['registered', 'confirmed', 'waitlisted'], true) && $r['event_status'] === 'published' && strtotime((string) $r['start_datetime']) >= time();
+    })));
     $certCount = (int) db_value("SELECT COUNT(*) FROM certificates WHERE user_id = ? AND status = 'approved'", [$uid]);
     $openTasks = (int) db_value("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND status IN ('assigned', 'in_progress')", [$uid]);
     $latest = db_rows('SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 4', [$uid]);
@@ -534,12 +532,12 @@ case 'overview':
                             <ul class="md-mini-list">
                                 <?php foreach (array_slice($upcoming, 0, 3) as $ev): ?>
                                     <li><span class="md-date"><b><?= e(date('d', strtotime($ev['start_datetime']))) ?></b><?= e(date('M', strtotime($ev['start_datetime']))) ?></span>
-                                        <span class="md-mini-text"><a href="<?= e(event_url($ev['slug'])) ?>"><strong><?= e($ev['title']) ?></strong></a><small><?= e(format_date($ev['start_datetime'], 'D, d M Y · h:i A')) ?> · <?= e($ev['location']) ?></small></span></li>
+                                        <span class="md-mini-text"><a href="<?= e(event_url($ev)) ?>"><strong><?= e($ev['title']) ?></strong></a><small><?= e(format_date($ev['start_datetime'], 'D, d M Y · h:i A')) ?> · <?= e(programhub_event_where($ev)) ?><?= $ev['status'] === 'waitlisted' ? ' · waiting list' : '' ?></small></span></li>
                                 <?php endforeach; ?>
                             </ul>
                         <?php else: ?>
                             <p class="muted">You are not registered for any upcoming events.</p>
-                            <a class="btn btn-outline btn-sm" href="<?= e(page_url('events-page')) ?>"><?= icon('calendar') ?>Browse events</a>
+                            <a class="btn btn-outline btn-sm" href="<?= e(events_list_url()) ?>"><?= icon('calendar') ?>Browse events</a>
                         <?php endif; ?>
                     </section>
                 </div>
@@ -549,7 +547,7 @@ case 'overview':
                         <div class="md-panel-head"><h2>Quick actions</h2></div>
                         <div class="md-quick">
                             <a href="<?= e(page_url('donate')) ?>" class="is-gold"><?= icon('heart') ?><span>Donate</span></a>
-                            <a href="<?= e(page_url('events-page')) ?>"><?= icon('calendar') ?><span>Find events</span></a>
+                            <a href="<?= e(events_list_url()) ?>"><?= icon('calendar') ?><span>Find events</span></a>
                             <a href="<?= e(page_url('become-a-volunteer')) ?>"><?= icon('users') ?><span>Volunteer</span></a>
                             <a href="<?= e(page_url('application-status')) ?>"><?= icon('search') ?><span>Track application</span></a>
                             <a href="<?= e(member_url('receipts')) ?>"><?= icon('download') ?><span>My receipts</span></a>
@@ -736,14 +734,14 @@ case 'tasks':
 
 // =====================================================================
 case 'events':
-    $regs = db_rows('SELECT er.id, er.status, er.created_at, e.title, e.slug, e.status AS event_status, e.start_datetime, e.end_datetime, e.location, e.event_type
-                       FROM event_registrations er JOIN events e ON e.id = er.event_id WHERE er.user_id = ? ORDER BY e.start_datetime DESC', [$uid]);
+    // own registrations and those made with the verified account email (programhub.php); never includes the meeting link
+    $regs = programhub_member_registrations($user);
     $now = date('Y-m-d H:i:s');
     $upcomingRegs = array_reverse(array_values(array_filter($regs, function ($r) use ($now) { return $r['start_datetime'] >= $now; })));
     $pastRegs = array_values(array_filter($regs, function ($r) use ($now) { return $r['start_datetime'] < $now; }));
     ?>
             <section class="md-panel">
-                <div class="md-panel-head"><h2>Upcoming</h2><a class="link-arrow" href="<?= e(page_url('events-page')) ?>">Browse events <?= icon('arrow-right') ?></a></div>
+                <div class="md-panel-head"><h2>Upcoming</h2><a class="link-arrow" href="<?= e(events_list_url()) ?>">Browse events <?= icon('arrow-right') ?></a></div>
                 <?php if (!$upcomingRegs): ?>
                     <p class="muted">You are not registered for any upcoming events.</p>
                 <?php endif; ?>
@@ -752,13 +750,17 @@ case 'events':
                         <article class="md-event">
                             <span class="md-date md-date-lg"><b><?= e(date('d', $ts)) ?></b><?= e(date('M Y', $ts)) ?></span>
                             <div class="md-event-main">
-                                <h3><?= $r['event_status'] === 'published' ? '<a href="' . e(event_url($r['slug'])) . '">' . e($r['title']) . '</a>' : e($r['title']) ?></h3>
+                                <h3><?= $r['event_status'] === 'published' ? '<a href="' . e(event_url($r)) . '">' . e($r['title']) . '</a>' : e($r['title']) ?></h3>
                                 <small><?= icon('clock') ?><?= e(date('D, d M Y · h:i A', $ts)) ?></small>
-                                <small><?= icon('map-pin') ?><?= e($r['location']) ?></small>
+                                <small><?= icon(event_mode($r) === 'online' ? 'monitor' : 'map-pin') ?><?= e(programhub_event_where($r)) ?></small>
+                                <small><?= icon('file-text') ?>Reference <?= e(programhub_registration_ref($r)) ?></small>
                             </div>
                             <div class="md-event-side">
-                                <?= member_status_badge($r['event_status'] === 'cancelled' ? 'cancelled' : $r['status']) ?>
-                                <?php if ($r['status'] === 'registered' && $r['event_status'] !== 'cancelled'): ?>
+                                <?= $r['event_status'] === 'cancelled' ? member_status_badge('cancelled') : programhub_reg_badge((string) $r['status']) ?>
+                                <?php if (event_mode($r) !== 'in_person' && in_array($r['status'], ['registered', 'confirmed'], true) && $r['event_status'] === 'published'): ?>
+                                    <a class="btn btn-blue btn-sm" href="<?= e(event_url($r) . 'join/') ?>" rel="nofollow"><?= icon('monitor') ?>Joining details</a>
+                                <?php endif; ?>
+                                <?php if (in_array($r['status'], ['registered', 'confirmed', 'waitlisted'], true) && $r['event_status'] !== 'cancelled'): ?>
                                     <form method="post" action="<?= e(member_url('events')) ?>" data-confirm="Cancel your registration for this event?">
                                         <?= $csrf ?><input type="hidden" name="action" value="cancel"><input type="hidden" name="registration_id" value="<?= (int) $r['id'] ?>">
                                         <button class="btn btn-ghost btn-sm" type="submit"><?= icon('x') ?>Cancel registration</button>
@@ -778,10 +780,10 @@ case 'events':
                         <thead><tr><th>Event</th><th>Date</th><th>Location</th><th>Status</th></tr></thead>
                         <tbody>
                         <?php foreach ($pastRegs as $r): ?>
-                            <tr><td data-label="Event"><?= $r['event_status'] === 'published' ? '<a href="' . e(event_url($r['slug'])) . '">' . e($r['title']) . '</a>' : e($r['title']) ?></td>
+                            <tr><td data-label="Event"><?= $r['event_status'] === 'published' ? '<a href="' . e(event_url($r)) . '">' . e($r['title']) . '</a>' : e($r['title']) ?></td>
                                 <td data-label="Date"><?= e(format_date($r['start_datetime'])) ?></td>
-                                <td data-label="Location"><?= e($r['location']) ?></td>
-                                <td data-label="Status"><?= member_status_badge($r['status']) ?></td></tr>
+                                <td data-label="Location"><?= e(programhub_event_where($r)) ?></td>
+                                <td data-label="Status"><?= programhub_reg_badge((string) $r['status']) ?></td></tr>
                         <?php endforeach; ?>
                         </tbody>
                     </table></div>

@@ -293,6 +293,19 @@ $editor = site_user_name($page['updated_by'] ? (int) $page['updated_by'] : null)
     <a href="<?= e(admin_url($self . '&tab=sections')) ?>" class="<?= $tab === 'sections' ? 'active' : '' ?>"<?= $tab === 'sections' ? ' aria-current="page"' : '' ?>><?= icon('layers') ?> Sections (<?= count($sections) ?>)</a>
 </nav>
 
+<?php if ($page['slug'] === 'home' && function_exists('home_hero_admin_summary') && ($heroInfo = home_hero_admin_summary())): ?>
+    <div class="hero-callout">
+        <span class="hero-callout-icon" aria-hidden="true"><?= icon('image') ?></span>
+        <div class="hero-callout-text">
+            <strong>Homepage hero slider — change slide text &amp; right-side images</strong>
+            <span><?= $heroInfo['exists']
+                ? 'Each slide has text on the left and a photo or illustration on the right: open the slider, then upload a photo, choose one from the Media Library or remove it, and add an image description.'
+                : 'The home page has no hero slider yet: choose "Hero slider (home page)" in "Add a section…" below and place it at the top.' ?></span>
+        </div>
+        <a class="btn btn-primary btn-sm" href="<?= e(admin_url($heroInfo['href'])) ?>"><?= icon('edit') ?><?= $heroInfo['exists'] ? 'Edit hero slider' : 'Open sections' ?></a>
+    </div>
+<?php endif; ?>
+
 <?php if ($tab === 'settings'):
     $allPages = db_rows('SELECT id, parent_id, title, slug FROM pages ORDER BY title');
     $children = [];
@@ -441,7 +454,7 @@ $editor = site_user_name($page['updated_by'] ? (int) $page['updated_by'] : null)
     $hidden = $s['status'] === 'hidden';
     $exists = function_exists('section_' . preg_replace('/[^a-z0-9_]/', '', (string) $s['section_type']));
 ?>
-    <article class="site-section<?= $hidden ? ' is-hidden' : '' ?>" id="section-<?= $sid ?>">
+    <article class="site-section<?= $hidden ? ' is-hidden' : '' ?><?= $s['section_type'] === 'hero_slider' ? ' is-hero-slider" data-max-upload-mb="' . (int) MAX_UPLOAD_MB : '' ?>" id="section-<?= $sid ?>">
         <header class="site-section-bar">
             <span class="site-section-num" aria-hidden="true"><?= $n + 1 ?></span>
             <div class="site-section-meta">
@@ -479,5 +492,6 @@ $editor = site_user_name($page['updated_by'] ? (int) $page['updated_by'] : null)
 <?= site_media_picker() ?>
 <?= site_icon_sprite() ?>
 <script src="<?= e(asset('assets/js/modules/admin-site.js')) ?>" defer></script>
+<?php if ($tab === 'sections' && $page['slug'] === 'home'): ?><script src="<?= e(asset('assets/js/modules/admin-hero.js')) ?>" defer></script><?php endif; ?>
 <?php
 admin_page_end();

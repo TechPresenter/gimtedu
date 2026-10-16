@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360" role="img" aria-label="Career Development &amp; Entrepreneurship">
+<title>Career Development &amp; Entrepreneurship</title>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e0a800"/><stop offset="1" stop-color="#a87500"/></linearGradient>
+<radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.5"/></radialGradient></defs>
+<circle cx="240" cy="182" r="150" fill="url(#glow)"/>
+<circle cx="240" cy="182" r="150" fill="none" stroke="#e0a800" stroke-opacity="0.28" stroke-width="2" stroke-dasharray="6 10"/>
+<circle cx="240" cy="182" r="118" fill="none" stroke="#e0a800" stroke-opacity="0.12" stroke-width="16"/>
+<path d="M66 290h28v-24h28v-24h28" fill="none" stroke="#2CA65A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M140 218l10-10 10 10" fill="none" stroke="#2CA65A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="388" cy="98" r="24" fill="none" stroke="#2386b5" stroke-width="4"/><circle cx="388" cy="98" r="13" fill="none" stroke="#f08a24" stroke-width="4"/><circle cx="388" cy="98" r="4" fill="#f08a24"/><rect x="362" y="222" width="42" height="54" rx="6" fill="#ffffff" stroke="#F4C900" stroke-width="3"/><circle cx="376" cy="238" r="6" fill="#F4C900"/><g stroke="#2386b5" stroke-width="3" stroke-linecap="round"><path d="M388 236h9M388 243h6M370 254h27M370 262h20"/></g><path d="M110 79C112.34 89.66 112.34 89.66 123 92C112.34 94.34 112.34 94.34 110 105C107.66 94.34 107.66 94.34 97 92C107.66 89.66 107.66 89.66 110 79z" fill="#F4C900" opacity="1"/>
+<g transform="translate(176 270) scale(0.7)"><circle cx="0" cy="0" r="13.0" fill="#2CA65A"/><path d="M-20.0 36.0c10.0-16.0 30.0-22.0 44.0-12.0-14.0 2.0-26.0 12.0-30.0 26.0z" fill="#2CA65A"/></g><g transform="translate(298 270) scale(0.7)"><circle cx="0" cy="0" r="13.0" fill="#2386b5"/><path d="M-20.0 36.0c10.0-16.0 30.0-22.0 44.0-12.0-14.0 2.0-26.0 12.0-30.0 26.0z" fill="#2386b5"/></g>
+<circle cx="240" cy="182" r="92" fill="url(#g)"/>
+<circle cx="240" cy="182" r="92" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="10"/>
+<g transform="translate(192 134) scale(4)" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></g>
+</svg>

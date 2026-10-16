@@ -180,13 +180,38 @@ function letter_mask_mobile(string $input): array
     return [str_repeat('X', strlen($digits) - 2) . substr($digits, -2), null];
 }
 
-/** Name shown on the public verification page: 'Rahul Kumar' -> 'Ra*** K****'. */
+/**
+ * Full Aadhaar numbers typed into free text (12 digits, optionally grouped 4-4-4 with spaces, hyphens or dots; first digit
+ * 2-9; valid Verhoeff checksum). Returns the matches exactly as typed. Used to keep full numbers out of every text field:
+ * only the ID number field may receive one, and it is reduced to its last 4 digits there.
+ */
+function letter_find_aadhaar(string $text): array
+{
+    if (!preg_match_all('/(?<![0-9])[2-9][0-9]{3}[ .\-]?[0-9]{4}[ .\-]?[0-9]{4}(?![0-9])/', $text, $m)) {
+        return [];
+    }
+    return array_values(array_filter($m[0], function ($hit) {
+        return letter_verhoeff_ok((string) preg_replace('/\D/', '', $hit));
+    }));
+}
+
+/** Free text with every full Aadhaar number replaced by its masked form 'XXXX XXXX 1234'. */
+function letter_mask_aadhaar_in_text(string $text): string
+{
+    foreach (letter_find_aadhaar($text) as $hit) {
+        $text = str_replace($hit, 'XXXX XXXX ' . substr((string) preg_replace('/\D/', '', $hit), -4), $text);
+    }
+    return $text;
+}
+
+/** Name shown on the public verification page: 'Rahul Kumar' -> 'Ra*** K****', 'Om Prakash' -> 'O** P******'. */
 function letter_public_name(string $name): string
 {
     $out = [];
     foreach (array_values(array_filter(preg_split('/\s+/u', trim($name)) ?: [], 'strlen')) as $i => $word) {
         $len = mb_strlen($word);
-        $keep = $i === 0 ? min(2, $len) : 1;
+        // never show a whole word: at most 2 characters of the first word (1 of a 2-letter word), 1 of the others
+        $keep = $i === 0 ? max(1, min(2, $len - 1)) : 1;
         $out[] = mb_substr($word, 0, $keep) . str_repeat('*', max(2, min(6, $len - $keep)));
     }
     return implode(' ', $out);
@@ -297,6 +322,8 @@ function letter_text_html(string $text): string
             continue;
         }
         $p = (string) preg_replace('/\*\*(.+?)\*\*/s', '<strong>$1</strong>', e($para));
+        // keep a masked ID (XXXX XXXX 1234 / XXXXXX4567) on one line
+        $p = (string) preg_replace('/\bX{4} X{4} \d{4}\b/', '<span class="al-nowrap">$0</span>', $p);
         $html .= '<p>' . nl2br(str_replace('**', '', $p), false) . '</p>';
     }
     return $html;
@@ -318,7 +345,7 @@ function letter_enclosure_list($value): array
             $out[] = mb_substr($line, 0, 150);
         }
     }
-    return array_slice($out, 0, 10);
+    return array_slice($out, 0, 8);
 }
 
 // ---------------------------------------------------------------------

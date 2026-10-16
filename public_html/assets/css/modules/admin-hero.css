@@ -1,0 +1,56 @@
+/* =====================================================================
+   Home page hero slider - admin shortcuts (dashboard card, page editor callout)
+   and a larger, crop-true preview of each slide's right-side image.
+   ===================================================================== */
+
+/* Dashboard card */
+.hero-shortcut { padding: 0; overflow: hidden; }
+.hero-shortcut-link {
+    display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px 16px; padding: 18px 20px;
+    color: var(--ink); text-decoration: none; background: linear-gradient(135deg, #fff 0%, var(--green-50) 100%);
+    border-left: 4px solid var(--green-600); transition: background .2s;
+}
+.hero-shortcut-link:hover { background: linear-gradient(135deg, #fff 0%, var(--green-100) 100%); color: var(--ink); }
+.hero-shortcut-link:focus-visible { outline: 3px solid var(--gold-500); outline-offset: -3px; }
+.hero-shortcut-thumbs { display: flex; grid-row: span 2; }
+.hero-shortcut-thumbs img {
+    width: 52px; height: 52px; object-fit: cover; border-radius: 12px; border: 2px solid #fff; background: var(--green-700);
+    box-shadow: 0 4px 12px rgba(13, 50, 30, .16); margin-left: -16px;
+}
+.hero-shortcut-thumbs img:first-child { margin-left: 0; }
+.hero-shortcut-thumbs img.is-art { object-fit: contain; padding: 4px; background: linear-gradient(135deg, #0b4a2c, #146B43); }
+.hero-shortcut-empty { width: 52px; height: 52px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; background: var(--green-100); color: var(--green-700); }
+.hero-shortcut-text { display: grid; gap: 3px; min-width: 0; }
+.hero-shortcut-text strong { font-size: .95rem; line-height: 1.35; color: var(--green-800); }
+.hero-shortcut-text small { color: var(--muted); font-size: .8rem; line-height: 1.4; }
+.hero-shortcut-btn { justify-self: start; pointer-events: none; }
+
+/* Page editor (Home): callout above the tabs' content */
+.hero-callout {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 0 0 18px; padding: 14px 16px;
+    border: 1px solid rgba(20, 107, 67, .2); border-left: 4px solid var(--gold-500); border-radius: 12px;
+    background: linear-gradient(135deg, #fffdf0 0%, var(--green-50) 100%);
+}
+.hero-callout-icon { width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; background: var(--green-600); color: #fff; }
+.hero-callout-icon .icon { width: 20px; height: 20px; }
+.hero-callout-text { flex: 1 1 320px; display: grid; gap: 2px; min-width: 0; }
+.hero-callout-text strong { color: var(--green-800); font-size: .95rem; }
+.hero-callout-text span { color: var(--ink-soft, #4a5a52); font-size: .85rem; line-height: 1.5; }
+
+/* Hero slider section in the editor: highlighted, and a 4:3 preview cropped like the website frame */
+.site-section.is-hero-slider { border-color: rgba(20, 107, 67, .35); box-shadow: 0 0 0 3px rgba(44, 166, 90, .1); }
+.is-hero-slider .repeater-row { background: #fff; border-left: 3px solid var(--green-500); }
+.is-hero-slider .site-image-preview { width: 176px; height: 132px; object-fit: cover; border-radius: 12px; background: linear-gradient(135deg, #0b4a2c, #146B43); }
+.is-hero-slider .site-image-preview[src$=".svg"] { object-fit: contain; padding: 6px; }
+
+@media (max-width: 600px) {
+    .hero-shortcut-link { grid-template-columns: 1fr; }
+    .hero-shortcut-thumbs { grid-row: auto; }
+    .is-hero-slider .site-image-preview { width: 128px; height: 96px; }
+}
+
+/* What will happen to the image on save (admin-hero.js) */
+.hero-img-status { margin: 0; padding: 8px 12px; border-radius: 10px; font-size: .82rem; line-height: 1.45; background: var(--green-50); border: 1px solid rgba(20, 107, 67, .2); color: var(--green-800); }
+.hero-img-status.is-warn { background: var(--gold-100, #fff6c7); border-color: #f1dc93; color: #5c4a00; }
+.hero-img-status.is-error { background: #fdecec; border-color: #f3b9b9; color: #8a1c1c; }
+.hero-img-status[hidden] { display: none; }

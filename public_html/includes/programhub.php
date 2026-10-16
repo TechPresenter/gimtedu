@@ -589,7 +589,9 @@ function programhub_register(int $eventId, array $data, array $opts = []): array
         $state = event_state($ev);
         if (!$isAdmin && !$state['can_register']) {
             $pdo->rollBack();
-            return ['result' => 'closed', 'message' => $state['reason'] ?: 'Registration is closed for this event.'] + $out;
+            $onlyFull = $state['is_full'] && $ev['status'] === 'published' && (int) $ev['registration_enabled'] === 1
+                && !$state['started'] && !$state['deadline_passed'] && !$state['not_yet_open'];
+            return ['result' => $onlyFull ? 'full' : 'closed', 'message' => $state['reason'] ?: 'Registration is closed for this event.'] + $out;
         }
         $existing = db_row('SELECT id, status FROM event_registrations WHERE event_id = ? AND email = ? FOR UPDATE', [$eventId, $email]);
         if ($existing && $existing['status'] !== 'cancelled') {
@@ -739,27 +741,273 @@ function programhub_member_registration(int $eventId): ?array
 }
 
 // =====================================================================
-// Public rendering (P1 owns and polishes everything below this line up to the migrations)
+// Emails (shared: P1 calls them from the public forms, P2 from the admin pages; P1 owns the wording)
 // =====================================================================
 
-/** Category card for the hub / grids (reuses the programme card design). */
+/**
+ * Email to a participant. $kind: 'confirmed' (registered) | 'waitlisted' | 'promoted' (moved from the waiting list) |
+ * 'meeting_link' (joining details; needs $extra['token'] - issue one with programhub_issue_access_token()) |
+ * 'cancelled' (by the foundation; optional $extra['reason']) | 'reminder'.
+ * For online / hybrid events 'confirmed', 'promoted' and 'reminder' include the private joining page when $extra['token'] is given.
+ * The meeting link itself is only ever sent with 'meeting_link'. Returns send_mail()'s result.
+ */
+function programhub_send_participant_email(array $event, array $reg, string $kind, array $extra = []): bool
+{
+    $subjects = [
+        'confirmed' => 'Registration confirmed: ', 'waitlisted' => 'Waiting list: ', 'promoted' => 'A place is now available: ',
+        'meeting_link' => 'Joining details: ', 'cancelled' => 'Cancelled: ', 'reminder' => 'Reminder: ',
+    ];
+    if (!isset($subjects[$kind])) {
+        return false;
+    }
+    $token = (string) ($extra['token'] ?? '');
+    $joinUrl = $token !== '' ? programhub_join_url($event, (int) $reg['id'], $token) : '';
+    $mode = event_mode($event);
+    $online = $mode !== 'in_person';
+    $title = e((string) $event['title']);
+    $facts = '<table role="presentation" style="margin:14px 0;border-collapse:collapse;font-size:15px">'
+        . '<tr><td style="padding:3px 14px 3px 0;color:#5e6e66">When</td><td style="padding:3px 0"><strong>' . e(event_when($event, true)) . '</strong></td></tr>'
+        . '<tr><td style="padding:3px 14px 3px 0;color:#5e6e66">Where</td><td style="padding:3px 0">' . e(programhub_event_where($event, false))
+        . ($mode !== 'online' && trim((string) ($event['venue_address'] ?? '')) !== '' ? '<br>' . e((string) $event['venue_address']) : '') . '</td></tr>'
+        . (!empty($reg['id']) ? '<tr><td style="padding:3px 14px 3px 0;color:#5e6e66">Reference</td><td style="padding:3px 0"><strong>' . e(programhub_registration_ref($reg)) . '</strong></td></tr>' : '')
+        . '</table>';
+    $intro = [
+        'confirmed' => '<p>Thank you for registering for <strong>' . $title . '</strong>. Your place is confirmed.</p>',
+        'waitlisted' => '<p>Thank you for your interest in <strong>' . $title . '</strong>. All places are taken at the moment, so you have been added to the <strong>waiting list</strong>. We will email you if a place becomes available.</p>',
+        'promoted' => '<p>Good news: a place has become available and you are now <strong>registered</strong> for <strong>' . $title . '</strong>.</p>',
+        'meeting_link' => '<p>Here are the joining details for <strong>' . $title . '</strong>. They are meant only for you - please do not share them.</p>',
+        'cancelled' => '<p>We are sorry to tell you that <strong>' . $title . '</strong> has been cancelled.' . (!empty($extra['reason']) ? ' ' . e((string) $extra['reason']) : '') . ' We apologise for the inconvenience.</p>',
+        'reminder' => '<p>This is a reminder that <strong>' . $title . '</strong> is coming up.</p>',
+    ][$kind];
+    $body = '<p>Dear ' . e((string) $reg['name']) . ',</p>' . $intro . $facts;
+    if ($kind === 'meeting_link') {
+        if (trim((string) ($event['meeting_url'] ?? '')) !== '') {
+            $body .= '<p><strong>Online joining link:</strong> <a href="' . e((string) $event['meeting_url']) . '">' . e((string) $event['meeting_url']) . '</a></p>';
+            if (trim((string) ($event['meeting_info'] ?? '')) !== '') {
+                $body .= '<p>' . e_nl((string) $event['meeting_info']) . '</p>';
+            }
+        }
+        if ($joinUrl !== '') {
+            $body .= '<p>Your private joining page always shows the latest details: <a href="' . e($joinUrl) . '">open your joining page</a>.</p>';
+        }
+    } elseif ($online && $joinUrl !== '' && in_array($kind, ['confirmed', 'promoted', 'reminder'], true)) {
+        $body .= '<p><strong>Joining online?</strong> The joining link is shared only with registered participants. It will appear on your '
+            . '<a href="' . e($joinUrl) . '">private joining page</a> and will be emailed to you before the session. Please do not share this link.</p>';
+    }
+    if ($kind === 'promoted' || $kind === 'confirmed' || $kind === 'reminder') {
+        $map = programhub_map_url($event);
+        if ($map !== '') {
+            $body .= '<p><a href="' . e($map) . '">Find the venue on Google Maps</a></p>';
+        }
+    }
+    if ($kind !== 'cancelled') {
+        $body .= '<p><a class="btn" href="' . e(event_abs_url($event)) . '">View event details</a></p>'
+            . '<p>Add it to your calendar: <a href="' . e(event_abs_url($event) . 'ics/') . '">download the calendar file (.ics)</a>.</p>';
+        if ($kind !== 'meeting_link') {
+            $body .= '<p>If you can no longer attend, please reply to this email so that we can offer your place to someone else.</p>';
+        }
+    } else {
+        $body .= '<p>See our other <a href="' . e(rtrim(BASE_URL, '/') . substr(events_list_url(), strlen(base_path()))) . '">upcoming events</a>.</p>';
+    }
+    $body .= '<p>Regards,<br>' . e(site_name()) . '</p>';
+    $replyTo = trim((string) ($event['contact_email'] ?? '')) ?: (setting('contact_email') ?: null);
+    return send_mail((string) $reg['email'], $subjects[$kind] . $event['title'], $body, $replyTo);
+}
+
+/**
+ * Staff alert about a new registration (setting events_admin_alerts = '1'). Recipient: the category's notify_email,
+ * else setting events_alert_email, else the general admin notification address. Contains no phone number.
+ */
+function programhub_notify_staff_registration(array $event, array $reg): void
+{
+    if (setting('events_admin_alerts', '1') !== '1') {
+        return;
+    }
+    $cat = !empty($event['category_id']) ? program_category_by_id((int) $event['category_id']) : null;
+    $to = trim((string) ($cat['notify_email'] ?? '')) ?: setting('events_alert_email');
+    $taken = event_registered_count((int) $event['id']);
+    $html = '<p>New ' . ($reg['status'] === 'waitlisted' ? 'waiting-list entry' : 'registration') . ' for <strong>' . e($event['title']) . '</strong> (' . e(event_when($event)) . ').</p>'
+        . '<p>' . e($reg['name']) . ($reg['status'] === 'waitlisted' ? ' (waiting list)' : '') . ' - ' . $taken . ($event['capacity'] ? ' of ' . (int) $event['capacity'] : '') . ' places taken.</p>'
+        . '<p><a class="btn" href="' . e(abs_url('admin/event-registrations.php?event=' . (int) $event['id'])) . '">Open registrations</a></p>';
+    $subject = 'Event registration: ' . $event['title'];
+    if ($to !== '' && filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        send_mail($to, '[Website] ' . $subject, $html);
+    } else {
+        notify_admin($subject, $html);
+    }
+}
+
+// =====================================================================
+// Public rendering (P1): cards, live lists, forms and their handlers, event page blocks
+// =====================================================================
+
+/** Filter groups for the category cards on the programmes hub. */
+const PROGRAM_CATEGORY_GROUPS = [
+    'technology' => 'Technology & AI', 'careers' => 'Careers & digital skills', 'wellness' => 'Wellness, arts & culture',
+    'innovation' => 'Hackathons & events', 'more' => 'More areas',
+];
+/** Group of each seeded category (categories added later are grouped by their default event type). */
+const PROGRAM_CATEGORY_GROUP_OF = [
+    'ai-artificial-intelligence' => 'technology', 'robotics-technology' => 'technology', 'machine-learning-data-science' => 'technology',
+    'cyber-security' => 'technology', 'digital-marketing' => 'careers', 'career-entrepreneurship' => 'careers',
+    'fitness-yoga-wellness' => 'wellness', 'music-arts-culture' => 'wellness', 'hackathons-innovation' => 'innovation', 'events-seminars' => 'innovation',
+];
+
+function program_category_group(array $cat): string
+{
+    $slug = (string) ($cat['slug'] ?? '');
+    if (isset(PROGRAM_CATEGORY_GROUP_OF[$slug])) {
+        return PROGRAM_CATEGORY_GROUP_OF[$slug];
+    }
+    $type = (string) ($cat['default_event_type'] ?? '');
+    if (in_array($type, ['yoga_session', 'fitness_session', 'music_program', 'cultural_event'], true)) {
+        return 'wellness';
+    }
+    if (in_array($type, ['hackathon', 'innovation_challenge', 'seminar', 'event', 'awareness_campaign', 'drive', 'camp'], true)) {
+        return 'innovation';
+    }
+    return 'more';
+}
+
+/** Load the public module script (forms, filters) once. */
+function programhub_js(): void
+{
+    $src = asset('assets/js/modules/programs-hub.js');
+    if (!in_array($src, $GLOBALS['extraScripts'] ?? [], true)) {
+        $GLOBALS['extraScripts'][] = $src;
+    }
+}
+
+/** Card / poster image of an event: [path, isIllustration]. Own image, else the category illustration, else the generic one. */
+function programhub_event_image(array $ev): array
+{
+    $img = (string) ($ev['image'] ?? '');
+    if ($img !== '' && strpos($img, '..') === false && is_file(ROOT_PATH . '/' . $img)) {
+        return [$img, false];
+    }
+    $cat = !empty($ev['category_id']) ? program_category_by_id((int) $ev['category_id']) : null;
+    return [$cat ? program_category_art($cat) : CONTENT_FALLBACK_IMAGE, true];
+}
+
+/** Where an event takes place, for cards and emails (never the meeting link). */
+function programhub_event_where(array $ev, bool $short = true): string
+{
+    $mode = event_mode($ev);
+    if ($mode === 'online') {
+        return 'Online';
+    }
+    $loc = trim((string) ($ev['location'] ?? ''));
+    return ($loc !== '' ? $loc : 'Venue to be announced') . ($mode === 'hybrid' ? ($short ? ' + online' : ' (you can also join online)') : '');
+}
+
+/** Registration reference shown to participants and staff, e.g. PWF-EVR-2026-00012 (year of registration). */
+function programhub_registration_ref(array $reg): string
+{
+    $ts = !empty($reg['created_at']) ? strtotime((string) $reg['created_at']) : false;
+    return 'PWF-EVR-' . date('Y', $ts ?: time()) . '-' . str_pad((string) (int) ($reg['id'] ?? 0), 5, '0', STR_PAD_LEFT);
+}
+
+/** Badge for a registration status (labels from EVENT_REG_STATUSES). */
+function programhub_reg_badge(string $status): string
+{
+    $tones = ['registered' => 'green', 'confirmed' => 'green', 'waitlisted' => 'gold', 'attended' => 'blue', 'cancelled' => 'red', 'no_show' => 'gray'];
+    return '<span class="badge badge-' . ($tones[$status] ?? 'gray') . '">' . e(EVENT_REG_STATUSES[$status] ?? humanize($status)) . '</span>';
+}
+
+/** a****@example.org */
+function programhub_mask_email(string $email): string
+{
+    [$local, $domain] = array_pad(explode('@', $email, 2), 2, '');
+    if ($domain === '') {
+        return '***';
+    }
+    return mb_substr($local, 0, 1) . str_repeat('*', max(2, min(6, mb_strlen($local) - 1))) . '@' . $domain;
+}
+
+/** "Add to Google Calendar" link (title, time, public location and the event page - never the meeting link). */
+function programhub_google_calendar_url(array $ev): string
+{
+    $start = (int) strtotime((string) $ev['start_datetime']);
+    if (event_is_all_day($ev)) {
+        $endDay = !empty($ev['end_datetime']) ? (int) strtotime((string) $ev['end_datetime']) : $start;
+        $dates = date('Ymd', $start) . '/' . date('Ymd', (int) strtotime('+1 day', (int) strtotime(date('Y-m-d', $endDay))));
+    } else {
+        $end = !empty($ev['end_datetime']) ? (int) strtotime((string) $ev['end_datetime']) : $start + 3600;
+        $dates = gmdate('Ymd\THis\Z', $start) . '/' . gmdate('Ymd\THis\Z', $end);
+    }
+    $where = event_mode($ev) === 'online' ? 'Online' : trim((string) $ev['location'] . (trim((string) ($ev['venue_address'] ?? '')) !== '' ? ', ' . $ev['venue_address'] : ''));
+    return 'https://calendar.google.com/calendar/render?' . http_build_query([
+        'action' => 'TEMPLATE', 'text' => (string) $ev['title'], 'dates' => $dates,
+        'details' => trim((string) $ev['summary']) . "\n\nDetails: " . event_abs_url($ev), 'location' => $where,
+    ]);
+}
+
+/** Google Maps link for an in-person / hybrid event: the admin-entered https link, else a search for the address. '' for online events. */
+function programhub_map_url(array $ev): string
+{
+    if (event_mode($ev) === 'online') {
+        return '';
+    }
+    $map = trim((string) ($ev['map_url'] ?? ''));
+    if ($map !== '' && preg_match('#^https://#i', $map) && filter_var($map, FILTER_VALIDATE_URL)) {
+        return $map;
+    }
+    $q = trim((string) (($ev['venue_address'] ?? '') ?: $ev['location']));
+    return $q !== '' && !preg_match('/^(online|to be announced|tba)$/i', $q) ? maps_search_url($q) : '';
+}
+
+/** Category for a section: its "category" setting, else the category of the page it is on. */
+function programhub_section_category(array $set, array $page): ?array
+{
+    if (!empty($set['category'])) {
+        return program_category_by_id((int) $set['category'], true);
+    }
+    return !empty($page['id']) ? program_category_for_page((int) $page['id']) : null;
+}
+
+/** One-time success panel data stored by a form handler (interest / partnership), for this category. */
+function programhub_take_done(string $form, int $categoryId): ?array
+{
+    $d = $_SESSION['ph_done'] ?? null;
+    if (!is_array($d) || ($d['form'] ?? '') !== $form || (int) ($d['cat'] ?? 0) !== $categoryId || time() - (int) ($d['at'] ?? 0) > 900) {
+        return null;
+    }
+    unset($_SESSION['ph_done']);
+    return $d;
+}
+
+/** Staff e-mail for a programme form: the category's notify_email, else events_alert_email, else the admin address. */
+function programhub_notify_staff(?array $cat, string $subject, string $html, ?string $replyTo = null): void
+{
+    $to = trim((string) ($cat['notify_email'] ?? '')) ?: trim((string) setting('events_alert_email'));
+    if ($to !== '' && filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        send_mail($to, '[Website] ' . $subject, $html, $replyTo);
+    } else {
+        notify_admin($subject, $html, $replyTo);
+    }
+}
+
+// ----- Cards -----
+
+/** Category card for the hub / grids. $opts: index, upcoming (count; shown only when > 0). */
 function program_category_card(array $cat, array $opts = []): string
 {
     $url = program_category_url($cat);
     $art = program_category_art($cat);
     $tone = in_array($cat['tone'] ?? '', array_keys(program_tones()), true) ? $cat['tone'] : 'green';
     $i = (int) ($opts['index'] ?? 0);
-    $count = isset($opts['upcoming']) ? (int) $opts['upcoming'] : null;
-    return '<article class="program-card pc-card tone-' . e($tone) . ' reveal tilt" style="--d:' . ($i % 4) . '">'
-        . '<div class="program-card-media' . (strpos($art, 'uploads/') === 0 ? ' is-photo' : '') . '"><img src="' . e(image_url($art)) . '" alt="" loading="lazy" width="480" height="360"></div>'
+    $count = (int) ($opts['upcoming'] ?? 0);
+    $filter = program_category_group($cat) . ($count > 0 ? ' upcoming' : '');
+    return '<article class="program-card pc-card tone-' . e($tone) . ' reveal tilt" style="--d:' . ($i % 4) . '" data-category="' . e($filter) . '">'
+        . '<div class="program-card-media' . (strpos($art, 'uploads/') === 0 ? ' is-photo' : '') . '"><img src="' . e(image_url($art)) . '" alt="" loading="lazy" width="480" height="360">'
+        . ($count > 0 ? '<span class="pc-count">' . icon('calendar') . $count . ' upcoming ' . ($count === 1 ? 'session' : 'sessions') . '</span>' : '') . '</div>'
         . '<div class="program-card-body"><span class="program-card-icon">' . icon((string) ($cat['icon'] ?: 'calendar')) . '</span>'
         . '<h3><a class="program-card-link" href="' . e($url) . '">' . e($cat['title']) . '</a></h3>'
         . '<p>' . e((string) $cat['card_text']) . '</p>'
-        . ($count ? '<p class="pc-upcoming">' . icon('calendar') . $count . ' upcoming ' . ($count === 1 ? 'session' : 'sessions') . '</p>' : '')
         . '<span class="link-arrow" aria-hidden="true">Explore ' . icon('arrow-right') . '</span></div></article>';
 }
 
-/** Number of upcoming public events per category id (one query). */
+/** Number of upcoming public (published) events per category id (one query). */
 function programhub_upcoming_counts(): array
 {
     $out = [];
@@ -774,37 +1022,134 @@ function programhub_upcoming_counts(): array
     return $out;
 }
 
-/** Event card with live status (date, time, venue / mode, eligibility, status). Rows from programhub_events(). */
+/** Media block of a card (event photo, or the category illustration). */
+function programhub_card_media(array $ev, string $link, ?string $photo = null): string
+{
+    if ($photo !== null && $photo !== '' && is_file(ROOT_PATH . '/' . $photo)) {
+        [$img, $isArt] = [$photo, false];
+    } else {
+        [$img, $isArt] = programhub_event_image($ev);
+    }
+    return '<a class="event-media' . ($isArt ? ' is-art' : '') . '" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($img)) . '"'
+        . ($isArt ? '' : image_srcset_attr($img, '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px')) . ' alt="" loading="lazy" width="480" height="300"></a>';
+}
+
+/** Event card with live status (date, time, venue / mode, eligibility, deadline, places). Rows from programhub_events(). */
 function programhub_event_card(array $ev, int $i = 0): string
 {
+    if (event_is_past($ev) && ($ev['status'] ?? '') === 'published') {
+        return programhub_past_card($ev, $i);
+    }
     $link = event_url($ev);
     $type = (string) ($ev['event_type'] ?? 'event');
     $state = event_state($ev);
     $mode = event_mode($ev);
-    $where = $mode === 'online' ? 'Online' : trim((string) $ev['location']) . ($mode === 'hybrid' ? ' + online' : '');
     $html = '<article class="event-card ev-card ph-event-card reveal" style="--d:' . ($i % 4) . '">'
-        . '<a class="event-media" href="' . e($link) . '" tabindex="-1" aria-hidden="true"><img src="' . e(image_url($ev['image'] ?? null, CONTENT_FALLBACK_IMAGE)) . '"' . image_srcset_attr($ev['image'] ?? null, '(max-width: 600px) 100vw, (max-width: 1100px) 50vw, 400px') . ' alt="" loading="lazy" width="480" height="300"></a>'
+        . programhub_card_media($ev, $link)
         . content_date_badge((string) $ev['start_datetime'])
-        . '<div class="event-body"><span class="ev-chip ev-type-' . e($type) . '">' . icon(EVENT_TYPE_ICONS[$type] ?? 'calendar') . e(event_type_label($type)) . '</span> '
-        . programhub_status_badge($ev, $state)
+        . '<span class="ph-card-status">' . programhub_status_badge($ev, $state) . '</span>'
+        . '<div class="event-body"><div class="ph-chips"><span class="ev-chip ev-type-' . e($type) . '">' . icon(EVENT_TYPE_ICONS[$type] ?? 'calendar') . e(event_type_label($type)) . '</span>'
+        . ($mode !== 'in_person' ? '<span class="ev-chip ph-mode-chip">' . icon('monitor') . ($mode === 'online' ? 'Online' : 'Hybrid') . '</span>' : '') . '</div>'
         . '<h3><a href="' . e($link) . '">' . e($ev['title']) . '</a></h3>'
         . '<ul class="meta-list"><li>' . icon('clock') . '<span>' . e(event_when($ev)) . '</span></li>'
-        . '<li>' . icon($mode === 'online' ? 'monitor' : 'map-pin') . '<span>' . e($where) . '</span></li>';
+        . '<li>' . icon($mode === 'online' ? 'monitor' : 'map-pin') . '<span>' . e(programhub_event_where($ev)) . '</span></li>';
     if (trim((string) ($ev['eligibility'] ?? '')) !== '') {
         $html .= '<li>' . icon('users') . '<span>' . e(excerpt((string) $ev['eligibility'], 90)) . '</span></li>';
     }
-    if (!empty($state['deadline']) && !$state['is_past'] && ($state['open'] || $state['waitlist_open'])) {
+    if (!empty($state['deadline']) && ($state['open'] || $state['waitlist_open'])) {
         $html .= '<li>' . icon('alert-circle') . '<span>Register by ' . e(date('d M Y, h:i A', (int) $state['deadline'])) . '</span></li>';
     }
-    $html .= '</ul><p>' . e(excerpt((string) ($ev['summary'] ?? ''), 130)) . '</p>';
-    if ($state['is_past']) {
-        $n = programhub_verified_participants($ev);
-        if ($n) {
-            $html .= '<p class="ph-verified">' . icon('check-circle') . '<span>' . $n . ' participant' . ($n === 1 ? '' : 's') . ' (verified)</span></p>';
+    $html .= '</ul><p>' . e(excerpt((string) ($ev['summary'] ?? ''), 130)) . '</p><div class="ph-card-foot">';
+    if ($state['open'] && $state['seats_left'] !== null) {
+        $html .= '<span class="ph-seats' . ($state['seats_left'] <= 5 ? ' is-low' : '') . '">' . icon('users') . (int) $state['seats_left'] . ' of ' . (int) $state['capacity'] . ' places left</span>';
+    } elseif ($state['waitlist_open']) {
+        $html .= '<span class="ph-seats is-low">' . icon('users') . 'Waiting list open</span>';
+    }
+    return $html . '<a class="link-arrow" href="' . e($link . ($state['can_register'] ? '#register' : '')) . '">' . ($state['can_register'] ? ($state['open'] ? 'View & register' : 'Join the waiting list') : 'View details')
+        . icon('arrow-right') . '<span class="sr-only">: ' . e($ev['title']) . '</span></a></div></div></article>';
+}
+
+/** Completed event: photo, short report, staff-verified outcomes and participant number (only when verified). */
+function programhub_past_card(array $ev, int $i = 0): string
+{
+    $link = event_url($ev);
+    $type = (string) ($ev['event_type'] ?? 'event');
+    $report = programhub_event_report((int) $ev['id']);
+    $photos = programhub_event_gallery((int) $ev['id'], 12);
+    $firstPhoto = null;
+    foreach ($photos as $g) {
+        if (($g['media_type'] ?? 'image') === 'image' && !empty($g['image_path'])) {
+            $firstPhoto = (string) $g['image_path'];
+            break;
         }
     }
-    return $html . '<a class="link-arrow" href="' . e($link . ($state['can_register'] ? '#register' : '')) . '">' . ($state['can_register'] ? 'View and register' : ($state['is_past'] ? 'See the report' : 'View details'))
-        . icon('arrow-right') . '<span class="sr-only">: ' . e($ev['title']) . '</span></a></div></article>';
+    $n = programhub_verified_participants($ev);
+    $html = '<article class="event-card ev-card ph-event-card ph-past-card reveal" style="--d:' . ($i % 4) . '">'
+        . programhub_card_media($ev, $link, !empty($ev['image']) ? null : $firstPhoto)
+        . content_date_badge((string) $ev['start_datetime'])
+        . '<span class="ph-card-status">' . programhub_status_badge($ev) . '</span>'
+        . '<div class="event-body"><div class="ph-chips"><span class="ev-chip ev-type-' . e($type) . '">' . icon(EVENT_TYPE_ICONS[$type] ?? 'calendar') . e(event_type_label($type)) . '</span></div>'
+        . '<h3><a href="' . e($link) . '">' . e($ev['title']) . '</a></h3>'
+        . '<ul class="meta-list"><li>' . icon('calendar') . '<span>' . e(event_when($ev)) . '</span></li>'
+        . '<li>' . icon(event_mode($ev) === 'online' ? 'monitor' : 'map-pin') . '<span>' . e(programhub_event_where($ev)) . '</span></li></ul>';
+    $text = $report ? trim(strip_tags((string) $report['summary'])) : '';
+    $html .= '<p>' . e(excerpt($text !== '' ? $text : (string) ($ev['summary'] ?? ''), 150)) . '</p>';
+    $outcomes = $report ? array_slice(array_values(array_filter($report['outcomes_list'], function ($o) {
+        return trim((string) ($o['label'] ?? '')) !== '' && trim((string) ($o['value'] ?? '')) !== '';
+    })), 0, 3) : [];
+    if ($outcomes || $n) {
+        $html .= '<ul class="ph-outcomes-mini">';
+        if ($n) {
+            $html .= '<li><strong>' . $n . '</strong> participant' . ($n === 1 ? '' : 's') . '</li>';
+        }
+        foreach ($outcomes as $o) {
+            $html .= '<li><strong>' . e((string) $o['value']) . '</strong> ' . e((string) $o['label']) . '</li>';
+        }
+        $html .= '</ul><p class="ph-verified">' . icon('check-circle') . '<span>Figures verified by our team</span></p>';
+    }
+    $html .= '<div class="ph-card-foot">' . ($photos ? '<span class="ph-seats">' . icon('image') . count($photos) . ' photo' . (count($photos) === 1 ? '' : 's') . '</span>' : '');
+    return $html . '<a class="link-arrow" href="' . e($link) . '">' . ($report ? 'Read the report' : 'View details') . icon('arrow-right') . '<span class="sr-only">: ' . e($ev['title']) . '</span></a></div></div></article>';
+}
+
+/** Compact card for the "coming up" strip. */
+function programhub_mini_card(array $ev, int $i = 0): string
+{
+    $link = event_url($ev);
+    $type = (string) ($ev['event_type'] ?? 'event');
+    $state = event_state($ev);
+    $cat = programhub_event_category($ev);
+    return '<li class="ph-mini reveal" style="--d:' . ($i % 4) . '">' . content_date_badge((string) $ev['start_datetime'], false)
+        . '<div class="ph-mini-body"><div class="ph-chips"><span class="ev-chip ev-type-' . e($type) . '">' . icon(EVENT_TYPE_ICONS[$type] ?? 'calendar') . e(event_type_label($type)) . '</span>'
+        . programhub_status_badge($ev, $state) . '</div>'
+        . '<h3><a href="' . e($link) . '">' . e($ev['title']) . '</a></h3>'
+        . '<p>' . icon('clock') . '<span>' . e(event_when($ev)) . '</span></p>'
+        . '<p>' . icon(event_mode($ev) === 'online' ? 'monitor' : 'map-pin') . '<span>' . e(programhub_event_where($ev)) . '</span></p>'
+        . ($cat ? '<p class="ph-mini-cat">' . icon((string) ($cat['icon'] ?: 'layers')) . '<span>' . e($cat['title']) . '</span></p>' : '')
+        . '</div></li>';
+}
+
+/** Published, consented photos of a category's events (newest events first). */
+function programhub_category_gallery(int $categoryId, int $limit = 8): array
+{
+    $limit = max(1, min(48, $limit));
+    try {
+        return db_rows("SELECT g.*, e.title AS event_title FROM gallery_items g JOIN events e ON e.id = g.event_id
+                        WHERE e.category_id = ? AND e.status = 'published' AND g.status = 'published' AND g.consent_confirmed = 1
+                          AND g.media_type = 'image' AND g.image_path IS NOT NULL AND g.image_path <> ''
+                        ORDER BY e.start_datetime DESC, g.sort_order, g.id DESC LIMIT $limit", [$categoryId]);
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+/** Photo grid with lightbox (gallery_items rows; only files that exist). */
+function programhub_photo_grid(array $photos, string $class = ''): string
+{
+    $html = '';
+    foreach ($photos as $i => $g) {
+        $html .= gallery_item_html($g + ['category' => 'events'], $i);
+    }
+    return $html !== '' ? '<div class="gallery-grid ph-photos ' . e($class) . '">' . $html . '</div>' . content_lightbox() : '';
 }
 
 // ----- Section types (CMS blocks; schemas are used by the page editor) -----
@@ -814,7 +1159,11 @@ function section_schema_program_categories_grid(): array
     return [
         'label' => 'Programs & Events categories (cards)',
         'fields' => ['pill', 'title', 'intro'],
-        'settings' => ['limit' => ['number', 'How many (1-24, empty = all)'], 'hide_counts' => ['checkbox', 'Hide the number of upcoming sessions']],
+        'settings' => [
+            'limit' => ['number', 'How many (1-24, empty = all)'],
+            'hide_counts' => ['checkbox', 'Hide the number of upcoming sessions'],
+            'hide_filters' => ['checkbox', 'Hide the filter buttons'],
+        ],
         'help' => 'Cards for the published categories from Admin > Program categories, in their order.',
     ];
 }
@@ -830,11 +1179,65 @@ function section_program_categories_grid(array $s, array $items, array $set, arr
         return '';
     }
     $counts = empty($set['hide_counts']) ? programhub_upcoming_counts() : [];
-    $html = '<div class="program-grid pc-grid">';
+    $html = '';
+    if (empty($set['hide_filters']) && count($cats) > 4) {
+        $groups = [];
+        $anyUpcoming = false;
+        foreach ($cats as $c) {
+            $groups[program_category_group($c)] = true;
+            $anyUpcoming = $anyUpcoming || !empty($counts[(int) $c['id']]);
+        }
+        if (count($groups) > 1 || $anyUpcoming) {
+            programhub_js();
+            $html .= '<div class="filter-bar pc-filter" role="group" aria-label="Filter programme areas">'
+                . '<button type="button" class="filter-btn is-active" data-filter="all" aria-pressed="true">All areas</button>';
+            foreach (PROGRAM_CATEGORY_GROUPS as $key => $label) {
+                if (isset($groups[$key])) {
+                    $html .= '<button type="button" class="filter-btn" data-filter="' . e($key) . '" aria-pressed="false">' . e($label) . '</button>';
+                }
+            }
+            if ($anyUpcoming) {
+                $html .= '<button type="button" class="filter-btn" data-filter="upcoming" aria-pressed="false">' . icon('calendar') . 'With upcoming sessions</button>';
+            }
+            $html .= '</div><p class="sr-only" aria-live="polite" data-pc-live></p>';
+        }
+    }
+    $html .= '<div class="program-grid pc-grid">';
     foreach ($cats as $i => $c) {
         $html .= program_category_card($c, ['index' => $i, 'upcoming' => $counts[(int) $c['id']] ?? 0]);
     }
     return $html . '</div>';
+}
+
+function section_schema_program_upcoming_strip(): array
+{
+    return [
+        'label' => 'Upcoming sessions strip (next events, all programme areas)',
+        'fields' => ['pill', 'title', 'intro'],
+        'settings' => [
+            'limit' => ['number', 'How many (2-8)'],
+            'category' => ['select', 'Only this category', ['' => 'All categories'] + program_category_options()],
+        ],
+        'help' => 'The next published workshops, sessions and events (not awareness days). Hidden when nothing is scheduled.',
+    ];
+}
+
+function section_program_upcoming_strip(array $s, array $items, array $set, array $page): string
+{
+    $limit = max(2, min(8, (int) ($set['limit'] ?? 4) ?: 4));
+    $f = ['when' => 'upcoming', 'limit' => $limit, 'include_cancelled' => false];
+    if (!empty($set['category'])) {
+        $f['category_id'] = (int) $set['category'];
+    }
+    $rows = programhub_events($f);
+    if (!$rows) {
+        return '';
+    }
+    $html = '<ul class="ph-strip" aria-label="Upcoming sessions">';
+    foreach ($rows as $i => $ev) {
+        $html .= programhub_mini_card($ev, $i);
+    }
+    return $html . '</ul><div class="section-more"><a class="btn btn-outline" href="' . e(events_list_url()) . '">' . icon('calendar') . 'See all upcoming events' . icon('arrow-right') . '</a></div>';
 }
 
 function section_schema_program_events(): array
@@ -851,50 +1254,403 @@ function section_schema_program_events(): array
             'limit' => ['number', 'How many (1-24)'],
             'empty_text' => ['text', 'Text when there is nothing to show (optional)'],
             'hide_empty' => ['checkbox', 'Hide the section when there is nothing to show'],
+            'hide_photos' => ['checkbox', 'Past programmes: do not show the photo gallery'],
         ],
-        'help' => 'Live list of published events from Admin > Events. Past programmes show verified participant numbers only.',
+        'help' => 'Live list of published events from Admin > Events. Past programmes show verified participant numbers, published reports and consented photos only.',
     ];
 }
 
 function section_program_events(array $s, array $items, array $set, array $page): string
 {
     $when = in_array($set['when'] ?? 'upcoming', ['upcoming', 'open', 'past'], true) ? (string) ($set['when'] ?? 'upcoming') : 'upcoming';
-    $cat = null;
-    if (!empty($set['category'])) {
-        $cat = program_category_by_id((int) $set['category']);
-    } elseif (!empty($page['id'])) {
-        $cat = program_category_for_page((int) $page['id']);
-    }
+    $cat = programhub_section_category($set, $page);
     $limit = max(1, min(24, (int) ($set['limit'] ?? 6) ?: 6));
     $f = ['when' => $when, 'limit' => $limit, 'category_id' => $cat ? (int) $cat['id'] : 0];
     if (!empty($set['type']) && isset(EVENT_TYPES[$set['type']])) {
         $f['types'] = [(string) $set['type']];
     }
     $rows = programhub_events($f);
+    $text = trim((string) ($set['empty_text'] ?? ''));
     if (!$rows) {
         if (!empty($set['hide_empty'])) {
             return '';
         }
-        $text = trim((string) ($set['empty_text'] ?? ''));
         if ($when === 'past') {
-            return empty_state($text !== '' ? $text : 'Completed sessions, with photos, short reports and verified outcomes, will appear here after they take place.');
+            return '<div class="empty-state ph-empty">' . icon('image') . '<p>' . e($text !== '' ? $text : 'Completed sessions will appear here after they take place, with photos, a short report and outcomes verified by our team.') . '</p></div>';
         }
-        $hasForm = !empty($page['id']) && (int) db_value("SELECT COUNT(*) FROM page_sections WHERE page_id = ? AND section_type = 'program_registration' AND status = 'visible'", [$page['id']]) > 0;
+        $isCategoryPage = $cat && !empty($page['id']) && (int) ($cat['page_id'] ?? 0) === (int) $page['id'];
         $what = $cat ? 'New ' . $cat['title'] . ' sessions' : 'New workshops and events';
         return '<div class="empty-state ph-empty">' . icon('calendar') . '<p>' . e($text !== '' ? $text : $what . ' will be announced here — register your interest and we will let you know.') . '</p>'
-            . '<div class="btn-row center"><a class="btn btn-primary" href="' . e($hasForm ? '#register' : page_url('contact')) . '">' . icon('bell') . 'Register your interest</a>'
+            . '<div class="btn-row center">'
+            . ($cat && (int) $cat['interest_enabled'] === 1
+                ? '<a class="btn btn-primary" href="' . e(($isCategoryPage ? '' : program_category_url($cat)) . '#register') . '">' . icon('bell') . 'Register your interest</a>'
+                : '<a class="btn btn-primary" href="' . e(page_url('newsletter')) . '">' . icon('mail') . 'Get updates by email</a>')
             . '<a class="btn btn-ghost" href="' . e(events_list_url()) . '">' . icon('calendar') . 'All upcoming events</a></div></div>';
     }
     $html = '<div class="card-grid ph-event-grid">';
     foreach ($rows as $i => $ev) {
-        $html .= programhub_event_card($ev, $i);
+        $html .= $when === 'past' ? programhub_past_card($ev, $i) : programhub_event_card($ev, $i);
     }
     $html .= '</div>';
+    if ($when === 'past' && $cat && empty($set['hide_photos'])) {
+        $photos = programhub_category_gallery((int) $cat['id'], 8);
+        if ($photos) {
+            $grid = programhub_photo_grid($photos, 'ph-photos-strip');
+            if ($grid !== '') {
+                $html .= '<div class="ph-gallery-block"><h3 class="ph-subhead">' . icon('image') . 'Photos from completed sessions</h3>' . $grid
+                    . '<p class="small muted">Photos are published only with the consent of the people in them.</p></div>';
+            }
+        }
+    }
     if (count($rows) >= $limit) {
         $html .= '<div class="section-more"><a class="btn btn-outline" href="' . e(events_list_url(['category' => $cat['slug'] ?? '', 'when' => $when === 'past' ? 'past' : ''])) . '">'
             . ($when === 'past' ? 'See all past events' : 'See all upcoming events') . icon('arrow-right') . '</a></div>';
     }
     return $html;
+}
+
+// ----- Registration form (event page and category page) -----
+
+/**
+ * Registration form. $events: open events to choose from (one = no chooser). $o: action (URL incl. #fragment),
+ * selected (event id), title (heading inside the card, optional).
+ * Conditional blocks (guardian, team) are visible without JavaScript; programs-hub.js shows them only when needed.
+ */
+function programhub_registration_form(array $events, array $o): string
+{
+    if (!$events) {
+        return '';
+    }
+    programhub_js();
+    $user = current_user();
+    $single = count($events) === 1;
+    $first = $events[0];
+    $selected = (string) old('event_id', $single ? (string) $first['id'] : (string) ($o['selected'] ?? ''));
+    $anyTeam = false;
+    foreach ($events as $ev) {
+        $anyTeam = $anyTeam || in_array($ev['event_type'], HACKATHON_EVENT_TYPES, true);
+    }
+    $firstState = event_state($first);
+    $html = '<form class="ph-form" method="post" action="' . e($o['action']) . '" data-validate novalidate data-ph-reg>'
+        . csrf_field() . honeypot_field() . '<input type="hidden" name="form" value="program_register">';
+    if ($single) {
+        $tmax = (int) ($first['team_size_max'] ?? 0);
+        $html .= '<input type="hidden" name="event_id" value="' . (int) $first['id'] . '" data-team="' . (in_array($first['event_type'], HACKATHON_EVENT_TYPES, true) ? 1 : 0)
+            . '" data-tmin="' . max(1, (int) ($first['team_size_min'] ?? 0)) . '" data-tmax="' . $tmax . '" data-waitlist="' . ($firstState['open'] ? 0 : 1) . '">';
+    } else {
+        $html .= '<fieldset class="form-group ph-choose"><legend class="label">Choose a session<span class="req">*</span></legend><div class="ph-options">';
+        foreach ($events as $ev) {
+            $state = event_state($ev);
+            $team = in_array($ev['event_type'], HACKATHON_EVENT_TYPES, true);
+            $id = (int) $ev['id'];
+            $html .= '<label class="ph-option"><input type="radio" name="event_id" value="' . $id . '" required' . ($selected === (string) $id ? ' checked' : '')
+                . ' data-team="' . ($team ? 1 : 0) . '" data-tmin="' . max(1, (int) ($ev['team_size_min'] ?? 0)) . '" data-tmax="' . (int) ($ev['team_size_max'] ?? 0) . '" data-waitlist="' . ($state['open'] ? 0 : 1) . '">'
+                . '<span class="ph-option-card">' . content_date_badge((string) $ev['start_datetime'], false)
+                . '<span class="ph-option-text"><strong>' . e($ev['title']) . '</strong>'
+                . '<small>' . icon('clock') . e(event_when($ev)) . '</small>'
+                . '<small>' . icon(event_mode($ev) === 'online' ? 'monitor' : 'map-pin') . e(programhub_event_where($ev)) . '</small>'
+                . '<span class="ph-option-meta">' . programhub_status_badge($ev, $state)
+                . ($state['open'] && $state['seats_left'] !== null ? '<span>' . (int) $state['seats_left'] . ' places left</span>' : '')
+                . (!empty($state['deadline']) ? '<span>Register by ' . e(date('d M, h:i A', (int) $state['deadline'])) . '</span>' : '')
+                . '</span></span><span class="ph-option-tick" aria-hidden="true">' . icon('check') . '</span></span></label>';
+        }
+        $html .= '</div>' . field_error('event_id') . '<p class="small muted ph-option-help">Each session has its own page with full details: <a href="' . e(events_list_url()) . '">see all events</a>.</p></fieldset>';
+    }
+
+    $html .= '<div class="form-grid">'
+        . '<div class="form-group"><label for="reg-name">Full name<span class="req">*</span></label><input id="reg-name" type="text" name="name" required minlength="2" maxlength="120" autocomplete="name" value="' . e(old('name', $user['name'] ?? '')) . '">' . field_error('name') . '</div>'
+        . '<div class="form-group"><label for="reg-email">Email<span class="req">*</span></label><input id="reg-email" type="email" name="email" required maxlength="190" autocomplete="email" value="' . e(old('email', $user['email'] ?? '')) . '">' . field_error('email') . '</div>'
+        . '<div class="form-group"><label for="reg-phone">Mobile number<span class="req">*</span></label><input id="reg-phone" type="tel" name="phone" required maxlength="15" autocomplete="tel" inputmode="tel" value="' . e(old('phone', $user['phone'] ?? '')) . '">' . field_error('phone') . '</div>'
+        . '<div class="form-group"><label for="reg-city">City / town <span class="muted">(optional)</span></label><input id="reg-city" type="text" name="city" maxlength="100" autocomplete="address-level2" value="' . e(old('city')) . '">' . field_error('city') . '</div>'
+        . '<div class="form-group full"><label for="reg-org">School, college or organisation <span class="muted">(optional)</span></label><input id="reg-org" type="text" name="organisation" maxlength="200" autocomplete="organization" value="' . e(old('organisation')) . '">' . field_error('organisation') . '</div>'
+        . '</div>';
+
+    if ($anyTeam) {
+        $tmin = max(1, (int) ($first['team_size_min'] ?? 0));
+        $tmax = (int) ($first['team_size_max'] ?? 0);
+        $sizeRange = $single && $tmax > 0 ? ' (' . $tmin . ($tmax > $tmin ? '–' . $tmax : '') . ')' : '';
+        $html .= '<div class="ph-team" data-ph-team><p class="ph-block-title">' . icon('users') . 'Your team' . ($single ? '' : ' <span class="muted">(hackathons and innovation challenges only)</span>') . '</p><div class="form-grid">'
+            . '<div class="form-group"><label for="reg-team">Team name<span class="req">*</span></label><input id="reg-team" type="text" name="team_name" maxlength="150" data-req value="' . e(old('team_name')) . '"><span class="help">Taking part alone? Use your own name.</span>' . field_error('team_name') . '</div>'
+            . (!$single || $tmax > 0 ? '<div class="form-group" data-ph-size><label for="reg-team-size">Number of team members' . e($sizeRange) . '<span class="req">*</span></label><input id="reg-team-size" type="number" name="team_size" inputmode="numeric" min="' . $tmin . '"' . ($tmax > 0 ? ' max="' . $tmax . '"' : '') . ' data-req value="' . e(old('team_size')) . '">' . field_error('team_size') . '</div>' : '')
+            . '</div></div>';
+    }
+
+    $html .= '<div class="form-group"><label for="reg-message">Anything we should know? <span class="muted">(optional - e.g. accessibility needs)</span></label>'
+        . '<textarea id="reg-message" name="message" maxlength="500" rows="3" data-counter>' . e(old('message')) . '</textarea>' . field_error('message') . '</div>'
+        . '<label class="checkbox ph-minor"><input type="checkbox" name="is_minor" value="1" aria-controls="reg-guardian"' . old_checked('is_minor', '1') . '><span>The participant is <strong>under 18</strong> (a parent or guardian must agree)</span></label>'
+        . '<div class="ph-guardian" id="reg-guardian" data-ph-guardian><p class="ph-block-title">' . icon('shield') . 'Parent or guardian <span class="muted">(only if under 18)</span></p><div class="form-grid">'
+        . '<div class="form-group"><label for="reg-guardian-name">Parent / guardian name<span class="req">*</span></label><input id="reg-guardian-name" type="text" name="guardian_name" maxlength="120" data-req value="' . e(old('guardian_name')) . '">' . field_error('guardian_name') . '</div>'
+        . '<div class="form-group"><label for="reg-guardian-phone">Parent / guardian mobile<span class="req">*</span></label><input id="reg-guardian-phone" type="tel" name="guardian_phone" maxlength="15" inputmode="tel" data-req value="' . e(old('guardian_phone')) . '">' . field_error('guardian_phone') . '</div>'
+        . '</div><div class="form-group"><label class="checkbox"><input type="checkbox" name="guardian_consent" value="1" data-req' . old_checked('guardian_consent', '1') . '><span>I am the parent or guardian, or they have agreed to this registration.<span class="req">*</span></span></label>' . field_error('guardian_consent') . '</div></div>'
+        . '<div class="form-group"><label class="checkbox"><input type="checkbox" name="consent" value="1" required' . old_checked('consent', '1') . '><span>I agree that my details are used to manage this registration, as described in the <a href="' . e(page_url('privacy-policy')) . '#programmes-events">privacy policy</a>.<span class="req">*</span></span></label>' . field_error('consent') . '</div>'
+        . '<button class="btn btn-primary btn-lg btn-block" type="submit" data-ph-submit>' . icon('check') . '<span>' . ($single && !$firstState['open'] ? 'Join the waiting list' : 'Register now') . '</span></button>'
+        . '<p class="form-note">' . icon('lock') . '<span>Registration is free on this website - no payment is asked for or collected here. You will receive a confirmation by email.</span></p>'
+        . '</form>';
+    return $html;
+}
+
+/**
+ * Handle a registration POST for $event (published row incl. `registered`); always redirects.
+ * Success: confirmation e-mail + staff alert + conversion, then the confirmation page <event>/confirmation/.
+ */
+function programhub_handle_registration(array $event, string $source, string $back): void
+{
+    $self = event_url($event);
+    if (honeypot_triggered()) {
+        flash('success', 'Thank you. Your registration has been received.');
+        redirect($back);
+    }
+    $state = event_state($event);
+    if (!$state['can_register']) {
+        flash('error', $state['reason'] ?: 'Registration is closed for this event.');
+        redirect($back . '#register');
+    }
+    $minor = !empty($_POST['is_minor']);
+    $hack = in_array($event['event_type'], HACKATHON_EVENT_TYPES, true);
+    $tmin = max(1, (int) ($event['team_size_min'] ?? 0));
+    $tmax = (int) ($event['team_size_max'] ?? 0);
+    $rules = [
+        'name' => 'required|min:2|max:120', 'email' => 'required|email', 'phone' => 'required|phone',
+        'city' => 'max:100', 'organisation' => 'max:200', 'message' => 'text|max:500', 'consent' => 'accepted',
+    ];
+    if ($minor) {
+        $rules += ['guardian_name' => 'required|min:2|max:120', 'guardian_phone' => 'required|phone', 'guardian_consent' => 'accepted'];
+    }
+    if ($hack) {
+        $rules['team_name'] = 'required|min:2|max:150';
+        if ($tmax > 0) {
+            $rules['team_size'] = 'required|integer|min:' . $tmin . '|max:' . max($tmin, $tmax);
+        }
+    }
+    [$data, $errors] = validate($_POST, $rules, [
+        'phone' => 'Mobile number', 'city' => 'City', 'organisation' => 'School, college or organisation', 'consent' => 'Consent',
+        'guardian_name' => 'Parent / guardian name', 'guardian_phone' => 'Parent / guardian mobile', 'guardian_consent' => 'Parent / guardian consent',
+        'team_name' => 'Team name', 'team_size' => 'Number of team members',
+    ]);
+    if ($errors) {
+        back_with_errors($errors, $back . '#register', $_POST);
+    }
+    if (form_rate_limited('event', 10)) {
+        flash('error', 'Too many registrations were sent from your network in the last hour. Please try again later or contact us.');
+        redirect($back . '#register');
+    }
+    $answers = [];
+    if ($hack && $tmax > 0) {
+        $answers['team_size'] = (int) $data['team_size'];
+    }
+    $res = programhub_register((int) $event['id'], [
+        'name' => $data['name'], 'email' => $data['email'], 'phone' => $data['phone'], 'message' => $data['message'],
+        'city' => $data['city'], 'organisation' => $data['organisation'], 'team_name' => $hack ? $data['team_name'] : '', 'answers' => $answers,
+        'consent' => true, 'is_minor' => $minor, 'guardian_name' => $data['guardian_name'] ?? '', 'guardian_phone' => $data['guardian_phone'] ?? '',
+        'guardian_consent' => $minor, 'source' => $source,
+    ]);
+    if ($res['result'] !== 'ok' && $res['result'] !== 'waitlisted') {
+        flash($res['result'] === 'duplicate' ? 'info' : 'error', $res['message']);
+        redirect($back . '#register');
+    }
+    $regId = (int) $res['id'];
+    $waitlisted = $res['result'] === 'waitlisted';
+    log_activity('form_event', 'Registered for event #' . $event['id'] . ' (registration #' . $regId . ($waitlisted ? ', waiting list' : '') . ', ' . $source . ')', current_user_id());
+    track_conversion('event_registration', $regId);
+    $fresh = db_row('SELECT * FROM events WHERE id = ?', [(int) $event['id']]) ?: $event;
+    $reg = db_row('SELECT * FROM event_registrations WHERE id = ?', [$regId]) ?: ['id' => $regId, 'name' => $data['name'], 'email' => $data['email'], 'status' => $res['status'], 'created_at' => date('Y-m-d H:i:s')];
+    $sent = programhub_send_participant_email($fresh, $reg, $waitlisted ? 'waitlisted' : 'confirmed', ['token' => $res['token']]);
+    programhub_notify_staff_registration($fresh, $reg);
+    if (current_user_id()) {
+        add_notification((int) current_user_id(), $waitlisted ? 'Added to the waiting list' : 'Event registration confirmed',
+            ($waitlisted ? 'You are on the waiting list for ' : 'You are registered for ') . $event['title'] . ' (' . event_when($fresh) . '). Reference ' . programhub_registration_ref($reg) . '.', $self, 'event');
+    }
+    $_SESSION['ph_confirm'] = ['event_id' => (int) $event['id'], 'reg_id' => $regId, 'token' => (string) $res['token'], 'sent' => $sent, 'at' => time()];
+    flash('success', $waitlisted ? 'You are on the waiting list.' : 'You are registered.');
+    redirect($self . 'confirmation/#confirmation');
+}
+
+/** Confirmation page body (after a registration). */
+function programhub_confirmation_html(array $event, array $reg, string $token, bool $sent): string
+{
+    $waitlisted = $reg['status'] === 'waitlisted';
+    $mode = event_mode($event);
+    $self = event_url($event);
+    $html = '<div class="ph-confirm" id="confirmation" data-no-track><div class="ph-confirm-card">'
+        . '<span class="ph-confirm-icon' . ($waitlisted ? ' is-wait' : '') . '">' . icon($waitlisted ? 'clock' : 'check') . '</span>'
+        . '<h2>' . ($waitlisted ? 'You are on the waiting list' : 'You are registered') . '</h2>'
+        . '<p class="lead">' . ($waitlisted ? 'All places are taken at the moment. If a place becomes available we will email you, in the order people joined the waiting list.' : 'Thank you for registering. We look forward to seeing you.') . '</p>'
+        . '<div class="ph-ref"><small>Your reference number</small><strong>' . e(programhub_registration_ref($reg)) . '</strong>'
+        . '<button type="button" class="btn btn-ghost btn-sm" data-copy="' . e(programhub_registration_ref($reg)) . '">' . icon('copy') . 'Copy</button></div>'
+        . '<div class="ph-confirm-event">' . content_date_badge((string) $event['start_datetime']) . '<div><h3><a href="' . e($self) . '">' . e($event['title']) . '</a></h3>'
+        . '<p>' . icon('clock') . '<span>' . e(event_when($event, true)) . '</span></p>'
+        . '<p>' . icon($mode === 'online' ? 'monitor' : 'map-pin') . '<span>' . e(programhub_event_where($event, false)) . '</span></p></div></div>'
+        . '<div class="btn-row center ph-confirm-actions"><a class="btn btn-primary" href="' . e($self . 'ics/') . '" rel="nofollow" download>' . icon('download') . 'Add to calendar (.ics)</a>'
+        . '<a class="btn btn-outline" href="' . e(programhub_google_calendar_url($event)) . '" target="_blank" rel="noopener noreferrer">' . icon('calendar') . 'Google Calendar</a></div>';
+    if (!$waitlisted && $mode !== 'in_person' && $token !== '') {
+        $html .= '<div class="ph-private">' . icon('lock') . '<div><strong>Your private joining page</strong><p>The online joining link is shown there and emailed to you before the session. Please keep this link to yourself.</p>'
+            . '<a class="btn btn-blue btn-sm" href="' . e(programhub_join_url($event, (int) $reg['id'], $token)) . '" rel="nofollow">' . icon('monitor') . 'Open joining page</a></div></div>';
+    }
+    $html .= '</div><div class="ph-next"><h3>What happens next</h3><ol class="ph-next-steps">'
+        . '<li><strong>' . ($sent ? 'Check your inbox' : 'Keep your reference number') . '</strong><span>' . ($sent
+            ? 'A confirmation has been sent to ' . e(programhub_mask_email((string) $reg['email'])) . '. If you cannot find it, look in your spam folder.'
+            : 'We could not send a confirmation email just now. Please note your reference number - our team can find your registration with it.') . '</span></li>'
+        . '<li><strong>' . ($mode === 'in_person' ? 'Plan your visit' : 'Joining details') . '</strong><span>' . ($mode === 'in_person'
+            ? 'The venue, date and time are on the event page. If anything changes, we will email you.'
+            : 'Joining details for the online session are shared only with registered participants, by email and on your private joining page.') . '</span></li>'
+        . '<li><strong>Cannot make it?</strong><span>Please reply to the confirmation email' . (current_user_id() ? ' or cancel from <a href="' . e(member_url('events')) . '">My events</a>' : '') . ', so that someone on the waiting list can take your place.</span></li>'
+        . '</ol>' . (!empty($reg['is_minor']) ? '<p class="small muted">' . icon('shield') . ' Registered as a participant under 18 with the consent of a parent or guardian.</p>' : '')
+        . '<p><a class="link-arrow" href="' . e($self) . '">Back to the event page' . icon('arrow-right') . '</a></p></div></div>';
+    return $html;
+}
+
+/**
+ * Who may open the private joining page / registered-only files of an event:
+ * a visitor who opened a valid private link in this browser session (token hash must still match), or the signed-in owner.
+ * Returns ['reg' => row, 'via' => 'link'|'account'] or null.
+ */
+function programhub_event_access(array $event): ?array
+{
+    $eid = (int) $event['id'];
+    $sess = $_SESSION['ph_access'][$eid] ?? null;
+    if (is_array($sess)) {
+        $reg = db_row('SELECT * FROM event_registrations WHERE id = ? AND event_id = ?', [(int) ($sess['reg'] ?? 0), $eid]);
+        if ($reg && !empty($reg['access_token_hash']) && hash_equals((string) $reg['access_token_hash'], (string) ($sess['h'] ?? ''))) {
+            return ['reg' => $reg, 'via' => 'link'];
+        }
+        unset($_SESSION['ph_access'][$eid]);
+    }
+    $reg = programhub_member_registration($eid);
+    return $reg ? ['reg' => $reg, 'via' => 'account'] : null;
+}
+
+/** Remember a valid private link in the session (so the token leaves the address bar). */
+function programhub_remember_access(array $event, array $reg): void
+{
+    $all = is_array($_SESSION['ph_access'] ?? null) ? $_SESSION['ph_access'] : [];
+    $all[(int) $event['id']] = ['reg' => (int) $reg['id'], 'h' => (string) $reg['access_token_hash']];
+    $_SESSION['ph_access'] = array_slice($all, -10, null, true);
+}
+
+// ----- Register interest (nothing open) -----
+
+function programhub_interest_form(array $cat, string $action): string
+{
+    $user = current_user();
+    return '<form class="ph-form ph-interest-form" method="post" action="' . e($action) . '" data-validate novalidate>'
+        . csrf_field() . honeypot_field() . '<input type="hidden" name="form" value="program_interest">'
+        . '<div class="form-grid">'
+        . '<div class="form-group"><label for="in-name">Name<span class="req">*</span></label><input id="in-name" type="text" name="in_name" required minlength="2" maxlength="120" autocomplete="name" value="' . e(old('in_name', $user['name'] ?? '')) . '">' . field_error('in_name') . '</div>'
+        . '<div class="form-group"><label for="in-email">Email<span class="req">*</span></label><input id="in-email" type="email" name="in_email" required maxlength="190" autocomplete="email" value="' . e(old('in_email', $user['email'] ?? '')) . '">' . field_error('in_email') . '</div>'
+        . '<div class="form-group"><label for="in-phone">Mobile number <span class="muted">(optional)</span></label><input id="in-phone" type="tel" name="in_phone" maxlength="15" autocomplete="tel" inputmode="tel" value="' . e(old('in_phone', $user['phone'] ?? '')) . '">' . field_error('in_phone') . '</div>'
+        . '<div class="form-group"><label for="in-city">City / town <span class="muted">(optional)</span></label><input id="in-city" type="text" name="in_city" maxlength="100" autocomplete="address-level2" value="' . e(old('in_city')) . '">' . field_error('in_city') . '</div>'
+        . '<div class="form-group full"><label for="in-message">What would you like to learn or join? <span class="muted">(optional)</span></label><textarea id="in-message" name="in_message" maxlength="500" rows="3" data-counter>' . e(old('in_message')) . '</textarea>' . field_error('in_message') . '</div>'
+        . '</div><div class="form-group"><label class="checkbox"><input type="checkbox" name="in_consent" value="1" required' . old_checked('in_consent', '1') . '><span>Email me when new ' . e($cat['title']) . ' sessions are announced. I can ask you to remove my details at any time.<span class="req">*</span></span></label>' . field_error('in_consent') . '</div>'
+        . '<button class="btn btn-primary btn-block" type="submit">' . icon('bell') . 'Notify me</button>'
+        . '<p class="form-note">' . icon('lock') . '<span>We use these details only to tell you about sessions in this area. See our <a href="' . e(page_url('privacy-policy')) . '#programmes-events">privacy policy</a>.</span></p></form>';
+}
+
+function programhub_handle_interest(array $cat, string $back): void
+{
+    if (honeypot_triggered()) {
+        flash('success', 'Thank you. We will let you know when new sessions are announced.');
+        redirect($back . '#register');
+    }
+    [$data, $errors] = validate($_POST, [
+        'in_name' => 'required|min:2|max:120', 'in_email' => 'required|email', 'in_phone' => 'phone', 'in_city' => 'max:100',
+        'in_message' => 'text|max:500', 'in_consent' => 'accepted',
+    ], ['in_name' => 'Name', 'in_email' => 'Email', 'in_phone' => 'Mobile number', 'in_city' => 'City', 'in_message' => 'Message', 'in_consent' => 'Consent']);
+    if ($errors) {
+        back_with_errors($errors, $back . '#register-interest', $_POST);
+    }
+    if (form_rate_limited('program_interest', 5)) {
+        flash('error', 'Several requests were sent from your network in the last hour. Please try again later.');
+        redirect($back . '#register');
+    }
+    $existing = db_row("SELECT id FROM program_interests WHERE email = ? AND category_id = ? AND status = 'new'", [$data['in_email'], (int) $cat['id']]);
+    if ($existing) {
+        db_update('program_interests', array_filter(['phone' => $data['in_phone'], 'city' => $data['in_city'], 'message' => $data['in_message']], 'strlen') + ['consent_at' => date('Y-m-d H:i:s')],
+            'id = :id', ['id' => (int) $existing['id']]);
+        log_activity('form_program_interest', 'Updated interest #' . $existing['id'], current_user_id());
+        $_SESSION['ph_done'] = ['form' => 'interest', 'cat' => (int) $cat['id'], 'again' => true, 'at' => time()];
+        flash('info', 'You are already on our list for ' . $cat['title'] . '. We have updated your details.');
+        redirect($back . '#register');
+    }
+    $id = db_insert('program_interests', [
+        'category_id' => (int) $cat['id'], 'user_id' => current_user_id(), 'name' => $data['in_name'], 'email' => $data['in_email'],
+        'phone' => $data['in_phone'] !== '' ? $data['in_phone'] : null, 'city' => $data['in_city'] !== '' ? $data['in_city'] : null,
+        'message' => $data['in_message'] !== '' ? mb_substr($data['in_message'], 0, 500) : null, 'consent_at' => date('Y-m-d H:i:s'), 'status' => 'new',
+    ]);
+    log_activity('form_program_interest', 'Interest #' . $id . ' for category #' . $cat['id'], current_user_id());
+    track_conversion('program_interest', $id);
+    send_mail($data['in_email'], 'We will keep you posted: ' . $cat['title'],
+        '<p>Dear ' . e($data['in_name']) . ',</p><p>Thank you for your interest in our <strong>' . e($cat['title']) . '</strong> programmes. '
+        . 'We will email you when new sessions are announced and registration opens.</p>'
+        . '<p>Upcoming sessions are always listed on <a href="' . e(program_category_abs_url($cat)) . '">' . e(program_category_abs_url($cat)) . '</a>.</p>'
+        . '<p>If you no longer want these emails, reply to this message and we will remove your details.</p><p>Regards,<br>' . e(site_name()) . '</p>',
+        setting('contact_email') ?: null);
+    if (setting('events_admin_alerts', '1') === '1') {
+        programhub_notify_staff($cat, 'Programme interest: ' . $cat['title'],
+            '<p>Someone registered their interest in <strong>' . e($cat['title']) . '</strong> (no session was open). See the interest list in Admin &gt; Program categories.</p>');
+    }
+    $_SESSION['ph_done'] = ['form' => 'interest', 'cat' => (int) $cat['id'], 'at' => time()];
+    flash('success', 'Thank you. We will let you know when new ' . $cat['title'] . ' sessions are announced.');
+    redirect($back . '#register');
+}
+
+// ----- Partnership enquiry -----
+
+function programhub_partnership_form(array $cat, string $action): string
+{
+    $user = current_user();
+    return '<form class="ph-form" method="post" action="' . e($action) . '" data-validate novalidate>'
+        . csrf_field() . honeypot_field() . '<input type="hidden" name="form" value="partnership">'
+        . '<div class="form-grid">'
+        . '<div class="form-group"><label for="pt-name">Your name<span class="req">*</span></label><input id="pt-name" type="text" name="pt_name" required minlength="2" maxlength="120" autocomplete="name" value="' . e(old('pt_name', $user['name'] ?? '')) . '">' . field_error('pt_name') . '</div>'
+        . '<div class="form-group"><label for="pt-email">Email<span class="req">*</span></label><input id="pt-email" type="email" name="pt_email" required maxlength="190" autocomplete="email" value="' . e(old('pt_email', $user['email'] ?? '')) . '">' . field_error('pt_email') . '</div>'
+        . '<div class="form-group"><label for="pt-phone">Mobile number <span class="muted">(optional)</span></label><input id="pt-phone" type="tel" name="pt_phone" maxlength="15" autocomplete="tel" inputmode="tel" value="' . e(old('pt_phone')) . '">' . field_error('pt_phone') . '</div>'
+        . '<div class="form-group"><label for="pt-kind">You are<span class="req">*</span></label><select id="pt-kind" name="pt_kind" required>' . options_html(PARTNERSHIP_KINDS, (string) old('pt_kind'), true, 'Choose one') . '</select>' . field_error('pt_kind') . '</div>'
+        . '<div class="form-group full"><label for="pt-org">Organisation / institution<span class="req">*</span></label><input id="pt-org" type="text" name="pt_org" required minlength="2" maxlength="200" autocomplete="organization" value="' . e(old('pt_org')) . '">' . field_error('pt_org') . '</div>'
+        . '<div class="form-group full"><label for="pt-message">How would you like to work together?<span class="req">*</span></label><textarea id="pt-message" name="pt_message" required minlength="10" maxlength="2000" rows="4" data-counter>' . e(old('pt_message')) . '</textarea>' . field_error('pt_message') . '</div>'
+        . '</div><div class="form-group"><label class="checkbox"><input type="checkbox" name="pt_consent" value="1" required' . old_checked('pt_consent', '1') . '><span>I agree that these details are used to reply to this enquiry, as described in the <a href="' . e(page_url('privacy-policy')) . '">privacy policy</a>.<span class="req">*</span></span></label>' . field_error('pt_consent') . '</div>'
+        . '<button class="btn btn-primary btn-block" type="submit">' . icon('send') . 'Send enquiry</button></form>';
+}
+
+function programhub_handle_partnership(array $cat, string $back): void
+{
+    if (honeypot_triggered()) {
+        flash('success', 'Thank you. Your enquiry has been received.');
+        redirect($back . '#partner');
+    }
+    [$data, $errors] = validate($_POST, [
+        'pt_name' => 'required|min:2|max:120', 'pt_email' => 'required|email', 'pt_phone' => 'phone',
+        'pt_kind' => 'required|in:' . implode(',', array_keys(PARTNERSHIP_KINDS)), 'pt_org' => 'required|min:2|max:200',
+        'pt_message' => 'required|text|min:10|max:2000', 'pt_consent' => 'accepted',
+    ], ['pt_name' => 'Your name', 'pt_email' => 'Email', 'pt_phone' => 'Mobile number', 'pt_kind' => 'You are', 'pt_org' => 'Organisation', 'pt_message' => 'Message', 'pt_consent' => 'Consent']);
+    if ($errors) {
+        back_with_errors($errors, $back . '#partner', $_POST);
+    }
+    if (form_rate_limited('partnership', 5)) {
+        flash('error', 'Several enquiries were sent from your network in the last hour. Please try again later, or write to us at ' . setting('contact_email', 'our email address') . '.');
+        redirect($back . '#partner');
+    }
+    $kind = PARTNERSHIP_KINDS[$data['pt_kind']];
+    $id = db_insert('contact_enquiries', [
+        'type' => 'partnership', 'user_id' => current_user_id(), 'name' => $data['pt_name'], 'email' => $data['pt_email'],
+        'phone' => $data['pt_phone'] !== '' ? $data['pt_phone'] : null, 'subject' => mb_substr('Partnership: ' . $cat['title'] . ' (' . $kind . ')', 0, 200),
+        'message' => $data['pt_message'], 'status' => 'new', 'ip_address' => null, 'category_id' => (int) $cat['id'],
+        'organisation' => $data['pt_org'], 'partner_kind' => $data['pt_kind'],
+    ]);
+    $ref = reference_no('ENQ', $id);
+    db_update('contact_enquiries', ['reference_no' => $ref], 'id = :id', ['id' => $id]);
+    log_activity('form_partnership', 'Partnership enquiry ' . $ref, current_user_id());
+    track_conversion('contact_enquiry', $id);
+    $quote = '<blockquote style="margin:16px 0;padding:12px 16px;background:#f5f9f4;border-left:4px solid #146B43">' . e_nl($data['pt_message']) . '</blockquote>';
+    send_mail($data['pt_email'], 'We received your partnership enquiry - ' . $ref,
+        '<p>Dear ' . e($data['pt_name']) . ',</p><p>Thank you for your interest in working with ' . e(site_name()) . ' on <strong>' . e($cat['title']) . '</strong> programmes. '
+        . 'Our team will read your enquiry and reply by email.</p><p>Your reference number is <strong style="font-size:17px">' . e($ref) . '</strong>.</p>'
+        . '<p><strong>Your message:</strong></p>' . $quote . '<p>Regards,<br>' . e(site_name()) . '</p>');
+    programhub_notify_staff($cat, 'Partnership enquiry ' . $ref . ': ' . $cat['title'],
+        '<p><strong>' . e($data['pt_name']) . '</strong> (' . e($data['pt_email']) . ') - ' . e($kind) . ', ' . e($data['pt_org']) . ' - sent a partnership enquiry about <strong>' . e($cat['title']) . '</strong> (' . e($ref) . ').</p>'
+        . $quote . '<p>It is listed in Admin &gt; Enquiries.</p>', $data['pt_email']);
+    $_SESSION['ph_done'] = ['form' => 'partnership', 'cat' => (int) $cat['id'], 'ref' => $ref, 'at' => time()];
+    flash('success', 'Thank you. Your reference number is ' . $ref . '.');
+    redirect($back . '#partner');
 }
 
 function section_schema_program_registration(): array
@@ -903,30 +1659,67 @@ function section_schema_program_registration(): array
         'label' => 'Programme registration (open sessions / register interest)',
         'fields' => ['pill', 'title', 'intro'],
         'settings' => ['category' => ['select', 'Category', ['' => 'This page\'s category'] + program_category_options()]],
-        'help' => 'Registration for the open sessions of this category; when none is open, visitors can register their interest.',
+        'help' => 'Registration form for the open sessions of this category; when none is open, visitors can register their interest (if enabled for the category).',
     ];
 }
 
-/** Minimal version (architect): open sessions link to their registration form. P1 replaces it with the full form. */
+/** Steps shown next to the registration form (honest, generic). */
+function programhub_how_it_works(): string
+{
+    $steps = [
+        ['calendar', 'Choose an open session', 'Dates, venue or online mode and eligibility are on each event page.'],
+        ['edit', 'Register with your details', 'Participants under 18 need the consent of a parent or guardian.'],
+        ['mail', 'Get your confirmation', 'By email, with a reference number and a calendar file. Online sessions: a private joining link for registered participants only.'],
+        ['users', 'Take part', 'If a session is full it may have a waiting list - we email you if a place opens up.'],
+    ];
+    $html = '<aside class="ph-how"><h3>How registration works</h3><ol>';
+    foreach ($steps as $i => [$ic, $t, $x]) {
+        $html .= '<li><span class="ph-how-num">' . ($i + 1) . '</span><div><strong>' . e($t) . '</strong><span>' . e($x) . '</span></div></li>';
+    }
+    return $html . '</ol><p class="ph-how-note">' . icon('shield') . '<span>No fee is collected on this website. If a session has a participation fee, its event page says so clearly. Please do not pay anyone who asks for money in our name without checking with us first.</span></p></aside>';
+}
+
 function section_program_registration(array $s, array $items, array $set, array $page): string
 {
-    $cat = !empty($set['category']) ? program_category_by_id((int) $set['category']) : (!empty($page['id']) ? program_category_for_page((int) $page['id']) : null);
-    $open = programhub_events(['when' => 'open', 'limit' => 12, 'category_id' => $cat ? (int) $cat['id'] : 0]);
-    if (!$open) {
-        return '<div class="ph-register-empty empty-state">' . icon('info') . '<p><strong>There is no open programme in this area right now.</strong> '
-            . 'New sessions are announced on this page. You can subscribe to our updates or write to us and we will let you know when registration opens.</p>'
-            . '<div class="btn-row center"><a class="btn btn-primary" href="' . e(page_url('newsletter')) . '">' . icon('mail') . 'Get updates by email</a>'
-            . '<a class="btn btn-ghost" href="' . e(page_url('contact')) . '">' . icon('message') . 'Contact us</a></div></div>';
+    $cat = programhub_section_category($set, $page);
+    if (!$cat) {
+        $open = programhub_events(['when' => 'open', 'limit' => 12]);
+        if (!$open) {
+            return '';
+        }
+        $html = '<div class="card-grid ph-event-grid">';
+        foreach ($open as $i => $ev) {
+            $html .= programhub_event_card($ev, $i);
+        }
+        return $html . '</div>';
     }
-    $html = '<ul class="ph-open-list">';
-    foreach ($open as $ev) {
-        $state = event_state($ev);
-        $html .= '<li class="ph-open-item"><div><h3><a href="' . e(event_url($ev)) . '">' . e($ev['title']) . '</a></h3>'
-            . '<p class="small muted">' . icon('clock') . e(event_when($ev)) . ' · ' . e(event_mode($ev) === 'online' ? 'Online' : (string) $ev['location']) . '</p>'
-            . '<p>' . programhub_status_badge($ev, $state) . ($state['seats_left'] !== null && $state['open'] ? ' <span class="small">' . (int) $state['seats_left'] . ' places left</span>' : '') . '</p></div>'
-            . '<a class="btn btn-primary" href="' . e(event_url($ev) . '#register') . '">' . icon('check') . ($state['open'] ? 'Register' : 'Join the waiting list') . '<span class="sr-only">: ' . e($ev['title']) . '</span></a></li>';
+    $open = programhub_events(['when' => 'open', 'limit' => 24, 'category_id' => (int) $cat['id']]);
+    $action = program_category_url($cat);
+    $interest = (int) $cat['interest_enabled'] === 1;
+    $done = $interest ? programhub_take_done('interest', (int) $cat['id']) : null;
+    $donePanel = $done ? '<div class="ph-done" role="status">' . icon('check-circle') . '<div><strong>' . (!empty($done['again']) ? 'You are already on our list' : 'Thank you - you are on our list') . '</strong>'
+        . '<p>We will email you when new ' . e($cat['title']) . ' sessions are announced.</p></div></div>' : '';
+    $html = '<div class="ph-reg-layout"><div class="ph-reg-main">';
+    if ($open) {
+        $html .= '<div class="form-card ph-form-card"><h3 class="ph-form-title">' . icon('check-circle') . (count($open) === 1 ? 'Register for this session' : 'Register for a session') . '</h3>'
+            . programhub_registration_form($open, ['action' => $action . '#register']) . '</div>';
+        if ($interest) {
+            $hasInterestInput = old('in_email', null) !== null;
+            $html .= '<details class="ph-more" id="register-interest"' . ($done || $hasInterestInput ? ' open' : '') . '><summary>' . icon('bell') . 'None of these dates suit you? Register your interest' . icon('chevron-down') . '</summary><div class="ph-more-body">'
+                . ($donePanel !== '' ? $donePanel : programhub_interest_form($cat, $action . '#register-interest')) . '</div></details>';
+        }
+    } else {
+        $html .= '<div class="ph-none">' . icon('calendar') . '<div><strong>There is no open programme in this area right now.</strong>'
+            . '<p>New ' . e($cat['title']) . ' sessions are announced on this page and on our <a href="' . e(events_list_url()) . '">events page</a>.' . ($interest ? ' Leave your details and we will let you know when registration opens.' : '') . '</p></div></div>';
+        if ($interest) {
+            $html .= $donePanel !== '' ? $donePanel : '<div class="form-card ph-form-card" id="register-interest"><h3 class="ph-form-title">' . icon('bell') . 'Register your interest</h3>'
+                . programhub_interest_form($cat, $action . '#register-interest') . '</div>';
+        } else {
+            $html .= '<div class="btn-row"><a class="btn btn-primary" href="' . e(page_url('newsletter')) . '">' . icon('mail') . 'Get updates by email</a>'
+                . '<a class="btn btn-ghost" href="' . e(page_url('contact')) . '">' . icon('message') . 'Contact us</a></div>';
+        }
     }
-    return $html . '</ul><p class="form-note">' . icon('lock') . '<span>Participants under 18 need a parent\'s or guardian\'s consent. See our <a href="' . e(page_url('privacy-policy')) . '">privacy policy</a>.</span></p>';
+    return $html . '</div>' . programhub_how_it_works() . '</div>';
 }
 
 function section_schema_partnership_enquiry(): array
@@ -939,20 +1732,334 @@ function section_schema_partnership_enquiry(): array
     ];
 }
 
-/** Minimal version (architect): who can partner + link to the contact form preset to "partnership". P1 replaces it with an inline form. */
 function section_partnership_enquiry(array $s, array $items, array $set, array $page): string
 {
-    $html = '<div class="ph-partner grid grid-2">';
-    $html .= '<ul class="check-list ph-partner-kinds">';
-    foreach (['Schools, colleges and institutions that want to host a session', 'Trainers, experts and speakers who want to volunteer their time', 'Sponsors and CSR teams who want to support a programme', 'Community organisations that want to bring a programme to their area'] as $line) {
-        $html .= '<li>' . icon('check-circle') . '<span>' . e($line) . '</span></li>';
+    $cat = programhub_section_category($set, $page);
+    $kinds = [
+        ['graduation', 'Schools, colleges & institutions', 'Host a session or a series for your students or members.'],
+        ['user', 'Trainers, experts & speakers', 'Volunteer your time and knowledge as a trainer, mentor or judge.'],
+        ['briefcase', 'Sponsors & CSR teams', 'Support a programme with resources, equipment or venues.'],
+        ['users', 'Community organisations', 'Bring a programme to your neighbourhood, village or community centre.'],
+    ];
+    $html = '<div class="ph-partner-layout"><div class="ph-partner-info"><ul class="ph-kinds">';
+    foreach ($kinds as [$ic, $t, $x]) {
+        $html .= '<li><span class="icon-circle">' . icon($ic) . '</span><div><strong>' . e($t) . '</strong><span>' . e($x) . '</span></div></li>';
     }
-    $html .= '</ul><div class="ph-partner-cta"><p>Tell us about your organisation and how you would like to work together. Our team replies by email.</p>'
-        . '<div class="btn-row"><a class="btn btn-primary" href="' . e(page_url('contact', ['type' => 'partnership'])) . '">' . icon('send') . 'Send a partnership enquiry</a>';
-    if (setting('contact_email') !== '') {
-        $html .= '<a class="btn btn-ghost" href="mailto:' . e(setting('contact_email')) . '">' . icon('mail') . e(setting('contact_email')) . '</a>';
+    $html .= '</ul>' . (setting('contact_email') !== '' ? '<p class="ph-mail">' . icon('mail') . '<span>Prefer email? Write to <a href="mailto:' . e(setting('contact_email')) . '">' . e(setting('contact_email')) . '</a></span></p>' : '') . '</div>';
+    if (!$cat || (int) $cat['partnership_enabled'] !== 1) {
+        return $html . '<div class="form-card ph-form-card"><p>Tell us about your organisation and how you would like to work together. Our team replies by email.</p>'
+            . '<a class="btn btn-primary" href="' . e(page_url('contact', ['type' => 'partnership'])) . '">' . icon('send') . 'Send a partnership enquiry</a></div></div>';
     }
-    return $html . '</div></div></div>';
+    $done = programhub_take_done('partnership', (int) $cat['id']);
+    $html .= '<div class="form-card ph-form-card">';
+    if ($done) {
+        $html .= '<div class="ph-done" role="status">' . icon('check-circle') . '<div><strong>Thank you - your enquiry has been sent</strong>'
+            . '<p>Your reference number is <strong>' . e((string) ($done['ref'] ?? '')) . '</strong>. We have emailed you an acknowledgement and will reply as soon as possible.</p></div></div>';
+    } else {
+        $html .= '<h3 class="ph-form-title">' . icon('send') . 'Partnership enquiry</h3>' . programhub_partnership_form($cat, program_category_url($cat) . '#partner');
+    }
+    return $html . '</div></div>';
+}
+
+// ----- Event page blocks -----
+
+/** "At a glance" key facts of an event (only facts that are set; fee is display-only; certificate only when confirmed). */
+function programhub_event_glance(array $ev, array $state): string
+{
+    $facts = [];
+    $cat = programhub_event_category($ev);
+    $mode = event_mode($ev);
+    $facts[] = ['layers', 'Type', e(event_type_label($ev['event_type']))];
+    if ($cat) {
+        $facts[] = [(string) ($cat['icon'] ?: 'layers'), 'Programme area', '<a href="' . e(program_category_url($cat)) . '">' . e($cat['title']) . '</a>'];
+    }
+    $facts[] = [$mode === 'in_person' ? 'map-pin' : 'monitor', 'Mode', e(EVENT_MODES[$mode])];
+    if ($mode !== 'online') {
+        $venue = e(trim((string) $ev['location']) !== '' ? (string) $ev['location'] : 'Venue to be announced');
+        if (trim((string) ($ev['venue_address'] ?? '')) !== '') {
+            $venue .= '<br><span class="muted">' . e((string) $ev['venue_address']) . '</span>';
+        }
+        $map = programhub_map_url($ev);
+        if ($map !== '') {
+            $venue .= '<br><a href="' . e($map) . '" target="_blank" rel="noopener noreferrer">Open in Google Maps' . icon('external') . '</a>';
+        }
+        $facts[] = ['map-pin', 'Venue', $venue];
+    }
+    if (trim((string) ($ev['eligibility'] ?? '')) !== '') {
+        $facts[] = ['users', 'Who can take part', e_nl((string) $ev['eligibility'])];
+    }
+    if (in_array($ev['event_type'], HACKATHON_EVENT_TYPES, true) && (int) ($ev['team_size_max'] ?? 0) > 0) {
+        $tmin = max(1, (int) $ev['team_size_min']);
+        $tmax = (int) $ev['team_size_max'];
+        $facts[] = ['users', 'Team size', $tmin === $tmax ? $tmin . ' members' : $tmin . '–' . $tmax . ' members'];
+    }
+    if ((int) $ev['registration_enabled'] === 1 && !$state['is_past'] && $ev['status'] === 'published') {
+        $reg = [];
+        if ($state['not_yet_open'] && $state['opens_at']) {
+            $reg[] = 'Opens ' . date('d M Y, h:i A', (int) $state['opens_at']);
+        }
+        if ($state['deadline']) {
+            $reg[] = ($state['deadline_passed'] ? 'Closed on ' : 'Register by ') . date('d M Y, h:i A', (int) $state['deadline']);
+        }
+        if ($state['capacity'] !== null) {
+            $reg[] = $state['seats_left'] > 0 ? (int) $state['seats_left'] . ' of ' . (int) $state['capacity'] . ' places left'
+                : ((int) $state['capacity'] === 1 ? 'The only place has been taken' : 'All ' . (int) $state['capacity'] . ' places taken') . ($state['waitlist_open'] ? ' - waiting list open' : '');
+        }
+        $facts[] = ['check-circle', 'Registration', e($reg ? implode(' · ', $reg) : 'Open until the event starts')];
+    } elseif ((int) $ev['registration_enabled'] !== 1 && $ev['event_type'] !== 'awareness_day') {
+        $facts[] = ['check-circle', 'Registration', 'Not required'];
+    }
+    $fee = (float) ($ev['fee_amount'] ?? 0);
+    $facts[] = ['rupee', 'Participation fee', $fee > 0
+        ? '<strong>' . e(money($fee)) . '</strong>' . (trim((string) ($ev['fee_note'] ?? '')) !== '' ? ' - ' . e((string) $ev['fee_note']) : '') . '<br><span class="muted">Shown for information only. No payment is collected on this website.</span>'
+        : 'Free'];
+    if (!empty($ev['certificate_confirmed'])) {
+        $facts[] = ['award', 'Certificate', e(trim((string) ($ev['certificate_note'] ?? '')) ?: 'Participation certificates are confirmed for attendees whose attendance is recorded.')];
+    }
+    $facts[] = ['flag', 'Organised by', trim((string) ($ev['organising_team'] ?? '')) !== '' ? e_nl((string) $ev['organising_team']) : e(site_name())];
+    $contact = [];
+    $email = trim((string) ($ev['contact_email'] ?? '')) ?: setting('contact_email');
+    if ($email !== '') {
+        $contact[] = '<a href="mailto:' . e($email) . '">' . e($email) . '</a>';
+    }
+    if (trim((string) ($ev['contact_phone'] ?? '')) !== '') {
+        $contact[] = '<a href="tel:' . e(preg_replace('/[^0-9+]/', '', (string) $ev['contact_phone'])) . '">' . e((string) $ev['contact_phone']) . '</a>';
+    }
+    if ($contact) {
+        $facts[] = ['mail', 'Questions?', implode('<br>', $contact)];
+    }
+    $html = '<dl class="ph-glance">';
+    foreach ($facts as [$ic, $label, $value]) {
+        $html .= '<div><dt>' . icon($ic) . e($label) . '</dt><dd>' . $value . '</dd></div>';
+    }
+    return $html . '</dl>';
+}
+
+/** Agenda / session schedule (events.agenda JSON list of {time, title, speaker, text}). */
+function programhub_agenda_html(array $ev): string
+{
+    $items = array_values(array_filter(programhub_json_list($ev['agenda'] ?? null), function ($a) {
+        return trim((string) ($a['title'] ?? '')) !== '';
+    }));
+    if (!$items) {
+        return '';
+    }
+    $html = '<ol class="ph-agenda">';
+    foreach ($items as $a) {
+        $html .= '<li><span class="ph-agenda-time">' . e(trim((string) ($a['time'] ?? '')) ?: '·') . '</span><div class="ph-agenda-body"><strong>' . e((string) $a['title']) . '</strong>'
+            . (trim((string) ($a['speaker'] ?? '')) !== '' ? '<small>' . icon('user') . e((string) $a['speaker']) . '</small>' : '')
+            . (trim((string) ($a['text'] ?? '')) !== '' ? '<p>' . e_nl((string) $a['text']) . '</p>' : '') . '</div></li>';
+    }
+    return $html . '</ol>';
+}
+
+/** Speaker / trainer cards (public profiles only; photo only with photo consent; never e-mail or phone). */
+function programhub_speakers_html(array $speakers): string
+{
+    if (!$speakers) {
+        return '';
+    }
+    $html = '<div class="ph-people">';
+    foreach ($speakers as $i => $sp) {
+        $photo = (int) ($sp['photo_consent'] ?? 0) === 1 && !empty($sp['photo']) && strpos((string) $sp['photo'], '..') === false && is_file(ROOT_PATH . '/' . $sp['photo']) ? (string) $sp['photo'] : '';
+        $initials = '';
+        foreach (array_slice(preg_split('/\s+/', trim((string) $sp['name'])) ?: [], 0, 2) as $w) {
+            $initials .= mb_strtoupper(mb_substr($w, 0, 1));
+        }
+        $links = '';
+        foreach (['website_url' => ['globe', 'Website'], 'linkedin_url' => ['linkedin', 'LinkedIn']] as $col => [$ic, $label]) {
+            $u = trim((string) ($sp[$col] ?? ''));
+            if ($u !== '' && preg_match('#^https?://#i', $u)) {
+                $links .= '<a href="' . e(safe_link($u)) . '" target="_blank" rel="noopener noreferrer nofollow" aria-label="' . e($label . ': ' . $sp['name']) . '">' . icon($ic) . '</a>';
+            }
+        }
+        $role = SPEAKER_ROLES[$sp['role'] ?? 'speaker'] ?? 'Speaker';
+        $html .= '<article class="ph-person reveal" style="--d:' . ($i % 4) . '">'
+            . ($photo !== '' ? '<img class="ph-avatar" src="' . e(url($photo)) . '" alt="" width="88" height="88" loading="lazy">' : '<span class="ph-avatar ph-initials" aria-hidden="true">' . e($initials) . '</span>')
+            . '<div class="ph-person-body"><span class="ph-role">' . e($role) . '</span><h3>' . e((string) $sp['name']) . '</h3>'
+            . (trim((string) ($sp['designation'] ?? '') . (string) ($sp['organisation'] ?? '')) !== '' ? '<p class="ph-person-meta">' . e(implode(', ', array_filter([trim((string) ($sp['designation'] ?? '')), trim((string) ($sp['organisation'] ?? ''))]))) . '</p>' : '')
+            . (trim((string) ($sp['session_title'] ?? '')) !== '' ? '<p class="ph-person-session">' . icon('message') . '<span>' . e((string) $sp['session_title']) . '</span></p>' : '')
+            . (trim((string) ($sp['bio'] ?? '')) !== '' ? '<p class="ph-person-bio">' . e(excerpt((string) $sp['bio'], 260)) . '</p>' : '')
+            . ($links !== '' ? '<p class="ph-person-links">' . $links . '</p>' : '') . '</div></article>';
+    }
+    return $html . '</div>';
+}
+
+/** Partner logos / names (only with documented display consent). */
+function programhub_partners_html(array $partners): string
+{
+    if (!$partners) {
+        return '';
+    }
+    $html = '<ul class="ph-partners">';
+    foreach ($partners as $p) {
+        $logo = !empty($p['logo']) && strpos((string) $p['logo'], '..') === false && is_file(ROOT_PATH . '/' . $p['logo']) ? (string) $p['logo'] : '';
+        $inner = ($logo !== '' ? '<img src="' . e(url($logo)) . '" alt="' . e((string) $p['name']) . '" loading="lazy">' : '<span class="ph-partner-name">' . e((string) $p['name']) . '</span>')
+            . '<small>' . e(EVENT_PARTNER_ROLES[$p['role'] ?? 'partner'] ?? 'Partner') . ($logo !== '' ? ' · ' . e((string) $p['name']) : '') . '</small>';
+        $u = trim((string) ($p['website_url'] ?? ''));
+        $html .= '<li>' . ($u !== '' && preg_match('#^https?://#i', $u) ? '<a href="' . e(safe_link($u)) . '" target="_blank" rel="noopener noreferrer nofollow">' . $inner . '</a>' : '<div>' . $inner . '</div>') . '</li>';
+    }
+    return $html . '</ul>';
+}
+
+/**
+ * Downloads: public files / links, and registered-only items. $access: the visitor's access (programhub_event_access()).
+ * Registered-only files are served by <event>/file/<id>/ after an access check - never linked directly.
+ */
+function programhub_resources_html(array $ev, ?array $access, array $types = []): string
+{
+    $canPrivate = $access && in_array($access['reg']['status'], EVENT_ACCESS_STATUSES, true) && $ev['status'] === 'published';
+    $rows = programhub_event_resources((int) $ev['id'], 'registered');
+    if ($types) {
+        $rows = array_values(array_filter($rows, function ($r) use ($types) { return in_array($r['resource_type'], $types, true); }));
+    }
+    if (!$rows) {
+        return '';
+    }
+    $html = '<ul class="ph-files">';
+    $locked = 0;
+    foreach ($rows as $r) {
+        $type = EVENT_RESOURCE_TYPES[$r['resource_type']] ?? 'File';
+        $href = '';
+        if ($r['visibility'] === 'public') {
+            if (!empty($r['external_url']) && preg_match('#^https?://#i', (string) $r['external_url'])) {
+                $href = safe_link((string) $r['external_url']);
+            } elseif (!empty($r['file_path']) && strpos((string) $r['file_path'], 'uploads/') === 0 && strpos((string) $r['file_path'], 'uploads/documents/') !== 0) {
+                $href = url((string) $r['file_path']);
+            }
+        } elseif ($canPrivate) {
+            $href = !empty($r['external_url']) && preg_match('#^https?://#i', (string) $r['external_url']) ? safe_link((string) $r['external_url'])
+                : (!empty($r['file_path']) ? event_url($ev) . 'file/' . (int) $r['id'] . '/' : '');
+        }
+        if ($href === '' && $r['visibility'] === 'registered') {
+            $locked++;
+            $html .= '<li class="is-locked">' . icon('lock') . '<div><strong>' . e((string) $r['title']) . '</strong><small>' . e($type) . ' · for registered participants</small></div></li>';
+            continue;
+        }
+        if ($href === '') {
+            continue;
+        }
+        $external = strpos($href, 'http') === 0;
+        $html .= '<li><a href="' . e($href) . '"' . ($external ? ' target="_blank" rel="noopener noreferrer"' : ' rel="nofollow"') . '>' . icon($external ? 'external' : 'download')
+            . '<div><strong>' . e((string) $r['title']) . '</strong><small>' . e($type) . (trim((string) ($r['description'] ?? '')) !== '' ? ' · ' . e((string) $r['description']) : '') . '</small></div></a></li>';
+    }
+    $html .= '</ul>';
+    if ($locked) {
+        $html .= '<p class="small muted ph-locked-note">' . icon('info') . ' Registered participants can open these from their private joining page (link in the confirmation email) or, when signed in, from this page.</p>';
+    }
+    return $html;
+}
+
+/** Report and verified outcomes of a completed event (published report only; figures only when staff-verified). */
+function programhub_report_html(array $ev): string
+{
+    $report = programhub_event_report((int) $ev['id']);
+    $n = programhub_verified_participants($ev);
+    $outcomes = $report ? array_values(array_filter($report['outcomes_list'], function ($o) {
+        return trim((string) ($o['label'] ?? '')) !== '' && trim((string) ($o['value'] ?? '')) !== '';
+    })) : [];
+    if (!$report && !$n) {
+        return '';
+    }
+    $html = '';
+    if ($n || $outcomes) {
+        $html .= '<div class="ph-outcomes">';
+        if ($n) {
+            $html .= '<div class="ph-outcome"><strong>' . $n . '</strong><span>participant' . ($n === 1 ? '' : 's') . '</span><small>' . ($report && $report['participants_verified'] !== null && $report['verified_at'] ? 'verified by our team' : 'attendance recorded') . '</small></div>';
+        }
+        foreach ($outcomes as $o) {
+            $html .= '<div class="ph-outcome"><strong>' . e((string) $o['value']) . '</strong><span>' . e((string) $o['label']) . '</span>'
+                . (trim((string) ($o['note'] ?? '')) !== '' ? '<small>' . e((string) $o['note']) . '</small>' : '') . '</div>';
+        }
+        $html .= '</div>';
+    }
+    if ($report && trim(strip_tags((string) $report['summary'])) !== '') {
+        $html .= '<div class="prose article-prose ph-report">' . clean_html((string) $report['summary']) . '</div>';
+    }
+    if ($report && !empty($report['verified_at'])) {
+        $html .= '<p class="ph-verified">' . icon('check-circle') . '<span>Figures checked by our team on ' . e(date('d M Y', strtotime((string) $report['verified_at']))) . '.</span></p>';
+    }
+    return $html;
+}
+
+/** Event FAQ accordion; questions are added to the page's FAQPage data (skipping duplicates). */
+function programhub_event_faqs_html(array $ev): string
+{
+    $faqs = array_values(array_filter(programhub_json_list($ev['faqs'] ?? null), function ($f) {
+        return trim((string) ($f['q'] ?? '')) !== '' && trim((string) ($f['a'] ?? '')) !== '';
+    }));
+    if (!$faqs) {
+        return '';
+    }
+    $seen = array_column($GLOBALS['seo_faqs'] ?? [], 'q');
+    foreach ($faqs as $f) {
+        if (!in_array($f['q'], $seen, true)) {
+            $GLOBALS['seo_faqs'][] = ['q' => (string) $f['q'], 'a' => (string) $f['a']];
+        }
+    }
+    return ui_faqs($faqs, true);
+}
+
+/** Other upcoming events: same category first, then other areas (no awareness days). */
+function programhub_related_events(array $ev, int $limit = 3): array
+{
+    $rows = [];
+    if (!empty($ev['category_id'])) {
+        $rows = array_values(array_filter(programhub_events(['when' => 'upcoming', 'category_id' => (int) $ev['category_id'], 'limit' => $limit + 1, 'include_cancelled' => false]),
+            function ($r) use ($ev) { return (int) $r['id'] !== (int) $ev['id']; }));
+    }
+    if (count($rows) < $limit) {
+        $ids = array_merge([(int) $ev['id']], array_map('intval', array_column($rows, 'id')));
+        foreach (programhub_events(['when' => 'upcoming', 'limit' => $limit + count($ids), 'include_cancelled' => false]) as $r) {
+            if (!in_array((int) $r['id'], $ids, true)) {
+                $rows[] = $r;
+            }
+        }
+    }
+    return array_slice($rows, 0, $limit);
+}
+
+// ----- Member area helpers (templates/member.php "My events") -----
+
+/** A member's registrations: their own rows and, when the account e-mail is verified, rows made with that e-mail. Never selects the meeting link. */
+function programhub_member_registrations(array $user): array
+{
+    $verified = !empty($user['email_verified_at']);
+    try {
+        return db_rows("SELECT er.id, er.event_id, er.status, er.created_at, er.is_minor, e.title, e.slug, e.event_type, e.mode, e.status AS event_status,
+                               e.start_datetime, e.end_datetime, e.location, (COALESCE(e.meeting_url, '') <> '') AS has_meeting
+                        FROM event_registrations er JOIN events e ON e.id = er.event_id
+                        WHERE (er.user_id = ?" . ($verified ? ' OR er.email = ?' : '') . ") AND e.status IN ('published','cancelled','archived')
+                        ORDER BY e.start_datetime DESC", $verified ? [(int) $user['id'], mb_strtolower((string) $user['email'])] : [(int) $user['id']]);
+    } catch (Throwable $e) {
+        error_log('programhub_member_registrations: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Cancel a member's own active registration (registered / confirmed / waitlisted) before the event starts.
+ * A freed seat goes to the first person on the waiting list (who is emailed). Returns the cancelled row or null.
+ */
+function programhub_member_cancel(array $user, int $regId): ?array
+{
+    $verified = !empty($user['email_verified_at']);
+    $reg = db_row("SELECT er.*, e.title AS event_title FROM event_registrations er JOIN events e ON e.id = er.event_id
+                   WHERE er.id = ? AND (er.user_id = ?" . ($verified ? ' OR er.email = ?' : '') . ") AND er.status IN ('registered','confirmed','waitlisted')
+                   AND e.start_datetime > NOW()", $verified ? [$regId, (int) $user['id'], mb_strtolower((string) $user['email'])] : [$regId, (int) $user['id']]);
+    if (!$reg || !programhub_set_registration_status((int) $reg['id'], 'cancelled')) {
+        return null;
+    }
+    if (in_array($reg['status'], EVENT_SEAT_STATUSES, true)) {
+        $promoted = programhub_promote_waitlist((int) $reg['event_id']);
+        if ($promoted) {
+            $event = db_row('SELECT * FROM events WHERE id = ?', [(int) $reg['event_id']]);
+            if ($event) {
+                programhub_send_participant_email($event, $promoted, 'promoted', ['token' => programhub_issue_access_token((int) $promoted['id'])]);
+            }
+        }
+    }
+    return $reg;
 }
 
 // =====================================================================
@@ -1169,9 +2276,11 @@ function migration_600_programhub_tables(): void
 /** Additive columns on events / event_registrations / gallery_items / contact_enquiries / certificates; strictly widened enums. */
 function migration_601_programhub_columns(): void
 {
-    programhub_widen_enum('events', 'event_type', array_keys(EVENT_TYPES));
+    // values are listed here (not taken from EVENT_TYPES / EVENT_REG_STATUSES) so the migration never depends on other files
+    programhub_widen_enum('events', 'event_type', ['event', 'awareness_day', 'drive', 'camp', 'webinar', 'workshop', 'seminar', 'training', 'bootcamp',
+        'yoga_session', 'fitness_session', 'music_program', 'cultural_event', 'hackathon', 'innovation_challenge', 'awareness_campaign']);
     programhub_widen_enum('events', 'status', ['draft', 'published', 'cancelled', 'archived', 'scheduled']);
-    programhub_widen_enum('event_registrations', 'status', array_keys(EVENT_REG_STATUSES));
+    programhub_widen_enum('event_registrations', 'status', ['registered', 'attended', 'cancelled', 'confirmed', 'waitlisted', 'no_show']);
 
     $hadMode = column_exists('events', 'mode');
     foreach ([
@@ -1295,8 +2404,9 @@ function programhub_category_sections(array $c, array $common): array
             [], [], 'white', 70),
         $row('faqs', 'faqs', 'FAQs', 'Frequently asked questions', null, null, null,
             $faqs, ['width' => 'narrow', 'align' => 'center', 'open_first' => true], 'cream', 80),
-        $row('partnership_enquiry', 'partner', 'Partner with us', 'Contact & partnership enquiry', 'Institutions, trainers, sponsors and community organisations can work with us on ' . $c['title'] . ' programmes.', null, null,
+        $row('partnership_enquiry', 'partner', 'Partner with us', 'Contact & partnership enquiry', 'Institutions, trainers, sponsors and community organisations can work with us on ' . $c['title'] . '.', null, null,
             [], [], 'white', 90),
+        programhub_category_cta_row((string) $c['title'], (string) ($c['slug'] ?? '')),
     ];
 }
 
@@ -1436,6 +2546,88 @@ function migration_607_programhub_privacy(): void
         'page_id' => $pageId, 'section_type' => 'richtext', 'anchor' => 'programmes-events', 'title' => 'Programmes and event registrations',
         'body' => $body, 'background' => 'white', 'status' => 'visible', 'sort_order' => 68,
     ]);
+}
+
+// =====================================================================
+// Migrations 630-659 (P1: public side). Values are hard-coded so they never depend on other files.
+// =====================================================================
+
+/** CTA block at the end of a category page (editable in Admin > Pages > Sections). */
+function programhub_category_cta_row(string $title, string $slug): array
+{
+    return [
+        'section_type' => 'cta', 'anchor' => 'take-part', 'pill' => null, 'title' => 'Learn, take part or help this programme grow',
+        'intro' => 'Register for an open session, ask us to tell you about new dates, or partner with us to bring ' . $title . ' sessions to your school, college or community.',
+        'body' => null, 'image' => null, 'items' => '[]',
+        'settings' => json_encode(['buttons' => [
+            ['label' => 'Register', 'url' => '#register', 'style' => 'primary', 'icon' => 'check'],
+            ['label' => 'Upcoming events', 'url' => '/events/?category=' . $slug, 'style' => 'outline', 'icon' => 'calendar'],
+            ['label' => 'Partner with us', 'url' => '#partner', 'style' => 'ghost', 'icon' => 'users'],
+        ]], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        'background' => 'tint', 'status' => 'visible', 'sort_order' => 100,
+    ];
+}
+
+/** Dedicated illustrations for the 10 categories (banner + "About" image) - only where the seeded image is unchanged. */
+function migration_630_programhub_category_art(): void
+{
+    $seeded = [
+        'ai-artificial-intelligence' => 'assets/images/programs/digital-learning.svg',
+        'robotics-technology' => 'assets/images/programs/youth-empowerment.svg',
+        'machine-learning-data-science' => 'assets/images/programs/digital-learning.svg',
+        'digital-marketing' => 'assets/images/programs/skill-development.svg',
+        'cyber-security' => 'assets/images/programs/digital-learning.svg',
+        'career-entrepreneurship' => 'assets/images/hero/career.svg',
+        'fitness-yoga-wellness' => 'assets/images/programs/healthcare.svg',
+        'music-arts-culture' => 'assets/images/hero/community.svg',
+        'hackathons-innovation' => 'assets/images/programs/youth-empowerment.svg',
+        'events-seminars' => 'assets/images/hero/events.svg',
+    ];
+    foreach ($seeded as $slug => $old) {
+        $new = 'assets/images/programs/categories/' . $slug . '.svg';
+        $pageId = (int) db_value('SELECT id FROM pages WHERE slug = ?', ['programs/' . $slug]);
+        if (!$pageId || !is_file(ROOT_PATH . '/' . $new)) {
+            continue;
+        }
+        db_query('UPDATE pages SET banner_image = ? WHERE id = ? AND banner_image = ?', [$new, $pageId, $old]);
+        db_query("UPDATE page_sections SET image = ? WHERE page_id = ? AND section_type = 'split' AND anchor = 'about' AND image = ?", [$new, $pageId, $old]);
+    }
+    program_categories_all(false, true);
+}
+
+/** Programmes hub: "Upcoming sessions" strip under the category cards (hidden while nothing is scheduled). */
+function migration_631_programhub_hub_strip(): void
+{
+    $hub = (int) db_value("SELECT id FROM pages WHERE slug = 'programs'");
+    if (!$hub || (int) db_value("SELECT COUNT(*) FROM page_sections WHERE page_id = ? AND section_type = 'program_upcoming_strip'", [$hub]) > 0) {
+        return;
+    }
+    db_insert('page_sections', [
+        'page_id' => $hub, 'section_type' => 'program_upcoming_strip', 'anchor' => 'coming-up', 'pill' => 'Coming up', 'title' => 'Upcoming sessions',
+        'intro' => 'The next workshops, sessions and events you can join. Each one has its own page with full details and registration.',
+        'items' => '[]', 'settings' => '{"limit":4,"align":"center"}', 'background' => 'white', 'status' => 'visible', 'sort_order' => 16,
+    ]);
+}
+
+/** Category pages: closing call-to-action block (added once per page). */
+function migration_632_programhub_category_cta(): void
+{
+    foreach (db_rows('SELECT slug, title, page_id FROM program_categories WHERE page_id IS NOT NULL') as $c) {
+        if ((int) db_value("SELECT COUNT(*) FROM page_sections WHERE page_id = ? AND section_type = 'cta'", [(int) $c['page_id']]) > 0) {
+            continue;
+        }
+        db_insert('page_sections', programhub_category_cta_row((string) $c['title'], (string) $c['slug']) + ['page_id' => (int) $c['page_id']]);
+    }
+}
+
+/** Seeded partnership intro read "... on Music, Arts & Cultural Programs programmes." - drop the doubled word (only while unchanged). */
+function migration_633_programhub_partner_intro(): void
+{
+    foreach (db_rows('SELECT c.title, c.page_id FROM program_categories c WHERE c.page_id IS NOT NULL') as $c) {
+        $start = 'Institutions, trainers, sponsors and community organisations can work with us on ' . $c['title'];
+        db_query("UPDATE page_sections SET intro = ? WHERE page_id = ? AND section_type = 'partnership_enquiry' AND intro = ?",
+            [$start . '.', (int) $c['page_id'], $start . ' programmes.']);
+    }
 }
 
 // =====================================================================

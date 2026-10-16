@@ -40,13 +40,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         'id_label_other'        => 'max:40',
         'addressee'             => 'required|min:3|max:160',
         'school_name'           => 'required|min:3|max:200',
-        'school_address'        => 'required|text|min:3|max:400',
+        'school_address'        => 'required|text|min:3|max:300',
         'district'              => 'required|min:2|max:80',
         'state'                 => 'required|in:' . implode(',', $states),
         'letter_date'           => 'required|date',
         'subject'               => 'required|min:5|max:255',
         'salutation'            => 'required|min:2|max:80',
-        'body_template'         => 'required|text|min:30|max:2000',
+        'body_template'         => 'required|text|min:30|max:1600',
         'enclosures'            => 'text|max:1500',
         'closing_text'          => 'max:255',
         'signatory_name'        => 'max:120',
@@ -90,12 +90,22 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $errors['body_template'] = 'Unknown placeholder' . (count($unknown) > 1 ? 's' : '') . ': ' . implode(', ', $unknown) . '. Use only the placeholders listed next to the form.';
     }
     $enclosures = letter_enclosure_list($data['enclosures']);
-    if (count(preg_split('/\R/', trim($data['enclosures'])) ?: []) > 10) {
-        $errors['enclosures'] = 'Please list at most 10 enclosures (one per line).';
+    if (count(array_filter(array_map('trim', preg_split('/\R/', trim($data['enclosures'])) ?: []), 'strlen')) > 8) {
+        $errors['enclosures'] = 'Please list at most 8 enclosures (one per line) so that the letter fits on one page.';
+    }
+    // A full Aadhaar number may only go into the ID number field (which keeps its last 4 digits), never into the text
+    foreach (['candidate_name', 'id_label_other', 'addressee', 'school_name', 'school_address', 'district', 'subject', 'salutation',
+                 'body_template', 'enclosures', 'closing_text', 'signatory_name', 'signatory_designation'] as $f) {
+        if (!isset($errors[$f]) && letter_find_aadhaar((string) ($data[$f] ?? ''))) {
+            $errors[$f] = 'This contains a full Aadhaar number, which is never stored or printed. It has been shortened to XXXX XXXX and its last 4 digits below; enter the number in the ID number field instead.';
+        }
     }
 
     if ($errors) {
-        $old = $_POST;
+        $old = [];
+        foreach ($_POST as $k => $value) {   // no full Aadhaar number from any field is kept in the session
+            $old[$k] = is_string($value) ? letter_mask_aadhaar_in_text($value) : $value;
+        }
         $old['id_number'] = '';   // never keep an identity number (or a full mobile number) in the session
         $old['mobile'] = $mobileError === null ? $mobileMasked : '';
         back_with_errors($errors, 'admin/' . $self, $old);
@@ -229,7 +239,7 @@ admin_page_start($letter ? 'Edit letter ' . $letter['ref_no'] : 'New authorizati
                 <div class="form-group full"><label for="school_name">School name <span class="req">*</span></label>
                     <input id="school_name" type="text" name="school_name" required maxlength="200" value="<?= e($val('school_name')) ?>" placeholder="e.g. Government Primary School, …" data-ph="school_name"><?= field_error('school_name') ?></div>
                 <div class="form-group full"><label for="school_address">School address <span class="req">*</span></label>
-                    <textarea id="school_address" name="school_address" required rows="2" maxlength="400" placeholder="Village / locality, block, post office" data-ph="school_address"><?= e($val('school_address')) ?></textarea>
+                    <textarea id="school_address" name="school_address" required rows="2" maxlength="300" placeholder="Village / locality, block, post office" data-ph="school_address"><?= e($val('school_address')) ?></textarea>
                     <span class="help">One or two lines. District and state are added below it.</span><?= field_error('school_address') ?></div>
                 <div class="form-group"><label for="district">District <span class="req">*</span></label>
                     <input id="district" type="text" name="district" required maxlength="80" value="<?= e($val('district')) ?>" data-ph="district"><?= field_error('district') ?></div>
@@ -246,7 +256,7 @@ admin_page_start($letter ? 'Edit letter ' . $letter['ref_no'] : 'New authorizati
                 <div class="form-group full"><label for="salutation">Salutation <span class="req">*</span></label>
                     <input id="salutation" type="text" name="salutation" required maxlength="80" value="<?= e($val('salutation')) ?>"><?= field_error('salutation') ?></div>
                 <div class="form-group full"><label for="body_template">Letter text <span class="req">*</span></label>
-                    <textarea id="body_template" name="body_template" required rows="8" maxlength="2000" data-body-template aria-describedby="body_help"><?= e($val('body_template')) ?></textarea>
+                    <textarea id="body_template" name="body_template" required rows="8" maxlength="1600" data-body-template aria-describedby="body_help"><?= e($val('body_template')) ?></textarea>
                     <span class="help" id="body_help">Leave an empty line between paragraphs. Text between **double stars** is printed in bold. Placeholders such as {candidate_name} are filled in from the fields above.</span>
                     <?= field_error('body_template') ?></div>
                 <div class="form-group full al-preview-wrap" hidden data-body-preview-wrap>
@@ -255,7 +265,7 @@ admin_page_start($letter ? 'Edit letter ' . $letter['ref_no'] : 'New authorizati
                 </div>
                 <div class="form-group full"><label for="enclosures">Enclosures</label>
                     <textarea id="enclosures" name="enclosures" rows="4" maxlength="1500"><?= e($val('enclosures')) ?></textarea>
-                    <span class="help">One per line (at most 10). Printed as a bullet list under "Enclosed:".</span><?= field_error('enclosures') ?></div>
+                    <span class="help">One per line (at most 8). Printed as a bullet list under "Enclosed:".</span><?= field_error('enclosures') ?></div>
                 <div class="form-group full"><label for="closing_text">Closing line</label>
                     <input id="closing_text" type="text" name="closing_text" maxlength="255" value="<?= e($val('closing_text')) ?>"><?= field_error('closing_text') ?></div>
             </div>

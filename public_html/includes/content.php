@@ -20,9 +20,27 @@ const BLOG_CATEGORIES = ['blog' => 'Blog', 'news' => 'News', 'press' => 'Press r
 
 const EVENT_TYPES = [
     'event' => 'Event', 'drive' => 'Drive', 'camp' => 'Camp', 'webinar' => 'Webinar', 'awareness_day' => 'Awareness day',
+    'workshop' => 'Workshop', 'seminar' => 'Seminar', 'training' => 'Training', 'bootcamp' => 'Bootcamp',
+    'yoga_session' => 'Yoga session', 'fitness_session' => 'Fitness session', 'music_program' => 'Music programme',
+    'cultural_event' => 'Cultural programme', 'hackathon' => 'Hackathon', 'innovation_challenge' => 'Innovation challenge',
+    'awareness_campaign' => 'Awareness campaign',
 ];
-const EVENT_TYPE_ICONS = ['event' => 'calendar', 'drive' => 'megaphone', 'camp' => 'activity', 'webinar' => 'monitor', 'awareness_day' => 'flag'];
-const EVENT_STATUSES = ['draft', 'published', 'cancelled', 'archived'];
+/** Plural labels for filters and empty states. */
+const EVENT_TYPE_PLURALS = [
+    'event' => 'Community events', 'drive' => 'Drives', 'camp' => 'Camps', 'webinar' => 'Webinars', 'awareness_day' => 'Awareness days',
+    'workshop' => 'Workshops', 'seminar' => 'Seminars', 'training' => 'Training sessions', 'bootcamp' => 'Bootcamps',
+    'yoga_session' => 'Yoga sessions', 'fitness_session' => 'Fitness sessions', 'music_program' => 'Music programmes',
+    'cultural_event' => 'Cultural programmes', 'hackathon' => 'Hackathons', 'innovation_challenge' => 'Innovation challenges',
+    'awareness_campaign' => 'Awareness campaigns',
+];
+const EVENT_TYPE_ICONS = [
+    'event' => 'calendar', 'drive' => 'megaphone', 'camp' => 'activity', 'webinar' => 'monitor', 'awareness_day' => 'flag',
+    'workshop' => 'tool', 'seminar' => 'message', 'training' => 'graduation', 'bootcamp' => 'layers', 'yoga_session' => 'sun',
+    'fitness_session' => 'activity', 'music_program' => 'play', 'cultural_event' => 'star', 'hackathon' => 'target',
+    'innovation_challenge' => 'zap', 'awareness_campaign' => 'megaphone',
+];
+/** 'scheduled' = published automatically at events.publish_at (see programhub_publish_due()). */
+const EVENT_STATUSES = ['draft', 'scheduled', 'published', 'cancelled', 'archived'];
 
 const GALLERY_CATEGORIES = [
     'education' => 'Education', 'job-placement' => 'Job Placement', 'women-empowerment' => 'Women Empowerment',
@@ -262,6 +280,11 @@ function event_type_label(?string $type): string
     return EVENT_TYPES[$type] ?? 'Event';
 }
 
+function event_type_plural(?string $type): string
+{
+    return EVENT_TYPE_PLURALS[$type] ?? 'Events';
+}
+
 function event_end_ts(array $ev): int
 {
     return (int) strtotime((string) (($ev['end_datetime'] ?? null) ?: $ev['start_datetime']));
@@ -286,9 +309,19 @@ function event_is_all_day(array $ev): bool
     return in_array(date('H:i', $end), ['23:59', '00:00'], true);
 }
 
+/** 'in_person' | 'online' | 'hybrid' (events.mode; older rows without it: guessed from the type / location). */
+function event_mode(array $ev): string
+{
+    if (isset($ev['mode']) && in_array($ev['mode'], ['in_person', 'online', 'hybrid'], true)) {
+        return (string) $ev['mode'];
+    }
+    return (($ev['event_type'] ?? '') === 'webinar' || preg_match('/\b(online|virtual|zoom|google meet|webinar)\b/i', (string) ($ev['location'] ?? ''))) ? 'online' : 'in_person';
+}
+
+/** Fully online (no venue). Hybrid events have a venue: use event_mode() to tell them apart. */
 function event_is_online(array $ev): bool
 {
-    return ($ev['event_type'] ?? '') === 'webinar' || preg_match('/\b(online|virtual|zoom|google meet|webinar)\b/i', (string) ($ev['location'] ?? ''));
+    return event_mode($ev) === 'online';
 }
 
 /** Human readable date/time of an event. */
@@ -312,41 +345,58 @@ function event_when(array $ev, bool $long = false): string
     return date('d M Y, h:i A', $start) . ' – ' . date('d M Y, h:i A', $end);
 }
 
-/** Registrations that hold a place (registered or attended). */
+/** Registrations that hold a place (registered, confirmed, attended, no-show - not cancelled or waitlisted). */
 function event_registered_count(int $eventId): int
 {
-    return (int) db_value("SELECT COUNT(*) FROM event_registrations WHERE event_id = ? AND status <> 'cancelled'", [$eventId]);
+    return (int) db_value("SELECT COUNT(*) FROM event_registrations WHERE event_id = ? AND status IN ('registered','confirmed','attended','no_show')", [$eventId]);
 }
 
 /**
- * Registration state of an event:
- * ['registered', 'capacity', 'seats_left', 'is_past', 'started', 'is_full', 'open', 'reason']
+ * Registration state of an event (server-side; used by the event page, cards and programhub_register()):
+ * ['registered', 'capacity', 'seats_left', 'is_past', 'started', 'is_full', 'open', 'reason',
+ *  'deadline' (timestamp|null), 'deadline_passed', 'opens_at' (timestamp|null), 'not_yet_open',
+ *  'waitlist_open' (full but the waiting list takes registrations), 'can_register' (open || waitlist_open)]
+ * Pass `registered` in $ev to avoid a query.
  */
 function event_state(array $ev): array
 {
     $registered = isset($ev['registered']) ? (int) $ev['registered'] : event_registered_count((int) $ev['id']);
     $capacity = !empty($ev['capacity']) ? (int) $ev['capacity'] : null;
     $seatsLeft = $capacity !== null ? max(0, $capacity - $registered) : null;
-    $started = strtotime((string) $ev['start_datetime']) <= time();
+    $now = time();
+    $started = strtotime((string) $ev['start_datetime']) <= $now;
     $past = event_is_past($ev);
     $full = $capacity !== null && $seatsLeft <= 0;
-    $open = $ev['status'] === 'published' && (int) $ev['registration_enabled'] === 1 && !$started && !$full;
+    $deadline = !empty($ev['registration_deadline']) ? (int) strtotime((string) $ev['registration_deadline']) : null;
+    $opensAt = !empty($ev['registration_opens_at']) ? (int) strtotime((string) $ev['registration_opens_at']) : null;
+    $deadlinePassed = $deadline !== null && $deadline <= $now;
+    $notYetOpen = $opensAt !== null && $opensAt > $now;
+    $enabled = (int) ($ev['registration_enabled'] ?? 0) === 1;
+    $base = ($ev['status'] ?? '') === 'published' && $enabled && !$started && !$deadlinePassed && !$notYetOpen;
+    $open = $base && !$full;
+    $waitlistOpen = $base && $full && !empty($ev['waitlist_enabled']);
     $reason = '';
-    if ($ev['status'] === 'cancelled') {
+    if (($ev['status'] ?? '') === 'cancelled') {
         $reason = 'This event has been cancelled. Registration is closed.';
     } elseif ($past) {
         $reason = 'This event has already taken place. Registration is closed.';
     } elseif ($started) {
         $reason = 'This event is under way. Registration has closed.';
-    } elseif ((int) $ev['registration_enabled'] !== 1) {
+    } elseif (!$enabled) {
         $reason = ($ev['event_type'] ?? '') === 'awareness_day' ? '' : 'Registration is not required for this event.';
-    } elseif ($full) {
+    } elseif ($deadlinePassed) {
+        $reason = 'The registration deadline (' . date('d M Y, h:i A', $deadline) . ') has passed. Registration is closed.';
+    } elseif ($notYetOpen) {
+        $reason = 'Registration opens on ' . date('d M Y, h:i A', $opensAt) . '.';
+    } elseif ($full && !$waitlistOpen) {
         $reason = 'All places for this event have been taken. Registration is closed.';
-    } elseif ($ev['status'] !== 'published') {
+    } elseif (($ev['status'] ?? '') !== 'published') {
         $reason = 'Registration opens when the event is published.';
     }
     return ['registered' => $registered, 'capacity' => $capacity, 'seats_left' => $seatsLeft, 'is_past' => $past,
-        'started' => $started, 'is_full' => $full, 'open' => $open, 'reason' => $reason];
+        'started' => $started, 'is_full' => $full, 'open' => $open, 'reason' => $reason,
+        'deadline' => $deadline, 'deadline_passed' => $deadlinePassed, 'opens_at' => $opensAt, 'not_yet_open' => $notYetOpen,
+        'waitlist_open' => $waitlistOpen, 'can_register' => $open || $waitlistOpen];
 }
 
 /** Google Maps search link for a location text. */
@@ -378,17 +428,19 @@ function event_schema(array $ev, string $canonical): array
             'publisher' => ['@id' => abs_url('#organization')],
         ];
     }
-    $online = event_is_online($ev);
+    // The location never contains the private meeting link: VirtualLocation points to the public event page.
+    $mode = event_mode($ev);
+    $place = ['@type' => 'Place', 'name' => $ev['location'], 'address' => ['@type' => 'PostalAddress', 'streetAddress' => trim((string) (($ev['venue_address'] ?? '') ?: $ev['location'])), 'addressCountry' => 'IN']];
+    $virtual = ['@type' => 'VirtualLocation', 'url' => $canonical];
+    $statusUrl = ['cancelled' => 'https://schema.org/EventCancelled'][$ev['status']] ?? 'https://schema.org/EventScheduled';
     $schema = [
-        '@context' => 'https://schema.org', '@type' => 'Event',
+        '@context' => 'https://schema.org', '@type' => in_array($ev['event_type'] ?? '', ['hackathon', 'innovation_challenge', 'workshop', 'training', 'bootcamp', 'seminar'], true) ? 'EducationEvent' : 'Event',
         'name' => $ev['title'],
-        'description' => excerpt((string) ($ev['summary'] ?: $ev['description']), 300),
+        'description' => excerpt((string) (($ev['meta_description'] ?? '') ?: ($ev['summary'] ?: $ev['description'])), 300),
         'startDate' => date('c', strtotime((string) $ev['start_datetime'])),
-        'eventStatus' => $ev['status'] === 'cancelled' ? 'https://schema.org/EventCancelled' : 'https://schema.org/EventScheduled',
-        'eventAttendanceMode' => $online ? 'https://schema.org/OnlineEventAttendanceMode' : 'https://schema.org/OfflineEventAttendanceMode',
-        'location' => $online
-            ? ['@type' => 'VirtualLocation', 'url' => $canonical]
-            : ['@type' => 'Place', 'name' => $ev['location'], 'address' => ['@type' => 'PostalAddress', 'streetAddress' => $ev['location'], 'addressCountry' => 'IN']],
+        'eventStatus' => $statusUrl,
+        'eventAttendanceMode' => ['online' => 'https://schema.org/OnlineEventAttendanceMode', 'hybrid' => 'https://schema.org/MixedEventAttendanceMode'][$mode] ?? 'https://schema.org/OfflineEventAttendanceMode',
+        'location' => $mode === 'online' ? $virtual : ($mode === 'hybrid' ? [$place, $virtual] : $place),
         'url' => $canonical,
         'image' => [content_abs_image($ev['image'] ?? null) ?: content_default_schema_image()],
     ];
@@ -396,9 +448,23 @@ function event_schema(array $ev, string $canonical): array
         $schema['endDate'] = date('c', strtotime((string) $ev['end_datetime']));
     }
     $schema['organizer'] = ['@type' => 'NGO', '@id' => abs_url('#organization'), 'name' => site_name(), 'url' => abs_url('')];
+    if (function_exists('programhub_event_speakers') && !empty($ev['id'])) {
+        $performers = [];
+        foreach (programhub_event_speakers((int) $ev['id']) as $sp) {
+            $performers[] = array_filter(['@type' => 'Person', 'name' => $sp['name'], 'jobTitle' => $sp['designation'] ?: null]);
+        }
+        if ($performers) {
+            $schema['performer'] = $performers;
+        }
+    }
+    $fee = isset($ev['fee_amount']) && $ev['fee_amount'] !== null ? (float) $ev['fee_amount'] : 0.0;
     if ((int) $ev['registration_enabled'] === 1 && $ev['status'] === 'published') {
-        $schema['offers'] = ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'INR', 'url' => $canonical . '#register',
-            'availability' => (!empty($ev['capacity']) && event_registered_count((int) $ev['id']) >= (int) $ev['capacity']) ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock'];
+        $state = event_state($ev);
+        $schema['offers'] = ['@type' => 'Offer', 'price' => $fee > 0 ? number_format($fee, 2, '.', '') : '0', 'priceCurrency' => 'INR', 'url' => $canonical . '#register',
+            'availability' => $state['is_full'] ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock'];
+        if (!empty($state['opens_at'])) {
+            $schema['offers']['validFrom'] = date('c', (int) $state['opens_at']);
+        }
     }
     return $schema;
 }
@@ -427,7 +493,7 @@ function ics_fold(string $line): string
 /** .ics calendar file for an event. */
 function event_ics(array $ev): string
 {
-    $canonical = abs_url('event-details/' . $ev['slug'] . '/');
+    $canonical = event_abs_url($ev);
     $host = (string) (parse_url(BASE_URL, PHP_URL_HOST) ?: 'localhost');
     $lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//' . ics_text(site_name()) . '//Events//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
         'BEGIN:VEVENT', 'UID:event-' . (int) $ev['id'] . '@' . $host, 'DTSTAMP:' . gmdate('Ymd\THis\Z')];
@@ -442,8 +508,10 @@ function event_ics(array $ev): string
         $lines[] = 'DTEND:' . gmdate('Ymd\THis\Z', $end);
     }
     $lines[] = 'SUMMARY:' . ics_text((string) $ev['title']);
-    $lines[] = 'DESCRIPTION:' . ics_text(trim((string) $ev['summary']) . "\n\n" . 'Details: ' . $canonical);
-    $lines[] = 'LOCATION:' . ics_text((string) $ev['location']);
+    // never the meeting link: online participants get it by email / on their private joining page
+    $online = ($ev['event_type'] ?? '') !== 'awareness_day' && event_mode($ev) !== 'in_person';
+    $lines[] = 'DESCRIPTION:' . ics_text(trim((string) $ev['summary']) . "\n\n" . ($online ? "Joining details for the online session are sent to registered participants.\n" : '') . 'Details: ' . $canonical);
+    $lines[] = 'LOCATION:' . ics_text(event_mode($ev) === 'online' ? 'Online' : trim((string) $ev['location'] . (trim((string) ($ev['venue_address'] ?? '')) !== '' ? ', ' . $ev['venue_address'] : '')));
     $lines[] = 'URL:' . $canonical;
     $lines[] = 'STATUS:' . ($ev['status'] === 'cancelled' ? 'CANCELLED' : 'CONFIRMED');
     if (($ev['event_type'] ?? '') !== 'awareness_day' && setting('contact_email') !== '') {
@@ -466,7 +534,7 @@ function event_ics(array $ev): string
 // ---------------------------------------------------------------------
 function event_card(array $ev, int $i = 0): string
 {
-    $link = event_url($ev['slug']);
+    $link = event_url($ev);
     $type = (string) ($ev['event_type'] ?? 'event');
     $fallback = $type === 'awareness_day' ? 'assets/images/hero/events.svg' : CONTENT_FALLBACK_IMAGE;
     $flag = '';
@@ -571,7 +639,7 @@ function video_item_html(array $g, int $i = 0): string
 /** Compact awareness-day row (calendar lists, section). */
 function awareness_day_html(array $ev, int $i = 0, string $headingTag = 'h3'): string
 {
-    $link = event_url($ev['slug']);
+    $link = event_url($ev);
     return '<li class="aw-item reveal" style="--d:' . ($i % 4) . '">' . content_date_badge((string) $ev['start_datetime'])
         . '<div class="aw-body"><' . $headingTag . '><a href="' . e($link) . '">' . e($ev['title']) . '</a></' . $headingTag . '>'
         . '<p>' . e(excerpt((string) $ev['summary'], 170)) . '</p>'
@@ -620,7 +688,7 @@ function section_events_list(array $s, array $items, array $set, array $page): s
     $html .= '</div>';
     if (empty($set['hide_link'])) {
         $query = array_filter(['when' => $when === 'past' ? 'past' : '', 'type' => isset(EVENT_TYPES[$type]) ? $type : '']);
-        $html .= '<div class="section-more"><a class="btn btn-outline" href="' . e(page_url('events-page', $query)) . '">' . ($when === 'past' ? 'See all past events' : 'See all upcoming events') . icon('arrow-right') . '</a></div>';
+        $html .= '<div class="section-more"><a class="btn btn-outline" href="' . e(page_url('events', $query)) . '">' . ($when === 'past' ? 'See all past events' : 'See all upcoming events') . icon('arrow-right') . '</a></div>';
     }
     return $html;
 }
