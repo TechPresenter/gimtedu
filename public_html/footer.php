@@ -19,8 +19,9 @@ foreach (db_rows("SELECT menu_key, name FROM menus WHERE menu_key LIKE 'footer\\
 $contactEmail = setting('contact_email');
 $contactPhone = setting('contact_phone');
 $regBits = array_filter([
-    'Reg. No.' => setting('registration_number'), 'PAN' => setting('pan_number'), '12A' => setting('reg_12a_number'),
-    '80G' => setting('reg_80g_number'), 'Darpan ID' => setting('darpan_id'),
+    'CIN' => setting('cin_number'), 'NGO ID' => setting('ngo_id'), 'Reg. No.' => setting('registration_number'), 'PAN' => setting('pan_number'),
+    '12A' => setting('reg_12a_number'), '80G' => setting('reg_80g_number'),
+    'Darpan ID' => setting('darpan_id') !== setting('ngo_id') ? setting('darpan_id') : '', 'MSME' => setting('msme_udyam_number'),
 ]);
 ?>
 </main>
@@ -44,7 +45,9 @@ $regBits = array_filter([
             <a class="footer-brand" href="<?= e(url('/')) ?>" aria-label="<?= e(site_name()) ?>"><?= brand_lockup('footer') ?></a>
             <?php if (setting('brand_slogan')): ?><p class="footer-slogan"><?= e(setting('brand_slogan')) ?></p><?php endif; ?>
             <p><?= e(setting('footer_about_text', setting('site_description'))) ?></p>
+            <?php if (setting('focus_areas_text') !== ''): ?><p class="footer-focus"><?= e(setting('focus_areas_text')) ?></p><?php endif; ?>
             <?php if (setting('footer_show_registration', '1') === '1' && $regBits): ?>
+                <?php if (setting('registration_authority') !== ''): ?><p class="footer-reg-note"><?= icon('shield') ?>Registered with the <?= e(preg_replace('/^the\s+/i', '', setting('registration_authority'))) ?></p><?php endif; ?>
                 <ul class="footer-reg">
                     <?php foreach ($regBits as $label => $value): ?><li><span><?= e($label) ?></span><?= e($value) ?></li><?php endforeach; ?>
                 </ul>
@@ -110,6 +113,12 @@ $regBits = array_filter([
 <?= render_fraud_alert() ?>
 <?= render_security_notice() ?>
 <?= render_consent_banner() ?>
+<?php // module widgets (AI assistant, analytics beacon ...): each hook returns HTML and may add to $GLOBALS['extraScripts']
+foreach (['render_assistant_widget', 'render_analytics_beacon'] as $footerHook) {
+    if (function_exists($footerHook)) {
+        echo $footerHook();
+    }
+} ?>
 <?php $faqSchema = faq_schema(); if ($faqSchema) { echo json_ld($faqSchema); } ?>
 <script src="<?= e(asset('assets/js/script.js')) ?>" defer></script>
 <?php foreach ($GLOBALS['extraScripts'] ?? [] as $src): ?><script src="<?= e($src) ?>" defer></script><?php endforeach; ?>

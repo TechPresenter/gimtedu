@@ -3,7 +3,7 @@
  * Front controller. Every clean URL (/about/, /campaign/<slug>/, /dashboard/donations/ ...) arrives here
  * through .htaccess. The request is resolved to a row in `pages` and rendered by templates/<template>.php.
  *
- * Special routes: /sitemap.xml, /robots.txt, /api/help/
+ * Special routes: /sitemap.xml, /robots.txt, /api/help/, /api/<name>/ (function api_<name>())
  * Old addresses (*.php, WordPress paths) are answered with 301 redirects from the `redirects` table.
  */
 
@@ -43,6 +43,18 @@ if ($path === 'robots.txt') {
 }
 if ($path === 'api/help') {
     help_api();
+}
+// Module JSON endpoints: /api/<name>/ is answered by function api_<name>() (e.g. api/chat -> api_chat()), which must exit.
+if (preg_match('#^api/([a-z][a-z0-9\-]{1,30})$#', $path, $apiMatch)) {
+    $apiFn = 'api_' . str_replace('-', '_', $apiMatch[1]);
+    if (function_exists($apiFn)) {
+        $apiFn();
+        exit;
+    }
+    http_response_code(404);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['ok' => false, 'error' => 'Not found']);
+    exit;
 }
 
 if (!is_file(ROOT_PATH . '/install.lock') && !db_value("SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE r.slug = 'administrator'")) {

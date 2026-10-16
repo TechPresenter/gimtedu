@@ -832,6 +832,21 @@ function organization_schema(): array
     if (setting('site_tagline_en') !== '') {
         $org['slogan'] = setting('site_tagline_en');
     }
+    if (setting('legal_name') !== '') {
+        $org['legalName'] = setting('legal_name');
+    }
+    $ids = [];
+    foreach (['cin_number' => 'CIN', 'ngo_id' => 'NGO ID', 'msme_udyam_number' => 'Udyam registration number'] as $key => $label) {
+        if (setting($key) !== '') {
+            $ids[] = ['@type' => 'PropertyValue', 'propertyID' => $label, 'value' => setting($key)];
+        }
+    }
+    if ($ids) {
+        $org['identifier'] = $ids;
+    }
+    if (setting('focus_areas_text') !== '') {
+        $org['knowsAbout'] = array_values(array_filter(array_map('trim', explode('|', setting('focus_areas_text')))));
+    }
     // Structured address from the free-text office address: PIN code, locality (last part) and street (the rest)
     $raw = trim((string) preg_replace('/\s+/', ' ', setting('contact_address')));
     if ($raw !== '') {
@@ -981,7 +996,7 @@ function track_page_view(array $page): void
         db_query("DELETE FROM website_settings WHERE setting_key LIKE 'analytics\\_salt\\_%' AND setting_key <> ?", ['analytics_salt_' . date('Ymd')]);
     }
     try {
-        db_insert('page_views', [
+        $pageViewId = db_insert('page_views', [
             'path'          => mb_substr('/' . route_path(), 0, 255),
             'page_id'       => !empty($page['id']) ? (int) $page['id'] : null,
             'referrer_host' => referrer_host(),
@@ -992,6 +1007,9 @@ function track_page_view(array $page): void
             'visitor_hash'  => hash('sha256', $salt . client_ip() . user_agent()),
             'is_logged_in'  => is_logged_in() ? 1 : 0,
         ]);
+        if (function_exists('analytics_after_page_view')) {
+            analytics_after_page_view($pageViewId, $page);   // deep analytics (includes/analytics.php)
+        }
         if (random_int(1, 500) === 1) {
             db_query('DELETE FROM page_views WHERE created_at < NOW() - INTERVAL ? DAY', [max(30, (int) setting('analytics_retention_days', '400'))]);
         }

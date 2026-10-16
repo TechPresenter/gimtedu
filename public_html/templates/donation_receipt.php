@@ -54,6 +54,12 @@ if (setting('registration_number') !== '') {
     $regLines[] = (setting('registration_type') !== '' ? setting('registration_type') : 'Registration') . ' No. ' . setting('registration_number')
         . (setting('registration_date') !== '' ? ' dated ' . setting('registration_date') : '');
 }
+if (setting('cin_number') !== '') {
+    $regLines[] = 'CIN: ' . setting('cin_number') . (setting('registration_authority') !== '' ? ' (registered with the ' . preg_replace('/^the\s+/i', '', setting('registration_authority')) . ')' : '');
+}
+if (setting('ngo_id') !== '') {
+    $regLines[] = 'NGO ID: ' . setting('ngo_id');
+}
 if (setting('pan_number') !== '') {
     $regLines[] = 'PAN: ' . setting('pan_number');
 }

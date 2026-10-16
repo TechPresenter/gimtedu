@@ -2332,10 +2332,10 @@ INSERT INTO page_sections (page_id, section_type, anchor, pill, title, intro, bo
 '{"message":"Our areas of work","icon":"leaf","tone":"gold","size":"sm","buttons":[{"label":"Explore our programmes","url":"/programs/","style":"primary","size":"sm","icon":"arrow-right"}]}',
 'white', 'visible', 15),
 
--- 3. Live, verified impact counters (hidden while every figure is zero)
+-- 3. Live, verified impact counters (switched off on the home page; can be shown again in Admin > Pages > Home)
 (@home, 'impact_counters', 'impact', 'Our impact', 'Progress you can verify',
 'Every figure below is calculated live from our records: only confirmed donations, active volunteers and events that have already taken place are counted.',
-NULL, NULL, NULL, '{"align":"center","note":"Live figures from verified records"}', 'green', 'visible', 20),
+NULL, NULL, NULL, '{"align":"center","note":"Live figures from verified records"}', 'green', 'hidden', 20),
 
 -- 4. About the foundation
 (@home, 'split', 'about', 'Who we are', 'A nonprofit working for a fair and inclusive society',

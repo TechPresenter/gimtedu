@@ -22,7 +22,8 @@ render_sections($page, function () {
     $totals = verified_donation_totals();
     $spentAll = (float) db_value("SELECT COALESCE(SUM(e.amount), 0) FROM campaign_expenses e JOIN campaigns c ON c.id = e.campaign_id WHERE e.status = 'approved' AND e.is_published = 1 AND c.status IN ('active','completed','closed')");
     $facts = [];
-    foreach (['legal_name' => 'Legal name', 'registration_type' => 'Registered as', 'registration_number' => 'Registration number', 'registration_date' => 'Registration date',
+    foreach (['legal_name' => 'Legal name', 'registration_type' => 'Registered as', 'registration_authority' => 'Registered with', 'cin_number' => 'CIN', 'ngo_id' => 'NGO ID',
+                 'registration_number' => 'Registration number', 'registration_date' => 'Registration date', 'msme_udyam_number' => 'MSME (Udyam) registration',
                  'pan_number' => 'PAN of the foundation', 'reg_12a_number' => '12A registration', 'reg_80g_number' => '80G registration', 'csr1_number' => 'CSR-1 registration',
                  'darpan_id' => 'NITI Aayog Darpan ID', 'fcra_number' => 'FCRA registration', 'contact_address' => 'Office address'] as $key => $label) {
         if (trim(setting($key)) !== '') {

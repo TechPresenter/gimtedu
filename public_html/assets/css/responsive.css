@@ -35,10 +35,10 @@
     .nav-item > a::after { display: none; }
     /* submenus open only through their toggle (.open); a mega menu is hidden here too, overriding enhance.css */
     .dropdown, .dropdown.mega { display: none; width: 100%; transform: none; left: auto; grid-template-columns: 1fr; padding: 0 0 10px 6px; }
-    .dropdown::before, .mega-aside { display: none; }
+    .dropdown::before { display: none; }
     .dropdown.mega .dropdown-list { grid-template-columns: 1fr; }
     .has-dropdown:hover > .dropdown.mega, .has-dropdown.open > .dropdown.mega { transform: none; }
-    .has-dropdown.open > .dropdown.mega { display: grid; }
+    .has-dropdown.open > .dropdown.mega { display: block; }
     .dd-text small { display: none; }
     .nav-list { flex-direction: column; align-items: stretch; gap: 0; }
     .nav-item { flex-wrap: wrap; border-bottom: 1px solid var(--line); }

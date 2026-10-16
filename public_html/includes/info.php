@@ -93,6 +93,9 @@ function ngo_registration_details(): array
 {
     $fields = [
         'registration_type'   => 'Registered as',
+        'registration_authority' => 'Registered with',
+        'cin_number'          => 'CIN',
+        'ngo_id'              => 'NGO ID',
         'registration_number' => 'Registration number',
         'registration_date'   => 'Date of registration',
         'pan_number'          => 'PAN',
@@ -100,6 +103,7 @@ function ngo_registration_details(): array
         'reg_80g_number'      => '80G registration',
         'csr1_number'         => 'CSR-1 registration',
         'darpan_id'           => 'NITI Aayog Darpan ID',
+        'msme_udyam_number'   => 'MSME (Udyam) registration',
         'fcra_number'         => 'FCRA registration',
     ];
     $out = [];
@@ -110,6 +114,9 @@ function ngo_registration_details(): array
         }
         if ($key === 'registration_date' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
             $value = format_date($value);
+        }
+        if ($key === 'darpan_id' && $value === trim(setting('ngo_id'))) {
+            continue;   // same number already shown as the NGO ID
         }
         $out[$label] = $value;
     }

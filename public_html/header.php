@@ -144,13 +144,6 @@ $unread = $headerUser ? unread_notification_count((int) $headerUser['id']) : 0;
                                         </a></li>
                                     <?php endforeach; ?>
                                 </ul>
-                                <?php if ($navMega): ?>
-                                    <div class="mega-aside">
-                                        <strong><?= e(setting('site_tagline_en')) ?></strong>
-                                        <p class="hindi" lang="hi"><?= e(setting('site_tagline')) ?></p>
-                                        <a class="btn btn-donate btn-sm" href="<?= e(page_url('donate')) ?>"><?= icon('heart') ?>Donate Now</a>
-                                    </div>
-                                <?php endif; ?>
                             </div>
                         <?php endif; ?>
                     </li>

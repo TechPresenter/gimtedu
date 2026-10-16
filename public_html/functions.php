@@ -49,6 +49,8 @@ if (PHP_SAPI !== 'cli' && !defined('PWF_NO_SESSION') && session_status() === PHP
 // Helper modules (core first; feature modules may use everything above them)
 // ---------------------------------------------------------------------
 require_once __DIR__ . '/includes/core.php';
+require_once __DIR__ . '/includes/secrets.php';
+require_once __DIR__ . '/includes/migrations.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/includes/ui.php';
 require_once __DIR__ . '/includes/cms.php';
@@ -62,6 +64,21 @@ require_once __DIR__ . '/includes/info.php';
 require_once __DIR__ . '/includes/site.php';
 require_once __DIR__ . '/includes/member.php';
 require_once __DIR__ . '/includes/home.php';
+require_once __DIR__ . '/includes/gateways.php';
+require_once __DIR__ . '/includes/assistant.php';
+require_once __DIR__ . '/includes/analytics.php';
+
+// ---------------------------------------------------------------------
+// Data-safe upgrades: pending migrations (includes/migrations.php and module files) run once, automatically,
+// on the first request after new files are uploaded. The installer runs them itself.
+// ---------------------------------------------------------------------
+if (!defined('PWF_INSTALLER')) {
+    try {
+        run_pending_migrations();
+    } catch (Throwable $e) {
+        error_log('Migrations: ' . $e->getMessage());
+    }
+}
 
 // ---------------------------------------------------------------------
 // Security headers
@@ -78,14 +95,14 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: SAMEORIGIN');
     header('Referrer-Policy: strict-origin-when-cross-origin');
-    header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(self "https://checkout.razorpay.com" "https://api.razorpay.com")');
+    header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(self "https://checkout.razorpay.com" "https://api.razorpay.com" "https://sdk.cashfree.com" "https://api.cashfree.com" "https://sandbox.cashfree.com")');
     header('Cross-Origin-Opener-Policy: same-origin-allow-popups');
     header("Content-Security-Policy: default-src 'self'; "
-        . "script-src 'self' https://checkout.razorpay.com https://*.razorpay.com" . $gaHosts . "; "
+        . "script-src 'self' https://checkout.razorpay.com https://*.razorpay.com https://sdk.cashfree.com" . $gaHosts . "; "
         . "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; "
-        . "connect-src 'self' https://*.razorpay.com" . ($gaHosts ? ' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com' : '') . "; "
-        . "frame-src 'self' https://*.razorpay.com https://www.google.com https://maps.google.com https://www.youtube-nocookie.com https://www.youtube.com; "
-        . "form-action 'self' https://*.razorpay.com; base-uri 'self'; object-src 'none'; frame-ancestors 'self'" . (is_https() ? '; upgrade-insecure-requests' : ''));
+        . "connect-src 'self' https://*.razorpay.com https://*.cashfree.com" . ($gaHosts ? ' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com' : '') . "; "
+        . "frame-src 'self' https://*.razorpay.com https://*.cashfree.com https://www.google.com https://maps.google.com https://www.youtube-nocookie.com https://www.youtube.com; "
+        . "form-action 'self' https://*.razorpay.com https://*.cashfree.com; base-uri 'self'; object-src 'none'; frame-ancestors 'self'" . (is_https() ? '; upgrade-insecure-requests' : ''));
     if (is_https()) {
         header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
     }

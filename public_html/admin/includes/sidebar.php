@@ -38,6 +38,7 @@ $navGroups = [
         ['donations.php', 'rupee', 'Donations', 'donations.view', ['donations.php', 'donation-view.php']],
         ['receipts.php', 'file-text', 'Receipts', 'receipts.manage', ['receipts.php']],
         ['expenses.php', 'pie-chart', 'Expenses & Utilisation', 'campaigns.expenses', ['expenses.php']],
+        ['payment-gateways.php', 'key', 'Payment Gateways', 'payments.configure', ['payment-gateways.php']],
     ],
     'People' => [
         ['applications.php?type=volunteer', 'heart', 'Volunteers', 'recruitment.view', ['applications.php:volunteer', 'application-view.php:volunteer']],
@@ -57,9 +58,11 @@ $navGroups = [
         ['enquiries.php', 'inbox', 'Enquiries & Grievances', 'enquiries.manage', ['enquiries.php']],
         ['feedback.php', 'message', 'Feedback', 'feedback.manage', ['feedback.php']],
         ['newsletter.php', 'mail', 'Newsletter', 'newsletter.manage', ['newsletter.php']],
+        ['assistant.php', 'zap', 'AI Assistant (chatbot)', 'assistant.manage', ['assistant.php']],
     ],
     'Insights' => [
         ['analytics.php', 'trending-up', 'Website Analytics', 'analytics.view', ['analytics.php']],
+        ['deep-analytics.php', 'activity', 'Deep Analytics & Visitors', 'analytics.deep', ['deep-analytics.php']],
         ['marketing.php', 'megaphone', 'Marketing & Campaign Links', 'analytics.view', ['marketing.php']],
         ['reports.php', 'bar-chart', 'Reports & Exports', 'reports.view', ['reports.php']],
     ],

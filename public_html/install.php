@@ -43,6 +43,7 @@ try {
     $missing = array_diff($required, $tables);
     $dbOk = $check(!$missing, 'database.sql has been imported (' . count($tables) . ' tables)', $missing ? 'Missing: ' . implode(', ', $missing) . '. Import database.sql with phpMyAdmin.' : '') && $dbOk;
     if ($dbOk) {
+        run_pending_migrations();   // bring an imported database.sql up to the current version
         $hasAdmin = (int) db_value("SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE r.slug = 'administrator'") > 0;
     }
 } catch (Throwable $e) {
