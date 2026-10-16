@@ -98,6 +98,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             break;
         }
     }
+    $eeat = [];
+    if (function_exists('seo_eeat_validate_post')) {
+        [$eeat, $eeatErrors] = seo_eeat_validate_post($_POST);   // reviewer / review date / sources / updated date (SEO module)
+        $errors += $eeatErrors;
+    }
     if ($errors) {
         back_with_errors($errors, 'admin/' . $self, $_POST);
     }
@@ -157,7 +162,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             programhub_admin_delete_file($cat['image']);
         }
         if ($slug !== $cat['slug']) {
+            $pageMoves = $page && $page['slug'] === 'programs/' . $cat['slug'];
             $notes = array_merge($notes, programhub_admin_change_category_slug($cat, $slug));
+            if ($pageMoves && $page['status'] === 'published' && function_exists('seo_slug_changed')) {
+                // SEO: also re-point older redirects with fragments / absolute URLs and menu links; report loops
+                $seoMove = seo_slug_changed('page', '/programs/' . $cat['slug'] . '/', '/programs/' . $slug . '/');
+                if (!empty($seoMove['loops'])) {
+                    $notes[] = 'Warning: the redirects list contains a loop - please check Redirects.';
+                }
+            }
         }
         if ($data['status'] !== $cat['status']) {
             $note = programhub_admin_set_category_status($cat, $data['status']);
@@ -209,6 +222,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             'items' => programhub_admin_merge_cards($benefits, $old('benefits'))], $sections['benefits'] ?? null);
         programhub_admin_save_category_section($pid, 'faqs', ['title' => $data['faqs_title'], 'items' => $faqs], $sections['faqs'] ?? null);
         site_touch_page($pid);
+        if ($eeat && function_exists('seo_eeat_save')) {
+            $eeatChanges = seo_eeat_save('page', $pid, $eeat, admin_id());
+            if ($eeatChanges) {
+                admin_log('seo_eeat_updated', 'Page #' . $pid . ' (programme category #' . $id . '): ' . implode(', ', array_keys($eeatChanges)));
+            }
+        }
     }
     program_categories_all(false, true);
     program_categories_all(true, true);
@@ -408,8 +427,13 @@ echo site_icon_sprite();
                                 <?php if ($ogPath !== ''): ?><label class="checkbox mt-1"><input type="checkbox" name="remove_og" value="1"><span>Remove the sharing image</span></label><?php endif; ?></div>
                         </div><?= field_error('og_upload') ?></div>
                     <div class="form-group full"><label class="checkbox"><input type="checkbox" name="noindex" value="1"<?= ($failed ? old('noindex', null) !== null : (int) ($page['noindex'] ?? 0) === 1) ? ' checked' : '' ?>><span>Hide this page from search engines (noindex)</span></label></div>
+                    <?php if ($page && function_exists('seo_entity_edit_url') && admin_can('seo.manage')): ?>
+                        <div class="form-group full"><a class="btn btn-ghost btn-sm" href="<?= e(seo_entity_edit_url('page', (int) $page['id'])) ?>"><?= icon('search') ?>SEO settings</a>
+                            <span class="help">Focus keyword, social sharing text, structured data and more for this page.</span></div>
+                    <?php endif; ?>
                 </div>
             </section>
+            <?= function_exists('seo_eeat_admin_panel') ? seo_eeat_admin_panel('page', (int) ($page['id'] ?? 0)) : '' ?>
         </div>
 
         <div>
