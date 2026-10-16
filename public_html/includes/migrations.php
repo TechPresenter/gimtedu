@@ -142,6 +142,63 @@ function run_pending_migrations(bool $force = false): array
 // Core migrations (100-199)
 // =====================================================================
 
+/**
+ * Sites installed from the earlier v2 package (before the verification round) get the final v2 schema and the
+ * content corrections (wording, 80G/FCRA and consent text). A section is only updated while it is still exactly
+ * the earlier package's text; anything edited in the admin panel is left alone.
+ */
+function migration_100_v2_final_catchup(): void
+{
+    add_column_if_missing('donations', 'offline_reference', 'VARCHAR(100) DEFAULT NULL AFTER gateway_method');
+    add_index_if_missing('donations', 'idx_donations_offline_ref', 'INDEX idx_donations_offline_ref (offline_reference)');
+    foreach (['grievance_ack_days', 'grievance_officer_email', 'grievance_officer_name', 'grievance_resolution_days'] as $key) {
+        add_setting_if_missing($key, '');
+    }
+    db_query("UPDATE website_settings SET setting_value = ? WHERE setting_key = 'fraud_alert_points' AND setting_value = ?", [
+        "Do not share OTPs, passwords, card or bank details with anyone.\nDonate only through the Donate page on this website or to the foundation's own bank account.\nIf someone contacts you in our name, verify it using the contact details on this website.",
+        "Do not share OTPs, passwords, card or bank details with anyone.\nDonate only through the Donate page on this website or the bank details shown on it.\nIf someone contacts you in our name, verify it using the contact details on this website.",
+    ]);
+    foreach ([['programs', 'Our Programs', 'Our Programmes'], ['utilization-reports', 'Campaign Utilization Reports', 'Campaign Utilisation Reports'],
+              ['volunteer-teacher', 'Volunteer Teacher Program', 'Volunteer Teacher Programme']] as [$slug, $old, $new]) {
+        db_query('UPDATE pages SET title = ? WHERE slug = ? AND title = ?', [$new, $slug, $old]);
+    }
+    // the public /wp-admin/ -> /admin/ redirect advertised the admin address
+    db_query("DELETE FROM redirects WHERE source_path = 'wp-admin' AND target_url = '/admin/'");
+    // roles: Member / Registered Volunteer only on approval; Supporter for public sign-ups
+    db_query("UPDATE roles SET allow_self_register = 0, description = 'Approved member (added when a membership application is approved).' WHERE slug = 'member' AND description = 'Registered member of the foundation.'");
+    db_query("UPDATE roles SET allow_self_register = 0, description = 'Volunteer whose application has been activated (added on approval).' WHERE slug = 'registered_volunteer' AND description = 'Website user who volunteers with the foundation.'");
+    db_query("UPDATE roles SET description = 'Donates to the foundation and keeps receipts in one place.' WHERE slug = 'donor' AND description = 'Supporter who donates to campaigns.'");
+    db_query("UPDATE roles SET description = 'Requests support or a scholarship.' WHERE slug = 'beneficiary_applicant' AND description = 'Person requesting support or a scholarship.'");
+    if (!db_value("SELECT COUNT(*) FROM roles WHERE slug = 'supporter'")) {
+        db_query("INSERT INTO roles (name, slug, description, is_staff, is_system, allow_self_register, sort_order)
+                  VALUES ('Supporter', 'supporter', 'Website account to follow your donations, applications, events and certificates.', 0, 1, 1, 6)");
+    }
+    $meta = require __DIR__ . '/upgrade/v2-final-meta.php';
+    foreach ($meta['pages'] as $p) {
+        db_query('UPDATE pages SET meta_description = ? WHERE slug = ? AND meta_description <=> ?', [$p['final'], $p['slug'], $p['early']]);
+    }
+    foreach ($meta['faq_changed'] as $q) {
+        db_query('UPDATE faqs SET question = ?, answer = ? WHERE question = ? AND MD5(answer) = ?', [$q['question'], $q['answer'], $q['early_question'], $q['early_md5']]);
+    }
+    foreach ($meta['faq_new'] as $q) {
+        if (!db_value('SELECT COUNT(*) FROM faqs WHERE question = ?', [$q['question']])) {
+            db_query('INSERT INTO faqs (question, answer, category, sort_order, status) VALUES (?, ?, ?, ?, ?)', [$q['question'], $q['answer'], $q['category'], (int) $q['sort_order'], $q['status']]);
+        }
+    }
+    $sections = require __DIR__ . '/upgrade/v2-final-content.php';
+    foreach ($sections as $s) {
+        $id = db_value("SELECT s.id FROM page_sections s JOIN pages p ON p.id = s.page_id
+                        WHERE p.slug = ? AND s.section_type = ? AND s.sort_order = ?
+                          AND MD5(CONCAT_WS('|', s.title, s.intro, s.body, s.items, s.settings, s.image, s.pill, s.background)) = ?",
+            [$s['page'], $s['type'], $s['sort'], $s['early_md5']]);
+        if ($id) {
+            $set = $s['set'];
+            db_query('UPDATE page_sections SET title = ?, intro = ?, body = ?, items = ?, settings = ?, image = ?, pill = ?, background = ? WHERE id = ?',
+                [$set['title'], $set['intro'], $set['body'], $set['items'], $set['settings'], $set['image'], $set['pill'], $set['background'], (int) $id]);
+        }
+    }
+}
+
 /** Official registration details provided by the foundation (Oct 2026) + focus areas line. */
 function migration_101_ngo_registration_details(): void
 {
@@ -174,4 +231,27 @@ function migration_103_module_settings(): void
     ] as $k => $v) {
         add_setting_if_missing($k, $v);
     }
+}
+
+/** Volunteer teacher page shows only the application form; terms are accepted in a pop-up before applying. */
+function migration_104_teacher_form_only(): void
+{
+    db_query("UPDATE page_sections s JOIN pages p ON p.id = s.page_id SET s.status = 'hidden'
+              WHERE p.slug = 'volunteer-teacher' AND s.section_type <> 'module' AND s.status = 'visible'");
+    add_column_if_missing('teacher_applications', 'terms_accepted_at', 'DATETIME DEFAULT NULL');
+    add_column_if_missing('teacher_applications', 'terms_version', 'VARCHAR(16) DEFAULT NULL');
+    add_setting_if_missing('teacher_terms_title', 'Volunteer Teacher - Terms & Conditions');
+    add_setting_if_missing('teacher_terms_intro', 'Please read these terms before you fill in the application form. You need to accept them to continue.');
+    add_setting_if_missing('teacher_terms_text', implode("\n", [
+        'Volunteer teaching is a voluntary role. No payment is made for volunteering unless it has been agreed in writing by the foundation.',
+        'The foundation never charges any fee for applications, interviews, joining, training or certificates. If anyone asks you for money in our name, report it on the Report Fraud page.',
+        'You confirm that you are 18 years or older, or that your parent / guardian agrees to this application (the foundation will ask for their written consent before you take part in any activity).',
+        'Before any placement the foundation will verify your identity and references and give you a child protection briefing. The foundation may decline or end a placement at any time to keep learners safe.',
+        'You will follow the Child Protection Policy and the Volunteer Policy and code of conduct: teach only in group settings or sessions arranged by our coordinators, never contact children privately outside these sessions, and never use physical punishment or abusive language.',
+        'You will not photograph, record or share images or personal details of learners without written permission from the foundation and the parent / guardian.',
+        'You will keep the personal information of learners and their families confidential.',
+        'Submitting an application does not guarantee selection or a placement; sessions, timings and placements depend on the needs of learners and partner schools.',
+        'The information you give must be true. Your details are used only to process your application, as explained in the Privacy Policy.',
+        'Please inform your coordinator in advance if you cannot attend a session or wish to stop volunteering.',
+    ]));
 }

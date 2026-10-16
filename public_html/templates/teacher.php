@@ -29,7 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'teaching_mode'       => 'required|in:' . implode(',', array_keys($modes)),
         'availability'        => 'required|in:' . implode(',', AVAILABILITY_OPTIONS),
         'motivation'          => 'required|text|min:30|max:2000',
-    ] + $consentRules, $consentLabels + ['subjects' => 'Subjects', 'languages' => 'Teaching languages', 'teaching_mode' => 'Teaching mode', 'motivation' => 'Why you want to teach']);
+        'accept_terms'        => 'accepted',
+    ] + $consentRules, $consentLabels + ['accept_terms' => 'Volunteer teacher terms & conditions', 'subjects' => 'Subjects', 'languages' => 'Teaching languages', 'teaching_mode' => 'Teaching mode', 'motivation' => 'Why you want to teach']);
     $resume = recruitment_upload('resume', 'pdf', 'documents/teachers', false, $errors);
     if ($errors) {
         back_with_errors($errors, page_url($slug) . '#apply', $_POST);
@@ -55,6 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'availability'        => $data['availability'],
             'resume_path'         => $resume,
             'motivation'          => $data['motivation'],
+            'terms_accepted_at'   => date('Y-m-d H:i:s'),
+            'terms_version'       => teacher_terms()['version'],
             'ip_address'          => client_ip(),
         ]);
     } catch (Throwable $e) {
@@ -78,6 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $success = recruitment_take_success($slug);
 recruitment_form_assets();
+$GLOBALS['extraScripts'][] = asset('assets/js/modules/terms-gate.js');
 page_header($page, $success ? ['buttons' => []] : []);
 if ($success) {
     echo recruitment_success_html($success);
@@ -93,7 +97,11 @@ render_sections($page, function () use ($user, $slug, $consents, $required, $sub
         <div class="container">
             <?= ui_heading('Volunteer teacher application', 'Apply to teach', 'Share what you can teach and when. Fields marked * are required.', true) ?>
             <div class="rc-apply-layout">
-                <div class="form-card rc-form-card">
+                <div class="form-card rc-form-card terms-gated" data-terms-gate="teacher-terms">
+                    <div class="terms-gate-bar" data-terms-bar hidden>
+                        <span><?= icon('lock') ?>Please read and accept the terms &amp; conditions to fill in this form.</span>
+                        <button type="button" class="btn btn-primary btn-sm" data-modal-open="teacher-terms"><?= icon('file-text') ?>Read &amp; accept</button>
+                    </div>
                     <?= recruitment_form_open($slug, true) ?>
                         <h3 class="form-section-title"><?= icon('user') ?>Your details</h3>
                         <div class="form-grid">
@@ -155,11 +163,16 @@ render_sections($page, function () use ($user, $slug, $consents, $required, $sub
                         </div></div>
 
                         <?= recruitment_consent_html($consents) ?>
+                        <div class="form-group full terms-accept-row">
+                            <label class="checkbox"><input type="checkbox" name="accept_terms" value="1" required data-terms-checkbox<?= old_checked('accept_terms', '1') ?>><span>I have read and accept the <button type="button" class="link-button" data-modal-open="teacher-terms">Volunteer Teacher Terms &amp; Conditions</button>.<span class="req">*</span></span></label>
+                            <?= field_error('accept_terms') ?>
+                        </div>
                         <div class="form-actions">
                             <button class="btn btn-blue btn-lg" type="submit" data-loading="Submitting…"><?= icon('send') ?>Submit application</button>
                         </div>
                         <?= recruitment_account_note($slug) ?>
                     </form>
+                    <?= teacher_terms_modal_html() ?>
                 </div>
                 <?= recruitment_apply_aside([
                     ['title' => 'Apply online', 'text' => 'Subjects, classes, languages and availability.'],

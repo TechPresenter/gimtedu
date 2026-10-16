@@ -174,3 +174,21 @@
 @media print {
     .rc-apply-aside, .rc-inline-form, .rc-success .btn-row { display: none !important; }
 }
+
+/* ---------- Terms & conditions gate (volunteer teacher form) ---------- */
+.terms-gate-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 12px 14px; margin-bottom: 18px; border-radius: 12px; background: var(--gold-100); border: 1px solid #f1dc93; color: #5c4500; font-weight: 600; }
+.terms-gate-bar[hidden] { display: none; }
+.terms-gate-bar span { display: inline-flex; align-items: center; gap: 8px; }
+.terms-gate-bar .icon { flex: none; }
+.rc-form.is-locked { opacity: .5; filter: grayscale(.3); pointer-events: none; user-select: none; }
+.terms-modal { max-width: min(700px, calc(100vw - 24px)); }
+.terms-modal .modal-head h2 .icon { color: var(--green-600); }
+.terms-intro { margin: 0 0 14px; color: var(--ink-soft); }
+.terms-list { margin: 0; padding-left: 1.35em; display: grid; gap: 10px; }
+.terms-list li { line-height: 1.55; padding-left: 2px; }
+.terms-list li::marker { color: var(--green-600); font-weight: 700; }
+.terms-links { font-size: .88rem; margin: 16px 0 0; color: var(--muted); }
+.terms-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); background: var(--green-50); }
+.terms-accept-row .link-button { color: var(--green-700); text-decoration: underline; font-weight: 600; }
+.terms-accept-row .link-button:hover { color: var(--green-600); }
+@media (max-width: 480px) { .terms-actions .btn { flex: 1; justify-content: center; } }

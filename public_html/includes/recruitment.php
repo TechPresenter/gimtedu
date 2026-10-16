@@ -864,6 +864,41 @@ function recruitment_consent_rules(array $which): array
     return [$rules, $labels];
 }
 
+/** Volunteer teacher terms (Admin > Settings > Recruitment): title, intro, points and a short version id of the text. */
+function teacher_terms(): array
+{
+    $lines = array_values(array_filter(array_map('trim', preg_split('/\R/', setting('teacher_terms_text')))));
+    return [
+        'title' => setting('teacher_terms_title', 'Volunteer Teacher - Terms & Conditions'),
+        'intro' => setting('teacher_terms_intro'),
+        'lines' => $lines,
+        'version' => substr(hash('sha256', implode("\n", $lines)), 0, 12),
+    ];
+}
+
+/** Pop-up with the volunteer teacher terms; the form stays locked until "I accept" (no-JS: the checkbox in the form). */
+function teacher_terms_modal_html(): string
+{
+    $t = teacher_terms();
+    if (!$t['lines']) {
+        return '';
+    }
+    $items = '';
+    foreach ($t['lines'] as $line) {
+        $items .= '<li>' . e($line) . '</li>';
+    }
+    return '<dialog class="modal terms-modal" id="teacher-terms" aria-labelledby="teacher-terms-title" aria-describedby="teacher-terms-intro">'
+        . '<div class="modal-card"><div class="modal-head"><h2 id="teacher-terms-title">' . icon('shield') . e($t['title']) . '</h2>'
+        . '<button type="button" class="modal-close" data-modal-close aria-label="Close">' . icon('x') . '</button></div>'
+        . '<div class="modal-body">' . ($t['intro'] !== '' ? '<p id="teacher-terms-intro" class="terms-intro">' . e($t['intro']) . '</p>' : '')
+        . '<ol class="terms-list">' . $items . '</ol>'
+        . '<p class="terms-links">Read in full: <a href="' . e(page_url('volunteer-policy')) . '" target="_blank" rel="noopener">Volunteer Policy</a> · '
+        . '<a href="' . e(page_url('child-protection-policy')) . '" target="_blank" rel="noopener">Child Protection Policy</a> · '
+        . '<a href="' . e(page_url('privacy-policy')) . '" target="_blank" rel="noopener">Privacy Policy</a></p></div>'
+        . '<div class="terms-actions"><button type="button" class="btn btn-outline" data-modal-close>Not now</button>'
+        . '<button type="button" class="btn btn-primary" data-terms-accept>' . icon('check') . 'I accept</button></div></div></dialog>';
+}
+
 /** Opening of an application form (CSRF, honeypot, upload limit). */
 function recruitment_form_open(string $slug, bool $files = false, string $id = 'application-form'): string
 {

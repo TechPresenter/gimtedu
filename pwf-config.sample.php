@@ -36,12 +36,26 @@ define('SMTP_ENCRYPTION', 'ssl');
 define('SMTP_USER', 'info@preritwelfarefoundation.org');
 define('SMTP_PASS', 'CHANGE-ME');
 
-// --- Razorpay (only after the foundation's merchant account is approved) -------------------
-// Start with TEST keys (rzp_test_...). Webhook URL: BASE_URL/payment-webhook.php
-// Webhook events: payment.captured, payment.authorized, payment.failed, order.paid, refund.processed
+// --- Encryption key for secrets saved in the admin panel ------------------------------------
+// Payment and AI keys entered in the admin panel are stored encrypted. Set a long random value
+// (40+ letters and numbers) once and never change it afterwards (changing it means re-entering the keys).
+// define('APP_KEY', 'CHANGE-ME-to-a-long-random-value');
+
+// --- Payment gateways (only after the merchant account is approved) ------------------------
+// Easiest: leave these empty and enter the keys in Admin > Payment Gateways (stored encrypted).
+// A value set here always wins over the admin panel.
+// Razorpay webhook URL: BASE_URL/payment-webhook.php
+// Events: payment.captured, payment.authorized, payment.failed, order.paid, refund.processed
 define('RAZORPAY_KEY_ID', '');
 define('RAZORPAY_KEY_SECRET', '');
 define('RAZORPAY_WEBHOOK_SECRET', '');
+// Cashfree webhook URL: BASE_URL/cashfree-webhook.php
+// define('CASHFREE_APP_ID', '');
+// define('CASHFREE_SECRET_KEY', '');
+
+// --- AI assistant (chatbot) ----------------------------------------------------------------
+// Easiest: enter the OpenAI API key in Admin > AI Assistant (stored encrypted).
+// define('OPENAI_API_KEY', '');
 
 // --- Only if the site is behind Cloudflare or another proxy -------------------------------
 // define('TRUSTED_PROXY_HEADER', 'HTTP_CF_CONNECTING_IP');

@@ -67,6 +67,8 @@ require_once __DIR__ . '/includes/home.php';
 require_once __DIR__ . '/includes/gateways.php';
 require_once __DIR__ . '/includes/assistant.php';
 require_once __DIR__ . '/includes/analytics.php';
+require_once __DIR__ . '/includes/programhub.php';
+require_once __DIR__ . '/includes/letters.php';
 
 // ---------------------------------------------------------------------
 // Data-safe upgrades: pending migrations (includes/migrations.php and module files) run once, automatically,
