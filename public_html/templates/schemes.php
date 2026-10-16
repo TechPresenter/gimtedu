@@ -133,7 +133,7 @@ $related = db_rows("SELECT * FROM schemes WHERE status = 'published' AND categor
                 <?php endif; ?>
             </div>
             <?php if ($image): ?>
-                <figure class="detail-hero-img"><?= program_picture($image, (string) $scheme['title'], ['sizes' => '(max-width: 900px) 100vw, 760px'],
+                <figure class="detail-hero-img"><?= program_picture($image, (string) $scheme['title'], ['sizes' => '(max-width: 900px) 100vw, 760px', 'loading' => 'eager'],   // in the first screen on desktop (largest paint)
                     '<img src="' . e(image_url($image)) . '" alt="' . e($scheme['title']) . '" loading="lazy">') ?></figure>
             <?php endif; ?>
             <?php if (count($blocks) > 1): ?>

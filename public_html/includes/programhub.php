@@ -2070,8 +2070,7 @@ function programhub_speakers_html(array $speakers): string
         }
         $role = SPEAKER_ROLES[$sp['role'] ?? 'speaker'] ?? 'Speaker';
         $html .= '<article class="ph-person reveal" style="--d:' . ($i % 4) . '">'
-            . ($photo !== '' ? program_picture($photo, '', ['class' => 'ph-avatar', 'width' => 88, 'height' => 88, 'sizes' => '88px'],
-                '<img class="ph-avatar" src="' . e(url($photo)) . '" alt="" width="88" height="88" loading="lazy">') : '<span class="ph-avatar ph-initials" aria-hidden="true">' . e($initials) . '</span>')
+            . ($photo !== '' ? '<img class="ph-avatar" src="' . e(url($photo)) . '" alt="" width="88" height="88" loading="lazy">' : '<span class="ph-avatar ph-initials" aria-hidden="true">' . e($initials) . '</span>')
             . '<div class="ph-person-body"><span class="ph-role">' . e($role) . '</span><h3>' . e((string) $sp['name']) . '</h3>'
             . (trim((string) ($sp['designation'] ?? '') . (string) ($sp['organisation'] ?? '')) !== '' ? '<p class="ph-person-meta">' . e(implode(', ', array_filter([trim((string) ($sp['designation'] ?? '')), trim((string) ($sp['organisation'] ?? ''))]))) . '</p>' : '')
             . (trim((string) ($sp['session_title'] ?? '')) !== '' ? '<p class="ph-person-session">' . icon('message') . '<span>' . e((string) $sp['session_title']) . '</span></p>' : '')
@@ -2090,7 +2089,7 @@ function programhub_partners_html(array $partners): string
     $html = '<ul class="ph-partners">';
     foreach ($partners as $p) {
         $logo = !empty($p['logo']) && strpos((string) $p['logo'], '..') === false && is_file(ROOT_PATH . '/' . $p['logo']) ? (string) $p['logo'] : '';
-        $inner = ($logo !== '' ? program_picture($logo, (string) $p['name'], ['sizes' => '140px'], '<img src="' . e(url($logo)) . '" alt="' . e((string) $p['name']) . '" loading="lazy">') : '<span class="ph-partner-name">' . e((string) $p['name']) . '</span>')
+        $inner = ($logo !== '' ? '<img src="' . e(url($logo)) . '" alt="' . e((string) $p['name']) . '" loading="lazy">' : '<span class="ph-partner-name">' . e((string) $p['name']) . '</span>')
             . '<small>' . e(EVENT_PARTNER_ROLES[$p['role'] ?? 'partner'] ?? 'Partner') . ($logo !== '' ? ' · ' . e((string) $p['name']) : '') . '</small>';
         $u = trim((string) ($p['website_url'] ?? ''));
         $html .= '<li>' . ($u !== '' && preg_match('#^https?://#i', $u) ? '<a href="' . e(safe_link($u)) . '" target="_blank" rel="noopener noreferrer nofollow">' . $inner . '</a>' : '<div>' . $inner . '</div>') . '</li>';
