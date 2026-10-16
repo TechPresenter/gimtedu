@@ -132,7 +132,9 @@ function page_banner(string $title, string $subtitle = '', array $crumbs = [], a
     }
     $html .= '</div>';
     if ($image) {
-        $html .= '<div class="banner-art float-slow"><img src="' . e(image_url($image)) . '" alt="" width="480" height="360" fetchpriority="high"></div>';
+        $legacy = '<img src="' . e(image_url($image)) . '" alt="" width="480" height="360" fetchpriority="high">';
+        $html .= '<div class="banner-art float-slow">' . (function_exists('cms_picture')
+            ? cms_picture($image, '', ['width' => 480, 'height' => 360, 'fetchpriority' => 'high', 'media_alt' => true, 'sizes' => '300px'], $legacy) : $legacy) . '</div>';
     }
     return $html . '</div></section>';
 }
@@ -234,8 +236,13 @@ function ui_faqs(array $faqs, bool $openFirst = false): string
  */
 function ui_split(array $o): string
 {
+    // 'lcp' => true for a split block at the top of a page (its image is then the largest paint: no lazy loading)
+    $legacy = '<img src="' . e(image_url($o['image'] ?? null)) . '" alt="' . e($o['image_alt'] ?? '') . '"' . (empty($o['lcp']) ? ' loading="lazy"' : ' fetchpriority="high"') . ' width="480" height="360">';
+    $media = function_exists('cms_picture')
+        ? cms_picture($o['image'] ?? null, (string) ($o['image_alt'] ?? ''), ['width' => 480, 'height' => 360, 'media_alt' => true, 'sizes' => '(min-width: 992px) 50vw, 100vw'] + (empty($o['lcp']) ? [] : ['fetchpriority' => 'high']), $legacy)
+        : $legacy;
     $html = '<div class="split-block' . (!empty($o['reverse']) ? ' reverse' : '') . '">'
-        . '<div class="split-media reveal"><img src="' . e(image_url($o['image'] ?? null)) . '" alt="' . e($o['image_alt'] ?? '') . '" loading="lazy" width="480" height="360"></div>'
+        . '<div class="split-media reveal">' . $media . '</div>'
         . '<div class="split-content reveal">'
         . (!empty($o['pill']) ? '<span class="pill">' . e($o['pill']) . '</span>' : '')
         . (!empty($o['title']) ? '<h2>' . e($o['title']) . '</h2>' : '')

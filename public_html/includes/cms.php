@@ -479,6 +479,23 @@ function section_module(array $s, array $items, array $set, array $page): string
 
 // ----- Core section renderers. Signature: (array $s, array $items, array $settings, array $page): string
 
+/**
+ * <img> for a section image through the SEO images module when it is installed (seo_picture(): real width/height,
+ * srcset of the -640/-1080 copies, a WebP <source> in <picture style="display:contents">, the media library's alt text
+ * when none was entered, lazy loading unless 'fetchpriority' => 'high'). Same fallback rule as image_url(): only a local
+ * file is used, anything else shows the general illustration. Without the module $legacy (the previous markup) is used.
+ */
+function cms_picture(?string $path, string $alt, array $attrs, string $legacy): string
+{
+    if (!function_exists('seo_picture')) {
+        return $legacy;
+    }
+    $path = (string) $path;
+    $local = $path !== '' && strpos($path, '..') === false && is_file(ROOT_PATH . '/' . ltrim($path, '/')) ? ltrim($path, '/') : null;
+    $html = seo_picture($local, $alt, $attrs);
+    return $html !== '' ? $html : $legacy;
+}
+
 function section_richtext(array $s, array $items, array $set, array $page): string
 {
     $body = (string) ($s['body'] ?? '');
@@ -495,7 +512,11 @@ function section_richtext(array $s, array $items, array $set, array $page): stri
             $body = $nav . '</ol></nav>' . $body;
         }
     }
-    $img = !empty($s['image']) ? '<figure class="prose-figure reveal"><img src="' . e(image_url($s['image'])) . '" alt="' . e($set['image_alt'] ?? '') . '" loading="lazy"></figure>' : '';
+    if (function_exists('seo_filter_content_images')) {
+        $body = seo_filter_content_images($body);   // inline images: lazy, real size, srcset, media alt, WebP
+    }
+    $img = !empty($s['image']) ? '<figure class="prose-figure reveal">' . cms_picture($s['image'], (string) ($set['image_alt'] ?? ''), ['media_alt' => true, 'sizes' => '(min-width: 1240px) 1200px, 100vw'],
+        '<img src="' . e(image_url($s['image'])) . '" alt="' . e($set['image_alt'] ?? '') . '" loading="lazy">') . '</figure>' : '';
     return '<div class="prose reveal' . (!empty($set['columns']) ? ' prose-cols' : '') . '">' . $img . $body . '</div>';
 }
 
@@ -624,7 +645,8 @@ function section_image(array $s, array $items, array $set, array $page): string
     if (empty($s['image'])) {
         return '';
     }
-    return '<figure class="wide-figure reveal"><img src="' . e(image_url($s['image'])) . '" alt="' . e($set['image_alt'] ?? $s['title'] ?? '') . '" loading="lazy">'
+    return '<figure class="wide-figure reveal">' . cms_picture($s['image'], (string) ($set['image_alt'] ?? $s['title'] ?? ''), ['media_alt' => true, 'sizes' => '(min-width: 1240px) 1200px, 100vw'],
+            '<img src="' . e(image_url($s['image'])) . '" alt="' . e($set['image_alt'] ?? $s['title'] ?? '') . '" loading="lazy">')
         . (!empty($s['intro']) ? '<figcaption>' . e($s['intro']) . '</figcaption>' : '') . '</figure>';
 }
 

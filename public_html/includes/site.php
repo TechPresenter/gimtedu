@@ -1073,10 +1073,10 @@ function site_settings_tabs(): array
             'certificate_signatory_title' => ['text', 'Certificate signatory designation', 'e.g. Secretary', ['max' => 120]],
         ]],
         'seo' => ['SEO & analytics', 'search', [
-            'seo_title_suffix' => ['text', 'Title suffix', 'Added after page titles, e.g. " | Prerit Welfare Foundation".', ['max' => 80]],
+            'seo_title_suffix' => ['text', 'Title suffix', 'Added after page titles, e.g. " | Prerit Welfare Foundation", when the whole title still fits the search-result length (Admin > SEO > Integrations).', ['max' => 80]],
             'seo_default_description' => ['textarea', 'Default meta description', 'Used when a page has no description of its own (about 150-160 characters).', ['max' => 300, 'counter' => 160]],
             'seo_default_og_image' => ['image', 'Default social sharing image', '1200 × 630 px JPG or PNG.'],
-            'google_site_verification' => ['gsv', 'Google Search Console verification code', 'Paste the content value of the HTML tag (or the whole <meta …> tag).'],
+            'google_site_verification' => ['gsv', 'Google Search Console verification code', 'Paste the content value of the HTML tag (or the whole <meta …> tag). Bing, Yandex and Pinterest codes, Google Tag Manager, sitemaps and structured data: Admin > SEO > Integrations.'],
             'ga_measurement_id' => ['ga', 'Google Analytics 4 measurement ID', 'Format G-XXXXXXXXXX. Visitors are asked for consent before Google Analytics loads.'],
             'analytics_enabled' => ['checkbox', 'First-party visitor statistics (no cookies, no IP addresses stored)'],
             'analytics_respect_dnt' => ['checkbox', 'Respect "Do Not Track" / Global Privacy Control'],

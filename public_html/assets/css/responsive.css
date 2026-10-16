@@ -39,8 +39,9 @@
     .nav-apply-row { display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden; padding: 2px 18px; scroll-snap-type: x proximity; scroll-padding-inline: 18px; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
     .nav-apply-row .apply-chip { flex: none; min-height: 44px; padding: 0 15px; scroll-snap-align: start; font-size: .82rem; color: var(--green-800); background: var(--green-50); border-color: rgba(20, 107, 67, .16); }
     .nav-apply-row .apply-chip .icon { color: var(--green-600); }
-    .nav-apply-row .apply-chip:first-child { background: var(--gold-500); border-color: var(--gold-500); color: #1f1a00; }
-    .nav-apply-row .apply-chip:first-child .icon { color: #1f1a00; }
+    /* gold highlight only for the first Apply chip; in the Programs & Events row only the current page is highlighted */
+    .nav-mobile-apply:not(.nav-mobile-programs) .nav-apply-row .apply-chip:first-child, .nav-mobile-programs .apply-chip.is-active { background: var(--gold-500); border-color: var(--gold-500); color: #1f1a00; }
+    .nav-mobile-apply:not(.nav-mobile-programs) .nav-apply-row .apply-chip:first-child .icon, .nav-mobile-programs .apply-chip.is-active .icon { color: #1f1a00; }
     .nav-apply-row .apply-chip:hover, .nav-apply-row .apply-chip.is-active { background: var(--green-600); border-color: var(--green-600); color: #fff; transform: none; }
     .nav-apply-row .apply-chip:hover .icon, .nav-apply-row .apply-chip.is-active .icon { color: var(--gold-400); }
     .nav-apply-row .apply-chip:focus-visible { outline: 3px solid var(--gold-500); outline-offset: -3px; box-shadow: inset 0 0 0 5px var(--green-800); }
