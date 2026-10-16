@@ -14,3 +14,6 @@ Thumbs.db
 .idea/
 .vscode/
 public_html/install.lock
+
+# Release packages (sent separately, not committed)
+*.zip
