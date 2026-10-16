@@ -71,6 +71,29 @@ require_once __DIR__ . '/includes/programhub.php';
 require_once __DIR__ . '/includes/letters.php';
 
 // ---------------------------------------------------------------------
+// An install.php from an older package (it does not define PWF_INSTALLER_VERSION) printed server and database details
+// even after installation. Upgrade packages do not replace install.php, so refuse such a file once the site is installed.
+// ---------------------------------------------------------------------
+if (defined('PWF_INSTALLER') && !defined('PWF_INSTALLER_VERSION') && PHP_SAPI !== 'cli') {
+    $pwfInstalled = is_file(__DIR__ . '/install.lock');
+    if (!$pwfInstalled) {
+        try {
+            $pwfInstalled = (int) db_value("SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE r.slug = 'administrator'") > 0;
+        } catch (Throwable $e) {
+            $pwfInstalled = false;
+        }
+    }
+    if ($pwfInstalled) {
+        http_response_code(403);
+        header('Content-Type: text/plain; charset=utf-8');
+        header('X-Robots-Tag: noindex, nofollow');
+        header('Cache-Control: no-store');
+        exit("The website is already installed. This install.php is from an older package: please delete it from the server.\n");
+    }
+    unset($pwfInstalled);
+}
+
+// ---------------------------------------------------------------------
 // Data-safe upgrades: pending migrations (includes/migrations.php and module files) run once, automatically,
 // on the first request after new files are uploaded. The installer runs them itself.
 // ---------------------------------------------------------------------

@@ -120,6 +120,12 @@ admin_page_start('Dashboard');
     <div class="alert alert-warning mb-3"><?= icon('alert-circle') ?><div><?= (int) $pendingOnline ?> online donation<?= $pendingOnline === 1 ? ' is' : 's are' ?> still pending from the last 7 days. Open <a href="<?= e(admin_url('donations.php?status=pending')) ?>">Donations</a> to re-check them with the payment gateway.</div></div>
 <?php endif; ?>
 
+<?php $migFail = is_administrator() ? migration_failure() : null; ?>
+<?php if ($migFail): ?>
+    <div class="alert alert-error mb-3" role="alert"><?= icon('alert-circle') ?><div><strong>A database update failed.</strong> <?= e($migFail['name']) ?> · <?= e(date('d M Y, h:i A', (int) $migFail['at'])) ?>: <?= e($migFail['error']) ?>
+        It is tried again automatically every <?= (int) MIGRATION_RETRY_MINUTES ?> minutes; until then some new features may not work. See the <a href="<?= e(admin_url('security.php')) ?>">Security Centre</a>.</div></div>
+<?php endif; ?>
+
 <?php if ($kpis): ?>
     <div class="stat-cards insight-kpis">
         <?php foreach ($kpis as $k): ?>

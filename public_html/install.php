@@ -9,6 +9,7 @@
  */
 
 define('PWF_INSTALLER', true);
+define('PWF_INSTALLER_VERSION', 3);   // older installers (without this constant) are refused by functions.php once installed
 require_once __DIR__ . '/functions.php';
 
 header('X-Robots-Tag: noindex, nofollow');

@@ -67,20 +67,62 @@ function add_permission_if_missing(string $key, string $label, string $group, in
     }
 }
 
-/** All migration functions known to the code, sorted by number: [number => function name]. */
+/**
+ * All migration functions known to the code, in run order (number, then name): [function name => number].
+ * Two functions may share a number; both run (sorted by name) and the clash is logged when migrations run.
+ */
 function migration_list(): array
 {
-    $list = [];
+    $found = [];
     foreach (get_defined_functions()['user'] as $fn) {
         if (preg_match('/^migration_(\d+)_[a-z0-9_]+$/', $fn, $m)) {
-            $list[(int) $m[1]] = $fn;
+            $found[] = [(int) $m[1], $fn];
         }
     }
-    ksort($list);
+    usort($found, function (array $a, array $b): int {
+        return $a[0] <=> $b[0] ?: strcmp($a[1], $b[1]);
+    });
+    $list = [];
+    foreach ($found as [$number, $fn]) {
+        $list[$fn] = $number;
+    }
     return $list;
 }
 
-/** Run pending migrations. Cheap when nothing is pending (one setting read). */
+/** Signature of the migration set in the code (changes whenever a migration is added, renamed or removed). */
+function migration_signature(array $list): string
+{
+    return $list ? max($list) . ':' . count($list) . ':' . substr(sha1(implode(',', array_keys($list))), 0, 10) : '';
+}
+
+/**
+ * Last failed migration (['name', 'at', 'error', 'signature']) or null; shown to administrators in the admin panel.
+ * Null once the database is up to date for the current code (e.g. the failing migration was fixed or removed).
+ */
+function migration_failure(): ?array
+{
+    try {
+        $data = json_decode(setting('migration_failed'), true);
+        if (!is_array($data) || empty($data['name'])) {
+            return null;
+        }
+        return setting('schema_version') === migration_signature(migration_list()) ? null : $data;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/** Minutes to wait before a failed migration is tried again (each try writes one error_log line). */
+const MIGRATION_RETRY_MINUTES = 10;
+
+/**
+ * Run pending migrations. Cheap when nothing is pending (one setting read).
+ * - The lock is per database, so another copy of the site on the same MySQL server never waits for this one.
+ * - A request that cannot get the lock within 10 s (another request is still upgrading) gets a short 503 page
+ *   instead of running on a half-upgraded database.
+ * - After a failure the migration is retried at most every MIGRATION_RETRY_MINUTES (at once when new code is
+ *   uploaded); the failure is logged once per try and shown on the admin dashboard.
+ */
 function run_pending_migrations(bool $force = false): array
 {
     static $done = false;
@@ -92,7 +134,7 @@ function run_pending_migrations(bool $force = false): array
     if (!$list) {
         return [];
     }
-    $latest = (string) max(array_keys($list)) . ':' . count($list);
+    $latest = migration_signature($list);
     try {
         if (!$force && setting('schema_version') === $latest) {
             return [];
@@ -103,7 +145,27 @@ function run_pending_migrations(bool $force = false): array
     if (!table_exists('website_settings')) {
         return [];
     }
-    if ((int) db_value("SELECT GET_LOCK('pwf_migrations', 10)") !== 1) {
+    $failure = json_decode(setting('migration_failed'), true);
+    if (!$force && is_array($failure) && ($failure['signature'] ?? '') === $latest && (int) ($failure['at'] ?? 0) > time() - MIGRATION_RETRY_MINUTES * 60) {
+        return [];   // failed a moment ago with this same code: wait before trying again
+    }
+    $lock = 'pwf_migrations_' . substr(sha1((string) db_value('SELECT DATABASE()')), 0, 16);
+    if ((int) db_value('SELECT GET_LOCK(?, 10)', [$lock]) !== 1) {
+        settings_all(true);
+        if (setting('schema_version') === $latest) {
+            return [];   // the other request finished the upgrade meanwhile
+        }
+        error_log('Migrations: another request is still upgrading the database (lock not obtained in 10 s)');
+        if (PHP_SAPI !== 'cli' && !headers_sent()) {
+            http_response_code(503);
+            header('Retry-After: 30');
+            header('Cache-Control: no-store');
+            header('Content-Type: text/html; charset=utf-8');
+            echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+                . '<meta name="robots" content="noindex"><title>Updating the website</title></head><body style="font-family:system-ui,sans-serif;padding:2rem;max-width:36rem;margin:auto;color:#24312B">'
+                . '<h1 style="font-size:1.4rem">The website is being updated</h1><p>This takes less than a minute. Please reload the page shortly.</p></body></html>';
+            exit;
+        }
         return [];
     }
     $ran = [];
@@ -112,7 +174,14 @@ function run_pending_migrations(bool $force = false): array
             name VARCHAR(120) NOT NULL, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (name)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
         $applied = array_flip(array_column(db_rows('SELECT name FROM schema_migrations'), 'name'));
-        foreach ($list as $fn) {
+        $numbers = array_count_values($list);
+        foreach ($list as $fn => $number) {
+            if ($numbers[$number] > 1) {
+                error_log('Migrations: number ' . $number . ' is used by more than one migration (' . $fn . '); give each migration its own number');
+            }
+        }
+        $failed = null;
+        foreach ($list as $fn => $number) {
             if (isset($applied[$fn])) {
                 continue;
             }
@@ -120,20 +189,31 @@ function run_pending_migrations(bool $force = false): array
                 $fn();
                 db_query('INSERT IGNORE INTO schema_migrations (name) VALUES (?)', [$fn]);
                 $ran[] = $fn;
+                $applied[$fn] = true;
             } catch (Throwable $e) {
+                $failed = ['name' => $fn, 'at' => time(), 'error' => mb_substr($e->getMessage(), 0, 300), 'signature' => $latest];
                 error_log('Migration ' . $fn . ' failed: ' . $e->getMessage());
-                break;   // stop at the first failure; it is retried on the next request
+                break;   // stop at the first failure; later migrations may depend on it
             }
         }
         settings_all(true);
-        if (count($ran) + count($applied) >= count($list)) {
+        if ($failed) {
+            save_setting('migration_failed', (string) json_encode($failed, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            log_activity('database_upgrade_failed', 'Database update ' . $failed['name'] . ' failed: ' . $failed['error'] . ' It is tried again in ' . MIGRATION_RETRY_MINUTES . ' minutes.', null, true);
+        } elseif (!array_diff_key($list, $applied)) {
+            // stamp the version only when every migration in the code is recorded (stale rows of removed migrations do not count)
             save_setting('schema_version', $latest);
+            if (setting('migration_failed') !== '') {
+                save_setting('migration_failed', '');
+            }
         }
         if ($ran) {
-            log_activity('database_upgraded', 'Applied: ' . implode(', ', $ran), null, true);
+            $nums = array_map(function (string $fn) use ($list): int { return $list[$fn]; }, $ran);
+            log_activity('database_upgraded', 'Applied ' . count($ran) . ' database update' . (count($ran) === 1 ? '' : 's') . ' (' . implode(', ', $nums) . ')'
+                . ($failed ? '; stopped at ' . $failed['name'] : '') . '. Version ' . $latest . '.', null, true);
         }
     } finally {
-        db_value("SELECT RELEASE_LOCK('pwf_migrations')");
+        db_value('SELECT RELEASE_LOCK(?)', [$lock]);
     }
     return $ran;
 }
@@ -149,6 +229,13 @@ function run_pending_migrations(bool $force = false): array
  */
 function migration_100_v2_final_catchup(): void
 {
+    // Only the earlier package lacked donations.offline_reference. Remember that (as a setting, so a retried run still
+    // knows after the column exists): content that is new in the final package is added only to such sites, so nothing
+    // an owner of a final-package site edited or deleted on purpose comes back.
+    if (table_exists('donations') && !column_exists('donations', 'offline_reference')) {
+        add_setting_if_missing('upgraded_from_early_v2', '1');
+    }
+    $early = (string) db_value("SELECT setting_value FROM website_settings WHERE setting_key = 'upgraded_from_early_v2'") === '1';
     add_column_if_missing('donations', 'offline_reference', 'VARCHAR(100) DEFAULT NULL AFTER gateway_method');
     add_index_if_missing('donations', 'idx_donations_offline_ref', 'INDEX idx_donations_offline_ref (offline_reference)');
     foreach (['grievance_ack_days', 'grievance_officer_email', 'grievance_officer_name', 'grievance_resolution_days'] as $key) {
@@ -180,10 +267,16 @@ function migration_100_v2_final_catchup(): void
     foreach ($meta['faq_changed'] as $q) {
         db_query('UPDATE faqs SET question = ?, answer = ? WHERE question = ? AND MD5(answer) = ?', [$q['question'], $q['answer'], $q['early_question'], $q['early_md5']]);
     }
-    foreach ($meta['faq_new'] as $q) {
+    foreach ($early ? $meta['faq_new'] : [] as $q) {
         if (!db_value('SELECT COUNT(*) FROM faqs WHERE question = ?', [$q['question']])) {
             db_query('INSERT INTO faqs (question, answer, category, sort_order, status) VALUES (?, ?, ?, ?, ?)', [$q['question'], $q['answer'], $q['category'], (int) $q['sort_order'], $q['status']]);
         }
+    }
+    // main-menu labels of the earlier package (British spelling in the final package); exact label and link only
+    foreach ($early ? [['Programs', 'Programmes', '/programs/'], ['All Programs', 'All Programmes', '/programs/'],
+                       ['Utilization Reports', 'Utilisation Reports', '/utilization-reports/'],
+                       ['Volunteer Teacher Program', 'Volunteer Teacher Programme', '/volunteer-teacher/']] : [] as [$old, $new, $url]) {
+        db_query("UPDATE menu_items i JOIN menus m ON m.id = i.menu_id SET i.label = ? WHERE m.menu_key = 'main' AND i.label = ? AND i.url = ?", [$new, $old, $url]);
     }
     $sections = require __DIR__ . '/upgrade/v2-final-content.php';
     foreach ($sections as $s) {
@@ -263,11 +356,14 @@ function migration_105_donate_form_only(): void
               WHERE p.slug = 'donate' AND s.section_type <> 'module' AND s.status = 'visible'");
 }
 
-/** FAQ wording: online donations may now go through Razorpay or Cashfree (only if the answer is still the seeded text). */
+/** Seeded answer of "How can I donate online?" in the final v2 package (migration_100 brings the earlier one to it). */
+const FAQ_DONATE_ONLINE_V2 = "When online donation is available, go to the Donate page (or choose a campaign on the Campaigns page), enter the amount and your details, and complete the payment in the secure Razorpay checkout using UPI, debit or credit card, net banking or another method offered there.\n\nYour card, UPI and bank login details are handled by the payment gateway - they are never seen or stored by the foundation.\n\nIf the Donate page says online donation is not available, write to us and we will share the current ways to donate.";
+
+/** FAQ wording: online donations may go through Razorpay or Cashfree. Only an answer that is still exactly the seeded text changes. */
 function migration_106_faq_gateway_wording(): void
 {
-    db_query("UPDATE faqs SET answer = REPLACE(answer, 'in the secure Razorpay checkout', 'in the secure checkout of our payment gateway (Razorpay or Cashfree)')
-              WHERE question = 'How can I donate online?' AND answer LIKE 'When online donation is available, go to the Donate page%in the secure Razorpay checkout%'");
+    db_query("UPDATE faqs SET answer = REPLACE(answer, 'in the secure Razorpay checkout', 'in the secure checkout of our payment gateway')
+              WHERE question = 'How can I donate online?' AND MD5(answer) = ?", [md5(FAQ_DONATE_ONLINE_V2)]);
 }
 
 /** Privacy policy cookie wording now that our own return-visit cookie also asks for consent (seeded text only). */
@@ -283,19 +379,16 @@ function migration_107_privacy_cookie_wording(): void
     }
 }
 
-/** Footer link to the public letter verification page (menus are database rows; added once). */
-function migration_108_verify_letter_link(): void
+/**
+ * Sites upgraded with the first Upgrade 1 build got "(Razorpay or Cashfree)" in that answer although Cashfree is off
+ * by default: use the neutral wording of migration_106 (only while the answer is exactly that text).
+ */
+function migration_109_faq_gateway_neutral(): void
 {
-    if (!table_exists('menu_items') || !db_value("SELECT COUNT(*) FROM pages WHERE slug = 'verify-letter'")) {
-        return;
-    }
-    if (db_value("SELECT COUNT(*) FROM menu_items WHERE url IN ('/verify-letter/', '/verify-letter')")) {
-        return;
-    }
-    $menuId = db_value("SELECT id FROM menus WHERE menu_key = 'footer_legal' LIMIT 1");
-    if (!$menuId) {
-        return;
-    }
-    $sort = (int) db_value('SELECT COALESCE(MAX(sort_order), 0) + 10 FROM menu_items WHERE menu_id = ? AND parent_id IS NULL', [$menuId]);
-    db_query("INSERT INTO menu_items (menu_id, parent_id, label, url, status, sort_order) VALUES (?, NULL, 'Verify a letter', '/verify-letter/', 'visible', ?)", [$menuId, $sort]);
+    $named = str_replace('in the secure Razorpay checkout', 'in the secure checkout of our payment gateway (Razorpay or Cashfree)', FAQ_DONATE_ONLINE_V2);
+    db_query("UPDATE faqs SET answer = REPLACE(answer, 'in the secure checkout of our payment gateway (Razorpay or Cashfree)', 'in the secure checkout of our payment gateway')
+              WHERE question = 'How can I donate online?' AND MD5(answer) = ?", [md5($named)]);
 }
+
+// The footer link to /verify-letter/ is added by migration_701_verify_letter_link (includes/letters.php), after
+// migration_700 has created that page. (A former migration_108 ran before the page existed and did nothing.)

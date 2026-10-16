@@ -85,7 +85,8 @@ h1, h2, h3, h4 { color: var(--ink); letter-spacing: -.01em; }
 .topbar-programs .pe-link:focus-visible, .topbar-programs .pe-toggle:focus-visible { outline: 2px solid var(--gold-400); outline-offset: 2px; }
 .pe-menu { position: absolute; top: calc(100% + 10px); left: 0; z-index: 5; width: min(560px, 90vw); padding: 16px; border-radius: 16px; background: #fff; color: var(--ink); box-shadow: 0 24px 60px rgba(8, 40, 24, .22); border: 1px solid var(--line); opacity: 0; visibility: hidden; transform: translateY(6px); transition: opacity .18s, transform .18s, visibility .18s; white-space: normal; }
 .pe-menu::before { content: ""; position: absolute; left: 0; right: 0; top: -12px; height: 12px; }
-.topbar-programs:hover:not(.no-hover) .pe-menu, .topbar-programs:focus-within:not(.no-hover) .pe-menu, .topbar-programs.open .pe-menu { opacity: 1; visibility: visible; transform: translateY(0); }
+/* without JavaScript: hover / keyboard focus opens it; with JavaScript (.pe-js) only .open does (aria-expanded stays in step) */
+.topbar-programs:not(.pe-js):hover .pe-menu, .topbar-programs:not(.pe-js):focus-within .pe-menu, .topbar-programs.open .pe-menu { opacity: 1; visibility: visible; transform: translateY(0); }
 .topbar-programs.open .pe-toggle .icon { transform: rotate(180deg); }
 .topbar-programs.open .pe-menu { transition: opacity .18s, transform .18s; } /* visible at once, so the first link can take focus */
 .pe-menu-title { margin: 0 0 8px; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }

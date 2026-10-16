@@ -687,3 +687,24 @@ function migration_700_authorization_letters(): void
         ]);
     }
 }
+
+/**
+ * Footer link to the public letter verification page (menus are database rows; added once). Numbered after
+ * migration_700, which creates the page. Nothing is added when the page or the footer menu has been removed, or when
+ * a link to the page already exists.
+ */
+function migration_701_verify_letter_link(): void
+{
+    if (!table_exists('menu_items') || !db_value("SELECT COUNT(*) FROM pages WHERE slug = 'verify-letter'")) {
+        return;
+    }
+    if (db_value("SELECT COUNT(*) FROM menu_items WHERE url IN ('/verify-letter/', '/verify-letter')")) {
+        return;
+    }
+    $menuId = db_value("SELECT id FROM menus WHERE menu_key = 'footer_legal' LIMIT 1");
+    if (!$menuId) {
+        return;
+    }
+    $sort = (int) db_value('SELECT COALESCE(MAX(sort_order), 0) + 10 FROM menu_items WHERE menu_id = ? AND parent_id IS NULL', [$menuId]);
+    db_query("INSERT INTO menu_items (menu_id, parent_id, label, url, status, sort_order) VALUES (?, NULL, 'Verify a letter', '/verify-letter/', 'visible', ?)", [$menuId, $sort]);
+}

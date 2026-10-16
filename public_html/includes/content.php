@@ -371,7 +371,9 @@ function event_state(array $ev): array
     $opensAt = !empty($ev['registration_opens_at']) ? (int) strtotime((string) $ev['registration_opens_at']) : null;
     $deadlinePassed = $deadline !== null && $deadline <= $now;
     $notYetOpen = $opensAt !== null && $opensAt > $now;
-    $enabled = (int) ($ev['registration_enabled'] ?? 0) === 1;
+    // Awareness days are observances, not events the foundation holds: never registrable (the page shows no form and the
+    // admin saves them with registration off; a value of 1 left from an earlier version is ignored here too).
+    $enabled = (int) ($ev['registration_enabled'] ?? 0) === 1 && ($ev['event_type'] ?? '') !== 'awareness_day';
     $base = ($ev['status'] ?? '') === 'published' && $enabled && !$started && !$deadlinePassed && !$notYetOpen;
     $open = $base && !$full;
     $waitlistOpen = $base && $full && !empty($ev['waitlist_enabled']);

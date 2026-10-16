@@ -3,10 +3,12 @@
  * Encrypted secret settings (payment gateway secrets, AI API keys ...).
  *
  * Secrets entered in the admin panel are stored encrypted in `website_settings` (key prefix "secret_").
- * The encryption key comes from APP_KEY in pwf-config.php when defined (recommended: a long random string);
- * otherwise it is derived from the database credentials in the configuration file, so a leaked database
- * dump or backup alone never reveals a secret. A constant defined in pwf-config.php always wins over the
- * stored value (config_or_secret()).
+ * The encryption key comes from APP_KEY in pwf-config.php when defined (recommended: 40+ random characters).
+ * Without APP_KEY (or with one shorter than 16 characters) the key is derived from the database credentials in the
+ * configuration file. Then a database dump alone does not reveal a secret only while the database password is long and
+ * random (the password could otherwise be guessed offline), and changing the database password, user, name or host makes
+ * the saved secrets unreadable (they must be entered again). The admin pages warn about this (secret_key_notice()).
+ * A constant defined in pwf-config.php always wins over the stored value (config_or_secret()).
  *
  * Secrets are never printed back: the admin panel shows only "saved · ends with 1a2b".
  */
@@ -26,6 +28,36 @@ function secret_key(string $id = ''): array
         return ['a', ''];   // value was encrypted with an APP_KEY that is no longer configured
     }
     return ['d', hash('sha256', 'pwf-secret-v1|' . DB_PASS . '|' . DB_USER . '|' . DB_NAME . '|' . DB_HOST, true)];
+}
+
+/**
+ * Strength of the encryption key: ['level' => ok|short|derived, 'message' => text for administrators].
+ * ok = APP_KEY with 32+ characters; short = APP_KEY with 16-31 characters; derived = no usable APP_KEY.
+ */
+function secret_key_status(): array
+{
+    $len = defined('APP_KEY') ? strlen((string) APP_KEY) : 0;
+    if ($len >= 32) {
+        return ['level' => 'ok', 'message' => 'Saved keys are encrypted with APP_KEY from pwf-config.php.'];
+    }
+    if ($len >= 16) {
+        return ['level' => 'short', 'message' => 'APP_KEY in pwf-config.php has only ' . $len . ' characters. Use 40 or more random letters and digits.'];
+    }
+    return ['level' => 'derived', 'message' => ($len > 0 ? 'APP_KEY in pwf-config.php is too short (' . $len . ' characters) and is not used. ' : 'APP_KEY is not set in pwf-config.php. ')
+        . 'Saved keys are encrypted with a key made from the database login, so they become unreadable if the database password changes, and a database backup is only as safe as that password.'];
+}
+
+/** Admin warning shown where secrets are entered ('' when APP_KEY is fine). */
+function secret_key_notice(): string
+{
+    $status = secret_key_status();
+    if ($status['level'] === 'ok') {
+        return '';
+    }
+    $fix = $status['level'] === 'derived'
+        ? ' Recommended: add <code>define(\'APP_KEY\', \'40+ random letters and digits\');</code> to pwf-config.php <strong>before</strong> you save keys here, never change it afterwards, and then enter the keys again.'
+        : ' Replacing APP_KEY makes the keys saved so far unreadable, so enter them again afterwards.';
+    return '<div class="alert alert-warning" role="note">' . icon('alert-triangle') . '<div><strong>Encryption key</strong> · ' . e($status['message']) . $fix . '</div></div>';
 }
 
 function secret_encrypt(string $plain): string

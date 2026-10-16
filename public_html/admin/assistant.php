@@ -271,6 +271,8 @@ admin_page_start('AI Assistant (chatbot)', [
     <div class="stat-card"><span class="icon-circle gold"><?= icon('life-buoy') ?></span><div><strong><?= $fallbackShare ?>%</strong><small>Answered from FAQs (30 days)</small></div></div>
 </div>
 
+<?= $canConfigure ? secret_key_notice() : '' ?>
+
 <?php if ($lastError): ?>
     <div class="alert alert-warning ai-admin-error" role="status"><?= icon('alert-triangle') ?><div>
         <strong>Last problem with the OpenAI API</strong> · <?= e(format_date($lastError['at'], 'd M Y, h:i A')) ?>

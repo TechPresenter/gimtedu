@@ -268,11 +268,11 @@
     .home-hero .hero-slide.is-active .hero-content > *, .home-hero .hero-slide.is-active .home-hero-figure { animation: none !important; }
     .marquee-track { animation: none !important; width: auto; flex-wrap: wrap; }
     .marquee-list { flex-wrap: wrap; row-gap: 4px; }
-    .marquee-list[aria-hidden="true"], .marquee-toggle { display: none; }
+    .marquee-list[aria-hidden="true"], .marquee-pause, .marquee-toggle { display: none; }
     .marquee-viewport { -webkit-mask-image: none; mask-image: none; }
     .trust-item { transition: none; }
 }
 body[data-motion="off"] .marquee-track { animation: none; width: auto; flex-wrap: wrap; }
 body[data-motion="off"] .marquee-list { flex-wrap: wrap; row-gap: 4px; }
-body[data-motion="off"] .marquee-list[aria-hidden="true"], body[data-motion="off"] .marquee-toggle { display: none; }
+body[data-motion="off"] .marquee-list[aria-hidden="true"], body[data-motion="off"] .marquee-pause, body[data-motion="off"] .marquee-toggle { display: none; }
 body[data-motion="off"] .marquee-viewport { -webkit-mask-image: none; mask-image: none; }

@@ -293,6 +293,8 @@ $choiceLabels = ['razorpay' => 'Razorpay only', 'cashfree' => 'Cashfree only', '
         <div><strong>Online donations <?= $onlineOn ? 'on' : 'off' ?></strong><small>Switch in Settings &gt; Donations &amp; bank</small></div></a>
 </div>
 
+<?= secret_key_notice() ?>
+
 <?php if ($razorpayTexts): ?>
     <div class="alert alert-info"><?= icon('info') ?><div><strong>Some page texts mention only Razorpay.</strong> Donors can now also pay with Cashfree - review these pages so the wording stays accurate:
         <?php foreach ($razorpayTexts as $i => $pg): ?><?= $i ? ', ' : ' ' ?><a href="<?= e(admin_url('page-edit.php?id=' . (int) $pg['id'])) ?>"><?= e($pg['title']) ?></a><?php endforeach; ?>.</div></div>

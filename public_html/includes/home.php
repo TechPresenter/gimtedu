@@ -459,7 +459,7 @@ function section_marquee_cta(array $s, array $items, array $set, array $page): s
             $list .= '<li>' . home_mixed_text($w) . '</li>';
         }
         $html .= '<div class="marquee">'
-            . '<input type="checkbox" class="marquee-pause" id="' . e($id) . '">'
+            . '<input type="checkbox" class="marquee-pause" id="' . e($id) . '" aria-label="Pause the moving list">'
             . '<label for="' . e($id) . '" class="marquee-toggle" title="Pause / play"><span class="sr-only">Pause the moving list</span>'
             . '<svg class="icon mq-pause" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>'
             . '<svg class="icon mq-play" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></label>'
@@ -709,6 +709,15 @@ function security_health_checks(): array
         $ok = is_file(ROOT_PATH . '/' . $file);
         $add($ok ? 'ok' : 'bad', $title, $ok ? $file . ' is present.' : $file . ' is missing.', $ok ? '' : 'Upload ' . $file . ' again from the original website package.');
     }
+    $keyStatus = secret_key_status();   // includes/secrets.php
+    $add(['ok' => 'ok', 'short' => 'warn', 'derived' => 'warn'][$keyStatus['level']], 'Encryption key for saved payment and AI keys', $keyStatus['message'],
+        $keyStatus['level'] === 'ok' ? '' : 'Add define(\'APP_KEY\', \'40+ random letters and digits\'); to pwf-config.php, never change it afterwards, then enter the payment and AI keys again.');
+    $migFail = migration_failure();   // includes/migrations.php
+    $migCurrent = setting('schema_version') === migration_signature(migration_list());
+    $add($migFail ? 'bad' : ($migCurrent ? 'ok' : 'warn'), 'Database up to date',
+        $migFail ? 'Database update ' . $migFail['name'] . ' failed on ' . date('d M Y, h:i A', (int) $migFail['at']) . ': ' . $migFail['error']
+            : ($migCurrent ? 'All database updates of this version have been applied.' : 'Some database updates have not been applied yet.'),
+        $migFail ? 'It is tried again automatically every ' . MIGRATION_RETRY_MINUTES . ' minutes. If it keeps failing, send this message and the PHP error log to your developer.' : ($migCurrent ? '' : 'Open any page of the website once; updates run automatically.'));
     foreach (payment_health_checks() as [$payStatus, $payTitle, $payDetail, $payFix]) {   // includes/gateways.php
         $add($payStatus, $payTitle, $payDetail, $payFix);
     }
