@@ -3,7 +3,7 @@
  * Razorpay webhook endpoint.
  * Configure in Razorpay Dashboard > Settings > Webhooks:
  *   URL:    https://YOUR-DOMAIN/payment-webhook.php
- *   Secret: same value as RAZORPAY_WEBHOOK_SECRET in pwf-config.php / config.php
+ *   Secret: the Webhook Secret saved in Admin > Payment Gateways (or RAZORPAY_WEBHOOK_SECRET in pwf-config.php)
  *   Events: payment.captured, payment.authorized, order.paid, payment.failed, refund.processed (refund.created optional)
  *
  * - Every request is authenticated with the X-Razorpay-Signature header (HMAC-SHA256 of the raw body).
@@ -78,7 +78,7 @@ try {
         case 'order.paid':
             $orderId = (string) ($paymentEntity['order_id'] ?? ($orderEntity['id'] ?? ''));
             $paymentId = (string) ($paymentEntity['id'] ?? '');
-            $donation = $orderId !== '' ? db_row('SELECT * FROM donations WHERE gateway_order_id = ?', [$orderId]) : null;
+            $donation = $orderId !== '' ? db_row("SELECT * FROM donations WHERE gateway_order_id = ? AND gateway = 'razorpay'", [$orderId]) : null;
             if (!$donation) {
                 $result = 'ignored: no donation for order';
                 break;
@@ -112,7 +112,7 @@ try {
 
         case 'payment.failed':
             $orderId = (string) ($paymentEntity['order_id'] ?? '');
-            $donation = $orderId !== '' ? db_row('SELECT * FROM donations WHERE gateway_order_id = ?', [$orderId]) : null;
+            $donation = $orderId !== '' ? db_row("SELECT * FROM donations WHERE gateway_order_id = ? AND gateway = 'razorpay'", [$orderId]) : null;
             if (!$donation) {
                 $result = 'ignored: no donation for order';
                 break;
@@ -129,7 +129,7 @@ try {
         case 'refund.processed':
         case 'refund.created':
             $paymentId = (string) ($refundEntity['payment_id'] ?? ($paymentEntity['id'] ?? ''));
-            $donation = $paymentId !== '' ? db_row('SELECT * FROM donations WHERE gateway_payment_id = ?', [$paymentId]) : null;
+            $donation = $paymentId !== '' ? db_row("SELECT * FROM donations WHERE gateway_payment_id = ? AND gateway = 'razorpay'", [$paymentId]) : null;
             if (!$donation) {
                 $result = 'ignored: no donation for payment';
                 break;

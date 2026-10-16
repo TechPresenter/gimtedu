@@ -40,7 +40,7 @@ page_header($page, ['title' => $titles[$d['status']] ?? 'Donation status', 'bann
                 <div class="pay-summary text-left">
                     <?php if ($receipt): ?><div><span>Receipt number</span><strong><?= e($receipt['receipt_no']) ?></strong></div><?php endif; ?>
                     <div><span>Donation reference</span><strong><?= e($d['donation_ref']) ?></strong></div>
-                    <?php if ($d['gateway_payment_id']): ?><div><span>Payment ID</span><strong class="fr-break"><?= e($d['gateway_payment_id']) ?></strong></div><?php endif; ?>
+                    <?php if ($d['gateway_payment_id']): ?><div><span>Payment ID<?= $d['payment_method'] === 'online' ? ' (' . e(gateway_label(donation_gateway($d))) . ')' : '' ?></span><strong class="fr-break"><?= e($d['gateway_payment_id']) ?></strong></div><?php endif; ?>
                     <div><span>Date</span><strong><?= e(format_date($d['paid_at'], 'd M Y, h:i A')) ?></strong></div>
                     <div><span>Towards</span><strong><?= e($towards) ?></strong></div>
                     <div><span>Amount</span><strong><?= e(money($d['amount'], true)) ?></strong></div>

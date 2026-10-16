@@ -1,13 +1,16 @@
 <?php
 /**
- * Donate (/donate/): donation form -> pending donation + Razorpay order -> payment step (Checkout) ->
- * server-side verification (signature + payment fetched from the API + amount/order/currency match).
+ * Donate (/donate/): donation form -> pending donation + gateway order (Razorpay or Cashfree, chosen by the donor
+ * when both are offered) -> payment step (Razorpay Checkout / Cashfree checkout modal) -> server-side verification
+ * (payment fetched from the gateway API + amount/order/currency match).
  *
  * GET  /donate/?campaign=ID&amount=N      form (prefilled)
  * POST /donate/ action=create              validate, save pending donation, create gateway order, redirect to payment step
- * GET  /donate/?pay=REF&token=TOKEN        payment step (opens Razorpay Checkout)
- * POST /donate/ action=verify              verify the checkout response, mark success, redirect to /donation-success/
- * POST /donate/ action=failed              record a failed attempt, redirect to /donation-failed/
+ * GET  /donate/?pay=REF&token=TOKEN        payment step (opens the gateway checkout)
+ * POST /donate/ action=verify              Razorpay: verify the checkout response, mark success, redirect to /donation-success/
+ * POST /donate/ action=failed              Razorpay: record a failed attempt, redirect to /donation-failed/
+ * POST /donate/ action=cf_verify           Cashfree: ask the Cashfree API about the order after the checkout closes
+ * GET  /donate/?cf_order=ORDER_ID          Cashfree return URL (after a redirect-based payment)
  */
 if (!defined('PWF_APP')) {
     http_response_code(403);
@@ -24,9 +27,33 @@ $user = current_user();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = post_str('action', 'create');
 
+    if ($action === 'cf_verify') {
+        $donation = donation_by_ref_token(post_str('ref'), post_str('token'));
+        if (!$donation || donation_gateway($donation) !== 'cashfree' || $donation['payment_method'] !== 'online') {
+            not_found();
+        }
+        csrf_verify(donation_success_url($donation));
+        if ($donation['status'] === 'success' || $donation['status'] === 'refunded') {
+            redirect(donation_success_url($donation));
+        }
+        $check = cashfree_confirm_donation($donation, 'checkout');
+        if ($check['state'] === 'paid' || $check['state'] === 'pending') {
+            redirect(donation_success_url($donation));   // "thank you" or an honest "confirming" page
+        }
+        if ($check['state'] === 'failed') {
+            redirect(donation_failed_url($donation));
+        }
+        if ($check['state'] === 'none') {
+            flash('info', 'The payment window was closed before a payment was made. Nothing has been charged - you can try again.');
+            redirect(donate_url(['pay' => $donation['donation_ref'], 'token' => $donation['access_token'], 'closed' => 1]));
+        }
+        log_activity('payment_check_unavailable', 'Donation ' . $donation['donation_ref'] . ': Cashfree could not be asked after checkout');
+        redirect(donation_success_url($donation));   // the webhook or an admin re-check will confirm it
+    }
+
     if ($action === 'verify' || $action === 'failed') {
         $donation = donation_by_ref_token(post_str('ref'), post_str('token'));
-        if (!$donation) {
+        if (!$donation || donation_gateway($donation) !== 'razorpay') {
             not_found();
         }
         if ($action === 'failed') {
@@ -81,6 +108,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect($self);
     }
 
+    $gateways = active_gateways();
+    $gateway = isset($_POST['gateway']) ? post_str('gateway') : default_gateway();
     $min = donation_min_amount();
     [$data, $errors] = validate($_POST, [
         'amount'        => 'required|numeric|min:' . $min . '|max:' . DONATION_MAX_AMOUNT,
@@ -102,6 +131,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $campaign = db_row("SELECT * FROM campaigns WHERE id = ? AND status = 'active'", [(int) $data['campaign_id']]);
         if (!$campaign || !campaign_accepts_donations($campaign)) {
             $errors['campaign_id'] = 'This campaign is no longer accepting donations. Please choose another cause or "Where it is needed most".';
+        }
+    }
+    if (!in_array($gateway, $gateways, true)) {
+        $errors['gateway'] = 'Please choose one of the payment options shown.';
+    } elseif ($gateway === 'cashfree' && !isset($errors['donor_phone'])) {
+        // Cashfree needs a 10-digit Indian mobile number for every payment
+        $mobile = indian_mobile($data['donor_phone']);
+        if ($mobile === '') {
+            $errors['donor_phone'] = 'Cashfree needs a 10-digit Indian mobile number, e.g. 98765 43210.';
+        } else {
+            $data['donor_phone'] = $mobile;
         }
     }
     if ($errors) {
@@ -126,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'is_anonymous'   => !empty($_POST['is_anonymous']) ? 1 : 0,
         'message'        => $data['message'] !== '' ? $data['message'] : null,
         'payment_method' => 'online',
-        'gateway'        => 'razorpay',
+        'gateway'        => $gateway,
         'status'         => 'pending',
         'admin_notes'    => '[' . date('d M Y H:i') . '] Donor declared: Indian citizen, own funds, Indian payment method (no foreign contribution).',
         'ip_address'     => client_ip(),
@@ -134,21 +174,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     track_conversion('donation_started', $donationId);
 
     $donation = db_row('SELECT * FROM donations WHERE id = ?', [$donationId]);
-    $orderId = razorpay_create_order($donation, $campaign['title'] ?? '');
+    $session = null;
+    if ($gateway === 'cashfree') {
+        $cf = cashfree_create_order($donation, $campaign['title'] ?? '');
+        $orderId = $cf['order_id'] ?? null;
+        $session = $cf['session'] ?? null;
+    } else {
+        $orderId = razorpay_create_order($donation, $campaign['title'] ?? '');
+    }
     if (!$orderId) {
         mark_donation_failed($donationId, 'Payment could not be started (gateway unavailable)');
         $_SESSION['_old'] = array_diff_key($_POST, ['csrf_token' => 1, 'action' => 1]);
         flash('error', 'We could not connect to the payment gateway. Nothing has been charged - please try again in a few minutes.');
         redirect($self . '#donation-form');
     }
-    db_update('donations', ['gateway_order_id' => $orderId], 'id = :id', ['id' => $donationId]);
+    db_update('donations', ['gateway_order_id' => $orderId, 'gateway_session_id' => $session], 'id = :id', ['id' => $donationId]);
     $donation['gateway_order_id'] = $orderId;
+    if ($gateway === 'cashfree') {
+        cashfree_remember_order($orderId);
+    }
     redirect(donation_pay_url($donation));
 }
 
 // ---------------------------------------------------------------------
 // Step 2: payment page for a donation that already has a gateway order
 // ---------------------------------------------------------------------
+
+// Cashfree return URL (?cf_order=ORDER_ID): confirm with the API. Only the browser that started the payment (or the
+// signed-in donor) is sent on to the private status page; anyone else sees the bare status without personal details.
+if (isset($_GET['cf_order'])) {
+    $orderId = get_str('cf_order');
+    $donation = cashfree_order_id_valid($orderId)
+        ? db_row("SELECT * FROM donations WHERE gateway = 'cashfree' AND payment_method = 'online' AND gateway_order_id = ?", [$orderId]) : null;
+    if (!$donation) {
+        not_found();
+    }
+    if (in_array($donation['status'], ['pending', 'failed'], true) && cashfree_configured() && !form_rate_limited('cf_return', 60)) {
+        log_activity('form_cf_return', 'Cashfree return ' . $donation['donation_ref']);
+        cashfree_confirm_donation($donation, 'checkout');
+        $donation = db_row('SELECT * FROM donations WHERE id = ?', [(int) $donation['id']]);
+    }
+    $own = cashfree_order_in_session($orderId) || (is_logged_in() && (int) $donation['user_id'] === (int) current_user_id());
+    if ($own) {
+        redirect($donation['status'] === 'failed' ? donation_failed_url($donation) : donation_success_url($donation));
+    }
+    header('X-Robots-Tag: noindex');
+    page_header($page, ['title' => 'Donation status', 'banner' => false, 'noindex' => true, 'canonical' => abs_page_url('donate')]);
+    $states = [
+        'success'  => ['success', 'check-circle', 'Thank you - your donation has been received', 'The payment has been verified with Cashfree. The receipt link has been emailed to the address given with the donation.'],
+        'pending'  => ['pending', 'clock', 'We are confirming your payment', 'This usually takes less than a minute. The receipt is emailed as soon as the payment is confirmed.'],
+        'failed'   => ['failed', 'alert-circle', 'The payment was not completed', 'No donation has been recorded. If money was deducted, it will be confirmed automatically once Cashfree reports it, or refunded by your bank.'],
+        'refunded' => ['failed', 'refresh', 'This donation was refunded', 'The refund goes back to the original payment method as per the bank\'s usual timelines.'],
+    ];
+    [$tone, $ic, $title, $text] = $states[$donation['status']] ?? $states['pending'];
+    ?>
+    <section class="section fr-result-section">
+        <div class="container narrow">
+            <div class="form-card result-card fr-result" role="status">
+                <span class="result-icon <?= e($tone) ?>"><?= icon($ic) ?></span>
+                <h1><?= e($title) ?></h1>
+                <p class="lead">Donation reference <strong><?= e($donation['donation_ref']) ?></strong></p>
+                <p class="muted"><?= e($text) ?></p>
+                <p class="small muted">For your privacy the donation details open only in the browser used to donate, or in your account if you were signed in.</p>
+                <div class="btn-row center">
+                    <?php if (is_logged_in()): ?><a class="btn btn-primary" href="<?= e(member_url('donations')) ?>"><?= icon('heart') ?>My donations</a><?php endif; ?>
+                    <a class="btn btn-outline" href="<?= e(page_url('contact')) ?>"><?= icon('mail') ?>Contact us</a>
+                </div>
+            </div>
+        </div>
+    </section>
+    <?php
+    page_footer();
+    return;
+}
+
 if (isset($_GET['pay'])) {
     $donation = donation_by_ref_token(get_str('pay'), get_str('token'));
     if (!$donation) {
@@ -157,22 +256,42 @@ if (isset($_GET['pay'])) {
     if ($donation['status'] === 'success') {
         redirect(donation_success_url($donation));
     }
-    if (!$donation['gateway_order_id'] || !online_donations_available() || $donation['status'] === 'refunded' || $donation['payment_method'] !== 'online') {
+    $gateway = donation_gateway($donation);
+    if (!$donation['gateway_order_id'] || !gateway_active($gateway) || $donation['status'] === 'refunded' || $donation['payment_method'] !== 'online') {
         flash('error', 'This payment can no longer be completed. Please start a new donation.');
         redirect($self);
     }
+    $cfSession = '';
+    if ($gateway === 'cashfree') {
+        $cfPay = cashfree_payment_session($donation);
+        if ($cfPay && $cfPay['paid']) {
+            cashfree_confirm_donation($donation, 'checkout');
+            redirect(donation_success_url($donation));
+        }
+        if (!$cfPay) {
+            flash('error', 'We could not connect to Cashfree. Nothing has been charged - please try again in a few minutes.');
+            redirect(donation_failed_url($donation));
+        }
+        $donation = db_row('SELECT * FROM donations WHERE id = ?', [(int) $donation['id']]);
+        $cfSession = $cfPay['session'];
+        cashfree_remember_order((string) $donation['gateway_order_id']);
+        $GLOBALS['extraScripts'][] = CASHFREE_SDK_URL;
+        $GLOBALS['extraScripts'][] = asset('assets/js/modules/donate.js');
+    } else {
+        $GLOBALS['extraScripts'][] = 'https://checkout.razorpay.com/v1/checkout.js';
+    }
+    $gatewayName = gateway_label($gateway);
     $campaignTitle = $donation['campaign_id'] ? (string) db_value('SELECT title FROM campaigns WHERE id = ?', [$donation['campaign_id']]) : '';
-    $GLOBALS['extraScripts'][] = 'https://checkout.razorpay.com/v1/checkout.js';
     page_header($page, [
-        'title' => 'Complete your donation', 'subtitle' => 'Secure payment through Razorpay', 'noindex' => true,
+        'title' => 'Complete your donation', 'subtitle' => 'Secure payment through ' . $gatewayName, 'noindex' => true,
         'crumbs' => [['Donate', $self]], 'buttons' => [], 'canonical' => abs_page_url('donate'),
     ]);
     ?>
     <section class="section">
         <div class="container narrow">
             <div class="form-card result-card fr-pay">
-                <?php if (payment_test_mode()): ?>
-                    <div class="test-mode-banner" role="note"><?= icon('alert-triangle') ?>TEST MODE - payments use the Razorpay sandbox. No real money will be charged.</div>
+                <?php if (gateway_test_mode($gateway)): ?>
+                    <div class="test-mode-banner" role="note"><?= icon('alert-triangle') ?><?= $gateway === 'cashfree' ? 'TEST MODE - payments use the Cashfree sandbox. No real money will be charged.' : 'TEST MODE - payments use the Razorpay sandbox. No real money will be charged.' ?></div>
                 <?php endif; ?>
                 <span class="result-icon pending"><?= icon('heart') ?></span>
                 <h2>Thank you, <?= e($donation['donor_name']) ?>!</h2>
@@ -181,44 +300,61 @@ if (isset($_GET['pay'])) {
                     <div><span>Reference</span><strong><?= e($donation['donation_ref']) ?></strong></div>
                     <div><span>Towards</span><strong><?= e($campaignTitle !== '' ? $campaignTitle : 'Where it is needed most (general fund)') ?></strong></div>
                     <div><span>Receipt will be sent to</span><strong class="fr-break"><?= e($donation['donor_email']) ?></strong></div>
+                    <div><span>Pay with</span><strong><?= e($gatewayName) ?></strong></div>
                     <div><span>Amount</span><strong><?= e(money($donation['amount'], true)) ?></strong></div>
                 </div>
                 <?php if ($donation['status'] === 'failed'): ?>
                     <div class="alert alert-warning mb-2" role="status"><?= icon('alert-circle') ?><div>Your previous attempt did not go through<?= $donation['failure_reason'] ? ': ' . e($donation['failure_reason']) : '' ?>. You can try again.</div></div>
                 <?php endif; ?>
-                <button id="rzp-pay" class="btn btn-donate btn-lg btn-block" type="button" data-autoopen
-                        data-key="<?= e(RAZORPAY_KEY_ID) ?>"
-                        data-amount="<?= to_paise($donation['amount']) ?>"
-                        data-currency="<?= e($donation['currency']) ?>"
-                        data-order="<?= e($donation['gateway_order_id']) ?>"
-                        data-ref="<?= e($donation['donation_ref']) ?>"
-                        data-name="<?= e(site_name()) ?>"
-                        data-description="<?= e('Donation ' . $donation['donation_ref']) ?>"
-                        data-image="<?= e(abs_url('assets/images/logo.png')) ?>"
-                        data-prefill-name="<?= e($donation['donor_name']) ?>"
-                        data-prefill-email="<?= e($donation['donor_email']) ?>"
-                        data-prefill-contact="<?= e((string) $donation['donor_phone']) ?>">
-                    <?= icon('lock') ?>Pay <?= e(money($donation['amount'], true)) ?> securely
-                </button>
-                <p class="fr-pay-note"><?= icon('shield') ?><span>Card, UPI and bank details are entered on Razorpay's secure checkout and never reach our server. Your donation counts only after we verify the payment with Razorpay.</span></p>
+                <?php if ($gateway === 'cashfree'): ?>
+                    <button id="cf-pay" class="btn btn-donate btn-lg btn-block" type="button"<?= isset($_GET['closed']) ? '' : ' data-autoopen' ?>
+                            data-session="<?= e($cfSession) ?>"
+                            data-mode="<?= e(cashfree_env()) ?>">
+                        <?= icon('lock') ?>Pay <?= e(money($donation['amount'], true)) ?> securely
+                    </button>
+                    <p id="cf-status" class="fr-pay-status" role="status" aria-live="polite"></p>
+                    <p class="fr-pay-note"><?= icon('shield') ?><span>Card, UPI and bank details are entered in Cashfree's secure checkout and never reach our server. Your donation counts only after we verify the payment with Cashfree.</span></p>
+                    <form id="cf-verify-form" method="post" action="<?= e($self) ?>" hidden>
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="cf_verify">
+                        <input type="hidden" name="ref" value="<?= e($donation['donation_ref']) ?>">
+                        <input type="hidden" name="token" value="<?= e($donation['access_token']) ?>">
+                    </form>
+                <?php else: ?>
+                    <button id="rzp-pay" class="btn btn-donate btn-lg btn-block" type="button" data-autoopen
+                            data-key="<?= e(razorpay_key_id()) ?>"
+                            data-amount="<?= to_paise($donation['amount']) ?>"
+                            data-currency="<?= e($donation['currency']) ?>"
+                            data-order="<?= e($donation['gateway_order_id']) ?>"
+                            data-ref="<?= e($donation['donation_ref']) ?>"
+                            data-name="<?= e(site_name()) ?>"
+                            data-description="<?= e('Donation ' . $donation['donation_ref']) ?>"
+                            data-image="<?= e(abs_url('assets/images/logo.png')) ?>"
+                            data-prefill-name="<?= e($donation['donor_name']) ?>"
+                            data-prefill-email="<?= e($donation['donor_email']) ?>"
+                            data-prefill-contact="<?= e((string) $donation['donor_phone']) ?>">
+                        <?= icon('lock') ?>Pay <?= e(money($donation['amount'], true)) ?> securely
+                    </button>
+                    <p class="fr-pay-note"><?= icon('shield') ?><span>Card, UPI and bank details are entered on Razorpay's secure checkout and never reach our server. Your donation counts only after we verify the payment with Razorpay.</span></p>
 
-                <form id="rzp-verify-form" method="post" action="<?= e($self) ?>" hidden>
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="action" value="verify">
-                    <input type="hidden" name="ref" value="<?= e($donation['donation_ref']) ?>">
-                    <input type="hidden" name="token" value="<?= e($donation['access_token']) ?>">
-                    <input type="hidden" name="razorpay_payment_id" value="">
-                    <input type="hidden" name="razorpay_order_id" value="">
-                    <input type="hidden" name="razorpay_signature" value="">
-                </form>
-                <form id="rzp-fail-form" method="post" action="<?= e($self) ?>" hidden>
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="action" value="failed">
-                    <input type="hidden" name="ref" value="<?= e($donation['donation_ref']) ?>">
-                    <input type="hidden" name="token" value="<?= e($donation['access_token']) ?>">
-                    <input type="hidden" name="error_description" value="">
-                    <input type="hidden" name="razorpay_payment_id" value="">
-                </form>
+                    <form id="rzp-verify-form" method="post" action="<?= e($self) ?>" hidden>
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="verify">
+                        <input type="hidden" name="ref" value="<?= e($donation['donation_ref']) ?>">
+                        <input type="hidden" name="token" value="<?= e($donation['access_token']) ?>">
+                        <input type="hidden" name="razorpay_payment_id" value="">
+                        <input type="hidden" name="razorpay_order_id" value="">
+                        <input type="hidden" name="razorpay_signature" value="">
+                    </form>
+                    <form id="rzp-fail-form" method="post" action="<?= e($self) ?>" hidden>
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="failed">
+                        <input type="hidden" name="ref" value="<?= e($donation['donation_ref']) ?>">
+                        <input type="hidden" name="token" value="<?= e($donation['access_token']) ?>">
+                        <input type="hidden" name="error_description" value="">
+                        <input type="hidden" name="razorpay_payment_id" value="">
+                    </form>
+                <?php endif; ?>
                 <p class="small mt-2"><a href="<?= e($self) ?>">Cancel and start over</a> · <a href="<?= e(page_url('contact')) ?>">Need help?</a></p>
             </div>
         </div>
@@ -232,6 +368,8 @@ if (isset($_GET['pay'])) {
 // Step 1: donation form
 // ---------------------------------------------------------------------
 $online = online_donations_available();
+$gateways = active_gateways();
+$selectedGateway = in_array((string) old('gateway', ''), $gateways, true) ? (string) old('gateway') : default_gateway();
 $bank = bank_transfer_details();
 $min = donation_min_amount();
 $presets = donation_presets();
@@ -286,7 +424,7 @@ page_header($page, [
     ]],
 ]);
 
-render_sections($page, function () use ($online, $bank, $min, $presets, $campaigns, $selectedCampaign, $selectedTitle, $requestedCampaign, $amount, $reg80g, $whoCanDonate, $user, $address, $contactEmail, $self, $program) {
+render_sections($page, function () use ($online, $gateways, $selectedGateway, $bank, $min, $presets, $campaigns, $selectedCampaign, $selectedTitle, $requestedCampaign, $amount, $reg80g, $whoCanDonate, $user, $address, $contactEmail, $self, $program) {
     ?>
     <section class="section" id="donation-form">
         <div class="container donate-layout">
@@ -313,8 +451,9 @@ render_sections($page, function () use ($online, $bank, $min, $presets, $campaig
                         <a class="btn btn-outline" href="<?= e(page_url('financial-transparency')) ?>"><?= icon('shield') ?>Financial transparency</a>
                     </div>
                 <?php else: ?>
-                    <?php if (payment_test_mode()): ?>
-                        <div class="test-mode-banner" role="note"><?= icon('alert-triangle') ?>TEST MODE - payments use the Razorpay sandbox. No real money will be charged.</div>
+                    <?php $testGateways = array_values(array_filter($gateways, 'gateway_test_mode')); ?>
+                    <?php if ($testGateways): ?>
+                        <div class="test-mode-banner" role="note"><?= icon('alert-triangle') ?>TEST MODE - payments <?= count($testGateways) < count($gateways) ? 'through ' . e(implode(' and ', array_map('gateway_label', $testGateways))) . ' ' : '' ?>use the <?= e(implode(' / ', array_map(function ($g) { return $g === 'cashfree' ? 'Cashfree sandbox' : 'Razorpay sandbox'; }, $testGateways))) ?>. No real money will be charged.</div>
                     <?php endif; ?>
                     <?php if ($program && !old('campaign_id')): ?>
                         <div class="alert alert-info mb-2" role="status"><?= icon('heart') ?><div><?php if (!empty($program['campaign'])): ?>Supporting <strong><?= e($program['title']) ?></strong>: we have selected its open campaign below. You can change it if you wish.<?php else: ?>There is no open campaign for <strong><?= e($program['title']) ?></strong> right now. A general donation supports all our programmes, including this one.<?php endif; ?></div></div>
@@ -322,7 +461,7 @@ render_sections($page, function () use ($online, $bank, $min, $presets, $campaig
                     <?php if ($requestedCampaign > 0 && $selectedTitle === '' && !old('campaign_id')): ?>
                         <div class="alert alert-info mb-2" role="status"><?= icon('info') ?><div>That campaign is not accepting donations right now. You can give where it is needed most, or choose another cause below.</div></div>
                     <?php endif; ?>
-                    <form action="<?= e($self) ?>" method="post" data-validate>
+                    <form action="<?= e($self) ?>" method="post" data-validate id="donate-form">
                         <?= csrf_field() ?>
                         <?= honeypot_field() ?>
                         <input type="hidden" name="action" value="create">
@@ -368,7 +507,12 @@ render_sections($page, function () use ($online, $bank, $min, $presets, $campaig
                             </div>
                             <div class="form-group">
                                 <label for="donor_phone">Mobile number<span class="req">*</span></label>
-                                <input id="donor_phone" type="tel" name="donor_phone" required maxlength="15" autocomplete="tel" value="<?= e(old('donor_phone', $user['mobile'] ?? '')) ?>">
+                                <?php $cfOnly = $gateways === ['cashfree']; $cfMobilePattern = '(?:\\+?91|0)?(?: |-)*[6-9](?:(?: |-)*[0-9]){9}'; ?>
+                                <input id="donor_phone" type="tel" name="donor_phone" required maxlength="15" autocomplete="tel" inputmode="tel" value="<?= e(old('donor_phone', $user['mobile'] ?? '')) ?>"
+                                    <?= in_array('cashfree', $gateways, true) ? ' data-cf-pattern="' . e($cfMobilePattern) . '" aria-describedby="phone-help"' : '' ?><?= $cfOnly || ($selectedGateway === 'cashfree') ? ' pattern="' . e($cfMobilePattern) . '" title="Enter a 10-digit Indian mobile number, e.g. 98765 43210"' : '' ?>>
+                                <?php if (in_array('cashfree', $gateways, true)): ?>
+                                    <span class="help" id="phone-help"><?= $cfOnly ? 'A 10-digit Indian mobile number is needed for the payment.' : 'If you pay with Cashfree, a 10-digit Indian mobile number is needed.' ?></span>
+                                <?php endif; ?>
                                 <?= field_error('donor_phone') ?>
                             </div>
                             <div class="form-group">
@@ -396,6 +540,27 @@ render_sections($page, function () use ($online, $bank, $min, $presets, $campaig
                                 <?= field_error('consent') ?>
                             </div>
                         </div>
+                        <?php if (count($gateways) > 1): ?>
+                            <fieldset class="fr-gateways" aria-describedby="gateway-help">
+                                <legend class="form-section-title"><?= icon('lock') ?>Pay with</legend>
+                                <div class="fr-gateway-options">
+                                    <?php foreach ($gateways as $gw): ?>
+                                        <label class="fr-gateway">
+                                            <input type="radio" name="gateway" value="<?= e($gw) ?>"<?= $gw === $selectedGateway ? ' checked' : '' ?>>
+                                            <span class="fr-gateway-card">
+                                                <span class="fr-gateway-logo fr-gateway-<?= e($gw) ?>" aria-hidden="true"><?= $gw === 'cashfree' ? 'cashfree' : 'Razorpay' ?></span>
+                                                <span class="fr-gateway-text"><strong><?= e(gateway_label($gw)) ?></strong><small>UPI · Cards · Net banking</small></span>
+                                                <span class="fr-gateway-check" aria-hidden="true"><?= icon('check') ?></span>
+                                            </span>
+                                        </label>
+                                    <?php endforeach; ?>
+                                </div>
+                                <span class="help" id="gateway-help">Both are secure payment gateways. Your card, UPI or bank details are entered on the gateway's own checkout, never on our website.</span>
+                                <?= field_error('gateway') ?>
+                            </fieldset>
+                        <?php else: ?>
+                            <input type="hidden" name="gateway" value="<?= e($gateways[0] ?? 'razorpay') ?>">
+                        <?php endif; ?>
                         <div class="form-actions">
                             <button class="btn btn-donate btn-lg btn-block" type="submit" data-loading="Preparing secure payment…"><?= icon('lock') ?>Proceed to pay <span data-amount-preview></span></button>
                         </div>
@@ -415,7 +580,7 @@ render_sections($page, function () use ($online, $bank, $min, $presets, $campaig
                 <h3>Giving with confidence</h3>
                 <ul>
                     <li><?= icon('check-circle') ?>Supports education, health, women empowerment, environment, skill development and relief work.</li>
-                    <?php if ($online): ?><li><?= icon('check-circle') ?>Your payment is verified with Razorpay on our server before it is counted.</li><?php endif; ?>
+                    <?php if ($online): ?><li><?= icon('check-circle') ?>Your payment is verified with <?= e(implode(' or ', array_map('gateway_label', $gateways))) ?> on our server before it is counted.</li><?php endif; ?>
                     <li><?= icon('check-circle') ?>A receipt is issued for every verified donation and emailed to you.</li>
                     <li><?= icon('check-circle') ?>Campaign progress and totals show verified donations only.</li>
                     <li><?= icon('check-circle') ?>Signed-in donors can download receipts any time from their dashboard.</li>
@@ -424,7 +589,7 @@ render_sections($page, function () use ($online, $bank, $min, $presets, $campaig
                 <?php if ($online): ?>
                     <div class="secure-badges">
                         <span><?= icon('lock') ?>Encrypted checkout</span>
-                        <span><?= icon('shield') ?>Razorpay secured</span>
+                        <span><?= icon('shield') ?><?= e(implode(' / ', array_map('gateway_label', $gateways))) ?> secured</span>
                         <span><?= icon('smartphone') ?>UPI · Cards · Net banking</span>
                     </div>
                 <?php endif; ?>

@@ -1,6 +1,6 @@
 <?php
 /**
- * Fundraising module (M3): campaigns, donations, Razorpay payments, receipts, refunds,
+ * Fundraising module (M3): campaigns, donations, Razorpay / Cashfree payments, receipts, refunds,
  * utilisation and transparency figures, and the CMS section types campaigns_grid,
  * donation_appeal and transparency_summary.
  *
@@ -21,7 +21,7 @@ const DONATION_MAX_AMOUNT = 500000;
 
 /** Offline / manual payment methods (donations.payment_method). */
 const DONATION_METHODS = [
-    'online' => 'Online (Razorpay)', 'bank_transfer' => 'Bank transfer', 'cheque' => 'Cheque', 'upi' => 'UPI (direct)', 'cash' => 'Cash',
+    'online' => 'Online payment', 'bank_transfer' => 'Bank transfer', 'cheque' => 'Cheque', 'upi' => 'UPI (direct)', 'cash' => 'Cash',
 ];
 
 /** Public campaign statuses (others are only visible to staff). */
@@ -242,10 +242,10 @@ function donation_presets(): array
     return array_slice($list ?: [max($min, 500), max($min, 1000), max($min, 2500)], 0, 6);
 }
 
-/** Online donations are possible: enabled in settings AND Razorpay keys configured. */
+/** Online donations are possible: enabled in settings AND at least one chosen gateway has its keys (includes/gateways.php). */
 function online_donations_available(): bool
 {
-    return setting('online_donations_enabled', '1') === '1' && razorpay_configured();
+    return (bool) active_gateways();
 }
 
 /** Bank / UPI details entered in Admin > Settings (only non-empty values). */
@@ -301,11 +301,29 @@ function donation_mask_pan(?string $pan): string
     return substr($pan, 0, 3) . 'XXXX' . substr($pan, 7);
 }
 
+/** Gateway of an online donation row ('razorpay' for every online row created before Cashfree was added). */
+function donation_gateway(array $d): string
+{
+    return ($d['gateway'] ?? '') === 'cashfree' ? 'cashfree' : 'razorpay';
+}
+
+/** Payment method reported by the gateway (upi, card, netbanking, credit_card ...) as a readable label. */
+function gateway_method_label(?string $method): string
+{
+    $m = strtolower(trim((string) $method));
+    $map = ['upi' => 'UPI', 'card' => 'Card', 'credit_card' => 'Credit card', 'debit_card' => 'Debit card', 'prepaid_card' => 'Prepaid card',
+        'netbanking' => 'Net banking', 'net_banking' => 'Net banking', 'wallet' => 'Wallet', 'app' => 'Wallet', 'emi' => 'EMI',
+        'cardless_emi' => 'Cardless EMI', 'credit_card_emi' => 'Card EMI', 'debit_card_emi' => 'Card EMI', 'paylater' => 'Pay later',
+        'pay_later' => 'Pay later', 'bank_transfer' => 'Bank transfer'];
+    return $map[$m] ?? ($m !== '' ? humanize($m) : '');
+}
+
 function donation_method_label(array $d): string
 {
     $label = DONATION_METHODS[$d['payment_method']] ?? humanize($d['payment_method']);
     if ($d['payment_method'] === 'online') {
-        $label = 'Online' . (!empty($d['gateway_method']) ? ' (' . strtoupper((string) $d['gateway_method']) . ' via Razorpay)' : ' via Razorpay');
+        $via = ' via ' . gateway_label(donation_gateway($d));
+        $label = 'Online' . (!empty($d['gateway_method']) ? ' (' . gateway_method_label((string) $d['gateway_method']) . $via . ')' : $via);
     }
     return $label;
 }
@@ -359,15 +377,8 @@ function donation_pay_url(array $donation): string
 // ---------------------------------------------------------------------
 // Razorpay - every verification happens on the server
 // ---------------------------------------------------------------------
-function razorpay_configured(): bool
-{
-    return RAZORPAY_KEY_ID !== '' && RAZORPAY_KEY_SECRET !== '';
-}
-
-function payment_test_mode(): bool
-{
-    return strpos(RAZORPAY_KEY_ID, 'rzp_test_') === 0;
-}
+// Keys: razorpay_key_id(), razorpay_key_secret(), razorpay_webhook_secret(), razorpay_configured() and
+// payment_test_mode() live in includes/gateways.php (pwf-config.php constant, else the admin panel value).
 
 /** Call the Razorpay REST API. Returns [httpStatus, decodedBody|null]. */
 function razorpay_request(string $method, string $endpoint, array $data = []): array
@@ -378,7 +389,7 @@ function razorpay_request(string $method, string $endpoint, array $data = []): a
     $ch = curl_init(rtrim(RAZORPAY_API_BASE, '/') . '/' . ltrim($endpoint, '/'));
     $options = [
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_USERPWD        => RAZORPAY_KEY_ID . ':' . RAZORPAY_KEY_SECRET,
+        CURLOPT_USERPWD        => razorpay_key_id() . ':' . razorpay_key_secret(),
         CURLOPT_TIMEOUT        => 25,
         CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
@@ -437,17 +448,19 @@ function razorpay_create_order(array $donation, string $campaignTitle = ''): ?st
 /** HMAC check of the Checkout response: sha256(order_id|payment_id, key secret). */
 function razorpay_checkout_signature_valid(string $orderId, string $paymentId, string $signature): bool
 {
-    if ($orderId === '' || $paymentId === '' || $signature === '' || RAZORPAY_KEY_SECRET === '') {
+    $secret = razorpay_key_secret();
+    if ($orderId === '' || $paymentId === '' || $signature === '' || $secret === '') {
         return false;
     }
-    return hash_equals(hash_hmac('sha256', $orderId . '|' . $paymentId, RAZORPAY_KEY_SECRET), $signature);
+    return hash_equals(hash_hmac('sha256', $orderId . '|' . $paymentId, $secret), $signature);
 }
 
 /** Webhook signature: sha256 HMAC of the raw body with the webhook secret. */
 function razorpay_webhook_signature_valid(string $payload, string $signature): bool
 {
-    return RAZORPAY_WEBHOOK_SECRET !== '' && $signature !== ''
-        && hash_equals(hash_hmac('sha256', $payload, RAZORPAY_WEBHOOK_SECRET), $signature);
+    $secret = razorpay_webhook_secret();
+    return $secret !== '' && $signature !== ''
+        && hash_equals(hash_hmac('sha256', $payload, $secret), $signature);
 }
 
 /** Fetch a payment from Razorpay (never trust what the browser or webhook body says). */
@@ -642,8 +655,8 @@ function mark_donation_refunded(int $donationId, ?string $refundId, string $note
 }
 
 /**
- * Bring a successful online donation in line with the refunds Razorpay reports for its payment ($payment is
- * fetched from the API, never taken from a webhook body). donations.amount is the net amount the foundation keeps:
+ * Bring a successful online donation in line with the refunds the gateway reports for its payment ($payment is
+ * fetched from the API, never taken from a webhook body; for Cashfree it comes from cashfree_refund_state()). donations.amount is the net amount the foundation keeps:
  * - everything refunded: the donation becomes "refunded" and its receipt is cancelled;
  * - part refunded: the amount becomes gross - refunded (always set from the gateway's cumulative figure, so
  *   repeated or out-of-order events are safe), a note is added and the revised receipt is emailed.
@@ -659,8 +672,9 @@ function apply_gateway_refund_state(array $donation, array $payment, ?string $re
     if ($donation['status'] !== 'success') {
         return 'ignored: donation is ' . $donation['status'];
     }
+    $gatewayName = gateway_label(donation_gateway($donation));
     if ($refundedPaise >= $grossPaise || ($payment['refund_status'] ?? '') === 'full') {
-        mark_donation_refunded((int) $donation['id'], $refundId, 'Full refund reported by Razorpay (' . $via . ')', $adminId);
+        mark_donation_refunded((int) $donation['id'], $refundId, 'Full refund reported by ' . $gatewayName . ' (' . $via . ')', $adminId);
         return 'donation refunded';
     }
     if ($refundedPaise <= 0) {
@@ -671,7 +685,7 @@ function apply_gateway_refund_state(array $donation, array $payment, ?string $re
         return 'partial refund already applied';
     }
     $note = "\n[" . date('d M Y H:i') . '] Partial refund: ' . money($refundedPaise / 100, true) . ' of ' . money($grossPaise / 100, true)
-        . ' refunded by Razorpay' . ($refundId ? ' (' . $refundId . ')' : '') . '; net donation now ' . money($net, true) . '; receipt revised.';
+        . ' refunded by ' . $gatewayName . ($refundId ? ' (' . $refundId . ')' : '') . '; net donation now ' . money($net, true) . '; receipt revised.';
     $n = db_query("UPDATE donations SET amount = ?, admin_notes = TRIM(CONCAT(COALESCE(admin_notes, ''), ?)) WHERE id = ? AND status = 'success'",
         [$net, $note, (int) $donation['id']])->rowCount();
     if (!$n) {
@@ -954,7 +968,7 @@ function section_donation_appeal(array $s, array $items, array $set, array $page
     $notes = array_values(array_filter(array_map('strval', array_filter($items, 'is_string'))));
     if (!$notes) {
         if (online_donations_available()) {
-            $notes[] = 'Secure online payment through Razorpay - UPI, cards and net banking.';
+            $notes[] = 'Secure online payment through ' . implode(' or ', array_map('gateway_label', active_gateways())) . ' - UPI, cards and net banking.';
             $notes[] = 'Your donation is confirmed only after the payment is verified on our server.';
         } elseif (bank_transfer_details()) {
             $notes[] = 'Bank transfer and UPI details are shown on the donation page.';

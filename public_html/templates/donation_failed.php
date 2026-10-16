@@ -19,7 +19,7 @@ if (!$d) {
 if ($d['status'] === 'success' || $d['status'] === 'refunded') {
     redirect(donation_success_url($d));
 }
-$canRetry = $d['payment_method'] === 'online' && $d['gateway_order_id'] && in_array($d['status'], ['pending', 'failed'], true) && online_donations_available();
+$canRetry = $d['payment_method'] === 'online' && $d['gateway_order_id'] && in_array($d['status'], ['pending', 'failed'], true) && gateway_active(donation_gateway($d));
 $retryQuery = $d['campaign_id'] ? ['campaign' => (int) $d['campaign_id'], 'amount' => (int) round((float) $d['amount'])] : ['amount' => (int) round((float) $d['amount'])];
 
 header('X-Robots-Tag: noindex');

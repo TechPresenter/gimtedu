@@ -1063,6 +1063,10 @@ function site_settings_tabs(): array
         'recruitment' => ['Recruitment', 'briefcase', [
             'staff_positions' => ['textarea', 'Open staff positions', 'One per line as "Title | Short description". Leave empty when there are no openings.', ['max' => 5000]],
             'internship_areas' => ['textarea', 'Internship areas', 'Separate the areas with commas, e.g. Education, Health, Environment', ['max' => 1000]],
+            '_teacher_terms' => ['heading', 'Volunteer teacher terms & conditions', 'Shown in a pop-up on the Volunteer Teacher page; applicants must accept them before filling in the form. Each line is one point.'],
+            'teacher_terms_title' => ['text', 'Pop-up title', '', ['max' => 120]],
+            'teacher_terms_intro' => ['textarea', 'Introduction', '', ['max' => 400]],
+            'teacher_terms_text' => ['textarea', 'Terms (one per line)', '', ['max' => 6000]],
             '_certificates' => ['heading', 'Certificates', 'Printed on volunteer, internship and participation certificates. Use the name and designation of the person actually authorised to sign them.'],
             'certificate_signatory_name' => ['text', 'Certificate signatory name', '', ['max' => 120]],
             'certificate_signatory_title' => ['text', 'Certificate signatory designation', 'e.g. Secretary', ['max' => 120]],
