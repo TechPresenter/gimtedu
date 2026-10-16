@@ -5,7 +5,7 @@ if (!defined('PWF_APP')) {
     exit('Forbidden');
 }
 $navCurrent = basename($_SERVER['SCRIPT_NAME']);
-$navType = (string) ($_GET['type'] ?? '');
+$navType = get_str('type');
 // [file, icon, label, permission (null = any staff), files that highlight this item]
 $navGroups = [
     '' => [

@@ -278,7 +278,14 @@ function render_consent_banner(): string
     } else {
         $text = 'We would like to use Google Analytics cookies to understand how visitors use this website. You can say no - the website works fully either way. See our <a href="' . e(page_url('privacy-policy')) . '">privacy policy</a>.';
     }
-    return '<div class="consent-banner" data-consent-banner data-ga="' . ($ga ? e(setting('ga_measurement_id')) : '') . '" hidden role="region" aria-label="Cookie consent"><div class="container consent-inner">'
+    if ($own) {
+        // analytics.js remembers that this notice asked about our own visitor cookie (also on pages that are not recorded)
+        $js = asset('assets/js/modules/analytics.js');
+        if (!in_array($js, $GLOBALS['extraScripts'] ?? [], true)) {
+            $GLOBALS['extraScripts'][] = $js;
+        }
+    }
+    return '<div class="consent-banner" data-consent-banner' . ($own ? ' data-own="1"' : '') . ' data-ga="' . ($ga ? e(setting('ga_measurement_id')) : '') . '" hidden role="region" aria-label="Cookie consent"><div class="container consent-inner">'
         . '<p>' . icon('info') . '<span>' . $text . '</span></p>'
         . '<div class="btn-row"><button type="button" class="btn btn-primary btn-sm" data-consent="yes">Allow analytics</button><button type="button" class="btn btn-ghost btn-sm" data-consent="no">No, thanks</button></div></div></div>';
 }

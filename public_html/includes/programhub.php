@@ -1382,7 +1382,7 @@ function programhub_registration_form(array $events, array $o): string
     $user = current_user();
     $single = count($events) === 1;
     $first = $events[0];
-    $selected = (string) old('event_id', $single ? (string) $first['id'] : (string) ($o['selected'] ?? ''));
+    $selected = (string) programhub_old('event_id', $single ? (string) $first['id'] : (string) ($o['selected'] ?? ''));
     $anyTeam = false;
     foreach ($events as $ev) {
         $anyTeam = $anyTeam || in_array($ev['event_type'], HACKATHON_EVENT_TYPES, true);
@@ -1415,11 +1415,11 @@ function programhub_registration_form(array $events, array $o): string
     }
 
     $html .= '<div class="form-grid">'
-        . '<div class="form-group"><label for="reg-name">Full name<span class="req">*</span></label><input id="reg-name" type="text" name="name" required minlength="2" maxlength="120" autocomplete="name" value="' . e(old('name', $user['name'] ?? '')) . '">' . field_error('name') . '</div>'
-        . '<div class="form-group"><label for="reg-email">Email<span class="req">*</span></label><input id="reg-email" type="email" name="email" required maxlength="190" autocomplete="email" value="' . e(old('email', $user['email'] ?? '')) . '">' . field_error('email') . '</div>'
-        . '<div class="form-group"><label for="reg-phone">Mobile number<span class="req">*</span></label><input id="reg-phone" type="tel" name="phone" required maxlength="15" autocomplete="tel" inputmode="tel" value="' . e(old('phone', $user['phone'] ?? '')) . '">' . field_error('phone') . '</div>'
-        . '<div class="form-group"><label for="reg-city">City / town <span class="muted">(optional)</span></label><input id="reg-city" type="text" name="city" maxlength="100" autocomplete="address-level2" value="' . e(old('city')) . '">' . field_error('city') . '</div>'
-        . '<div class="form-group full"><label for="reg-org">School, college or organisation <span class="muted">(optional)</span></label><input id="reg-org" type="text" name="organisation" maxlength="200" autocomplete="organization" value="' . e(old('organisation')) . '">' . field_error('organisation') . '</div>'
+        . '<div class="form-group"><label for="reg-name">Full name<span class="req">*</span></label><input id="reg-name" type="text" name="name" required minlength="2" maxlength="120" autocomplete="name" value="' . e(programhub_old('name', $user['name'] ?? '')) . '">' . field_error('name') . '</div>'
+        . '<div class="form-group"><label for="reg-email">Email<span class="req">*</span></label><input id="reg-email" type="email" name="email" required maxlength="190" autocomplete="email" value="' . e(programhub_old('email', $user['email'] ?? '')) . '">' . field_error('email') . '</div>'
+        . '<div class="form-group"><label for="reg-phone">Mobile number<span class="req">*</span></label><input id="reg-phone" type="tel" name="phone" required maxlength="15" autocomplete="tel" inputmode="tel" value="' . e(programhub_old('phone', $user['phone'] ?? '')) . '">' . field_error('phone') . '</div>'
+        . '<div class="form-group"><label for="reg-city">City / town <span class="muted">(optional)</span></label><input id="reg-city" type="text" name="city" maxlength="100" autocomplete="address-level2" value="' . e(programhub_old('city')) . '">' . field_error('city') . '</div>'
+        . '<div class="form-group full"><label for="reg-org">School, college or organisation <span class="muted">(optional)</span></label><input id="reg-org" type="text" name="organisation" maxlength="200" autocomplete="organization" value="' . e(programhub_old('organisation')) . '">' . field_error('organisation') . '</div>'
         . '</div>';
 
     if ($anyTeam) {
@@ -1427,17 +1427,17 @@ function programhub_registration_form(array $events, array $o): string
         $tmax = (int) ($first['team_size_max'] ?? 0);
         $sizeRange = $single && $tmax > 0 ? ' (' . $tmin . ($tmax > $tmin ? '–' . $tmax : '') . ')' : '';
         $html .= '<div class="ph-team" data-ph-team><p class="ph-block-title">' . icon('users') . 'Your team' . ($single ? '' : ' <span class="muted">(hackathons and innovation challenges only)</span>') . '</p><div class="form-grid">'
-            . '<div class="form-group"><label for="reg-team">Team name<span class="req">*</span></label><input id="reg-team" type="text" name="team_name" maxlength="150" data-req value="' . e(old('team_name')) . '"><span class="help">Taking part alone? Use your own name.</span>' . field_error('team_name') . '</div>'
-            . (!$single || $tmax > 0 ? '<div class="form-group" data-ph-size><label for="reg-team-size">Number of team members' . e($sizeRange) . '<span class="req">*</span></label><input id="reg-team-size" type="number" name="team_size" inputmode="numeric" min="' . $tmin . '"' . ($tmax > 0 ? ' max="' . $tmax . '"' : '') . ' data-req value="' . e(old('team_size')) . '">' . field_error('team_size') . '</div>' : '')
+            . '<div class="form-group"><label for="reg-team">Team name<span class="req">*</span></label><input id="reg-team" type="text" name="team_name" maxlength="150" data-req value="' . e(programhub_old('team_name')) . '"><span class="help">Taking part alone? Use your own name.</span>' . field_error('team_name') . '</div>'
+            . (!$single || $tmax > 0 ? '<div class="form-group" data-ph-size><label for="reg-team-size">Number of team members' . e($sizeRange) . '<span class="req">*</span></label><input id="reg-team-size" type="number" name="team_size" inputmode="numeric" min="' . $tmin . '"' . ($tmax > 0 ? ' max="' . $tmax . '"' : '') . ' data-req value="' . e(programhub_old('team_size')) . '">' . field_error('team_size') . '</div>' : '')
             . '</div></div>';
     }
 
     $html .= '<div class="form-group"><label for="reg-message">Anything we should know? <span class="muted">(optional - e.g. accessibility needs)</span></label>'
-        . '<textarea id="reg-message" name="message" maxlength="500" rows="3" data-counter>' . e(old('message')) . '</textarea>' . field_error('message') . '</div>'
+        . '<textarea id="reg-message" name="message" maxlength="500" rows="3" data-counter>' . e(programhub_old('message')) . '</textarea>' . field_error('message') . '</div>'
         . '<label class="checkbox ph-minor"><input type="checkbox" name="is_minor" value="1" aria-controls="reg-guardian"' . old_checked('is_minor', '1') . '><span>The participant is <strong>under 18</strong> (a parent or guardian must agree)</span></label>'
         . '<div class="ph-guardian" id="reg-guardian" data-ph-guardian><p class="ph-block-title">' . icon('shield') . 'Parent or guardian <span class="muted">(only if under 18)</span></p><div class="form-grid">'
-        . '<div class="form-group"><label for="reg-guardian-name">Parent / guardian name<span class="req">*</span></label><input id="reg-guardian-name" type="text" name="guardian_name" maxlength="120" data-req value="' . e(old('guardian_name')) . '">' . field_error('guardian_name') . '</div>'
-        . '<div class="form-group"><label for="reg-guardian-phone">Parent / guardian mobile<span class="req">*</span></label><input id="reg-guardian-phone" type="tel" name="guardian_phone" maxlength="15" inputmode="tel" data-req value="' . e(old('guardian_phone')) . '">' . field_error('guardian_phone') . '</div>'
+        . '<div class="form-group"><label for="reg-guardian-name">Parent / guardian name<span class="req">*</span></label><input id="reg-guardian-name" type="text" name="guardian_name" maxlength="120" data-req value="' . e(programhub_old('guardian_name')) . '">' . field_error('guardian_name') . '</div>'
+        . '<div class="form-group"><label for="reg-guardian-phone">Parent / guardian mobile<span class="req">*</span></label><input id="reg-guardian-phone" type="tel" name="guardian_phone" maxlength="15" inputmode="tel" data-req value="' . e(programhub_old('guardian_phone')) . '">' . field_error('guardian_phone') . '</div>'
         . '</div><div class="form-group"><label class="checkbox"><input type="checkbox" name="guardian_consent" value="1" data-req' . old_checked('guardian_consent', '1') . '><span>I am the parent or guardian, or they have agreed to this registration.<span class="req">*</span></span></label>' . field_error('guardian_consent') . '</div></div>'
         . '<div class="form-group"><label class="checkbox"><input type="checkbox" name="consent" value="1" required' . old_checked('consent', '1') . '><span>I agree that my details are used to manage this registration, as described in the <a href="' . e(programhub_privacy_url()) . '">privacy policy</a>.<span class="req">*</span></span></label>' . field_error('consent') . '</div>'
         . '<button class="btn btn-primary btn-lg btn-block" type="submit" data-ph-submit>' . icon('check') . '<span>' . ($single && !$firstState['open'] ? 'Join the waiting list' : 'Register now') . '</span></button>'
@@ -1595,11 +1595,11 @@ function programhub_interest_form(array $cat, string $action): string
     return '<form class="ph-form ph-interest-form" method="post" action="' . e($action) . '" data-validate novalidate>'
         . csrf_field() . honeypot_field() . '<input type="hidden" name="form" value="program_interest">'
         . '<div class="form-grid">'
-        . '<div class="form-group"><label for="in-name">Name<span class="req">*</span></label><input id="in-name" type="text" name="in_name" required minlength="2" maxlength="120" autocomplete="name" value="' . e(old('in_name', $user['name'] ?? '')) . '">' . field_error('in_name') . '</div>'
-        . '<div class="form-group"><label for="in-email">Email<span class="req">*</span></label><input id="in-email" type="email" name="in_email" required maxlength="190" autocomplete="email" value="' . e(old('in_email', $user['email'] ?? '')) . '">' . field_error('in_email') . '</div>'
-        . '<div class="form-group"><label for="in-phone">Mobile number <span class="muted">(optional)</span></label><input id="in-phone" type="tel" name="in_phone" maxlength="15" autocomplete="tel" inputmode="tel" value="' . e(old('in_phone', $user['phone'] ?? '')) . '">' . field_error('in_phone') . '</div>'
-        . '<div class="form-group"><label for="in-city">City / town <span class="muted">(optional)</span></label><input id="in-city" type="text" name="in_city" maxlength="100" autocomplete="address-level2" value="' . e(old('in_city')) . '">' . field_error('in_city') . '</div>'
-        . '<div class="form-group full"><label for="in-message">What would you like to learn or join? <span class="muted">(optional)</span></label><textarea id="in-message" name="in_message" maxlength="500" rows="3" data-counter>' . e(old('in_message')) . '</textarea>' . field_error('in_message') . '</div>'
+        . '<div class="form-group"><label for="in-name">Name<span class="req">*</span></label><input id="in-name" type="text" name="in_name" required minlength="2" maxlength="120" autocomplete="name" value="' . e(programhub_old('in_name', $user['name'] ?? '')) . '">' . field_error('in_name') . '</div>'
+        . '<div class="form-group"><label for="in-email">Email<span class="req">*</span></label><input id="in-email" type="email" name="in_email" required maxlength="190" autocomplete="email" value="' . e(programhub_old('in_email', $user['email'] ?? '')) . '">' . field_error('in_email') . '</div>'
+        . '<div class="form-group"><label for="in-phone">Mobile number <span class="muted">(optional)</span></label><input id="in-phone" type="tel" name="in_phone" maxlength="15" autocomplete="tel" inputmode="tel" value="' . e(programhub_old('in_phone', $user['phone'] ?? '')) . '">' . field_error('in_phone') . '</div>'
+        . '<div class="form-group"><label for="in-city">City / town <span class="muted">(optional)</span></label><input id="in-city" type="text" name="in_city" maxlength="100" autocomplete="address-level2" value="' . e(programhub_old('in_city')) . '">' . field_error('in_city') . '</div>'
+        . '<div class="form-group full"><label for="in-message">What would you like to learn or join? <span class="muted">(optional)</span></label><textarea id="in-message" name="in_message" maxlength="500" rows="3" data-counter>' . e(programhub_old('in_message')) . '</textarea>' . field_error('in_message') . '</div>'
         . '</div><div class="form-group"><label class="checkbox"><input type="checkbox" name="in_consent" value="1" required' . old_checked('in_consent', '1') . '><span>Email me when new ' . e($cat['title']) . ' sessions are announced. I can ask you to remove my details at any time.<span class="req">*</span></span></label>' . field_error('in_consent') . '</div>'
         . '<button class="btn btn-primary btn-block" type="submit">' . icon('bell') . 'Notify me</button>'
         . '<p class="form-note">' . icon('lock') . '<span>We use these details only to tell you about sessions in this area. See our <a href="' . e(programhub_privacy_url()) . '">privacy policy</a>.</span></p></form>';
@@ -1661,12 +1661,12 @@ function programhub_partnership_form(array $cat, string $action): string
     return '<form class="ph-form" method="post" action="' . e($action) . '" data-validate novalidate>'
         . csrf_field() . honeypot_field() . '<input type="hidden" name="form" value="partnership">'
         . '<div class="form-grid">'
-        . '<div class="form-group"><label for="pt-name">Your name<span class="req">*</span></label><input id="pt-name" type="text" name="pt_name" required minlength="2" maxlength="120" autocomplete="name" value="' . e(old('pt_name', $user['name'] ?? '')) . '">' . field_error('pt_name') . '</div>'
-        . '<div class="form-group"><label for="pt-email">Email<span class="req">*</span></label><input id="pt-email" type="email" name="pt_email" required maxlength="190" autocomplete="email" value="' . e(old('pt_email', $user['email'] ?? '')) . '">' . field_error('pt_email') . '</div>'
-        . '<div class="form-group"><label for="pt-phone">Mobile number <span class="muted">(optional)</span></label><input id="pt-phone" type="tel" name="pt_phone" maxlength="15" autocomplete="tel" inputmode="tel" value="' . e(old('pt_phone')) . '">' . field_error('pt_phone') . '</div>'
-        . '<div class="form-group"><label for="pt-kind">You are<span class="req">*</span></label><select id="pt-kind" name="pt_kind" required>' . options_html(PARTNERSHIP_KINDS, (string) old('pt_kind'), true, 'Choose one') . '</select>' . field_error('pt_kind') . '</div>'
-        . '<div class="form-group full"><label for="pt-org">Organisation / institution<span class="req">*</span></label><input id="pt-org" type="text" name="pt_org" required minlength="2" maxlength="200" autocomplete="organization" value="' . e(old('pt_org')) . '">' . field_error('pt_org') . '</div>'
-        . '<div class="form-group full"><label for="pt-message">How would you like to work together?<span class="req">*</span></label><textarea id="pt-message" name="pt_message" required minlength="10" maxlength="2000" rows="4" data-counter>' . e(old('pt_message')) . '</textarea>' . field_error('pt_message') . '</div>'
+        . '<div class="form-group"><label for="pt-name">Your name<span class="req">*</span></label><input id="pt-name" type="text" name="pt_name" required minlength="2" maxlength="120" autocomplete="name" value="' . e(programhub_old('pt_name', $user['name'] ?? '')) . '">' . field_error('pt_name') . '</div>'
+        . '<div class="form-group"><label for="pt-email">Email<span class="req">*</span></label><input id="pt-email" type="email" name="pt_email" required maxlength="190" autocomplete="email" value="' . e(programhub_old('pt_email', $user['email'] ?? '')) . '">' . field_error('pt_email') . '</div>'
+        . '<div class="form-group"><label for="pt-phone">Mobile number <span class="muted">(optional)</span></label><input id="pt-phone" type="tel" name="pt_phone" maxlength="15" autocomplete="tel" inputmode="tel" value="' . e(programhub_old('pt_phone')) . '">' . field_error('pt_phone') . '</div>'
+        . '<div class="form-group"><label for="pt-kind">You are<span class="req">*</span></label><select id="pt-kind" name="pt_kind" required>' . options_html(PARTNERSHIP_KINDS, (string) programhub_old('pt_kind'), true, 'Choose one') . '</select>' . field_error('pt_kind') . '</div>'
+        . '<div class="form-group full"><label for="pt-org">Organisation / institution<span class="req">*</span></label><input id="pt-org" type="text" name="pt_org" required minlength="2" maxlength="200" autocomplete="organization" value="' . e(programhub_old('pt_org')) . '">' . field_error('pt_org') . '</div>'
+        . '<div class="form-group full"><label for="pt-message">How would you like to work together?<span class="req">*</span></label><textarea id="pt-message" name="pt_message" required minlength="10" maxlength="2000" rows="4" data-counter>' . e(programhub_old('pt_message')) . '</textarea>' . field_error('pt_message') . '</div>'
         . '</div><div class="form-group"><label class="checkbox"><input type="checkbox" name="pt_consent" value="1" required' . old_checked('pt_consent', '1') . '><span>I agree that these details are used to reply to this enquiry, as described in the <a href="' . e(page_url('privacy-policy')) . '">privacy policy</a>.<span class="req">*</span></span></label>' . field_error('pt_consent') . '</div>'
         . '<button class="btn btn-primary btn-block" type="submit">' . icon('send') . 'Send enquiry</button></form>';
 }
@@ -1764,7 +1764,7 @@ function section_program_registration(array $s, array $items, array $set, array 
         $html .= '<div class="form-card ph-form-card"><h3 class="ph-form-title">' . icon('check-circle') . (count($open) === 1 ? 'Register for this session' : 'Register for a session') . '</h3>'
             . programhub_registration_form($open, ['action' => $action . '#register']) . '</div>';
         if ($interest) {
-            $hasInterestInput = old('in_email', null) !== null;
+            $hasInterestInput = programhub_old('in_email', null) !== null;
             $html .= '<details class="ph-more" id="register-interest"' . ($done || $hasInterestInput ? ' open' : '') . '><summary>' . icon('bell') . 'None of these dates suit you? Register your interest' . icon('chevron-down') . '</summary><div class="ph-more-body">'
                 . ($donePanel !== '' ? $donePanel : programhub_interest_form($cat, $action . '#register-interest')) . '</div></details>';
         }

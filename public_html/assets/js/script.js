@@ -849,7 +849,16 @@
         var mode = fraud.getAttribute('data-show');
         var seen = mode === 'once_per_version' ? store('local', fKey) : store('session', fKey);
         if (!seen && !document.querySelector('dialog.modal.auto-open')) {
-            setTimeout(function () { openModal(fraud); }, 900);
+            // never stack on another pop-up (e.g. the volunteer teacher terms): wait until it is closed
+            var showFraud = function () {
+                var other = document.querySelector('dialog[open]');
+                if (other && other !== fraud) {
+                    other.addEventListener('close', function () { setTimeout(showFraud, 400); }, { once: true });
+                    return;
+                }
+                openModal(fraud);
+            };
+            setTimeout(showFraud, 900);
         }
         fraud.addEventListener('modal:closed', function () {
             store(mode === 'once_per_version' ? 'local' : 'session', fKey, '1');
@@ -973,6 +982,15 @@
         };
         var choice = store('local', 'pwf_consent');
         if (choice === 'yes') { loadGa(); } else if (choice === 'no') { disableGa(); } else { consent.hidden = false; }
+        // keep the floating buttons and the end of the page above the open notice (analytics.js does the same)
+        var syncConsentPad = function () {
+            var open = !consent.hidden && consent.offsetHeight > 0;
+            document.documentElement.style.setProperty('--consent-pad', open ? (consent.offsetHeight + 24) + 'px' : '0px');
+            body.classList.toggle('consent-open', open);
+        };
+        if (window.MutationObserver) { new MutationObserver(syncConsentPad).observe(consent, { attributes: true, attributeFilter: ['hidden'] }); }
+        window.addEventListener('resize', syncConsentPad);
+        setTimeout(syncConsentPad, 0);
         consent.querySelectorAll('[data-consent]').forEach(function (b) {
             b.addEventListener('click', function () {
                 var v = b.getAttribute('data-consent');

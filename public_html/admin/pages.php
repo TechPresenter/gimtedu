@@ -171,7 +171,8 @@ admin_page_start('Pages & Sections');
             $edit = admin_url('page-edit.php?id=' . $p['id']); ?>
             <tr>
                 <td class="site-title-cell"><strong><a href="<?= e($edit) ?>"><?= e($p['title']) ?></a></strong>
-                    <small>/<?= e($p['slug'] === 'home' ? '' : $p['slug'] . '/') ?><?= $p['slug'] === 'home' ? ' · Homepage' : '' ?><?= $p['parent_title'] ? ' · under ' . e($p['parent_title']) : '' ?><?= (int) $p['noindex'] ? ' · noindex' : '' ?></small></td>
+                    <small>/<?= e($p['slug'] === 'home' ? '' : $p['slug'] . '/') ?><?= $p['slug'] === 'home' ? ' · Homepage' : '' ?><?= $p['parent_title'] ? ' · under ' . e($p['parent_title']) : '' ?><?= (int) $p['noindex'] ? ' · noindex' : '' ?></small>
+                    <?php if ($p['slug'] === 'home' && function_exists('home_hero_admin_summary') && ($heroSum = home_hero_admin_summary()) && $heroSum['exists']): ?><small><a href="<?= e(admin_url($heroSum['href'])) ?>"><?= icon('image') ?>Edit hero slider (text &amp; right-side images)</a></small><?php endif; ?></td>
                 <td><?= e(TEMPLATE_LABELS[$p['template']] ?? $p['template']) ?><?= (int) $p['is_system'] ? '<br><span class="badge badge-gray">Built-in</span>' : '' ?></td>
                 <td><?= status_badge($p['status']) ?></td>
                 <td><a href="<?= e(admin_url('page-edit.php?id=' . $p['id'] . '&tab=sections')) ?>"><?= (int) $p['section_count'] ?></a></td>

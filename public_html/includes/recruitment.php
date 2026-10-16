@@ -887,7 +887,7 @@ function teacher_terms_modal_html(): string
     foreach ($t['lines'] as $line) {
         $items .= '<li>' . e($line) . '</li>';
     }
-    return '<dialog class="modal terms-modal" id="teacher-terms" aria-labelledby="teacher-terms-title" aria-describedby="teacher-terms-intro">'
+    return '<dialog class="modal terms-modal" id="teacher-terms" aria-labelledby="teacher-terms-title"' . ($t['intro'] !== '' ? ' aria-describedby="teacher-terms-intro"' : '') . '>'
         . '<div class="modal-card"><div class="modal-head"><h2 id="teacher-terms-title">' . icon('shield') . e($t['title']) . '</h2>'
         . '<button type="button" class="modal-close" data-modal-close aria-label="Close">' . icon('x') . '</button></div>'
         . '<div class="modal-body">' . ($t['intro'] !== '' ? '<p id="teacher-terms-intro" class="terms-intro">' . e($t['intro']) . '</p>' : '')

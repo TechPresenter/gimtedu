@@ -1,3 +1,5 @@
 /* Deep analytics (public): while the cookie notice is open, the footer gets extra room so its forms and links
    can be scrolled above the fixed notice (analytics.js sets --consent-pad to the notice height). */
 body.consent-open .site-footer { padding-bottom: var(--consent-pad, 0px); }
+/* the privacy-policy link inside the cookie notice must stand out from the text by more than colour (WCAG 1.4.1) */
+.consent-banner a { text-decoration: underline; text-underline-offset: 2px; }

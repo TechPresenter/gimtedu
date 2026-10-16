@@ -37,6 +37,14 @@ $ogTitle = !empty($seo['is_home']) ? $fullTitle : (string) ($seo['title'] ?? $fu
 $headerUser = current_user();
 $mainMenu = menu_tree('main');
 $topbarMenu = setting('topbar_enabled', '1') === '1' ? menu_tree('topbar') : [];
+// "Programs & Events" dropdown (top bar on desktop, chip group in the mobile menu): categories + events/hackathon links
+$programsNav = function_exists('programs_nav_items') ? programs_nav_items() : [];
+$programsCats = array_values(array_filter($programsNav, function ($i) { return $i['group'] === 'category'; }));
+$programsLinks = array_values(array_filter($programsNav, function ($i) { return $i['group'] !== 'category'; }));
+$programsActive = (bool) array_filter($programsNav, function ($i) { return !empty($i['active']); }) || route_path() === 'programs';
+if ($programsNav) {
+    $GLOBALS['extraScripts'][] = asset('assets/js/modules/topbar-programs.js');
+}
 $contactEmail = setting('contact_email');
 $contactPhone = setting('contact_phone');
 $motion = setting('motion_effects_enabled', '1') === '1';
@@ -122,6 +130,25 @@ if (setting('mobile_nav_strip', '1') === '1') {
             <?php if ($contactPhone): ?><a class="topbar-item hide-md" href="tel:<?= e(preg_replace('/[^\d+]/', '', $contactPhone)) ?>"><?= icon('phone') ?><?= e($contactPhone) ?></a><?php endif; ?>
             <?php if (fraud_alert_enabled()): ?><button type="button" class="topbar-alert" data-modal-open="fraud-alert"><?= icon('alert-triangle') ?>Fraud alert</button><?php endif; ?>
         </div>
+        <?php if ($programsNav): ?>
+            <nav class="topbar-programs<?= $programsActive ? ' is-active' : '' ?>" aria-label="Programs and events" data-pe-menu>
+                <a class="pe-link" href="<?= e(page_url('programs')) ?>"<?= route_path() === 'programs' ? ' aria-current="page"' : '' ?>><?= icon('layers') ?><span>Programs &amp; Events</span></a>
+                <button type="button" class="pe-toggle" aria-expanded="false" aria-controls="pe-menu" aria-label="Show Programs &amp; Events menu"><?= icon('chevron-down') ?></button>
+                <div class="pe-menu" id="pe-menu">
+                    <p class="pe-menu-title">Programme categories</p>
+                    <ul class="pe-cat-list">
+                        <?php foreach ($programsCats as $pe): ?>
+                            <li><a href="<?= e($pe['url']) ?>"<?= $pe['active'] ? ' class="is-active" aria-current="page"' : '' ?>><span class="dd-icon"><?= icon($pe['icon'] !== '' ? $pe['icon'] : 'calendar') ?></span><span><?= e($pe['label']) ?></span></a></li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <div class="pe-menu-links">
+                        <?php foreach ($programsLinks as $pe): ?>
+                            <a href="<?= e($pe['url']) ?>"<?= $pe['active'] ? ' class="is-active" aria-current="page"' : '' ?>><?= icon($pe['icon'] !== '' ? $pe['icon'] : 'arrow-right') ?><span><?= e($pe['label']) ?></span></a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </nav>
+        <?php endif; ?>
         <?php if ($topbarMenu): ?>
             <nav class="topbar-apply" aria-label="Apply">
                 <span class="apply-label"><?= icon('briefcase') ?>Apply:</span>
@@ -159,6 +186,16 @@ if (setting('mobile_nav_strip', '1') === '1') {
                     <div class="nav-apply-row" data-hscroll data-hscroll-active=".is-active">
                         <?php foreach ($topbarMenu as $item): $applyActive = menu_item_active($item); ?>
                             <a class="apply-chip<?= $applyActive ? ' is-active' : '' ?>" href="<?= e($item['url']) ?>"<?= $applyActive ? ' aria-current="page"' : '' ?><?= $item['new_tab'] ? ' target="_blank" rel="noopener"' : '' ?>><?= $item['icon'] ? icon($item['icon']) : '' ?><span><?= e($item['label']) ?></span></a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+            <?php if ($programsNav): ?>
+                <div class="nav-mobile-apply nav-mobile-programs" role="group" aria-labelledby="nav-pe-title">
+                    <p class="nav-apply-title" id="nav-pe-title"><?= icon('layers') ?><a href="<?= e(page_url('programs')) ?>">Programs &amp; Events</a></p>
+                    <div class="nav-apply-row" data-hscroll data-hscroll-active=".is-active">
+                        <?php foreach (array_merge($programsCats, $programsLinks) as $pe): ?>
+                            <a class="apply-chip<?= $pe['active'] ? ' is-active' : '' ?>" href="<?= e($pe['url']) ?>"<?= $pe['active'] ? ' aria-current="page"' : '' ?>><?= icon($pe['icon'] !== '' ? $pe['icon'] : 'calendar') ?><span><?= e($pe['label']) ?></span></a>
                         <?php endforeach; ?>
                     </div>
                 </div>

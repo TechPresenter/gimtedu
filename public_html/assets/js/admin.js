@@ -225,12 +225,36 @@
     /* ---------- Copy buttons ---------- */
     document.querySelectorAll('[data-copy]').forEach(function (btn) {
         btn.addEventListener('click', function () {
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(btn.getAttribute('data-copy'));
-                var t = btn.textContent;
+            var text = btn.getAttribute('data-copy');
+            var done = function () {
+                var html = btn.innerHTML;   // keep the icon
                 btn.textContent = 'Copied';
-                setTimeout(function () { btn.textContent = t; }, 1500);
+                var live = document.getElementById('copy-live');
+                if (!live) {
+                    live = document.createElement('span');
+                    live.id = 'copy-live';
+                    live.className = 'sr-only';
+                    live.setAttribute('aria-live', 'polite');
+                    document.body.appendChild(live);
+                }
+                live.textContent = 'Copied to the clipboard';
+                setTimeout(function () { btn.innerHTML = html; live.textContent = ''; }, 1500);
+            };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(done, function () {});
+                return;
             }
+            // plain http (e.g. before SSL is switched on): copy through a temporary text box
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { if (document.execCommand('copy')) { done(); } } catch (err) { /* ignore */ }
+            document.body.removeChild(ta);
+            btn.focus();
         });
     });
 

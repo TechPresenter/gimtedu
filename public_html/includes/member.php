@@ -350,7 +350,8 @@ function account_notice_html(?array $n): string
 
 /** Columns never included in a personal-data export (secrets, staff notes, other people's ids, file paths). */
 const MEMBER_EXPORT_DROP = [
-    'password_hash', 'totp_secret', 'session_version', 'access_token', 'gateway_signature', 'unsubscribe_token', 'token_hash',
+    'password_hash', 'totp_secret', 'session_version', 'access_token', 'gateway_signature', 'gateway_session_id', 'unsubscribe_token', 'token_hash',
+    'access_token_hash', 'admin_note',
     'validator_hash', 'selector', 'admin_notes', 'review_notes', 'ip_address', 'last_login_ip', 'user_agent', 'reviewed_by',
     'coordinator_id', 'verified_by', 'reconciled_by', 'approved_by', 'issued_by', 'handled_by', 'assigned_by', 'created_by',
     'updated_by', 'resume_path', 'document_path', 'file_path', 'must_change_password',
@@ -404,10 +405,12 @@ function member_export_data(int $userId): array
         'applications'          => $applications,
         'fundraiser_proposals'  => member_export_clean(db_rows('SELECT id, title, slug, category, short_description, goal_amount, location, start_date, end_date, status, organizer_name, organizer_email, organizer_phone, proposal_notes, created_at FROM campaigns WHERE submitted_by = ? ORDER BY id', [$userId])),
         'donations'             => $donations,
-        'event_registrations'   => member_export_clean(db_rows('SELECT er.id, er.name, er.email, er.phone, er.message, er.status, er.created_at, e.title AS event_title, e.start_datetime AS event_start, e.location AS event_location FROM event_registrations er JOIN events e ON e.id = er.event_id WHERE er.user_id = ? ORDER BY er.id', [$userId])),
+        // own registrations and those made with the verified account email (as shown under My events); never the meeting link
+        'event_registrations'   => member_export_clean(db_rows('SELECT er.*, e.title AS event_title, e.start_datetime AS event_start, e.location AS event_location FROM event_registrations er JOIN events e ON e.id = er.event_id WHERE er.user_id = ?' . (!empty($user['email_verified_at']) ? ' OR er.email = ?' : '') . ' ORDER BY er.id', !empty($user['email_verified_at']) ? [$userId, mb_strtolower((string) $user['email'])] : [$userId])),
         'certificates'          => member_export_clean(db_rows("SELECT * FROM certificates WHERE user_id = ? AND status = 'approved' ORDER BY id", [$userId])),
         'tasks'                 => member_export_clean(db_rows('SELECT * FROM tasks WHERE user_id = ? ORDER BY id', [$userId])),
         'notifications'         => db_rows('SELECT title, message, type, read_at, created_at FROM notifications WHERE user_id = ? ORDER BY id', [$userId]),
+        'website_visits'        => function_exists('analytics_user_export') ? analytics_user_export($userId) : [],
         'newsletter'            => $newsletter ?: null,
         'contact_enquiries'     => member_export_clean(db_rows('SELECT * FROM contact_enquiries WHERE user_id = ? ORDER BY id', [$userId])),
         'feedback'              => member_export_clean(db_rows('SELECT * FROM feedback WHERE user_id = ? ORDER BY id', [$userId])),
@@ -476,6 +479,9 @@ function member_anonymise_account(int $userId): bool
     db_query('DELETE FROM email_verifications WHERE user_id = ?', [$userId]);
     db_query('DELETE FROM notifications WHERE user_id = ?', [$userId]);
     db_query('UPDATE members SET gender = NULL, date_of_birth = NULL, occupation = NULL, address = NULL, city = NULL, state = NULL, pincode = NULL, areas_of_interest = NULL, motivation = NULL WHERE user_id = ?', [$userId]);
+    if (function_exists('analytics_forget_user')) {
+        analytics_forget_user($userId);   // website visits are no longer linked to the account
+    }
     return true;
 }
 

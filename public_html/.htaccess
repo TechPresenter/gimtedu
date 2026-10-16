@@ -52,7 +52,8 @@ ServerSignature Off
 <IfModule mod_headers.c>
     Header set X-Content-Type-Options "nosniff"
     Header set X-Frame-Options "SAMEORIGIN"
-    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    # setifempty: private pages (event joining links) may send a stricter no-referrer policy from PHP
+    Header setifempty Referrer-Policy "strict-origin-when-cross-origin"
     Header unset X-Powered-By
 </IfModule>
 

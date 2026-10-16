@@ -8,6 +8,25 @@
  */
 (function () {
     'use strict';
+    // "pwf_consent" (localStorage) is shared with Google Analytics: a "yes" given on the older GA-only notice does not
+    // cover our own visitor cookie. "pwf_consent_scope" = "vid" records that the choice was made on a notice that asked
+    // about pwf_vid (data-own). This part also runs on pages whose visit is not recorded (e.g. a 404 page).
+    function scopeCovered() {
+        try { return window.localStorage.getItem('pwf_consent_scope') === 'vid'; } catch (e) { return false; }
+    }
+    function setScope(on) {
+        try {
+            if (on) { window.localStorage.setItem('pwf_consent_scope', 'vid'); } else { window.localStorage.removeItem('pwf_consent_scope'); }
+        } catch (e) { /* storage blocked: the server-side cookie still records the choice */ }
+    }
+    var ownNotice = document.querySelector('[data-consent-banner][data-own]');
+    if (ownNotice && ownNotice.addEventListener) {
+        ownNotice.addEventListener('click', function (e) {
+            var b = e.target && e.target.closest ? e.target.closest('[data-consent]') : null;
+            if (b) { setScope(b.getAttribute('data-consent') === 'yes'); }
+        });
+    }
+
     var el = document.getElementById('pwf-analytics');
     if (!el || !window.JSON || !document.addEventListener) { return; }
     var cfg = {
@@ -84,16 +103,6 @@
     }
     function storedConsent() {
         try { return window.localStorage.getItem('pwf_consent'); } catch (e) { return null; }
-    }
-    // "pwf_consent" is shared with Google Analytics: a "yes" given on the older GA-only notice does not cover our own
-    // visitor cookie. This key records that the choice was made on a notice that asked about pwf_vid.
-    function scopeCovered() {
-        try { return window.localStorage.getItem('pwf_consent_scope') === 'vid'; } catch (e) { return false; }
-    }
-    function setScope(on) {
-        try {
-            if (on) { window.localStorage.setItem('pwf_consent_scope', 'vid'); } else { window.localStorage.removeItem('pwf_consent_scope'); }
-        } catch (e) { /* storage blocked: the server-side cookie still records the choice */ }
     }
 
     /* ---------- engaged time: counts only while the page is visible and the visitor active (30 s idle pause) ---------- */
@@ -284,7 +293,6 @@
     /* ---------- consent for the persistent visitor id (cookie pwf_vid, set by the server only after "Allow") ---------- */
     function consentClick(choice) {
         if (!cfg.consent) { return; }
-        setScope(choice === 'yes');   // this notice asked about the visitor cookie
         if (choice === 'yes' && !cfg.vid) {
             pendingConsent = 'yes';
             cfg.vid = true;

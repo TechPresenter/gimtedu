@@ -74,6 +74,36 @@ h1, h2, h3, h4 { color: var(--ink); letter-spacing: -.01em; }
 .topbar-apply .apply-chip:first-of-type { background: var(--gold-500); border-color: var(--gold-500); color: #1f1a00; }
 .topbar-apply .apply-chip:first-of-type:hover { background: var(--gold-400); }
 .topbar-right { gap: 8px; }
+
+/* ---------- Top bar: Programs & Events dropdown (desktop; phones use the chip group in the menu) ---------- */
+.topbar-programs { display: none; position: relative; align-items: center; flex-shrink: 0; }
+.topbar-programs .pe-link { display: inline-flex; align-items: center; gap: 6px; padding: 5px 4px 5px 12px; border-radius: 999px 0 0 999px; font-weight: 600; font-size: .78rem; color: #fff; background: rgba(23, 106, 145, .55); border: 1px solid rgba(255, 255, 255, .25); border-right: 0; white-space: nowrap; transition: background .2s; }
+.topbar-programs .pe-link .icon { width: 14px; height: 14px; color: var(--gold-400); }
+.topbar-programs .pe-toggle { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; min-height: 26px; padding: 0 6px 0 2px; border-radius: 0 999px 999px 0; color: #fff; background: rgba(23, 106, 145, .55); border: 1px solid rgba(255, 255, 255, .25); border-left: 0; cursor: pointer; }
+.topbar-programs .pe-toggle .icon { width: 14px; height: 14px; transition: transform .2s; }
+.topbar-programs .pe-link:hover, .topbar-programs .pe-toggle:hover, .topbar-programs.is-active .pe-link, .topbar-programs.is-active .pe-toggle { background: var(--blue-600); }
+.topbar-programs .pe-link:focus-visible, .topbar-programs .pe-toggle:focus-visible { outline: 2px solid var(--gold-400); outline-offset: 2px; }
+.pe-menu { position: absolute; top: calc(100% + 10px); left: 0; z-index: 5; width: min(560px, 90vw); padding: 16px; border-radius: 16px; background: #fff; color: var(--ink); box-shadow: 0 24px 60px rgba(8, 40, 24, .22); border: 1px solid var(--line); opacity: 0; visibility: hidden; transform: translateY(6px); transition: opacity .18s, transform .18s, visibility .18s; white-space: normal; }
+.pe-menu::before { content: ""; position: absolute; left: 0; right: 0; top: -12px; height: 12px; }
+.topbar-programs:hover:not(.no-hover) .pe-menu, .topbar-programs:focus-within:not(.no-hover) .pe-menu, .topbar-programs.open .pe-menu { opacity: 1; visibility: visible; transform: translateY(0); }
+.topbar-programs.open .pe-toggle .icon { transform: rotate(180deg); }
+.topbar-programs.open .pe-menu { transition: opacity .18s, transform .18s; } /* visible at once, so the first link can take focus */
+.pe-menu-title { margin: 0 0 8px; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.pe-cat-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; }
+.pe-cat-list a { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 10px; color: var(--ink); font-weight: 600; font-size: .84rem; line-height: 1.3; }
+.pe-cat-list a:hover, .pe-cat-list a:focus-visible, .pe-cat-list a.is-active { background: var(--green-50); color: var(--green-700); }
+.pe-cat-list .dd-icon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9px; background: var(--green-50); color: var(--green-600); }
+.pe-cat-list .dd-icon .icon { width: 16px; height: 16px; }
+.pe-menu-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.pe-menu-links a { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-weight: 600; font-size: .8rem; color: var(--blue-700); background: var(--blue-100); }
+.pe-menu-links a .icon { width: 14px; height: 14px; }
+.pe-menu-links a:hover, .pe-menu-links a:focus-visible, .pe-menu-links a.is-active { background: var(--blue-600); color: #fff; }
+.nav-mobile-programs .nav-apply-title a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+@media (min-width: 1280px) {
+    .topbar { z-index: 120; }
+    .topbar-programs { display: inline-flex; }
+}
+@media (prefers-reduced-motion: reduce) { .pe-menu, .topbar-programs .pe-toggle .icon { transition: none; } }
 .topbar-account { font-weight: 600; }
 
 /* ---------- Header (sticky, glass when scrolled) ---------- */
@@ -453,6 +483,8 @@ dialog.modal[open] .modal-card { animation: modal-in .35s var(--ease); }
 
 /* ---------- Consent banner ---------- */
 .consent-banner { position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 320; }
+body.consent-open .back-to-top { bottom: calc(var(--consent-pad, 0px) + 4px); }
+body.consent-open .fab-stack { bottom: calc(var(--consent-pad, 0px) + 70px); }
 .consent-inner { background: #fff; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,.2); border: 1px solid var(--line); padding: 16px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .consent-inner p { margin: 0; flex: 1; min-width: 240px; font-size: .9rem; display: flex; gap: 10px; }
 
@@ -494,8 +526,8 @@ main:has(> .sec-cta:last-child, > .sec-donation-appeal:last-child) + .site-foote
 .footer-reg li { font-size: .74rem; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.07); color: #dbeee2; }
 .footer-reg span { color: var(--gold-400); font-weight: 600; margin-right: 4px; }
 .footer-focus { font-size: .84rem; font-weight: 600; color: var(--gold-400); letter-spacing: .01em; margin: -4px 0 12px; }
-.footer-reg-note { display: flex; align-items: center; gap: 6px; font-size: .8rem; color: #dbeee2; margin: 0 0 8px; }
-.footer-reg-note .icon { width: 15px; height: 15px; color: var(--gold-400); flex: none; }
+.footer-reg-note { display: flex; align-items: flex-start; gap: 6px; font-size: .8rem; color: #dbeee2; margin: 0 0 8px; }
+.footer-reg-note .icon { width: 15px; height: 15px; color: var(--gold-400); flex: none; margin-top: 2px; }
 .footer-title { font-size: 1rem; color: #fff; margin-bottom: 16px; position: relative; padding-bottom: 10px; }
 .footer-title::after { content: ""; position: absolute; left: 0; bottom: 0; width: 36px; height: 3px; border-radius: 3px; background: var(--gold-500); }
 .footer-col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }

@@ -74,7 +74,22 @@ defined('SESSION_NAME')          || define('SESSION_NAME', 'pwf_session');
 defined('ADMIN_SESSION_TIMEOUT') || define('ADMIN_SESSION_TIMEOUT', 3600);   // seconds of inactivity
 defined('LOGIN_MAX_ATTEMPTS')    || define('LOGIN_MAX_ATTEMPTS', 5);
 defined('LOGIN_LOCK_MINUTES')    || define('LOGIN_LOCK_MINUTES', 15);
-defined('MAX_UPLOAD_MB')         || define('MAX_UPLOAD_MB', 5);
+if (!defined('MAX_UPLOAD_MB')) {
+    // 5 MB, or less when the host's PHP limits (upload_max_filesize / post_max_size) are lower, so every
+    // "up to N MB" message on the site matches what the server really accepts
+    $pwfUploadMb = 5;
+    foreach (['upload_max_filesize', 'post_max_size'] as $pwfIniKey) {
+        $pwfIni = trim((string) ini_get($pwfIniKey));
+        $pwfBytes = (float) $pwfIni;
+        $pwfUnit = strtolower(substr($pwfIni, -1));
+        $pwfBytes *= $pwfUnit === 'g' ? 1073741824 : ($pwfUnit === 'm' ? 1048576 : ($pwfUnit === 'k' ? 1024 : 1));
+        if ($pwfBytes > 0) {
+            $pwfUploadMb = min($pwfUploadMb, $pwfBytes / 1048576);
+        }
+    }
+    define('MAX_UPLOAD_MB', floor($pwfUploadMb) == $pwfUploadMb ? (int) $pwfUploadMb : round($pwfUploadMb, 1));
+    unset($pwfUploadMb, $pwfIniKey, $pwfIni, $pwfBytes, $pwfUnit);
+}
 // Only if the site is behind Cloudflare or another proxy: the $_SERVER key that
 // holds the visitor's real IP, e.g. 'HTTP_CF_CONNECTING_IP'. Leave empty otherwise.
 defined('TRUSTED_PROXY_HEADER')  || define('TRUSTED_PROXY_HEADER', '');

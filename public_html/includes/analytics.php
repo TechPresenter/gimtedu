@@ -504,7 +504,9 @@ function analytics_geo_lookup(string $ip, string $provider): ?array
         ]);
         if (!$geo) {
             // remember why (never the token or the IP) and pause lookups briefly when the provider refuses or is down
-            $reason = $curlError !== '' ? 'connection failed or timed out' : ('HTTP ' . $status . (is_array($data) && !empty($data['reason']) ? ' ' . analytics_text($data['reason'], 60) : ''));
+            $reason = $curlError !== '' ? 'connection failed or timed out'
+                : ($status === 200 ? 'no location in the answer for this address'
+                : ('HTTP ' . $status . (is_array($data) && !empty($data['reason']) && is_string($data['reason']) ? ' ' . analytics_text($data['reason'], 60) : '')));
             save_setting('geoip_last_error', date('Y-m-d H:i') . ' · ' . $provider . ' · ' . $reason);
             if ($curlError !== '' || in_array($status, [401, 403, 429], true) || $status >= 500) {
                 save_setting('geoip_backoff_until', (string) (time() + ($status === 429 ? 900 : 120)));
@@ -613,7 +615,10 @@ function render_analytics_beacon(): string
     if (!is_array($pv) || !is_array($state) || (int) ($state['id'] ?? 0) !== (int) $pv['id'] || !analytics_enhanced()) {
         return '';
     }
-    $GLOBALS['extraScripts'][] = asset('assets/js/modules/analytics.js');
+    $js = asset('assets/js/modules/analytics.js');
+    if (!in_array($js, $GLOBALS['extraScripts'] ?? [], true)) {   // render_consent_banner() may have added it already
+        $GLOBALS['extraScripts'][] = $js;
+    }
     $consent = analytics_consent_needed();
     return '<div id="pwf-analytics" hidden data-pv="' . (int) $pv['pv'] . '" data-t="' . e(analytics_token((int) $pv['pv'], $state)) . '"'
         . ' data-endpoint="' . e(url('/api/collect/')) . '" data-consent="' . ($consent ? 'ask' : 'off') . '"'
@@ -835,6 +840,10 @@ function analytics_clean_event($ev): ?array
             if ($label === null || $label === '') {
                 return null;
             }
+            break;
+        case 'outbound':
+            // "host/path" like the page script sends it (a forged "https://..." would group as "https:")
+            $target = $target !== null ? (string) preg_replace('#^(?:[a-z][a-z0-9+.\-]*:)?//#i', '', $target) : null;
             break;
         case 'phone':
         case 'email':
@@ -1219,7 +1228,7 @@ function migration_403_deep_analytics_privacy(): void
     $body = '<p>To understand how the website is used and to improve it, we keep our own first-party statistics on our own server. No advertising or third-party tracking scripts are used for this, and the website works the same whether or not you allow analytics cookies.</p>'
         . '<h3>What we measure</h3><ul>'
         . '<li><strong>Your visit</strong> - the pages you open, in which order and when, the page where you arrived and the one you left from; how long each page was actually visible and in use (the timer pauses when the tab is hidden or after 30 seconds without activity), how far you scrolled (25, 50, 75 or 100%) and how quickly the page loaded.</li>'
-        . '<li><strong>Actions on a page</strong> - clicks on buttons such as Donate or Apply, links to other websites, downloads, phone, email and WhatsApp links, share buttons and video plays; that a form was sent (only the name of the form and its address on this website - <strong>never what you typed</strong>); words typed into the website\'s search boxes (numbers and email addresses are removed); technical errors on the page; and quick repeated clicks that suggest something did not work.</li>'
+        . '<li><strong>Actions on a page</strong> - clicks on buttons such as Donate or Apply, links to other websites, downloads, phone, email and WhatsApp links, share buttons and video plays; that a form was sent (only the name of the form and its address on this website - <strong>never what you typed</strong>); words typed into the website\'s search boxes (email addresses and long numbers such as phone numbers are removed); technical errors on the page; and quick repeated clicks that suggest something did not work.</li>'
         . '<li><strong>How you found us</strong> - the website that linked to us (its domain only), campaign tags in the link (utm_source, utm_medium, utm_campaign) and the resulting channel, such as search engine, social media, email or direct.</li>'
         . '<li><strong>Your device</strong> - device type (mobile, tablet or desktop), browser and operating system with their main version number, a screen-size range, the browser language and time zone.</li>'
         . '<li><strong>Approximate location</strong> - country, state or region and city, worked out from your IP address at the time of the visit, using the location information of our network provider or a location lookup service, if enabled. <strong>Your IP address is not stored</strong> in these statistics: a lookup result is kept for at most 24 hours in a cache under a coded value that changes every day, so that the same address is not looked up again. When no lookup is enabled, only the country suggested by your browser\'s time zone is recorded.</li>'

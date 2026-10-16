@@ -1000,7 +1000,7 @@ function site_settings_tabs(): array
         ]],
         'header' => ['Header & footer', 'layers', [
             'topbar_enabled' => ['checkbox', 'Show the top bar above the header (welcome text, email, apply links, login)'],
-            'topbar_text' => ['text', 'Top bar welcome text', '', ['max' => 150]],
+            'topbar_text' => ['text', 'Top bar welcome text', 'Shown only while the top bar has no Apply links (with Apply links the bar has no room for it).', ['max' => 150]],
             'mobile_nav_strip' => ['checkbox', 'Phones & tablets: show the main menu as a swipeable row of links under the header', 'The top-level items of Admin > Menus > Main menu appear as pills below the logo bar on screens narrower than 1280 px; the menu button still opens the full menu with all sub-pages.'],
             'header_cta_label' => ['text', 'Header button text', 'e.g. Donate Now', ['max' => 40, 'required' => true]],
             'header_cta_url' => ['link', 'Header button link', 'e.g. /donate/', ['required' => true]],
@@ -1111,7 +1111,7 @@ function site_widget_groups(): array
             'announcement_enabled' => ['checkbox', 'Show the announcement bar above the header'],
             'announcement_text' => ['text', 'Announcement text', 'One short sentence, e.g. a real upcoming event or an office closure.', ['max' => 250]],
             'announcement_link_label' => ['text', 'Link text (optional)', '', ['max' => 40]],
-            'announcement_link_url' => ['link', 'Link (optional)', 'e.g. /events-page/'],
+            'announcement_link_url' => ['link', 'Link (optional)', 'e.g. /events/'],
             'announcement_starts' => ['datetime', 'Show from (optional)'],
             'announcement_ends' => ['datetime', 'Show until (optional)'],
         ]],

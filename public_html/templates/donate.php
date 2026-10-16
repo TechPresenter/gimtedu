@@ -602,6 +602,13 @@ render_sections($page, function () use ($online, $gateways, $selectedGateway, $b
                         <p>Bank transfers and UPI payments are accepted only from Indian citizens. Email the transaction reference<?= $contactEmail ? ' to ' . e($contactEmail) : '' ?> so that we can verify it and issue your receipt.</p>
                     </details>
                 <?php endif; ?>
+                <?php $sealUrl = function_exists('foundation_seal_url') ? foundation_seal_url() : ''; ?>
+                <?php if ($sealUrl !== ''): ?>
+                    <figure class="fr-seal">
+                        <span class="fr-seal-img"><img src="<?= e($sealUrl) ?>" alt="Official seal of <?= e(site_name()) ?>" width="120" height="120" loading="lazy" decoding="async"></span>
+                        <figcaption><strong>Official seal of <?= e(site_name()) ?></strong><?php if (setting('cin_number') !== ''): ?><small>CIN <?= e(setting('cin_number')) ?></small><?php endif; ?><?php if (setting('ngo_id') !== ''): ?><small>NGO ID <?= e(setting('ngo_id')) ?></small><?php endif; ?></figcaption>
+                    </figure>
+                <?php endif; ?>
                 <p class="fr-summary-help"><?= icon('help-circle') ?><span>Questions? <a href="<?= e(page_url('contact')) ?>">Contact us</a> · <a href="<?= e(page_url('donation-refund-policy')) ?>">Refund policy</a></span></p>
             </aside>
         </div>

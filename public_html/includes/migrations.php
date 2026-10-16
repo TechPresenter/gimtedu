@@ -255,3 +255,47 @@ function migration_104_teacher_form_only(): void
         'Please inform your coordinator in advance if you cannot attend a session or wish to stop volunteering.',
     ]));
 }
+
+/** Donate page shows only the donation form (with the foundation seal beside it); other sections stay, hidden. */
+function migration_105_donate_form_only(): void
+{
+    db_query("UPDATE page_sections s JOIN pages p ON p.id = s.page_id SET s.status = 'hidden'
+              WHERE p.slug = 'donate' AND s.section_type <> 'module' AND s.status = 'visible'");
+}
+
+/** FAQ wording: online donations may now go through Razorpay or Cashfree (only if the answer is still the seeded text). */
+function migration_106_faq_gateway_wording(): void
+{
+    db_query("UPDATE faqs SET answer = REPLACE(answer, 'in the secure Razorpay checkout', 'in the secure checkout of our payment gateway (Razorpay or Cashfree)')
+              WHERE question = 'How can I donate online?' AND answer LIKE 'When online donation is available, go to the Donate page%in the secure Razorpay checkout%'");
+}
+
+/** Privacy policy cookie wording now that our own return-visit cookie also asks for consent (seeded text only). */
+function migration_107_privacy_cookie_wording(): void
+{
+    $old1 = 'If Google Analytics is turned on, you can change your analytics choice at any time with the "Cookie settings" link at the bottom of every page.';
+    $new1 = 'You can change your analytics choice at any time with the "Cookie settings" link at the bottom of every page.';
+    $old2 = '<p>We do not use advertising cookies, and we do not set any analytics cookies unless you allow Google Analytics.</p>';
+    $new2 = '<p>We do not use advertising cookies. Analytics cookies - Google Analytics (if it is turned on) and our own return-visit cookie <em>pwf_vid</em> - are set only if you choose "Allow analytics" in the cookie notice. See <a href="#website-analytics-details">Website analytics: details</a>.</p>';
+    foreach ([[$old1, $new1], [$old2, $new2]] as [$old, $new]) {
+        db_query("UPDATE page_sections s JOIN pages p ON p.id = s.page_id SET s.body = REPLACE(s.body, ?, ?)
+                  WHERE p.slug = 'privacy-policy' AND s.title = 'Website analytics and cookies' AND INSTR(s.body, ?) > 0", [$old, $new, $old]);
+    }
+}
+
+/** Footer link to the public letter verification page (menus are database rows; added once). */
+function migration_108_verify_letter_link(): void
+{
+    if (!table_exists('menu_items') || !db_value("SELECT COUNT(*) FROM pages WHERE slug = 'verify-letter'")) {
+        return;
+    }
+    if (db_value("SELECT COUNT(*) FROM menu_items WHERE url IN ('/verify-letter/', '/verify-letter')")) {
+        return;
+    }
+    $menuId = db_value("SELECT id FROM menus WHERE menu_key = 'footer_legal' LIMIT 1");
+    if (!$menuId) {
+        return;
+    }
+    $sort = (int) db_value('SELECT COALESCE(MAX(sort_order), 0) + 10 FROM menu_items WHERE menu_id = ? AND parent_id IS NULL', [$menuId]);
+    db_query("INSERT INTO menu_items (menu_id, parent_id, label, url, status, sort_order) VALUES (?, NULL, 'Verify a letter', '/verify-letter/', 'visible', ?)", [$menuId, $sort]);
+}

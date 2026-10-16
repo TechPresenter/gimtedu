@@ -242,8 +242,8 @@ function send_csv(string $filename, array $header, iterable $rows): void
 /** Search box + status filter bar used on list pages. */
 function admin_filter_bar(array $statuses = [], array $extra = []): void
 {
-    $q = (string) ($_GET['q'] ?? '');
-    $status = (string) ($_GET['status'] ?? '');
+    $q = get_str('q');
+    $status = get_str('status');
     echo '<form class="filter-row" method="get">';
     foreach ($extra['hidden'] ?? [] as $name => $value) {
         echo '<input type="hidden" name="' . e($name) . '" value="' . e($value) . '">';

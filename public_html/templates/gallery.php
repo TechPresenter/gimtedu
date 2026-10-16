@@ -56,7 +56,7 @@ render_sections($page, function () use ($items, $p, $counts, $mediaType, $otherP
         echo empty_state($mediaType === 'video'
             ? 'Videos of our programmes and events will be added here soon.'
             : 'Photos from our programmes and events will be added here soon. We publish photos of people only with their consent.',
-            $mediaType === 'video' && $otherPage ? 'See the photo gallery' : 'See our events', $mediaType === 'video' && $otherPage ? '/gallery/' : '/events-page/');
+            $mediaType === 'video' && $otherPage ? 'See the photo gallery' : 'See our events', $mediaType === 'video' && $otherPage ? '/gallery/' : '/events/');
     } elseif ($mediaType === 'video') {
         echo '<div class="video-grid">' . $html . '</div>';
         echo '<p class="video-note">' . icon('shield') . '<span>Videos play from YouTube in privacy-enhanced mode and load only when you press play.</span></p>';

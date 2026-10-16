@@ -224,7 +224,12 @@ function old(string $key, $default = '')
         $old = $_SESSION['_old'] ?? [];
         unset($_SESSION['_old']);
     }
-    return $old[$key] ?? $default;
+    $value = $old[$key] ?? $default;
+    // a crafted field[]=x must not reach text fields (e(old('x')) would print "Array"); array fields pass [] or null as default
+    if (is_array($value) && (is_string($default) || is_int($default))) {
+        return $default;
+    }
+    return $value;
 }
 
 /** Error for a field, if any. */

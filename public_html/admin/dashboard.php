@@ -85,7 +85,7 @@ if (admin_can('analytics.view')) {
 }
 if (admin_can('events.manage')) {
     $upcomingEvents = db_rows("SELECT e.id, e.title, e.slug, e.start_datetime, e.end_datetime, e.registration_enabled, e.location, e.event_type, e.capacity,
-                                      (SELECT COUNT(*) FROM event_registrations r WHERE r.event_id = e.id AND r.status <> 'cancelled') AS registered
+                                      (SELECT COUNT(*) FROM event_registrations r WHERE r.event_id = e.id AND r.status IN ('registered','confirmed','attended','no_show')) AS registered
                                FROM events e WHERE e.status = 'published' AND e.start_datetime >= NOW() ORDER BY e.start_datetime LIMIT 5");
 }
 if (admin_can('logs.view')) {

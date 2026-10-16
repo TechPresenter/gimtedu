@@ -1092,7 +1092,7 @@ elseif ($tab === 'behaviour'):
             <section class="panel">
                 <div class="panel-head"><h2>Site searches</h2></div>
                 <?php if ($data['searches']): ?><ul class="da-list"><?php foreach ($data['searches'] as $r): ?><li><span>“<?= e($r['k']) ?>”<br><small class="muted"><?= e($r['p']) ?></small></span><strong><?= number_format((int) $r['n']) ?></strong></li><?php endforeach; ?></ul>
-                <?php else: ?><p class="muted mb-0">Words typed into the website's search boxes (FAQ, articles, campaigns, 404 page) will appear here, with numbers and email addresses removed.</p><?php endif; ?>
+                <?php else: ?><p class="muted mb-0">Words typed into the website's search boxes (FAQ, articles, campaigns, 404 page) will appear here, with email addresses and long numbers (6 or more digits, such as phone numbers) masked.</p><?php endif; ?>
             </section>
         </div>
 
@@ -1352,7 +1352,7 @@ elseif ($tab === 'settings'):
                     <dt>Recording</dt><dd><?= $enhanced ? '<span class="badge badge-green">On</span>' : '<span class="badge badge-gray">Off</span>' ?></dd>
                     <dt>Visits stored</dt><dd><?= number_format((int) $st['sessions']) ?><?= $st['oldest'] ? ' <small class="muted">since ' . e(format_date($st['oldest'])) . '</small>' : '' ?></dd>
                     <dt>Events stored</dt><dd><?= number_format((int) $st['events']) ?></dd>
-                    <dt>Location cache</dt><dd><?= number_format((int) $st['geo']) ?> rows (24 h)</dd>
+                    <dt>Location cache</dt><dd><?= e(da_n((int) $st['geo'], 'row')) ?> (24 h)</dd>
                     <dt>Location source</dt><dd><?= e(analytics_geo_providers()[$provider]) ?></dd>
                     <?php if (setting('geoip_last_ok') !== ''): ?><dt>Last lookup OK</dt><dd><?= e(setting('geoip_last_ok')) ?></dd><?php endif; ?>
                     <?php if (setting('geoip_last_error') !== ''): ?><dt>Last lookup error</dt><dd class="small"><?= e(setting('geoip_last_error')) ?></dd><?php endif; ?>

@@ -18,6 +18,8 @@ foreach (db_rows("SELECT menu_key, name FROM menus WHERE menu_key LIKE 'footer\\
 }
 $contactEmail = setting('contact_email');
 $contactPhone = setting('contact_phone');
+// "Cookie settings" whenever the cookie notice can appear (Google Analytics and/or our own return-visit cookie)
+$consentNeeded = ga_enabled() || (function_exists('analytics_consent_banner_needed') && analytics_consent_banner_needed());
 $regBits = array_filter([
     'CIN' => setting('cin_number'), 'NGO ID' => setting('ngo_id'), 'Reg. No.' => setting('registration_number'), 'PAN' => setting('pan_number'),
     '12A' => setting('reg_12a_number'), '80G' => setting('reg_80g_number'),
@@ -101,8 +103,8 @@ $regBits = array_filter([
         <div class="container footer-bottom-inner">
             <p><?= e(str_replace('{year}', date('Y'), setting('footer_copyright', '© {year} ' . site_name() . '. All Rights Reserved.'))) ?></p>
             <?php if (setting('footer_bottom_links', '1') === '1'): ?>
-                <nav aria-label="Legal"><a href="<?= e(page_url('privacy-policy')) ?>">Privacy</a><a href="<?= e(page_url('terms-conditions')) ?>">Terms</a><a href="<?= e(page_url('donation-refund-policy')) ?>">Refunds</a><a href="<?= e(page_url('report-fraud')) ?>">Report fraud</a><a href="<?= e(page_url('sitemap')) ?>">Sitemap</a><?php if (ga_enabled()): ?><button type="button" class="link-button" data-consent-reset hidden>Cookie settings</button><?php endif; ?></nav>
-            <?php elseif (ga_enabled()): ?>
+                <nav aria-label="Legal"><a href="<?= e(page_url('privacy-policy')) ?>">Privacy</a><a href="<?= e(page_url('terms-conditions')) ?>">Terms</a><a href="<?= e(page_url('donation-refund-policy')) ?>">Refunds</a><a href="<?= e(page_url('report-fraud')) ?>">Report fraud</a><a href="<?= e(page_url('sitemap')) ?>">Sitemap</a><?php if ($consentNeeded): ?><button type="button" class="link-button" data-consent-reset hidden>Cookie settings</button><?php endif; ?></nav>
+            <?php elseif ($consentNeeded): ?>
                 <nav aria-label="Legal"><button type="button" class="link-button" data-consent-reset hidden>Cookie settings</button></nav>
             <?php endif; ?>
         </div>

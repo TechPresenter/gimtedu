@@ -101,7 +101,7 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
     header('Cross-Origin-Opener-Policy: same-origin-allow-popups');
     header("Content-Security-Policy: default-src 'self'; "
         . "script-src 'self' https://checkout.razorpay.com https://*.razorpay.com https://sdk.cashfree.com" . $gaHosts . "; "
-        . "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; "
+        . "style-src 'self' 'unsafe-inline' https://sdk.cashfree.com; img-src 'self' data: blob: https:; font-src 'self'; "
         . "connect-src 'self' https://*.razorpay.com https://*.cashfree.com" . ($gaHosts ? ' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com' : '') . "; "
         . "frame-src 'self' https://*.razorpay.com https://*.cashfree.com https://www.google.com https://maps.google.com https://www.youtube-nocookie.com https://www.youtube.com; "
         . "form-action 'self' https://*.razorpay.com https://*.cashfree.com; base-uri 'self'; object-src 'none'; frame-ancestors 'self'" . (is_https() ? '; upgrade-insecure-requests' : ''));
