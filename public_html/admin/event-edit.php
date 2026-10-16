@@ -915,7 +915,7 @@ admin_page_start($title, array_values(array_filter([
                         <select id="gallery_id" name="gallery_id" required><option value="">Choose…</option><?php foreach ($unlinked as $u): ?><option value="<?= (int) $u['id'] ?>">#<?= (int) $u['id'] ?> <?= e($u['title']) ?><?= $u['media_type'] === 'video' ? ' (video)' : '' ?></option><?php endforeach; ?></select></div>
                     <button class="btn btn-ghost btn-sm" type="submit"><?= icon('link') ?>Link to this event</button>
                 <?php else: ?>
-                    <p class="muted small">Every gallery item is already linked to an event.</p>
+                    <p class="muted small">There are no other gallery items to link. Upload photos here or in the <?= admin_can('gallery.manage') ? '<a href="' . e(admin_url('gallery.php')) . '">gallery</a>' : 'gallery' ?>.</p>
                 <?php endif; ?>
             </form>
         </div>
