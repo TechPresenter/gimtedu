@@ -395,7 +395,9 @@ function paginate(int $total, int $perPage = 20): array
 {
     $pages = max(1, (int) ceil($total / $perPage));
     $page = max(1, min($pages, (int) ($_GET['page'] ?? 1)));
-    return ['total' => $total, 'per_page' => $perPage, 'page' => $page, 'pages' => $pages, 'offset' => ($page - 1) * $perPage];
+    $result = ['total' => $total, 'per_page' => $perPage, 'page' => $page, 'pages' => $pages, 'offset' => ($page - 1) * $perPage];
+    $GLOBALS['seo_pagination'] = $result;   // SEO: " – Page N" titles, self-canonical ?page=N, noindex beyond the last page
+    return $result;
 }
 
 function pagination_links(array $p): string
@@ -405,6 +407,11 @@ function pagination_links(array $p): string
     }
     $query = $_GET;
     $link = function (int $page) use ($query): string {
+        if ($page <= 1) {
+            // page 1 has one address: the list URL without ?page=1
+            unset($query['page']);
+            return $query ? '?' . http_build_query($query) : (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
+        }
         $query['page'] = $page;
         return '?' . http_build_query($query);
     };
@@ -545,6 +552,9 @@ function send_private_file(?string $path, string $downloadName): void
     header('Content-Disposition: attachment; filename="' . $safeName . '"');
     header('X-Content-Type-Options: nosniff');
     header('Cache-Control: private, no-store');
+    if (function_exists('seo_x_robots')) {
+        seo_x_robots(true);   // private documents and certificates are never indexed
+    }
     readfile($full);
     exit;
 }

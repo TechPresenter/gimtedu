@@ -18,7 +18,8 @@ $navGroups = [
         ['widgets.php', 'layers', 'Widgets & Alerts', 'widgets.manage', ['widgets.php']],
         ['settings.php', 'sliders', 'Settings', 'settings.manage', ['settings.php']],
         ['redirects.php', 'refresh', 'Redirects & 404s', 'redirects.manage', ['redirects.php']],
-        ['seo.php', 'search', 'SEO Audit', 'pages.manage', ['seo.php']],
+        // seo.manage comes from the SEO migrations (802/832); without the SEO module admin/seo.php falls back to pages.manage
+        ['seo.php', 'search', 'SEO', function_exists('seo_admin_require_access') ? 'seo.manage' : 'pages.manage', ['seo.php']],
     ],
     'Content' => [
         ['programs.php', 'target', 'Programmes', 'programs.manage', ['programs.php', 'program-edit.php']],

@@ -51,6 +51,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 if (!$file->isFile() || !preg_match('/\.(jpe?g|png|webp)$/i', $name) || preg_match('/-(' . implode('|', IMAGE_VARIANT_WIDTHS) . ')\.[a-z]+$/i', $name)) {
                     continue;
                 }
+                // a .webp next to a JPEG/PNG of the same name is the SEO module's WebP copy, not an upload of its own
+                // (Admin > SEO > Images makes the WebP copies of older uploads in time-limited batches)
+                if (preg_match('/\.webp$/i', $name)) {
+                    $stem = substr($file->getPathname(), 0, -5);
+                    if (is_file($stem . '.jpg') || is_file($stem . '.jpeg') || is_file($stem . '.png')) {
+                        continue;
+                    }
+                }
                 $before = 0;
                 foreach (IMAGE_VARIANT_WIDTHS as $vw) {
                     $before += is_file(image_variant_path($file->getPathname(), $vw)) ? 1 : 0;

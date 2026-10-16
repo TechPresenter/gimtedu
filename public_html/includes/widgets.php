@@ -112,6 +112,10 @@ function whatsapp_chat_url(): string
 /** Google Analytics is configured with a valid measurement id (consent banner + "Cookie settings" link). */
 function ga_enabled(): bool
 {
+    // SEO tags module: a GA4 or a Google Tag Manager id (GTM-only setups need the same single cookie notice)
+    if (function_exists('seo_tags_enabled') && seo_tags_enabled()) {
+        return true;
+    }
     $id = setting('ga_measurement_id');
     return $id !== '' && (bool) preg_match('/^G-[A-Z0-9]{4,15}$/', $id);
 }

@@ -15,6 +15,11 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 // ---------------------------------------------------------------------
 // Special routes
 // ---------------------------------------------------------------------
+// SEO sitemaps module: sitemap index + child sitemaps, robots.txt and the IndexNow key file (it exits when it answers).
+// The two blocks below are the fallback for a site without includes/seo-sitemap.php.
+if (function_exists('seo_sitemap_route')) {
+    seo_sitemap_route($path);
+}
 if ($path === 'sitemap.xml') {
     header('Content-Type: application/xml; charset=utf-8');
     echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n" . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
@@ -66,6 +71,9 @@ if (preg_match('#^api/([a-z][a-z0-9\-]{1,30})$#', $path, $apiMatch)) {
         exit;
     }
     http_response_code(404);
+    if (function_exists('seo_x_robots')) {
+        seo_x_robots();
+    }
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['ok' => false, 'error' => 'Not found']);
     exit;
@@ -82,11 +90,18 @@ if (!is_file(ROOT_PATH . '/install.lock') && !db_value("SELECT COUNT(*) FROM use
 // ---------------------------------------------------------------------
 // Canonical form: lower-case, trailing slash (GET only)
 // ---------------------------------------------------------------------
+// SEO: 301 for repeated slashes (//about/ -> /about/) and similar variants; never touches POST (exits when it redirects)
+if (function_exists('seo_normalise_request')) {
+    seo_normalise_request($path, (string) ($_SERVER['REQUEST_URI'] ?? '/'), $method);
+}
 $rawPath = (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
 $query = (string) ($_SERVER['QUERY_STRING'] ?? '');
 
 // Old or changed addresses -> permanent redirect
 if ($path !== '' && ($redirect = find_redirect($path))) {
+    if (function_exists('seo_normalise_redirect_response')) {
+        seo_normalise_redirect_response($redirect, $query);   // 410 Gone, or the 301/302 (exits)
+    }
     $target = preg_match('#^https?://#i', $redirect['target_url']) ? $redirect['target_url'] : url($redirect['target_url']);
     header('Location: ' . $target . ($query !== '' && strpos($target, '?') === false ? '?' . $query : ''), true, (int) $redirect['status_code'] === 302 ? 302 : 301);
     exit;

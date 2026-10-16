@@ -23,14 +23,28 @@ ServerSignature Off
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Force HTTPS (uncomment once an SSL certificate is active - Hostinger provides free SSL)
-    # RewriteCond %{HTTPS} off
-    # RewriteCond %{HTTP:X-Forwarded-Proto} !https
-    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+    # Canonical address: https://preritwelfarefoundation.org (HTTPS, no www), the same as BASE_URL in config.php.
+    # One permanent (301) redirect, path and query string kept, for pages and static files alike:
+    #   http://www.preritwelfarefoundation.org/x  and  https://www.preritwelfarefoundation.org/x  -> https://preritwelfarefoundation.org/x
+    #   http://preritwelfarefoundation.org/x                                                     -> https://preritwelfarefoundation.org/x
+    # The rules match ONLY these two host names, so localhost, staging copies, preview and temporary hosting
+    # addresses are never redirected. The live site has an SSL certificate (Hostinger free SSL); hPanel "Force HTTPS"
+    # may stay on as well (it gives the same single hop). If the domain ever changes, edit both host names here and
+    # BASE_URL together. /.well-known/ (SSL certificate renewal checks) is left alone.
+    RewriteCond %{REQUEST_URI} !^/\.well-known/
+    RewriteCond %{HTTP_HOST} ^www\.preritwelfarefoundation\.org(?::(?:80|443))?$ [NC]
+    RewriteRule ^ https://preritwelfarefoundation.org%{REQUEST_URI} [L,R=301]
+    RewriteCond %{REQUEST_URI} !^/\.well-known/
+    RewriteCond %{HTTP_HOST} ^preritwelfarefoundation\.org(?::(?:80|443))?$ [NC]
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !^https$ [NC]
+    RewriteRule ^ https://preritwelfarefoundation.org%{REQUEST_URI} [L,R=301]
 
-    # Force the non-www domain (optional)
-    # RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
-    # RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+    # Generic form of the same two rules (for a copy of the site on another domain), kept for reference:
+    #   force HTTPS:     RewriteCond %{HTTPS} off  +  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    #                    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+    #   force non-www:   RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+    #                    RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
 
     # Block access to hidden files/folders such as .git
     RewriteRule (^|/)\.(?!well-known/) - [F,L]

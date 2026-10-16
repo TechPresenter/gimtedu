@@ -42,15 +42,25 @@
 
 ## B. बिल्कुल नई installation (खाली database) — पहली बार
 
-1. **बैकअप लें:** hPanel → Websites → Manage → **Backups** → पुरानी साइट (files + database) का बैकअप।
-2. **पुरानी WordPress फ़ाइलें हटाएँ:** File Manager → `public_html` → `wp-admin`, `wp-content`, `wp-includes`, `wp-*.php`, `index.php`, `.htaccess` आदि डिलीट करें (`.well-known` रहने दें)।
-3. **नया Database बनाएँ:** hPanel → Databases → MySQL Databases → नया database + user (पासवर्ड में **सिर्फ़ अक्षर और अंक**)। पूरा नाम नोट करें (जैसे `u623595918_prerit`)।
-4. **database.sql इम्पोर्ट करें:** phpMyAdmin → वही database → **Import** → `database.sql` → **Go**।
-5. **फ़ाइलें अपलोड करें:** `public_html-upload.zip` को Hostinger के `public_html` में अपलोड करके **Extract** करें (छुपी `.htaccess` फ़ाइलें भी होनी चाहिए)।
-6. **pwf-config.php बनाएँ:** `pwf-config.sample.php` को `pwf-config.php` नाम से कॉपी करें, `BASE_URL`, `DB_NAME`, `DB_USER`, `DB_PASS`, एक लंबी random `INSTALL_KEY` और `APP_KEY` भरें, और इसे **public_html के एक फ़ोल्डर ऊपर** अपलोड करें।
-7. **Installer:** `https://preritwelfarefoundation.org/install.php` → INSTALL_KEY → पहला **Administrator** बनाएँ (कोई default पासवर्ड नहीं)। Installer database को नवीनतम version तक अपने-आप अपडेट करता है।
-8. फिर `pwf-config.php` में `INSTALL_KEY` को `''` करें और `install.php` डिलीट करें।
-9. **SSL:** hPanel में SSL और "Force HTTPS" चालू करें (या `public_html/.htaccess` में Force HTTPS वाली लाइनों से `#` हटाएँ)।
-10. **Admin में:** `/admin/` → My Profile में **Two-step login** चालू करें → Settings में logo, फ़ोन/WhatsApp और सत्यापित रजिस्ट्रेशन विवरण भरें → ऊपर भाग A के स्टेप 5-12 करें।
+> ⚠️ **सिर्फ़ नए या खाली database पर।** `database.sql` पहले सारी tables हटाता है — live site के database में import करने पर सारा डेटा मिट जाएगा। डेटा बचाना है तो भाग A (Upgrade) करें।
 
-**"We will be back shortly" दिखे तो:** database का नाम/यूज़र/पासवर्ड गलत है — hPanel में database user का पासवर्ड reset करके वही `pwf-config.php` में डालें।
+फ़ाइल: `prerit-website-v3-upgrade-1.zip` को कंप्यूटर पर unzip करें — अंदर `public_html-upload.zip`, `database.sql`, `pwf-config.sample.php` और guides हैं।
+
+1. **बैकअप:** hPanel → Websites → Manage → **Backups** → files + database डाउनलोड करें।
+2. **PHP version:** hPanel → Advanced → **PHP Configuration** → PHP **8.1 या 8.2**; extensions `pdo_mysql`, `mbstring`, `gd`, `curl`, `openssl` (और `sodium`) ON।
+3. **पुरानी फ़ाइलें हटाएँ:** File Manager → `public_html` → सब डिलीट करें, सिर्फ़ `.well-known` रहने दें।
+4. **नया Database:** hPanel → Databases → Management → नया database + user (पासवर्ड में **सिर्फ़ अक्षर और अंक**)। पूरे नाम नोट करें (जैसे `u623595918_prerit`)।
+5. **database.sql import:** phpMyAdmin → वही नया database → **Import** → `database.sql` → **Go** → "successfully finished"।
+6. **फ़ाइलें अपलोड:** `public_html` में `public_html-upload.zip` अपलोड → **Extract** (फ़ाइलें सीधे `public_html` में आएँ) → zip डिलीट करें → "Show hidden files" ON करके `.htaccess` मौजूद है, जाँचें।
+7. **pwf-config.php:** `pwf-config.sample.php` की कॉपी `pwf-config.php` नाम से बनाएँ और भरें: `BASE_URL` (`https://preritwelfarefoundation.org`, आख़िर में `/` नहीं), `DB_NAME`, `DB_USER`, `DB_PASS`, लंबी random `INSTALL_KEY`, और `APP_KEY` (उसकी लाइन के आगे का `//` हटाकर 40+ random अक्षर/अंक — बाद में **कभी न बदलें**)। Email के लिए hPanel → Emails में `info@…` mailbox बनाकर `SMTP_PASS` भरें। Razorpay की लाइनें खाली रहने दें। यह फ़ाइल **`public_html` के अंदर नहीं, उसके एक फ़ोल्डर ऊपर** (`domains/preritwelfarefoundation.org/`) अपलोड करें।
+8. **SSL:** hPanel → Security → **SSL** active → **Force HTTPS** ON।
+9. **Installer:** `https://preritwelfarefoundation.org/install.php` → checklist हरी हो → INSTALL_KEY → पहला **Administrator** (12+ अक्षर का मज़बूत पासवर्ड, उसमें नाम/email का हिस्सा नहीं) → "Installation complete"। Installer database को नवीनतम version तक अपने-आप अपडेट करता है।
+10. **Installer बंद करें:** `pwf-config.php` में `define('INSTALL_KEY', '');` और `public_html` से `install.php` डिलीट करें।
+11. **Admin में:** `/admin/` → My Profile → **Two-step login** ON → Settings (logo, फ़ोन/WhatsApp, पता, NGO registration जाँचें, social links, Email → Send test email) → फिर ऊपर भाग A के स्टेप 5-12 (Razorpay की **नई** secret, seal, hero images, Programme Categories/Events, campaigns publish, वैकल्पिक AI/Analytics)।
+12. **जाँच:** homepage, footer में CIN/NGO ID/MSME, top bar में "Programs & Events", `/donate/` पर form, `/volunteer-teacher/` पर terms pop-up, और ₹1-10 का एक असली test donation → receipt email।
+
+**दिक्कतें:**
+- "We will be back shortly" → database नाम/user/पासवर्ड गलत; hPanel में DB user का पासवर्ड reset करके वही `pwf-config.php` में डालें (`install.php` पर सही error दिखता है)।
+- 500 error → PHP 8.1/8.2 चुनें।
+- Homepage चले पर बाकी pages 404 → `.htaccess` अपलोड नहीं हुई।
+- Installer "Forbidden" → admin पहले से बन चुका है, सीधे `/admin/` खोलें।

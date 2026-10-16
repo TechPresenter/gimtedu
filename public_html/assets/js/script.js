@@ -954,6 +954,10 @@
     if (consent) {
         var gaId = consent.getAttribute('data-ga');
         var loadGa = function () {
+            // SEO tags module: consent-tags.js owns the Google tag whenever the page carries its configuration (#pwf-tags):
+            // Consent Mode v2, cleaned page_location / page_referrer, GA4 or GTM. On token and account pages that block
+            // says {"off":1} and nothing is loaded at all.
+            if (document.getElementById('pwf-tags')) { if (window.PWFTags) { window.PWFTags.load(); } return; }
             if (!/^G-[A-Z0-9]{4,15}$/.test(gaId) || window.__gaLoaded) { return; }
             window.__gaLoaded = true;
             var sc = document.createElement('script');
@@ -966,6 +970,7 @@
             window.gtag('config', gaId, { anonymize_ip: true });
         };
         var disableGa = function () {
+            if (window.PWFTags) { window.PWFTags.deny(); }
             if (!/^G-[A-Z0-9]{4,15}$/.test(gaId)) { return; }
             window['ga-disable-' + gaId] = true;
             // remove Google Analytics cookies (_ga, _ga_*) on this host and its parent domain
@@ -981,7 +986,9 @@
             });
         };
         var choice = store('local', 'pwf_consent');
-        if (choice === 'yes') { loadGa(); } else if (choice === 'no') { disableGa(); } else { consent.hidden = false; }
+        var gpcNo = false;   // Global Privacy Control and no choice yet = "No" (the Cookie settings link still opens the notice)
+        try { gpcNo = navigator.globalPrivacyControl === true && JSON.parse((document.getElementById('pwf-tags') || {}).textContent || '{}').gpc === 1; } catch (err) { gpcNo = false; }
+        if (choice === 'yes') { loadGa(); } else if (choice === 'no') { disableGa(); } else if (!gpcNo) { consent.hidden = false; }
         // keep the floating buttons and the end of the page above the open notice (analytics.js does the same)
         var syncConsentPad = function () {
             var open = !consent.hidden && consent.offsetHeight > 0;

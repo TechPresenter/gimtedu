@@ -69,6 +69,15 @@ require_once __DIR__ . '/includes/assistant.php';
 require_once __DIR__ . '/includes/analytics.php';
 require_once __DIR__ . '/includes/programhub.php';
 require_once __DIR__ . '/includes/letters.php';
+// SEO modules (Upgrade 2). Every call into them is guarded with function_exists(), so a missing file only switches
+// that feature off: core (head tags, graph, robots, canonicals), sitemaps/robots.txt/URL normalisation, images,
+// admin, tags/consent/verification, E-E-A-T, content migrations.
+foreach (['seo.php', 'seo-sitemap.php', 'seo-images.php', 'seo-admin.php', 'seo-tags.php', 'seo-eeat.php', 'seo-content.php'] as $pwfSeoFile) {
+    if (is_file(__DIR__ . '/includes/' . $pwfSeoFile)) {
+        require_once __DIR__ . '/includes/' . $pwfSeoFile;
+    }
+}
+unset($pwfSeoFile);
 
 // ---------------------------------------------------------------------
 // An install.php from an older package (it does not define PWF_INSTALLER_VERSION) printed server and database details
@@ -112,7 +121,10 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
     $gaHosts = '';
     if (!defined('PWF_INSTALLER')) {
         try {
-            $gaHosts = setting('ga_measurement_id') !== '' ? ' https://www.googletagmanager.com' : '';
+            // SEO tags module: Google hosts only when a valid GA4 or GTM id is configured (one tag mode at a time)
+            $gaHosts = function_exists('seo_csp_google_hosts')
+                ? (seo_csp_google_hosts() ? seo_csp_google_sources()['script-src'] : '')
+                : (setting('ga_measurement_id') !== '' ? ' https://www.googletagmanager.com' : '');
         } catch (Throwable $e) {
             $gaHosts = '';
         }

@@ -272,6 +272,10 @@ function page_header(array $page, array $opts = []): void
         'crumbs'      => $opts['crumbs'] ?? page_crumbs($page),
         'title_plain' => $title,
     ];
+    // SEO core: robots/canonical matrix, titles, Open Graph, the page's @graph (includes/seo.php)
+    if (function_exists('seo_finalize')) {
+        $GLOBALS['seo'] = seo_finalize($GLOBALS['seo'], $page, $opts);
+    }
     $GLOBALS['bodyClass'] = trim('tpl-' . ($page['template'] ?? 'default') . ' ' . ($opts['body_class'] ?? ''));
     track_page_view($page);
     require ROOT_PATH . '/header.php';
@@ -850,6 +854,9 @@ function safe_link(string $href): string
 // ---------------------------------------------------------------------
 function seo_full_title(): string
 {
+    if (function_exists('seo_title')) {
+        return seo_title($GLOBALS['seo'] ?? []);
+    }
     $seo = $GLOBALS['seo'] ?? [];
     if (!empty($seo['is_home'])) {
         return ($seo['title'] && $seo['title'] !== 'Home' ? $seo['title'] : site_name()) . ' - ' . setting('site_tagline_en', 'Together, let us build a better tomorrow');
@@ -936,6 +943,9 @@ function breadcrumb_schema(array $crumbs, string $current): array
 /** All JSON-LD blocks for the current page. */
 function seo_schemas(): array
 {
+    if (function_exists('seo_graph_document')) {
+        return [seo_graph_document()];   // one connected @graph (includes/seo.php)
+    }
     $seo = $GLOBALS['seo'] ?? [];
     $out = [organization_schema()];
     if (!empty($seo['is_home'])) {
@@ -952,6 +962,9 @@ function seo_schemas(): array
 /** FAQPage JSON-LD from FAQ sections rendered on this page (call in the footer, after content). */
 function faq_schema(): ?array
 {
+    if (function_exists('seo_faq_schema')) {
+        return seo_faq_schema();   // FAQPage only where seo_faq_schema_scope allows it (one instance per Q&A)
+    }
     $faqs = $GLOBALS['seo_faqs'] ?? [];
     if (!$faqs) {
         return null;
@@ -1070,6 +1083,10 @@ function track_conversion(string $type, ?int $referenceId = null, ?float $value 
         ]);
     } catch (Throwable $e) {
         error_log('Conversion tracking failed: ' . $e->getMessage());
+    }
+    // SEO tags: queue a consent-gated dataLayer event (enumerations only, never personal data)
+    if (function_exists('seo_queue_event')) {
+        seo_queue_event($type, $value, $referenceId);
     }
 }
 

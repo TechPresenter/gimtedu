@@ -116,7 +116,7 @@ $regBits = array_filter([
 <?= render_security_notice() ?>
 <?= render_consent_banner() ?>
 <?php // module widgets (AI assistant, analytics beacon ...): each hook returns HTML and may add to $GLOBALS['extraScripts']
-foreach (['render_assistant_widget', 'render_analytics_beacon'] as $footerHook) {
+foreach (['render_assistant_widget', 'render_analytics_beacon', 'render_seo_footer'] as $footerHook) {
     if (function_exists($footerHook)) {
         echo $footerHook();
     }

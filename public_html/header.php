@@ -8,6 +8,10 @@ if (!defined('PWF_APP')) {
     exit('Forbidden');
 }
 
+// SEO head: includes/seo.php prints title, description, robots, canonical, Open Graph, Twitter, verification tags and
+// the @graph (seo_head_tags()). The block below is the fallback for a site without that file; never both.
+$seoHead = function_exists('seo_head_tags');
+if (!$seoHead) {
 $seo = $GLOBALS['seo'] ?? ['title' => site_name(), 'description' => setting('seo_default_description'), 'canonical' => abs_url(''), 'og_image' => '', 'og_type' => 'website', 'noindex' => false];
 $fullTitle = seo_full_title();
 $description = excerpt((string) ($seo['description'] ?: setting('seo_default_description')), 300);
@@ -34,6 +38,7 @@ $ogImageUrl = preg_match('#^https?://#', $ogImage) ? $ogImage : abs_url(ltrim($o
 $ogSize = !preg_match('#^https?://#', $ogImage) ? @getimagesize(ROOT_PATH . '/' . ltrim($ogImage, '/')) : false;
 $ogLarge = !$ogSize || ($ogSize[0] >= 600 && $ogSize[0] !== $ogSize[1]);
 $ogTitle = !empty($seo['is_home']) ? $fullTitle : (string) ($seo['title'] ?? $fullTitle);
+}
 $headerUser = current_user();
 $mainMenu = menu_tree('main');
 $topbarMenu = setting('topbar_enabled', '1') === '1' ? menu_tree('topbar') : [];
@@ -81,11 +86,14 @@ if (setting('mobile_nav_strip', '1') === '1') {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#146B43">
+<?php if ($seoHead): ?>
+<?= seo_head_tags('meta') ?>
+<?php else: ?>
     <title><?= e($fullTitle) ?></title>
     <meta name="description" content="<?= e($description) ?>">
     <?php if (!empty($seo['noindex'])): ?><meta name="robots" content="noindex, nofollow"><?php else: ?><meta name="robots" content="index, follow, max-image-preview:large"><?php endif; ?>
     <link rel="canonical" href="<?= e($seo['canonical']) ?>">
-    <meta name="theme-color" content="#146B43">
     <meta property="og:type" content="<?= e($seo['og_type'] ?? 'website') ?>">
     <meta property="og:site_name" content="<?= e(site_name()) ?>">
     <meta property="og:locale" content="en_IN">
@@ -101,7 +109,8 @@ if (setting('mobile_nav_strip', '1') === '1') {
     <meta name="twitter:description" content="<?= e(excerpt($description, 200)) ?>">
     <meta name="twitter:image" content="<?= e($ogImageUrl) ?>">
     <meta name="twitter:image:alt" content="<?= e($ogImageAlt !== '' ? $ogImageAlt : $ogTitle) ?>">
-    <?php if (setting('google_site_verification')): ?><meta name="google-site-verification" content="<?= e(setting('google_site_verification')) ?>"><?php endif; ?>
+    <?php if (function_exists('seo_verification_tags')): ?><?= seo_verification_tags() ?><?php elseif (setting('google_site_verification')): ?><meta name="google-site-verification" content="<?= e(setting('google_site_verification')) ?>"><?php endif; ?>
+<?php endif; ?>
     <link rel="icon" type="image/png" href="<?= e(setting('favicon_path') ? image_url(setting('favicon_path')) : asset('assets/images/favicon.png')) ?>">
     <link rel="apple-touch-icon" href="<?= e(asset('assets/images/apple-touch-icon.png')) ?>">
     <?php /* every Latin weight used above the fold is ~8 KB: preloading them avoids text reflowing when the font swaps in (layout shift) */ ?>
@@ -115,7 +124,7 @@ if (setting('mobile_nav_strip', '1') === '1') {
     <link rel="stylesheet" href="<?= e(asset('assets/css/modules/' . basename($moduleCss))) ?>">
     <?php endforeach; ?>
     <link rel="stylesheet" href="<?= e(asset('assets/css/responsive.css')) ?>">
-    <?php foreach (seo_schemas() as $schema) { echo json_ld($schema) . "\n"; } ?>
+    <?php if ($seoHead) { echo seo_head_tags('graph'); } else { foreach (seo_schemas() as $schema) { echo json_ld($schema) . "\n"; } } ?>
 </head>
 <body class="<?= e($GLOBALS['bodyClass'] ?? '') ?>" data-motion="<?= $motion ? 'on' : 'off' ?>">
 <a class="skip-link" href="#main">Skip to content</a>

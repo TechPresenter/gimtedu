@@ -275,7 +275,7 @@ function upload_limit_label(): string
  *
  * Returns ['path' => 'uploads/...'] or ['error' => 'message'] or [] when no file was sent.
  */
-function handle_upload(string $field, string $kind, string $folder, bool $required = false): array
+function handle_upload(string $field, string $kind, string $folder, bool $required = false, string $label = ''): array
 {
     $file = $_FILES[$field] ?? null;
     if (!$file || !isset($file['error']) || is_array($file['error']) || $file['error'] === UPLOAD_ERR_NO_FILE) {
@@ -327,7 +327,9 @@ function handle_upload(string $field, string $kind, string $folder, bool $requir
     }
 
     $ext = $ext === 'jpeg' ? 'jpg' : $ext;
-    $name = date('Ymd') . '-' . bin2hex(random_bytes(12)) . '.' . $ext;
+    // public images may get a descriptive name from $label (title or alt text, never the original file name);
+    // private folders and calls without a label keep the anonymous date + random name
+    $name = function_exists('seo_upload_filename') ? seo_upload_filename($folder, $ext, $label) : date('Ymd') . '-' . bin2hex(random_bytes(12)) . '.' . $ext;
     $target = $dir . '/' . $name;
 
     $saved = false;
@@ -343,6 +345,9 @@ function handle_upload(string $field, string $kind, string $folder, bool $requir
     if ($kind === 'image' && !in_array($top, ['documents', 'certificates'], true)) {
         try {
             make_image_variants($target);
+            if (function_exists('seo_make_webp')) {
+                seo_make_webp($target);   // WebP copies of the original and its -640/-1080 copies (public folders only)
+            }
         } catch (Throwable $e) {
             error_log('Image variants failed for ' . $name . ': ' . $e->getMessage());
         }
@@ -375,6 +380,10 @@ function reencode_image(string $source, string $target, string $mime): bool
     }
     if (!$img) {
         return false;
+    }
+    // SEO images: phone photos carry their rotation in EXIF, which re-encoding drops, so turn the pixels upright first
+    if ($mime === 'image/jpeg' && function_exists('seo_apply_exif_orientation')) {
+        $img = seo_apply_exif_orientation($img, $source, $mime);
     }
 
     $w = imagesx($img);
@@ -477,5 +486,8 @@ function delete_upload(?string $path): void
                 @unlink($variant);
             }
         }
+    }
+    if (function_exists('seo_delete_derivatives')) {
+        seo_delete_derivatives($path);   // .webp copies and uploads/og/ social crops
     }
 }
