@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Avatar, Badge, Button, ProgressBar, StatusBadge } from '@/components/ui';
 import { apiUrl } from '@/lib/api';
 import { appUrl } from '@/lib/config';
-import { formatDate, formatMoney, isoDate } from '@/lib/format';
+import { formatDate, formatMoney, formatPhone, isoDate, telHref } from '@/lib/format';
 import type { BadgeColor } from '@/lib/status';
 import type { LibMember, Loan, LoanState, MemberType } from './types';
 
@@ -147,8 +147,8 @@ export function MemberSummary({ member, blocks, compact, actions }: { member: Li
             <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">{member.membership_no}</span>
             {member.code && <span>ID {member.code}</span>}
             {member.phone && (
-              <a href={`tel:${member.phone.replace(/\s/g, '')}`} className="inline-flex items-center gap-1 hover:text-brand-700 dark:hover:text-brand-300">
-                <Phone className="h-3 w-3" /> {member.phone}
+              <a href={telHref(member.phone)} className="inline-flex items-center gap-1 hover:text-brand-700 dark:hover:text-brand-300">
+                <Phone className="h-3 w-3" /> {formatPhone(member.phone)}
               </a>
             )}
             {member.email && !compact && (

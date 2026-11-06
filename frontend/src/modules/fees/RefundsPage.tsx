@@ -167,7 +167,7 @@ function MarkPaidModal({ row, onClose, onDone }: { row: Row | null; onClose: () 
         </>
       }
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field htmlFor="refund-paid-via" label="Paid via" required error={errors.mode}>
           <Select id="refund-paid-via" value={values.mode} onChange={(e) => set('mode', e.target.value)} options={modes} />
         </Field>

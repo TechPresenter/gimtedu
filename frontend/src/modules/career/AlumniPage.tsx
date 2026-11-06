@@ -6,7 +6,7 @@ import type { CrudBulkAction } from '@/components/crud';
 import { api, ApiError } from '@/lib/api';
 import { useApi } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
-import { formatNumber } from '@/lib/format';
+import { formatNumber, formatPhone } from '@/lib/format';
 import type { Row } from '@/lib/types';
 import { DirectoryOverview, type AlumniDashboard } from './alumni/DirectoryOverview';
 import { ImportStudentsModal } from './alumni/ImportStudentsModal';
@@ -95,7 +95,7 @@ export default function AlumniPage() {
             bulkActions={bulkActions}
             renderers={{
               name: (r) => (
-                <BoundedPerson name={String(r.name)} photo={r.photo} sub={r.email ?? r.phone} to={`/alumni/${r.id}`} className="min-w-[10.5rem] max-w-[13rem]"
+                <BoundedPerson name={String(r.name)} photo={r.photo} sub={r.email ?? (r.phone ? formatPhone(r.phone) : undefined)} to={`/alumni/${r.id}`} className="min-w-[10.5rem] max-w-[13rem]"
                   badge={Number(r.is_mentor) ? <Handshake className="h-3.5 w-3.5 shrink-0 text-violet-600 dark:text-violet-300" aria-label="Mentor" /> : undefined} />
               ),
               batch_year: (r) => <TwoLine title={String(r.batch_year)} sub={r.program_short} className="min-w-[4.5rem] max-w-[6rem] text-center" />,

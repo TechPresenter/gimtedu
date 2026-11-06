@@ -88,12 +88,28 @@ export function trapFocus(root: HTMLElement, initial?: HTMLElement | null): () =
     }
     const first = items[0];
     const last = items[items.length - 1];
-    if (e.shiftKey && (document.activeElement === first || !root.contains(document.activeElement))) {
+    const active = document.activeElement;
+    if (!active || !root.contains(active)) {
+      // focus is outside (e.g. clicked away): bring it back to the nearest end
       e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
+      (e.shiftKey ? last : first).focus();
+      return;
+    }
+    // the dialog card itself (tabindex=-1, focused on automatic open) or a non-tabbable element inside: wrap when there
+    // is no tabbable element before / after it in document order — the browser would otherwise leave the dialog
+    const FOLLOWING = Node.DOCUMENT_POSITION_FOLLOWING;
+    if (e.shiftKey) {
+      const hasBefore = items.some((el) => el !== active && el.compareDocumentPosition(active) & FOLLOWING);
+      if (active === first || !hasBefore) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      const hasAfter = items.some((el) => el !== active && active.compareDocumentPosition(el) & FOLLOWING);
+      if (active === last || !hasAfter) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   };
   document.addEventListener('keydown', onKey);

@@ -12,7 +12,7 @@ require_once APP_ROOT . '/app/services/dashboard.php';
 
 route('GET', '/dashboard', function () {
     api_require('dashboard', 'view');
-    $sid = isset($_GET['session_id']) && ctype_digit((string) $_GET['session_id']) ? (int) $_GET['session_id'] : current_session_id();
+    $sid = isset($_GET['session_id']) && ctype_digit(api_str($_GET['session_id'])) ? (int) $_GET['session_id'] : current_session_id();
     api_ok(dashboard_payload((int) user_id(), $sid, !empty($_GET['refresh'])));
 });
 

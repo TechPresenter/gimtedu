@@ -90,7 +90,7 @@ function BulkGenerateModal({ open, onClose, onDone }: { open: boolean; onClose: 
             placeholder="Select a program"
           />
         </Field>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Semester" htmlFor="bulk-semester">
             <Select id="bulk-semester" value={semester} onChange={(e) => { setSemester(e.target.value); setSectionId(null); }} options={SEMESTERS} placeholder="All semesters" />
           </Field>

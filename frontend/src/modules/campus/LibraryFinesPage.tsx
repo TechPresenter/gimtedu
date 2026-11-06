@@ -145,6 +145,9 @@ export default function LibraryFinesPage() {
         emptyTitle="No fines"
         emptyText="Fines are raised automatically for late, lost or damaged returns. Add a manual fine for other charges."
         rowMenu={rowMenu}
+        // paid and waived fines belong to the receipt audit trail: the server refuses edits and deletes
+        canEdit={(r) => r.status === 'unpaid'}
+        canDelete={(r) => r.status === 'unpaid'}
         bulkActions={[
           ...(s?.can_collect
             ? [{ label: 'Collect', icon: HandCoins, onClick: async (ids: number[], clear: () => void) => { const sel = await resolve(ids, clear); if (sel) setCollect(sel); } }]

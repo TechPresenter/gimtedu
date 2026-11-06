@@ -8,7 +8,7 @@ import { CrudFormModal } from '@/components/crud';
 import { useApi, useCrudMeta } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
 import type { ApiError } from '@/lib/api';
-import { formatMoney, formatMoneyShort, formatNumber, formatTime, timeAgo } from '@/lib/format';
+import { formatMoney, formatMoneyShort, formatNumber, formatTime, telHref, timeAgo } from '@/lib/format';
 import { COMPLAINT_COLORS, ExpiryCell, OccupancyBar, PRIORITY_COLORS, VEHICLE_TYPES, openPrint, useTransportRefresh } from './shared';
 import { StopsManager } from './components/StopsManager';
 import type { RouteDetail } from './types';
@@ -116,7 +116,7 @@ export default function RouteDetailPage() {
                               <div key={c.role} className="flex items-center justify-between gap-2">
                                 {c.name ? <PersonCell name={c.name} sub={c.role} src={c.photo} size="sm" /> : <span className="text-xs text-slate-400">{c.role}: not assigned</span>}
                                 {c.phone && (
-                                  <a href={`tel:${String(c.phone).replace(/\s/g, '')}`} className="btn-icon !h-8 !w-8" aria-label={`Call ${c.name}`}>
+                                  <a href={telHref(String(c.phone))} className="btn-icon !h-8 !w-8" aria-label={`Call ${c.name}`}>
                                     <Phone className="h-4 w-4" />
                                   </a>
                                 )}

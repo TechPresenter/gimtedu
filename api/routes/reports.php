@@ -67,7 +67,7 @@ route('GET', '/reports/{key:[a-z_]+}/meta', function ($p) {
 route('GET', '/reports/{key:[a-z_]+}/export', function ($p) {
     $def = reports_api_def($p['key']);
     api_require('reports', 'export');
-    $format = (string) ($_GET['format'] ?? 'csv');
+    $format = api_str($_GET['format'] ?? null, 'csv');
     if (!in_array($format, ['csv', 'xlsx'], true)) {
         api_error('Choose CSV or Excel. Use the print view for PDF.', 422);
     }
@@ -78,8 +78,8 @@ route('GET', '/reports/{key:[a-z_]+}', function ($p) {
     $def = reports_api_def($p['key']);
     $f = reports_filters($def, $_GET);
     [$page, $perPage] = api_pagination(25);
-    $sort = isset($_GET['sort']) ? (string) $_GET['sort'] : null;
-    $dir = isset($_GET['dir']) ? (string) $_GET['dir'] : null;
+    $sort = isset($_GET['sort']) ? api_str($_GET['sort']) : null;
+    $dir = isset($_GET['dir']) ? api_str($_GET['dir']) : null;
     $run = reports_run($def, $f, $page, $perPage, $sort, $dir);
     api_ok([
         'key' => $def['key'],

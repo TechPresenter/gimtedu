@@ -11,7 +11,7 @@ import { CrudTable } from '@/components/crud';
 import { useApi, useCrudList } from '@/lib/queries';
 import { useDebounce } from '@/lib/hooks';
 import { useAuth } from '@/lib/auth';
-import { formatDate, formatMoney, formatMoneyShort, formatNumber, formatTime, labelize } from '@/lib/format';
+import { formatDate, formatMoney, formatMoneyShort, formatNumber, formatPhone, formatTime, labelize, telHref } from '@/lib/format';
 import type { Paginated, Row } from '@/lib/types';
 import { OccupancyBar, SummaryStrip, openPrint, useRouteOptions } from './transport/shared';
 import { AllocationFormModal, CancelAllocationModal, RaiseInvoiceModal, TransferModal, type AllocatePrefill } from './transport/components/AllocationDialogs';
@@ -269,7 +269,7 @@ function PendingPanel({ onAllocate }: { onAllocate: (s: PendingStudent) => void 
         <PersonCell name={r.name} src={r.photo} to={`/students/${r.id}`} sub={`${r.student_uid}${r.program ? ` · ${r.program} Sem ${r.current_semester ?? ''}` : ''}`} />
       ),
     },
-    { key: 'mobile', header: 'Mobile', render: (r) => (r.mobile ? <a href={`tel:${r.mobile.replace(/\s/g, '')}`} className="whitespace-nowrap hover:text-brand-700">{r.mobile}</a> : '—') },
+    { key: 'mobile', header: 'Mobile', render: (r) => (r.mobile ? <a href={telHref(r.mobile)} className="whitespace-nowrap hover:text-brand-700">{formatPhone(r.mobile)}</a> : '—') },
     { key: 'city', header: 'Lives in', render: (r) => <span className="block max-w-[16rem] truncate" title={r.address ?? ''}>{[r.city, r.address].filter(Boolean).join(' · ') || '—'}</span> },
     { key: 'admission_date', header: 'Admitted', render: (r) => <span className="whitespace-nowrap">{formatDate(r.admission_date)}</span> },
   ];

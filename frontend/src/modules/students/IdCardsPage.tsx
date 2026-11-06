@@ -70,7 +70,7 @@ export default function IdCardsPage() {
         }
       />
 
-      <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
         <div className="space-y-5">
           <Card>
             <CardHeader title="Choose students" icon={UsersRound} />
@@ -153,14 +153,14 @@ export default function IdCardsPage() {
               {!enabled ? (
                 <EmptyState icon={CreditCard} title="Choose a class or pick students" description="Select a program (optionally semester, section or batch), or search for individual students to preview their ID cards." />
               ) : q.isLoading ? (
-                <div className="grid gap-5 xl:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="aspect-[85.6/54] w-full rounded-xl" />)}</div>
+                <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="aspect-[85.6/54] w-full rounded-xl" />)}</div>
               ) : q.error ? (
                 <Alert variant="error" title="Unable to load students">{(q.error as Error).message}</Alert>
               ) : !rows.length ? (
                 <EmptyState icon={Search} title="No students match" description="Try another section, batch or status." />
               ) : (
                 <>
-                  <ul className="grid gap-x-6 gap-y-7 2xl:grid-cols-2">
+                  <ul className="grid grid-cols-1 gap-x-6 gap-y-7 2xl:grid-cols-2">
                     {rows.slice(0, shown).map((r, i) => {
                       const on = !excluded.has(r.id);
                       return (

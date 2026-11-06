@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { BadgeCheck, CalendarClock, CheckCircle2, CircleDashed, ClipboardCheck, Download, ExternalLink, Pencil, Trash2, UserX, XCircle } from 'lucide-react';
-import { Alert, Badge, Button, DescriptionList, Drawer, Dropdown, IconButton, PageLoader, PersonCell, StatusBadge, useConfirm, useToast } from '@/components/ui';
+import { Alert, Badge, Button, DescriptionList, Drawer, Dropdown, IconButton, PageLoader, PersonCell, PhoneLink, StatusBadge, useConfirm, useToast } from '@/components/ui';
 import { CrudFormModal } from '@/components/crud';
 import { api, ApiError } from '@/lib/api';
 import { useApi, useCrudMeta } from '@/lib/queries';
@@ -196,7 +196,7 @@ export function ApplicationDrawer({ id, onClose }: { id: number | null; onClose:
                     { label: 'Previous %', value: s.previous_percentage ? `${Number(s.previous_percentage)}%` : null },
                     { label: 'Applied on', value: formatDate(a.applied_at) },
                     { label: 'Email', value: s.email ? <a className="link !font-normal" href={`mailto:${s.email}`}>{s.email}</a> : null },
-                    { label: 'Mobile', value: s.mobile },
+                    { label: 'Mobile', value: s.mobile ? <PhoneLink value={s.mobile} className="link !font-normal" /> : null },
                     { label: 'Other offers', value: data.other_offers.length ? data.other_offers.map((o) => `${o.company_name} (${lpa(o.package_lpa)}, ${o.status})`).join('; ') : 'None' },
                     ...(a.remarks ? [{ label: 'Remarks', value: a.remarks, full: true }] : []),
                   ]}

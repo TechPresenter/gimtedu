@@ -12,15 +12,20 @@ $sections = hm_sections();
 site_header([
     'active' => 'home',
     'seo' => ['route', '/'],
-    'description' => 'Global Institute of Management & Technology (GIMT), Greater Noida — industry-focused UG, PG, diploma and certificate programs in management, technology, commerce and computer applications, with scholarships, placements and a green campus.',
+    'description' => 'Global Institute of Management & Technology (GIMT), Noida — industry-focused UG, PG, diploma and certificate programs in management, technology, commerce and computer applications, with scholarships, placements and a green campus.',
     'image' => 'assets/images/site/hero-campus-students.jpg',
     'preload' => hm_preload($sections),
     'schema' => hm_schema($sections),
 ]);
 
 $prev = null;
+// CMS › Banners › "Promo strip": a slim promo bar after the Programs section (after the hero when Programs is off)
+$stripAfter = isset($sections['programs']) ? 'programs' : (string) array_key_first($sections);
 foreach ($sections as $key => $section) {
     echo hm_render($key, $section, $prev);
+    if ($key === $stripAfter) {
+        echo site_promo_strip();
+    }
     $prev = $key;
 }
 

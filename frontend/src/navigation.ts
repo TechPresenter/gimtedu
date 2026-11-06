@@ -1,14 +1,23 @@
 import {
-  Award, BadgeCheck, BedDouble, Bot, BriefcaseBusiness, Bus, CalendarCheck, CalendarDays, CalendarRange, ChartColumn, ChartPie, ClipboardList, Database, Globe,
-  GraduationCap, HandCoins, History, IndianRupee, Inbox, LayoutDashboard, Library, Mail, Megaphone, MessageCircle, MessageSquare, School, Settings,
-  ShieldCheck, UserCog, UserPlus, Users, UsersRound, Wallet, type LucideIcon,
+  Award, BadgeCheck, BedDouble, Bot, BriefcaseBusiness, Bus, CalendarCheck, CalendarClock, CalendarDays, CalendarRange, ChartColumn, ChartNoAxesCombined, ChartPie,
+  ClipboardList, Contact, Database, Globe, GraduationCap, HandCoins, History, IndianRupee, Inbox, LayoutDashboard, LibraryBig, Library, Mail, Megaphone,
+  MessageCircle, MessageSquare, MessagesSquare, PencilRuler, Plug, School, Send, Settings, Settings2, ShieldCheck, Target, UserCog, UserPlus, Users,
+  UsersRound, Wallet, Webhook, Workflow, Zap, type LucideIcon,
 } from 'lucide-react';
 import type { PermissionAction } from '@/lib/auth';
+
+/** A permission module key, or a list of keys of which the user needs the action on at least one. */
+export type PermSpec = string | readonly string[];
+
+/** True when `can` allows `action` on the module (on any of them for a list). */
+export function permAllowed(can: (module: string, action?: PermissionAction) => boolean, perm: PermSpec, action: PermissionAction = 'view'): boolean {
+  return typeof perm === 'string' ? can(perm, action) : perm.some((m) => can(m, action));
+}
 
 export interface NavChild {
   label: string;
   to: string;
-  perm: string;
+  perm: PermSpec;
   action?: PermissionAction;
 }
 
@@ -17,7 +26,7 @@ export interface NavItem {
   label: string;
   icon: LucideIcon;
   to?: string;
-  perm: string;
+  perm: PermSpec;
   action?: PermissionAction;
   children?: NavChild[];
   /** extra path prefixes that should mark the item active */
@@ -72,7 +81,7 @@ export const NAVIGATION: NavGroup[] = [
           { label: 'Semesters', to: '/academics?tab=semesters', perm: 'academics' },
           { label: 'Subjects', to: '/academics?tab=subjects', perm: 'academics' },
           { label: 'Sections & Batches', to: '/academics?tab=sections', perm: 'academics' },
-          { label: 'Classrooms', to: '/academics?tab=rooms', perm: 'academics' },
+          { label: 'Classrooms & Time Slots', to: '/academics?tab=rooms', perm: 'academics' },
           { label: 'Faculty Assignments', to: '/academics?tab=assignments', perm: 'academics' },
         ],
       },
@@ -83,6 +92,7 @@ export const NAVIGATION: NavGroup[] = [
           { label: 'Student Attendance', to: '/attendance', perm: 'attendance' },
           { label: 'Faculty & Staff Attendance', to: '/attendance/employees', perm: 'attendance' },
           { label: 'Attendance Reports', to: '/attendance/reports', perm: 'attendance' },
+          { label: 'Attendance Defaulters', to: '/attendance/reports?tab=defaulters', perm: 'attendance' },
         ],
       },
       {
@@ -183,6 +193,7 @@ export const NAVIGATION: NavGroup[] = [
         key: 'alumni', label: 'Alumni', icon: UsersRound, perm: 'alumni', match: ['/alumni'],
         children: [
           { label: 'Alumni Directory', to: '/alumni', perm: 'alumni' },
+          { label: 'Mentorships', to: '/alumni?tab=mentors', perm: 'alumni' },
           { label: 'Alumni Events', to: '/alumni/events', perm: 'alumni' },
           { label: 'Job Opportunities', to: '/alumni/jobs', perm: 'alumni' },
           { label: 'Success Stories', to: '/alumni/stories', perm: 'alumni' },
@@ -212,6 +223,28 @@ export const NAVIGATION: NavGroup[] = [
     ],
   },
   {
+    // WhatsApp Automation & Student Communication (Interakt) — frontend/src/modules/whatsapp
+    group: 'WhatsApp',
+    items: [
+      { key: 'wa-dashboard', label: 'WhatsApp Dashboard', icon: ChartPie, to: '/whatsapp', perm: ['whatsapp', 'whatsapp_reports', 'whatsapp_settings'] },
+      { key: 'wa-inbox', label: 'WhatsApp Inbox', icon: MessagesSquare, to: '/whatsapp/inbox', perm: 'whatsapp' },
+      { key: 'wa-contacts', label: 'Student Contacts', icon: Contact, to: '/whatsapp/contacts', perm: 'whatsapp_contacts' },
+      { key: 'wa-leads', label: 'Admission Leads', icon: Target, to: '/whatsapp/leads', perm: 'whatsapp_contacts' },
+      { key: 'wa-designer', label: 'Template Designer', icon: PencilRuler, to: '/whatsapp/templates/designer', perm: 'whatsapp_templates', action: 'create' },
+      { key: 'wa-templates', label: 'Template Library', icon: LibraryBig, to: '/whatsapp/templates', perm: 'whatsapp_templates', match: ['/whatsapp/templates/'] },
+      { key: 'wa-campaigns', label: 'Campaign Manager', icon: Send, to: '/whatsapp/campaigns', perm: 'whatsapp_campaigns' },
+      { key: 'wa-automations', label: 'Automation Builder', icon: Workflow, to: '/whatsapp/automations', perm: 'whatsapp_automation' },
+      { key: 'wa-events', label: 'Event Manager', icon: Zap, to: '/whatsapp/events', perm: 'whatsapp_automation' },
+      { key: 'wa-bot', label: 'AI Chatbot', icon: Bot, to: '/whatsapp/chatbot', perm: 'whatsapp_automation' },
+      { key: 'wa-followups', label: 'Follow-up Manager', icon: CalendarClock, to: '/whatsapp/followups', perm: 'whatsapp_contacts' },
+      { key: 'wa-reports', label: 'Reports & Analytics', icon: ChartNoAxesCombined, to: '/whatsapp/reports', perm: 'whatsapp_reports' },
+      { key: 'wa-integrations', label: 'Integrations', icon: Plug, to: '/whatsapp/integrations', perm: 'whatsapp_settings' },
+      { key: 'wa-api', label: 'API & Webhooks', icon: Webhook, to: '/whatsapp/api', perm: 'whatsapp_settings' },
+      { key: 'wa-team', label: 'Team Management', icon: UsersRound, to: '/whatsapp/team', perm: 'whatsapp_settings' },
+      { key: 'wa-settings', label: 'WhatsApp Settings', icon: Settings2, to: '/whatsapp/settings', perm: 'whatsapp_settings' },
+    ],
+  },
+  {
     group: 'Website',
     items: [
       {
@@ -223,12 +256,14 @@ export const NAVIGATION: NavGroup[] = [
           { label: 'Home Page Sections', to: '/cms/homepage', perm: 'cms' },
           { label: 'Banners / Sliders', to: '/cms/banners', perm: 'cms' },
           { label: 'Blog / News', to: '/cms/blog', perm: 'blog' },
+          { label: 'Blog Categories', to: '/cms/blog?tab=categories', perm: 'blog' },
           { label: 'Media Library', to: '/cms/media', perm: 'media' },
           { label: 'Gallery', to: '/cms/gallery', perm: 'media' },
           { label: 'FAQs', to: '/cms/faqs', perm: 'cms' },
           { label: 'Testimonials', to: '/cms/testimonials', perm: 'cms' },
           { label: 'Announcements', to: '/cms/announcements', perm: 'cms' },
           { label: 'SEO Management', to: '/cms/seo', perm: 'seo' },
+          { label: 'Redirects', to: '/redirects', perm: 'seo' },
         ],
       },
     ],

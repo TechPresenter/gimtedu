@@ -12,7 +12,7 @@ import { api, ApiError, apiUrl, downloadFile } from '@/lib/api';
 import { useApi, useCrudList, useInvalidate } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
 import { useDebounce } from '@/lib/hooks';
-import { formatDateTime, formatNumber, labelize, timeAgo } from '@/lib/format';
+import { formatDateTime, formatNumber, formatPhone, labelize, telHref, timeAgo, whatsappHref } from '@/lib/format';
 import type { Row } from '@/lib/types';
 import type { BadgeColor } from '@/lib/status';
 
@@ -126,7 +126,7 @@ export default function ContactMessagesPage() {
         }
       />
       <Card className="overflow-hidden">
-        <div className="grid min-h-[640px] lg:grid-cols-[200px_minmax(300px,380px)_1fr]">
+        <div className="grid grid-cols-1 min-h-[640px] lg:grid-cols-[200px_minmax(300px,380px)_1fr]">
           {/* Folders */}
           <nav aria-label="Folders" className={clsx('border-b border-slate-100 p-3 dark:border-slate-800 lg:border-b-0 lg:border-r', selectedId && 'hidden lg:block')}>
             <ul className="flex gap-1 overflow-x-auto scrollbar-none lg:flex-col">
@@ -368,8 +368,8 @@ function ReadingPane({ id, onBack, onChanged, onDeleted }: { id: number; onBack:
             <p className="font-semibold text-slate-900 dark:text-white">{String(m.name)}</p>
             <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400">
               <a className="inline-flex items-center gap-1 hover:text-brand-700" href={`mailto:${m.email}`}><Mail className="h-3 w-3" />{String(m.email)}</a>
-              {m.phone && <a className="inline-flex items-center gap-1 hover:text-brand-700" href={`tel:${String(m.phone).replace(/\s/g, '')}`}><Phone className="h-3 w-3" />{String(m.phone)}</a>}
-              {m.phone && <a className="inline-flex items-center gap-1 hover:text-brand-700" href={`https://wa.me/${String(m.phone).replace(/\D/g, '')}`} target="_blank" rel="noreferrer"><MessageCircle className="h-3 w-3" />WhatsApp</a>}
+              {m.phone && <a className="inline-flex items-center gap-1 hover:text-brand-700" href={telHref(String(m.phone))}><Phone className="h-3 w-3" />{formatPhone(m.phone)}</a>}
+              {m.phone && <a className="inline-flex items-center gap-1 hover:text-brand-700" href={whatsappHref(m.phone)} target="_blank" rel="noreferrer"><MessageCircle className="h-3 w-3" />WhatsApp</a>}
             </p>
           </div>
           <span className="shrink-0 text-xs text-slate-400" title={formatDateTime(m.created_at)}>{formatDateTime(m.created_at)}</span>

@@ -7,6 +7,7 @@
  */
 
 require_once APP_ROOT . '/app/registry.php';
+require_once APP_ROOT . '/app/services/site_brand.php';
 
 /* ------------------------------------------------------------------
  * Users & roles
@@ -165,9 +166,11 @@ function role_save_permissions(int $roleId, array $keys): array
  * ------------------------------------------------------------------ */
 
 /**
- * Settings dashboard definition. Every key seeded in database/seed/01_core.php appears here, grouped as there.
+ * Settings dashboard definition. Every key seeded in database/seed/01_core.php appears here, grouped as there (except
+ * settings_hidden_keys()).
  * Field: key, label, type (text|email|url|tel|number|select|toggle|color|textarea|password|image|checkboxes),
- *        rules (validate() rules), options, help, placeholder, col (1-12), secret, suffix
+ *        rules (validate() rules), options, help, placeholder, col (1-12), secret, suffix,
+ *        readonly (shown disabled, never saved), format ('approvals': JSON stored, edited as lines)
  */
 function settings_schema(): array
 {
@@ -179,9 +182,6 @@ function settings_schema(): array
     foreach (['d M Y', 'd/m/Y', 'd-m-Y', 'Y-m-d', 'M d, Y', 'd F Y'] as $f) {
         $dateFormats[$f] = date($f, strtotime('2026-10-07')) . '  (' . $f . ')';
     }
-    $fonts = ['Plus Jakarta Sans' => 'Plus Jakarta Sans', 'Inter' => 'Inter', 'Poppins' => 'Poppins', 'Montserrat' => 'Montserrat', 'Roboto' => 'Roboto',
-        'Open Sans' => 'Open Sans', 'Lato' => 'Lato', 'Merriweather' => 'Merriweather (serif)', 'Playfair Display' => 'Playfair Display (serif)'];
-    $hex = ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'];
 
     return [
         'general' => [
@@ -208,6 +208,8 @@ function settings_schema(): array
                     ['key' => 'email', 'label' => 'General email', 'type' => 'email', 'rules' => 'required|email', 'col' => 4],
                     ['key' => 'admission_email', 'label' => 'Admissions email', 'type' => 'email', 'rules' => 'email', 'col' => 4],
                     ['key' => 'support_email', 'label' => 'Support email', 'type' => 'email', 'rules' => 'email', 'col' => 4],
+                    ['key' => 'placement_email', 'label' => 'Placement cell email', 'type' => 'email', 'rules' => 'email', 'col' => 6, 'help' => 'Recruiter enquiries on /placement. Blank = general email.'],
+                    ['key' => 'alumni_email', 'label' => 'Alumni office email', 'type' => 'email', 'rules' => 'email', 'col' => 6, 'help' => 'Shown on /alumni. Blank = general email.'],
                     ['key' => 'website', 'label' => 'Website', 'rules' => 'max:120', 'col' => 6, 'placeholder' => 'www.gimt.ac.in'],
                     ['key' => 'office_hours', 'label' => 'Office hours', 'rules' => 'max:120', 'col' => 6],
                 ]],
@@ -225,19 +227,20 @@ function settings_schema(): array
             ],
         ],
         'website' => [
-            'title' => 'Website', 'icon' => 'globe', 'description' => 'Logo, favicon, brand colours, typography, header and footer of the public website.',
+            'title' => 'Website', 'icon' => 'globe', 'description' => 'Logo, header, announcements, footer, floating buttons, campaign pages and visitor counter of the public website.',
             'sections' => [
                 ['key' => 'branding', 'title' => 'Logo & favicon', 'description' => 'PNG, JPG or WEBP. Transparent PNG recommended for logos.', 'fields' => [
                     ['key' => 'logo', 'label' => 'Logo (light backgrounds)', 'type' => 'image', 'col' => 4, 'default_preview' => 'assets/images/logo.svg'],
                     ['key' => 'logo_white', 'label' => 'Logo (dark backgrounds)', 'type' => 'image', 'col' => 4, 'default_preview' => 'assets/images/logo-white.svg', 'dark' => true],
                     ['key' => 'favicon', 'label' => 'Favicon', 'type' => 'image', 'col' => 4, 'default_preview' => 'assets/images/favicon.svg', 'help' => 'Square image, at least 64×64 px.'],
                 ]],
-                ['key' => 'colors', 'title' => 'Brand colours & typography', 'description' => 'Applied to buttons, headings and highlights on the website.', 'fields' => [
-                    ['key' => 'primary_color', 'label' => 'Primary (navy)', 'type' => 'color', 'rules' => $hex, 'col' => 4],
-                    ['key' => 'accent_color', 'label' => 'Accent (green CTA)', 'type' => 'color', 'rules' => $hex, 'col' => 4],
-                    ['key' => 'secondary_color', 'label' => 'Secondary (blue)', 'type' => 'color', 'rules' => $hex, 'col' => 4],
-                    ['key' => 'heading_font', 'label' => 'Heading font', 'type' => 'select', 'options' => $fonts, 'rules' => 'required', 'col' => 6],
-                    ['key' => 'body_font', 'label' => 'Body font', 'type' => 'select', 'options' => $fonts, 'rules' => 'required', 'col' => 6],
+                // public website colours + fonts (app/services/site_brand.php; client request 2026-10-26). The legacy keys
+                // primary_color / accent_color / heading_font / body_font stay hidden (settings_hidden_keys()).
+                ['key' => 'brand', 'title' => 'Brand colours & fonts', 'description' => 'Applied to the whole public website. Darker and lighter shades are generated automatically and keep text readable. The admin panel, portals and printed documents keep their own look.', 'fields' => [
+                    ['key' => 'site_brand_color', 'label' => 'Brand colour', 'type' => 'color', 'default' => '#0B2A5B', 'rules' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'], 'col' => 3, 'help' => 'Headings, navy bands, navy buttons. A deep shade of this colour is used where text must stay readable. Default #0B2A5B.'],
+                    ['key' => 'site_accent_color', 'label' => 'Accent colour', 'type' => 'color', 'default' => '#F05A28', 'rules' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'], 'col' => 3, 'help' => 'Apply buttons, highlights, icons. Button shades are generated for white text. Default #F05A28.'],
+                    ['key' => 'site_font_heading', 'label' => 'Heading font', 'type' => 'select', 'options' => site_font_options(), 'default' => 'plus-jakarta-sans', 'rules' => 'required', 'col' => 3],
+                    ['key' => 'site_font_body', 'label' => 'Body font', 'type' => 'select', 'options' => site_font_options(), 'default' => 'inter', 'rules' => 'required', 'col' => 3],
                 ]],
                 ['key' => 'header', 'title' => 'Header', 'description' => 'Top bar and call-to-action button.', 'fields' => [
                     ['key' => 'header_cta_text', 'label' => 'CTA button text', 'rules' => 'required|max:40', 'col' => 6],
@@ -245,9 +248,82 @@ function settings_schema(): array
                     ['key' => 'whatsapp_number', 'label' => 'WhatsApp number', 'rules' => ['regex:/^[0-9]{8,15}$/'], 'col' => 6, 'help' => 'Digits only with country code, e.g. 919955446477.'],
                     ['key' => 'show_topbar', 'label' => 'Show top information bar', 'type' => 'toggle', 'col' => 6, 'help' => 'Admissions text, helpline and login links above the header.'],
                 ]],
-                ['key' => 'footer', 'title' => 'Footer', 'description' => 'About text and copyright line. Use {year} for the current year.', 'fields' => [
+                ['key' => 'announcements', 'title' => 'Announcement strip & admission bar', 'description' => 'Messages above the header. Top bar and News ticker items published in CMS › Announcements take priority over the strip text below.', 'fields' => [
+                    ['key' => 'announcement_strip_text', 'label' => 'Announcement strip text', 'type' => 'textarea', 'rules' => 'max:1000', 'col' => 12,
+                        'placeholder' => 'Admissions Open for 2026-27 | Merit scholarships available | Call 99554 46477',
+                        'help' => 'Separate messages with a vertical bar ( | ); up to 8 scroll in the navy strip. Shown while “Show top information bar” is on and no Top bar / News ticker announcement is published. Blank = the admissions banner text.'],
+                    ['key' => 'site_admission_bar', 'label' => 'Show the admission notice bar', 'type' => 'toggle', 'col' => 6, 'help' => 'Orange-red bar under the announcement strip on every page, with the header CTA button. Visitors can dismiss it.'],
+                    ['key' => 'admission_bar_text', 'label' => 'Admission bar text', 'rules' => 'max:160', 'col' => 6, 'placeholder' => 'Admissions Open for 2026-27 · Last date to apply: 30 Nov 2026',
+                        'help' => 'Blank = the admissions banner text (General) plus the application deadline set under Campaign landing pages.'],
+                ]],
+                ['key' => 'footer', 'title' => 'Footer', 'description' => 'About text, copyright line and developer credit. Use {year} for the current year.', 'fields' => [
                     ['key' => 'footer_about', 'label' => 'About text', 'type' => 'textarea', 'rules' => 'max:600', 'col' => 12],
                     ['key' => 'copyright_text', 'label' => 'Copyright text', 'rules' => 'max:255', 'col' => 12],
+                    ['key' => 'footer_credit_text', 'label' => 'Developer credit text', 'rules' => 'max:120', 'col' => 4, 'placeholder' => 'Design, Maintain And Developed By'],
+                    ['key' => 'footer_credit_name', 'label' => 'Developer name', 'rules' => 'max:120', 'col' => 4, 'placeholder' => 'Appsgain Technologies Private Limited'],
+                    ['key' => 'footer_credit_url', 'label' => 'Developer website', 'type' => 'url', 'rules' => ['url', 'max:255', 'regex:/^https?:\/\//'], 'col' => 4, 'placeholder' => 'https://appsgain.in',
+                        'help' => 'Blank fields use the built-in credit.'],
+                ]],
+                ['key' => 'floating', 'title' => 'Floating buttons', 'description' => 'Quick-contact buttons that stay on screen while visitors scroll.', 'fields' => [
+                    ['key' => 'site_chat_style', 'label' => 'WhatsApp chat button', 'type' => 'select', 'rules' => 'required', 'col' => 6,
+                        'options' => ['tab' => '“Chat” side tab + round call button', 'button' => 'Round WhatsApp button', 'none' => 'Hidden'],
+                        'help' => 'Appears only when a WhatsApp number is set under Header.'],
+                    ['key' => 'site_enquiry_tab', 'label' => 'Show the “Enquire Now” side tab', 'type' => 'toggle', 'col' => 6, 'help' => 'Opens the enquiry popup. Never shown on the Apply, Contact and campaign landing pages.'],
+                    ['key' => 'site_mobile_cta', 'label' => 'Show the Call / Apply bar on phones', 'type' => 'toggle', 'col' => 6, 'help' => 'Sticky bar at the bottom of small screens with Call, WhatsApp and the header CTA (not on the Apply page).'],
+                    ['key' => 'site_cursor', 'label' => 'Custom cursor ring (desktop)', 'type' => 'toggle', 'col' => 6, 'help' => 'Decorative ring that follows the mouse pointer on desktop computers.'],
+                ]],
+                ['key' => 'appearance', 'title' => 'Appearance', 'description' => 'Colour theme and the default layout of listing pages. Visitors can still pick their own theme and view (remembered in their browser).', 'fields' => [
+                    ['key' => 'site_theme_default', 'label' => 'Default colour theme', 'type' => 'select', 'options' => ['system' => 'System (follow the visitor’s device)', 'light' => 'Light', 'dark' => 'Dark'], 'rules' => 'required', 'col' => 6],
+                    ['key' => 'site_theme_toggle', 'label' => 'Show the Light / Dark / System switch', 'type' => 'toggle', 'col' => 6, 'help' => 'Off = every visitor sees the default theme.'],
+                    ['key' => 'page_hero_variant', 'label' => 'Inner page header style', 'type' => 'select', 'rules' => 'required', 'col' => 12,
+                        'options' => ['light' => 'Light — warm background with a photo collage', 'dark' => 'Dark — navy band with a photo collage', 'photo' => 'Photo — full-width photo with a navy overlay'],
+                        'help' => 'The title band at the top of inner pages such as About, Programs and Contact. Pages designed with their own style keep it.'],
+                    ['key' => 'view_mode_default', 'label' => 'Default listing view', 'type' => 'select', 'options' => ['grid' => 'Grid', 'list' => 'List', 'compact' => 'Compact', 'detailed' => 'Detailed'], 'rules' => 'required', 'col' => 6, 'help' => 'Used where no page-specific view is set.'],
+                    ['key' => 'view_mode_programs', 'label' => 'Programs page view', 'type' => 'select', 'options' => ['grid' => 'Grid', 'list' => 'List', 'compact' => 'Compact', 'detailed' => 'Detailed'], 'rules' => 'required', 'col' => 6],
+                    ['key' => 'view_mode_faculty', 'label' => 'Faculty directory view', 'type' => 'select', 'options' => ['grid' => 'Grid', 'list' => 'List', 'compact' => 'Compact', 'detailed' => 'Detailed'], 'rules' => 'required', 'col' => 6],
+                    ['key' => 'view_mode_notices', 'label' => 'Notice board view', 'type' => 'select', 'options' => ['grid' => 'Grid', 'list' => 'List', 'compact' => 'Compact', 'detailed' => 'Detailed'], 'rules' => 'required', 'col' => 6],
+                    ['key' => 'view_mode_events', 'label' => 'Events view', 'type' => 'select', 'options' => ['grid' => 'Grid', 'list' => 'List', 'compact' => 'Compact', 'detailed' => 'Detailed'], 'rules' => 'required', 'col' => 6],
+                    ['key' => 'view_mode_news', 'label' => 'News & blog view', 'type' => 'select', 'options' => ['grid' => 'Grid', 'list' => 'List', 'compact' => 'Compact', 'detailed' => 'Detailed'], 'rules' => 'required', 'col' => 6],
+                ]],
+                ['key' => 'enquiry_popup', 'title' => 'Enquiry popup', 'description' => 'The “Get Free Counselling” popup (Enquire Now tab, Request a Callback buttons) and its automatic opening on the homepage — once per visit, never after the visitor has sent an enquiry.', 'fields' => [
+                    ['key' => 'enquiry_modal_image', 'label' => 'Popup photo', 'type' => 'image', 'col' => 4, 'default_preview' => 'assets/images/site/popup-counsellor.webp', 'help' => 'A smiling student or counsellor. A transparent PNG cut-out (about 600×700 px) stands on the gold shape; other photos are shown in a rounded frame.'],
+                    ['key' => 'enquiry_popup_title', 'label' => 'Popup heading', 'rules' => 'max:80', 'col' => 8, 'placeholder' => 'Get [Free Counselling]', 'help' => 'Words in [square brackets] get the yellow-gold highlight.'],
+                    ['key' => 'enquiry_popup_ribbon', 'label' => 'Ribbon text', 'rules' => 'max:60', 'col' => 8, 'placeholder' => 'Admissions Open {session}', 'help' => '{session} is replaced by the admission session, e.g. 2026-27.'],
+                    ['key' => 'enquiry_popup_auto', 'label' => 'Open automatically on the homepage', 'type' => 'toggle', 'col' => 6, 'help' => 'Once per visit; on phones only after the visitor has scrolled or 20 seconds.'],
+                    ['key' => 'enquiry_popup_delay', 'label' => 'Delay before it opens', 'type' => 'number', 'rules' => 'required|integer|min:3|max:60', 'col' => 6, 'suffix' => 'seconds'],
+                ]],
+                ['key' => 'landing', 'title' => 'Campaign landing pages', 'description' => 'The advertising pages at /admissions-open and /admissions-open/{program}. Blank text fields use the built-in wording; program pages use the program name in the headline.', 'fields' => [
+                    ['key' => 'admissions_deadline', 'label' => 'Application deadline', 'rules' => 'date', 'col' => 6, 'placeholder' => '2026-11-30 23:59',
+                        'help' => 'YYYY-MM-DD or YYYY-MM-DD HH:MM. Drives the countdown, the admission bar and the chatbot; hidden once it has passed. Blank = no deadline shown.'],
+                    ['key' => 'landing_scholarship_text', 'label' => 'Scholarship line', 'rules' => 'max:160', 'col' => 6, 'placeholder' => 'Merit scholarships up to 50% of tuition',
+                        'help' => 'Blank = worked out from the active scholarships (highest percentage).'],
+                    ['key' => 'landing_hero_title', 'label' => 'Hero headline', 'rules' => 'max:120', 'col' => 6, 'placeholder' => 'Industry-Ready UG & PG Programs at'],
+                    ['key' => 'landing_hero_pill', 'label' => 'Hero highlighted phrase', 'rules' => 'max:120', 'col' => 6, 'placeholder' => 'Global Institute of Management & Technology', 'help' => 'Second line of the headline, on a pill. Blank = the institute name.'],
+                    ['key' => 'landing_hero_image', 'label' => 'Hero photo', 'type' => 'image', 'col' => 6, 'default_preview' => 'assets/images/site/lp-hero-counsellor.webp',
+                        'help' => 'Tall portrait (about 720×1080 px) beside the form on wide screens. Blank = the built-in admission counsellor photo.'],
+                    ['key' => 'landing_strip_text', 'label' => 'Top strip messages', 'rules' => 'max:500', 'col' => 12, 'placeholder' => 'Admissions open for 2026-27 | Last date to apply: 30 Nov 2026 | Free career counselling',
+                        'help' => 'Separate messages with a vertical bar ( | ). Blank = admissions session, deadline, scholarship line and helpline.'],
+                    ['key' => 'landing_form_title', 'label' => 'Enquiry form heading', 'rules' => 'max:80', 'col' => 4, 'placeholder' => 'Talk to an Admission Expert'],
+                    ['key' => 'landing_form_highlight', 'label' => 'Highlighted words', 'rules' => 'max:60', 'col' => 4, 'placeholder' => 'Admission Expert', 'help' => 'Part of the heading to colour.'],
+                    ['key' => 'landing_form_subtitle', 'label' => 'Form subtitle', 'rules' => 'max:120', 'col' => 4, 'placeholder' => 'Get a Free Career Counselling Session'],
+                    ['key' => 'landing_financing_title', 'label' => 'Fee payment card title', 'rules' => 'max:80', 'col' => 4, 'placeholder' => 'Semester-wise fee payment'],
+                    ['key' => 'landing_financing_text', 'label' => 'Fee payment card text', 'type' => 'textarea', 'rules' => 'max:400', 'col' => 8],
+                    ['key' => 'landing_show_seats', 'label' => 'Show the real seats-filled percentage', 'type' => 'toggle', 'col' => 6, 'help' => 'Confirmed admissions this session against the program intake. Hidden when the intake is not set.'],
+                    ['key' => 'landing_indexable', 'label' => 'Let search engines index these pages', 'type' => 'toggle', 'col' => 6, 'help' => 'Off (recommended for paid-ad pages) = noindex, follow.'],
+                ]],
+                ['key' => 'approvals', 'title' => 'Approvals & affiliations', 'description' => 'Shown as generic emblems (never official logos) on the homepage, Academics and campaign pages. List only approvals GIMT actually holds. Blank = the “Affiliation / approvals” text from General settings.', 'fields' => [
+                    ['key' => 'approvals_list', 'label' => 'Approvals', 'type' => 'textarea', 'format' => 'approvals', 'rules' => 'max:5000', 'col' => 12,
+                        'placeholder' => 'AICTE | Approved by AICTE | Technical & management programs approved by AICTE | seal',
+                        'help' => 'One approval per line: Short label | Full title | Description (optional) | Emblem (optional: seal, laurel, shield, pillars, globe, book or medal).'],
+                ]],
+                ['key' => 'verified_figures', 'title' => 'Verified figures', 'description' => 'Numbers the website may only show when GIMT has entered them from its own records. Leave a field blank to hide that figure (the About and Academics pages then show the years since establishment instead).', 'fields' => [
+                    ['key' => 'student_satisfaction', 'label' => 'Student satisfaction', 'type' => 'number', 'rules' => 'numeric|min:1|max:100', 'col' => 6, 'suffix' => '%', 'help' => 'From the latest annual student feedback survey. Shown on the homepage, About and Academics pages.'],
+                ]],
+                ['key' => 'visitor_counter', 'title' => 'Visitor counter', 'description' => 'The “Unique Visitors / Total Visits” counter in the website footer. Visitors are counted anonymously (cookies listed in the Cookie Policy); bots are never counted. Changes show within a minute.', 'fields' => [
+                    ['key' => 'visitor_counter_enabled', 'label' => 'Count visits and show the counter', 'type' => 'toggle', 'col' => 6, 'help' => 'Off = no visits are recorded and the counter is hidden.'],
+                    ['key' => 'visitor_counter_exclude_admins', 'label' => 'Do not count signed-in users', 'type' => 'toggle', 'col' => 6, 'help' => 'Ignore page views from anyone signed in to SmartCampus (e.g. staff checking the website).'],
+                    ['key' => 'visitor_counter_base_unique', 'label' => 'Carry-over unique visitors', 'type' => 'number', 'rules' => 'required|integer|min:0|max:1000000000', 'col' => 6, 'help' => 'Added to the count, e.g. totals from a previous website. 0 for a new website.'],
+                    ['key' => 'visitor_counter_base_visits', 'label' => 'Carry-over total visits', 'type' => 'number', 'rules' => 'required|integer|min:0|max:1000000000', 'col' => 6, 'help' => 'Added to the count. 0 for a new website.'],
                 ]],
                 ['key' => 'maintenance', 'title' => 'Maintenance mode', 'description' => 'Temporarily show a maintenance page to website visitors. The admin panel stays available.', 'fields' => [
                     ['key' => 'maintenance_mode', 'label' => 'Enable maintenance mode', 'type' => 'toggle', 'col' => 12, 'danger' => true],
@@ -267,6 +343,27 @@ function settings_schema(): array
                     ['key' => 'min_attendance_percent', 'label' => 'Minimum attendance for exams', 'type' => 'number', 'rules' => 'required|numeric|min:0|max:100', 'col' => 6, 'suffix' => '%'],
                     ['key' => 'attendance_alert_threshold', 'label' => 'Low attendance alert below', 'type' => 'number', 'rules' => 'required|numeric|min:0|max:100', 'col' => 6, 'suffix' => '%'],
                     ['key' => 'late_counts_as_present', 'label' => 'Count "late" as present', 'type' => 'toggle', 'col' => 12],
+                    ['key' => 'attendance_edit_days', 'label' => 'Faculty may mark / correct attendance up to', 'type' => 'number', 'rules' => 'required|integer|min:0|max:60', 'col' => 6, 'suffix' => 'days',
+                        'help' => 'Faculty Portal: registers older than this are locked (0 = today only). Administrators can still edit them.'],
+                    ['key' => 'attendance_late_after', 'label' => 'Staff marked late after', 'rules' => ['required', 'regex:/^([01][0-9]|2[0-3]):[0-5][0-9]$/'], 'col' => 3, 'placeholder' => '09:15', 'help' => '24-hour time, HH:MM.'],
+                    ['key' => 'attendance_late_grace_minutes', 'label' => 'Grace period', 'type' => 'number', 'rules' => 'required|integer|min:0|max:120', 'col' => 3, 'suffix' => 'min'],
+                ]],
+                ['key' => 'working_days', 'title' => 'Working days & timetable', 'description' => 'Weekly offs, the last teaching day of the week and the teaching-load limit.', 'fields' => [
+                    ['key' => 'attendance_weekly_off', 'label' => 'Weekly off for attendance registers', 'type' => 'checkboxes', 'col' => 12,
+                        'options' => ['1' => 'Monday', '2' => 'Tuesday', '3' => 'Wednesday', '4' => 'Thursday', '5' => 'Friday', '6' => 'Saturday', '7' => 'Sunday'],
+                        'help' => 'No class registers are expected on these days. None selected = Sunday.'],
+                    ['key' => 'hr_weekly_off', 'label' => 'Weekly off for staff leave & working-day counts', 'type' => 'checkboxes', 'col' => 12,
+                        'options' => ['1' => 'Monday', '2' => 'Tuesday', '3' => 'Wednesday', '4' => 'Thursday', '5' => 'Friday', '6' => 'Saturday', '0' => 'Sunday'],
+                        'help' => 'Leave applications do not count these days.'],
+                    ['key' => 'timetable_last_day', 'label' => 'Timetable runs until', 'type' => 'select', 'options' => ['6' => 'Saturday (Mon–Sat)', '7' => 'Sunday (Mon–Sun)'], 'rules' => 'required', 'col' => 6],
+                    ['key' => 'max_teaching_hours', 'label' => 'Maximum teaching load per faculty (periods a week)', 'type' => 'number', 'rules' => 'required|integer|min:1|max:60', 'col' => 6],
+                ]],
+                ['key' => 'examinations', 'title' => 'Examinations', 'description' => 'Exam eligibility rules and the signatory printed on admit cards and marksheets.', 'fields' => [
+                    ['key' => 'exam_block_fee_dues', 'label' => 'Block admit cards for overdue fees', 'type' => 'toggle', 'col' => 6],
+                    ['key' => 'exam_fee_grace_days', 'label' => 'Fee dues grace period', 'type' => 'number', 'rules' => 'required|integer|min:0|max:365', 'col' => 3, 'suffix' => 'days'],
+                    ['key' => 'exam_max_backlogs', 'label' => 'Maximum backlogs allowed', 'type' => 'number', 'rules' => 'required|integer|min:0|max:50', 'col' => 3],
+                    ['key' => 'exam_controller_name', 'label' => 'Controller of Examinations (name)', 'rules' => 'max:120', 'col' => 6, 'help' => 'Printed under the signature line. Leave blank to print the designation only.'],
+                    ['key' => 'exam_controller_designation', 'label' => 'Designation', 'rules' => 'required|max:120', 'col' => 6, 'placeholder' => 'Controller of Examinations'],
                 ]],
                 ['key' => 'ids', 'title' => 'ID & number formats', 'description' => 'Placeholders: {program}, {year}, {n:3} (running number with 3 digits).', 'fields' => [
                     ['key' => 'student_id_prefix', 'label' => 'Student ID prefix', 'rules' => 'required|alpha_dash|max:12', 'col' => 6],
@@ -306,11 +403,11 @@ function settings_schema(): array
         'payment' => [
             'title' => 'Payment', 'icon' => 'credit-card', 'description' => 'Online payment gateway, taxes, receipt and invoice numbering.',
             'sections' => [
-                ['key' => 'gateway', 'title' => 'Payment gateway', 'description' => 'Keys are stored server-side and never shown again after saving.', 'fields' => [
-                    ['key' => 'payment_gateway', 'label' => 'Gateway', 'type' => 'select', 'options' => ['razorpay' => 'Razorpay', 'payu' => 'PayU', 'ccavenue' => 'CCAvenue', 'stripe' => 'Stripe', 'none' => 'Offline only'], 'rules' => 'required', 'col' => 6],
+                ['key' => 'gateway', 'title' => 'Payment gateway', 'description' => 'Keys are stored server-side and never shown again after saving. Cashfree: Key ID = App ID, Key secret = Secret Key, tick "Online gateway" below, and add the webhook URL ' . absolute_url('api/payments/cashfree/webhook') . ' in the Cashfree dashboard (Developers › Webhooks, payment link events). Students then see "Pay online" on the Student Portal fees page.', 'fields' => [
+                    ['key' => 'payment_gateway', 'label' => 'Gateway', 'type' => 'select', 'options' => ['cashfree' => 'Cashfree', 'razorpay' => 'Razorpay', 'payu' => 'PayU', 'ccavenue' => 'CCAvenue', 'stripe' => 'Stripe', 'none' => 'Offline only'], 'rules' => 'required', 'col' => 6],
                     ['key' => 'gateway_mode', 'label' => 'Mode', 'type' => 'select', 'options' => ['test' => 'Test / sandbox', 'live' => 'Live'], 'rules' => 'required', 'col' => 6],
-                    ['key' => 'gateway_key_id', 'label' => 'Key ID / merchant ID', 'rules' => 'max:190', 'col' => 6],
-                    ['key' => 'gateway_key_secret', 'label' => 'Key secret', 'type' => 'password', 'secret' => true, 'rules' => 'max:255', 'col' => 6],
+                    ['key' => 'gateway_key_id', 'label' => 'Key ID / App ID', 'rules' => 'max:190', 'col' => 6],
+                    ['key' => 'gateway_key_secret', 'label' => 'Key secret / Secret key', 'type' => 'password', 'secret' => true, 'rules' => 'max:255', 'col' => 6],
                     ['key' => 'enabled_payment_modes', 'label' => 'Accepted payment modes', 'type' => 'checkboxes', 'col' => 12, 'rules' => 'required',
                         'options' => ['cash' => 'Cash', 'bank_transfer' => 'Bank transfer / NEFT', 'cheque' => 'Cheque', 'dd' => 'Demand draft', 'upi' => 'UPI', 'card' => 'Card (POS)', 'online' => 'Online gateway']],
                 ]],
@@ -323,6 +420,16 @@ function settings_schema(): array
                     ['key' => 'receipt_prefix', 'label' => 'Receipt number format', 'rules' => 'required|max:60', 'col' => 6],
                     ['key' => 'invoice_prefix', 'label' => 'Invoice number format', 'rules' => 'required|max:60', 'col' => 6],
                     ['key' => 'receipt_footer_note', 'label' => 'Receipt footer note', 'type' => 'textarea', 'rules' => 'max:300', 'col' => 12],
+                ]],
+                ['key' => 'bank', 'title' => 'Bank & UPI details', 'description' => 'For direct fee payments. Shown to students on the Student Portal fees page and printed on fee invoices for direct transfers. Leave blank to hide.', 'fields' => [
+                    ['key' => 'bank_account_name', 'label' => 'Account name', 'rules' => 'max:150', 'col' => 6, 'placeholder' => 'Global Institute of Management & Technology'],
+                    ['key' => 'bank_name', 'label' => 'Bank name', 'rules' => 'max:120', 'col' => 6],
+                    ['key' => 'bank_account_no', 'label' => 'Account number', 'rules' => ['regex:/^[0-9]{6,20}$/'], 'col' => 4, 'help' => 'Digits only.'],
+                    ['key' => 'bank_ifsc', 'label' => 'IFSC', 'rules' => ['regex:/^[A-Z]{4}0[A-Z0-9]{6}$/'], 'case' => 'upper', 'col' => 4, 'placeholder' => 'SBIN0001234'],
+                    ['key' => 'bank_branch', 'label' => 'Branch', 'rules' => 'max:150', 'col' => 4],
+                    ['key' => 'upi_id', 'label' => 'UPI ID', 'rules' => ['regex:/^[A-Za-z0-9._\-]{2,256}@[A-Za-z]{2,64}$/'], 'col' => 4, 'placeholder' => 'gimtfees@sbi'],
+                    ['key' => 'accounts_phone', 'label' => 'Accounts office phone', 'type' => 'tel', 'rules' => 'phone', 'col' => 4, 'help' => 'Blank = the general phone number.'],
+                    ['key' => 'accounts_email', 'label' => 'Accounts office email', 'type' => 'email', 'rules' => 'email', 'col' => 4, 'help' => 'Blank = the general email.'],
                 ]],
             ],
         ],
@@ -340,8 +447,10 @@ function settings_schema(): array
                     ['key' => 'max_login_attempts', 'label' => 'Failed attempts before lockout', 'type' => 'number', 'rules' => 'required|integer|min:1|max:20', 'col' => 4],
                     ['key' => 'lockout_minutes', 'label' => 'Lockout duration', 'type' => 'number', 'rules' => 'required|integer|min:1|max:1440', 'col' => 4, 'suffix' => 'min'],
                     ['key' => 'max_ip_attempts', 'label' => 'Max failed attempts per IP', 'type' => 'number', 'rules' => 'required|integer|min:3|max:500', 'col' => 4],
-                    ['key' => 'two_factor_enabled', 'label' => 'Two-factor authentication (2FA-ready)', 'type' => 'toggle', 'col' => 6, 'help' => 'Prepares accounts for TOTP 2FA enrolment.'],
-                    ['key' => 'trust_proxy_headers', 'label' => 'Trust X-Forwarded-For (behind a proxy / CDN)', 'type' => 'toggle', 'col' => 6, 'help' => 'Enable only when the site is behind a trusted reverse proxy.'],
+                    // read-only: shown for information, never saved (settings_save_group skips 'readonly' fields)
+                    ['key' => 'two_factor_enabled', 'label' => 'Two-factor authentication (coming soon)', 'type' => 'toggle', 'col' => 6, 'readonly' => true,
+                        'help' => 'Authenticator-app (TOTP) sign-in is not part of this release, so this switch cannot be turned on yet. Until then accounts are protected by the password policy, lockout and session timeout.'],
+                    ['key' => 'trust_proxy_headers', 'label' => 'Trust X-Forwarded-For (behind a proxy / CDN)', 'type' => 'toggle', 'col' => 6, 'help' => 'Enable only when the site is behind exactly one trusted reverse proxy / CDN that appends the visitor address (the last X-Forwarded-For entry is used for login limits, lockouts and logs).'],
                 ]],
                 ['key' => 'sessions', 'title' => 'Sessions', 'description' => 'Idle timeout and remember-me duration.', 'fields' => [
                     ['key' => 'session_timeout', 'label' => 'Idle session timeout', 'type' => 'number', 'rules' => 'required|integer|min:5|max:720', 'col' => 6, 'suffix' => 'min'],
@@ -412,12 +521,23 @@ function settings_is_secret_key(string $key): bool
 }
 
 /**
+ * Stored keys that are deliberately not shown or editable in Settings. Older releases seeded website brand colours and
+ * fonts, but nothing reads them: the website design (Design v3 — navy + orange-red, Plus Jakarta Sans + Inter) is fixed
+ * by the CSS tokens. The rows stay in the database untouched.
+ */
+function settings_hidden_keys(): array
+{
+    return ['primary_color', 'accent_color', 'secondary_color', 'heading_font', 'body_font'];
+}
+
+/**
  * Keys stored in a group that are not part of the schema (added by other modules). They are editable as
- * plain text fields in an "Additional settings" section. Internal keys (leading underscore) are hidden.
+ * plain text fields in an "Additional settings" section. Internal keys (leading underscore) and
+ * settings_hidden_keys() are hidden.
  */
 function settings_extra_keys(string $group): array
 {
-    $known = array_keys(settings_fields());
+    $known = array_merge(array_keys(settings_fields()), settings_hidden_keys());
     $rows = db_all('SELECT `key`, `value` FROM settings WHERE `group` = ? ORDER BY `key`', [$group]);
     $out = [];
     foreach ($rows as $r) {
@@ -450,6 +570,79 @@ function settings_extra_field(string $key, $value): array
     return ['type' => 'text'] + $base;
 }
 
+/**
+ * approvals_list is stored as JSON [{label, title, text, icon}] (read by site_approvals() in includes/config.php) and
+ * edited as one line per approval: "Short label | Full title | Description | emblem".
+ */
+function settings_approvals_to_lines(string $json): string
+{
+    $list = json_decode($json, true);
+    if (!is_array($list)) {
+        return trim($json); // not JSON: show it as stored so nothing is lost
+    }
+    $lines = [];
+    foreach ($list as $a) {
+        if (!is_array($a)) {
+            continue;
+        }
+        $parts = array_map(fn ($k) => trim(str_replace(["\r", "\n", '|'], ' ', (string) ($a[$k] ?? ''))), ['label', 'title', 'text', 'icon']);
+        while ($parts && end($parts) === '') {
+            array_pop($parts);
+        }
+        if ($parts) {
+            $lines[] = implode(' | ', $parts);
+        }
+    }
+    return implode("\n", $lines);
+}
+
+/**
+ * Parse the approvals lines (or pasted JSON) back to the stored JSON. Returns [json, null] or [null, error message].
+ * @return array{0: ?string, 1: ?string}
+ */
+function settings_approvals_from_lines(string $text): array
+{
+    $text = trim($text);
+    if (str_starts_with($text, '[') && is_array(json_decode($text, true))) {
+        $text = settings_approvals_to_lines($text);
+    }
+    $emblems = ['seal', 'laurel', 'shield', 'pillars', 'globe', 'book', 'medal'];
+    $out = [];
+    foreach (preg_split('/\R/u', $text) ?: [] as $i => $line) {
+        if (trim($line) === '') {
+            continue;
+        }
+        $n = $i + 1;
+        $p = array_map('trim', explode('|', $line));
+        if (count($p) > 4) {
+            return [null, "Line $n has more than 4 parts. Use: Short label | Full title | Description | Emblem."];
+        }
+        [$label, $title, $desc, $icon] = array_pad($p, 4, '');
+        if ($label === '' && $title === '') {
+            return [null, "Line $n needs a short label or a full title."];
+        }
+        if (mb_strlen($label) > 40 || mb_strlen($title) > 120 || mb_strlen($desc) > 200) {
+            return [null, "Line $n is too long (label up to 40, title up to 120, description up to 200 characters)."];
+        }
+        $icon = strtolower($icon);
+        if ($icon !== '' && !in_array($icon, $emblems, true)) {
+            return [null, "Line $n: the emblem must be one of " . implode(', ', $emblems) . '.'];
+        }
+        $row = ['label' => $label !== '' ? $label : $title, 'title' => $title !== '' ? $title : $label];
+        if ($desc !== '') {
+            $row['text'] = $desc;
+        }
+        if ($icon !== '') {
+            $row['icon'] = $icon;
+        }
+        $out[] = $row;
+    }
+    if (count($out) > 12) {
+        return [null, 'List at most 12 approvals.'];
+    }
+    return [$out ? json_encode($out, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : '', null];
+}
+
 /** Full payload for the settings dashboard (values masked for secrets). */
 function settings_payload(): array
 {
@@ -461,7 +654,11 @@ function settings_payload(): array
         foreach ($def['sections'] as $si => $section) {
             foreach ($section['fields'] as $fi => $f) {
                 $type = $f['type'] ?? 'text';
-                $v = $all[$f['key']] ?? '';
+                // not stored yet: show the default the code already uses (saved once the group is saved)
+                $v = $all[$f['key']] ?? (isset($f['default']) ? (string) $f['default'] : '');
+                if (($f['format'] ?? '') === 'approvals') {
+                    $v = settings_approvals_to_lines((string) $v);
+                }
                 if (!empty($f['secret'])) {
                     $secrets[$f['key']] = $v !== '' && $v !== null;
                     $v = '';
@@ -523,6 +720,9 @@ function settings_save_group(string $group, array $input, array $files = []): ar
     foreach ($fields as $key => $f) {
         $type = $f['type'] ?? 'text';
         $label = $f['label'];
+        if (!empty($f['readonly'])) {
+            continue; // informational field (e.g. two-factor sign-in, coming soon): never saved from input
+        }
         if ($type === 'image') {
             $file = $files[$key] ?? null;
             if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
@@ -553,7 +753,8 @@ function settings_save_group(string $group, array $input, array $files = []): ar
         }
         $value = $input[$key];
         if ($type === 'checkboxes') {
-            $arr = is_array($value) ? $value : array_filter(explode(',', (string) $value));
+            // keep "0" (Sunday in hr_weekly_off): drop empty items only
+            $arr = is_array($value) ? $value : array_filter(explode(',', (string) $value), fn ($x) => trim((string) $x) !== '');
             $allowed = array_map('strval', array_keys($f['options'] ?? []));
             $arr = array_values(array_unique(array_map('strval', $arr)));
             if (array_diff($arr, $allowed)) {
@@ -581,7 +782,7 @@ function settings_save_group(string $group, array $input, array $files = []): ar
                 continue; // blank secret = keep the stored value
             }
         }
-        if ($type === 'color' && $value !== '') {
+        if (($type === 'color' || ($f['case'] ?? '') === 'upper') && $value !== '') {
             $value = strtoupper($value);
         }
         $rules = $f['rules'] ?? [];
@@ -595,6 +796,14 @@ function settings_save_group(string $group, array $input, array $files = []): ar
                 $errors[$key] = $e[$key];
                 continue;
             }
+        }
+        if (($f['format'] ?? '') === 'approvals') {
+            [$json, $err] = settings_approvals_from_lines($value);
+            if ($err !== null) {
+                $errors[$key] = $err;
+                continue;
+            }
+            $value = $json;
         }
         $save[$key] = $value;
     }
@@ -753,8 +962,17 @@ function security_checklist(): array
             : 'The admin panel is being accessed over plain HTTP. Install an SSL certificate and set app.force_https = true.');
 
     $key = (string) (app_config('app')['key'] ?? '');
-    $add('app_key', 'Application secret key set', ($key === '' || $key === 'change-this-key-on-install' || strlen($key) < 32) ? 'fail' : 'pass',
-        ($key === '' || $key === 'change-this-key-on-install' || strlen($key) < 32) ? 'config app.key is missing or still the placeholder. Generate a random 64-character key.' : 'A unique application key is configured (used for signed links and the backup task token).');
+    // the defaults of config/config.php and config/local.example.php are placeholders, never real keys
+    $weakKey = $key === '' || in_array($key, ['change-this-key-on-install', 'generate-a-64-character-random-string'], true) || strlen($key) < 32;
+    $add('app_key', 'Application secret key set', $weakKey ? 'fail' : 'pass',
+        $weakKey ? 'config app.key is missing or still the placeholder. Generate a random 64-character key.' : 'A unique application key is configured (used for signed links and the backup task token).');
+
+    // without a configured site URL, links in password-reset emails / QR codes come from the request's Host header,
+    // which a visitor controls ("reset link poisoning" on a server that answers for any host name)
+    $siteUrl = trim((string) (app_config('app')['url'] ?? ''));
+    $add('site_url', 'Site URL configured', $siteUrl !== '' ? 'pass' : ($dev ? 'warn' : 'fail'),
+        $siteUrl !== '' ? 'Links in emails, QR codes, sitemaps and canonical tags use ' . $siteUrl . '.'
+            : 'app.url is empty: links in password-reset emails and QR codes are built from the Host header of each request. Set app.url (or GIMT_URL) to the live address, e.g. https://www.gimt.ac.in.');
 
     $uploadHt = @file_get_contents(UPLOAD_PATH . '/.htaccess') ?: '';
     $scripts = system_find_upload_scripts();
@@ -795,9 +1013,10 @@ function security_checklist(): array
 
     $add('php_version', 'Supported PHP version', version_compare(PHP_VERSION, '8.1', '>=') ? 'pass' : 'warn', 'PHP ' . PHP_VERSION . (version_compare(PHP_VERSION, '8.1', '>=') ? ' is supported.' : ' is end-of-life — upgrade to 8.1 or newer.'));
 
-    $twoFa = setting('two_factor_enabled', '0') === '1';
-    $add('two_factor', 'Two-factor authentication', $twoFa ? 'pass' : 'info', $twoFa ? '2FA enrolment is enabled for admin accounts.' : 'The panel is 2FA-ready; enable it under Security settings when your team is ready to enrol.',
-        $twoFa ? null : ['label' => 'Security settings', 'to' => '/settings?tab=security']);
+    // Authenticator-app (TOTP) sign-in is not part of this release: report it honestly instead of a "ready" state.
+    $add('two_factor', 'Two-factor authentication (coming soon)', 'info',
+        'Two-factor sign-in with an authenticator app is planned but not available in this release. Accounts are protected by the password policy, lockout after failed attempts and the idle session timeout.',
+        ['label' => 'Password & lockout settings', 'to' => '/settings?tab=security']);
 
     $failed = (int) db_value("SELECT COUNT(*) FROM login_logs WHERE status = 'failed' AND created_at >= NOW() - INTERVAL 1 DAY");
     $add('failed_logins', 'No brute-force activity (24 h)', $failed > 50 ? 'warn' : 'pass', "$failed failed login attempt(s) in the last 24 hours.", $failed > 50 ? ['label' => 'Review', 'to' => '/security?tab=logins'] : null);

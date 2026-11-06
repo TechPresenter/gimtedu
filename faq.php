@@ -108,7 +108,7 @@ page_hero('Frequently Asked Questions', 'Quick answers before you apply', ['FAQs
           <section id="cat-<?= e($key) ?>" class="scroll-mt-28" aria-labelledby="cat-<?= e($key) ?>-title" data-faq-group>
             <h2 id="cat-<?= e($key) ?>-title" class="mb-4 flex items-center gap-3 font-display text-xl font-extrabold text-brand-900">
               <span class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent-50 text-accent-600"><?= icon(cp_faq_icon($key), 'h-5 w-5') ?></span><?= e($g['label']) ?>
-              <span class="text-sm font-semibold text-slate-400">(<?= count($g['items']) ?>)</span>
+              <span class="text-sm font-semibold text-slate-500">(<?= count($g['items']) ?>)</span>
             </h2>
             <div class="space-y-3" data-accordion="multi">
               <?php foreach ($g['items'] as $f): ?>
@@ -185,7 +185,7 @@ page_hero('Frequently Asked Questions', 'Quick answers before you apply', ['FAQs
   </div>
 <?= section_close() ?>
 
-<script>
+<script<?= site_nonce_attr() ?>>
 (function () {
   var input = document.querySelector('[data-faq-search]');
   var groups = [].slice.call(document.querySelectorAll('[data-faq-group]'));

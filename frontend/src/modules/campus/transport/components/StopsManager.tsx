@@ -6,7 +6,7 @@ import { CrudFormModal } from '@/components/crud';
 import { api, type ApiError } from '@/lib/api';
 import { useCrudMeta } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
-import { formatMoney, formatNumber, formatTime, labelize } from '@/lib/format';
+import { formatMoney, formatNumber, formatTime, labelize, telHref } from '@/lib/format';
 import { useTransportRefresh } from '../shared';
 import type { RouteStop } from '../types';
 
@@ -165,7 +165,7 @@ export function StopsManager({ routeId, routeCode, stops }: { routeId: number; r
                               </div>
                               {r.invoice_status && <StatusBadge status={r.invoice_status} dot={false} />}
                               {r.phone && (
-                                <a href={`tel:${String(r.phone).replace(/\s/g, '')}`} className="btn-icon !h-7 !w-7" aria-label={`Call ${r.name}`}>
+                                <a href={telHref(String(r.phone))} className="btn-icon !h-7 !w-7" aria-label={`Call ${r.name}`}>
                                   <Phone className="h-3.5 w-3.5" />
                                 </a>
                               )}

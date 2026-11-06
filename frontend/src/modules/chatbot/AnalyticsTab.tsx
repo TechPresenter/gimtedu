@@ -37,7 +37,7 @@ export default function AnalyticsTab() {
         ]}
       </Stagger>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Reveal className="lg:col-span-2">
           <Card className="h-full">
             <CardHeader title="Daily activity" subtitle="Conversations started, visitor questions and leads per day" icon={TrendingUp} />
@@ -82,7 +82,7 @@ export default function AnalyticsTab() {
         </Reveal>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Reveal>
           <Card className="h-full">
             <CardHeader title="Topics" subtitle="What visitors ask about (detected intent)" icon={HelpCircle} />
@@ -126,7 +126,7 @@ export default function AnalyticsTab() {
         </Reveal>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Reveal>
           <Card className="h-full">
             <CardHeader title="Questions without a matching topic" subtitle="Candidates for new FAQs or knowledge" icon={MessageCircleQuestion} />

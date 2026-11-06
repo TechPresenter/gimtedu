@@ -45,9 +45,13 @@ export interface StudentInfo {
   status: string;
 }
 
+/** Why a new password is required: institute-issued temporary password, password expiry policy, or an admin request. */
+export type PasswordChangeReason = 'temporary' | 'expired' | 'required';
+
 export interface StudentAccount {
   username: string;
   must_change_password: boolean;
+  password_change_reason?: PasswordChangeReason | null;
   theme: 'light' | 'dark' | 'system' | null;
   activated_at: string | null;
   password_changed_at: string | null;
@@ -73,6 +77,7 @@ export interface FacultyAccount {
   username: string;
   email: string;
   must_change_password: boolean;
+  password_change_reason?: PasswordChangeReason | null;
   theme: 'light' | 'dark' | 'system' | null;
   last_login_at: string | null;
   last_login_ip: string | null;

@@ -8,6 +8,7 @@ import type { HeroData } from '../types';
 interface RingSpec {
   key: string;
   label: string;
+  main: string;
   sub: string;
   percent: number | null;
   to: string;
@@ -68,11 +69,14 @@ function Ring({ spec }: { spec: RingSpec }) {
           <Icon className="hidden h-3.5 w-3.5 sm:block" aria-hidden />
           {spec.label}
         </span>
-        <span className="mt-0.5 hidden truncate text-xs text-slate-300 sm:block">{spec.sub}</span>
+        <span className="mt-1 hidden truncate font-display text-sm font-bold text-white sm:block">{spec.main}</span>
+        <span className="hidden truncate text-[11px] text-slate-300 sm:block">{spec.sub}</span>
       </span>
+      {/* aria-hidden keeps the tooltip out of the link's name; aria-describedby still reads it as the description. */}
       <span
         id={tipId}
         role="tooltip"
+        aria-hidden
         className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-max max-w-[15rem] -translate-x-1/2 translate-y-1 rounded-xl bg-white px-3 py-2 text-left text-xs leading-relaxed text-slate-600 opacity-0 shadow-pop ring-1 ring-slate-900/5 transition duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 motion-reduce:transition-none sm:block dark:bg-slate-800 dark:text-slate-300 dark:ring-white/10"
       >
         <span className="block font-semibold text-slate-900 dark:text-white">{spec.label}</span>
@@ -92,7 +96,7 @@ export function ProgressRings({ rings }: { rings: HeroData['rings'] }) {
     const attended = a.present + a.late;
     specs.push({
       key: 'attendance', label: 'Attendance', icon: CalendarCheck, to: '/attendance', percent: a.percent, colors: ['#7DD3FC', '#818CF8'],
-      sub: a.total ? `${formatNumber(attended)} of ${formatNumber(a.total)} present` : 'Not marked yet',
+      main: a.total ? `${formatNumber(attended)} of ${formatNumber(a.total)}` : '—', sub: a.total ? (a.is_today ? 'present today' : `present on ${formatDate(a.date)}`) : 'Not marked yet',
       details: a.total
         ? [`${a.is_today ? 'Today' : `Last marked ${formatDate(a.date)}`}`, `Present ${formatNumber(a.present)} · Late ${formatNumber(a.late)}`, `Absent ${formatNumber(a.absent)} · Leave ${formatNumber(a.leave)}`]
         : ['No student attendance marked yet.'],
@@ -101,8 +105,8 @@ export function ProgressRings({ rings }: { rings: HeroData['rings'] }) {
   const f = rings.fees;
   if (f) {
     specs.push({
-      key: 'fees', label: 'Fee collection', icon: IndianRupee, to: '/fees', percent: f.percent, colors: ['#5EEAD4', '#34D399'],
-      sub: f.billed ? `${formatMoneyShort(f.collected)} of ${formatMoneyShort(f.billed)}` : 'No invoices this session',
+      key: 'fees', label: 'Fees', icon: IndianRupee, to: '/fees', percent: f.percent, colors: ['#5EEAD4', '#34D399'],
+      main: f.billed ? formatMoneyShort(f.collected) : '—', sub: f.billed ? `of ${formatMoneyShort(f.billed)} billed` : 'No invoices this session',
       details: f.billed
         ? [`Collected ${formatMoneyShort(f.collected)} of ${formatMoneyShort(f.billed)} billed`, `${formatNumber(f.invoices)} invoices this session`, `Outstanding ${formatMoneyShort(f.balance)}`]
         : ['No fee invoices raised for this session yet.'],
@@ -111,8 +115,8 @@ export function ProgressRings({ rings }: { rings: HeroData['rings'] }) {
   const ad = rings.admissions;
   if (ad) {
     specs.push({
-      key: 'admissions', label: 'Seats filled', icon: Armchair, to: '/admissions', percent: ad.intake ? ad.percent : null, colors: ['#FDE68A', '#FB923C'],
-      sub: ad.intake ? `${formatNumber(ad.admitted)} of ${formatNumber(ad.intake)} seats` : 'Intake not set',
+      key: 'admissions', label: 'Admissions', icon: Armchair, to: '/admissions', percent: ad.intake ? ad.percent : null, colors: ['#FDE68A', '#FB923C'],
+      main: ad.intake ? `${formatNumber(ad.admitted)} of ${formatNumber(ad.intake)}` : formatNumber(ad.admitted), sub: ad.intake ? 'seats filled' : 'Intake not set',
       details: [
         `${formatNumber(ad.admitted)} students admitted this session`,
         ad.intake ? `Total intake ${formatNumber(ad.intake)} seats (active programs)` : 'Set program intake capacity to track seats.',

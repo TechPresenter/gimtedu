@@ -10,7 +10,7 @@ import { BarChart, DoughnutChart, chartColor } from '@/components/charts';
 import { api, ApiError } from '@/lib/api';
 import { useApi } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
-import { formatDate, formatMoney, formatMoneyShort, formatNumber, timeAgo } from '@/lib/format';
+import { formatDate, formatMoney, formatMoneyShort, formatNumber, formatPhone, timeAgo } from '@/lib/format';
 import { RulesDialog, useLoanActions } from './library/dialogs';
 import { QuickDesk } from './library/QuickDesk';
 import { BookCover, MemberTypeBadge, openPrint, useLibraryRefresh } from './library/shared';
@@ -154,7 +154,7 @@ export default function LibraryDashboardPage() {
                       <Avatar name={l.member.name} src={l.member.photo} size="sm" />
                       <div className="min-w-0 leading-tight">
                         <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{l.member.name}</p>
-                        <p className="truncate text-xs text-slate-500 dark:text-slate-400">{l.member.membership_no} · {l.member.phone ?? l.member.type}</p>
+                        <p className="truncate text-xs text-slate-500 dark:text-slate-400">{l.member.membership_no} · {l.member.phone ? formatPhone(l.member.phone) : l.member.type}</p>
                       </div>
                     </div>
                     <div className="min-w-0 flex-1">

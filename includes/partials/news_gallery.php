@@ -512,9 +512,8 @@ function ng_newsletter_form(string $source, string $variant = 'card'): string
     $id = 'ng-newsletter-' . (++$n);
     $band = $variant === 'band';
     $privacy = ng_route_ok('/privacy-policy') ? ' Read our <a href="' . e(site_url('privacy-policy')) . '" class="underline underline-offset-2 hover:text-brand-900">privacy policy</a>.' : '';
-    return '<form action="' . e(base_url('api/public/newsletter')) . '" method="post" data-ajax-form data-success="Thank you for subscribing! You will now receive admission, campus and event updates." class="' . ($band ? 'w-full' : 'mt-4') . '">'
-        . csrf_field() . '<input type="hidden" name="source" value="' . e($source) . '">'
-        . '<input type="text" name="website" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">'
+    return '<form action="' . e(base_url('api/public/newsletter')) . '" method="post" data-ajax-form' . site_secure_form_attrs('newsletter') . ' data-success="Thank you for subscribing! You will now receive admission, campus and event updates." class="' . ($band ? 'w-full' : 'mt-4') . '">'
+        . csrf_field() . site_secure_form_fields() . '<input type="hidden" name="source" value="' . e($source) . '">'
         . '<label for="' . $id . '" class="' . ($band ? 'form-label' : 'sr-only') . '">Email address</label>'
         . '<div class="flex flex-col gap-2 sm:flex-row' . ($band ? '' : ' lg:flex-col xl:flex-row') . '">'
         . '<input id="' . $id . '" name="email" type="email" required maxlength="190" autocomplete="email" placeholder="you@example.com" class="form-input min-w-0 flex-1 !rounded-full">'
@@ -600,7 +599,7 @@ function ng_share_buttons(string $absUrl, string $title, string $class = ''): st
 /** Inline enhancement for the copy-link / native share buttons (they stay hidden without JS). */
 function ng_share_script(): string
 {
-    return '<p class="sr-only" aria-live="polite" data-ng-live></p><script>(function(d,n){var live=d.querySelector("[data-ng-live]");'
+    return '<p class="sr-only" aria-live="polite" data-ng-live></p><script' . site_nonce_attr() . '>(function(d,n){var live=d.querySelector("[data-ng-live]");'
         . 'd.querySelectorAll("[data-ng-copy]").forEach(function(b){b.classList.remove("hidden");b.addEventListener("click",function(){var u=b.getAttribute("data-ng-copy"),ok=function(){if(live){live.textContent="Link copied to clipboard"}b.setAttribute("title","Link copied");b.classList.add("!bg-brand-900","!text-white");setTimeout(function(){b.setAttribute("title","Copy link");b.classList.remove("!bg-brand-900","!text-white");if(live){live.textContent=""}},2200)};'
         . 'if(n.clipboard&&n.clipboard.writeText){n.clipboard.writeText(u).then(ok,function(){window.prompt("Copy this link",u)})}else{window.prompt("Copy this link",u)}})});'
         . 'if(n.share){d.querySelectorAll("[data-ng-share]").forEach(function(b){b.classList.remove("hidden");b.addEventListener("click",function(){n.share({title:b.getAttribute("data-title")||d.title,url:b.getAttribute("data-ng-share")}).catch(function(){})})})}})(document,navigator);</script>';

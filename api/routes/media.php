@@ -29,14 +29,14 @@ route('GET', '/media/{id:\d+}', function ($p) {
 
 route('POST', '/media/upload', function () {
     api_require('media', 'create');
-    $folder = (string) api_param('folder', 'general');
+    $folder = api_str(api_param('folder', 'general'));
     if (!isset(media_folders()[$folder])) {
         api_error('Select a valid folder.', 422, ['folder' => 'Select a valid folder.']);
     }
     $meta = [
-        'title' => (string) api_param('title', ''),
-        'alt_text' => (string) api_param('alt_text', ''),
-        'caption' => (string) api_param('caption', ''),
+        'title' => api_str(api_param('title')),
+        'alt_text' => api_str(api_param('alt_text')),
+        'caption' => api_str(api_param('caption')),
     ];
     $row = media_store_upload($_FILES['file'] ?? null, $folder, $meta);
     api_ok($row, '"' . $row['original_name'] . '" uploaded.', 201);

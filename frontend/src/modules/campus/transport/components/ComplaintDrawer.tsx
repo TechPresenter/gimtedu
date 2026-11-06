@@ -4,7 +4,7 @@ import { Alert, Badge, Button, Combobox, DescriptionList, Drawer, Field, Skeleto
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
-import { formatDateTime, timeAgo } from '@/lib/format';
+import { formatDateTime, formatPhone, telHref, timeAgo } from '@/lib/format';
 import { useActionForm } from '../hooks';
 import { COMPLAINT_CATEGORIES, COMPLAINT_COLORS, COMPLAINT_STATUSES, PRIORITY_COLORS, useTransportRefresh } from '../shared';
 import type { ComplaintDetail } from '../types';
@@ -123,7 +123,7 @@ export function ComplaintDrawer({ complaintId, onClose, onEdit }: { complaintId:
           <DescriptionList
             items={[
               { label: 'Raised by', value: <>{c.complainant_name}{c.student_uid ? <span className="text-slate-500"> · {c.student_uid}</span> : null}</> },
-              { label: 'Phone', value: c.phone ? <a href={`tel:${String(c.phone).replace(/\s/g, '')}`} className="link">{c.phone}</a> : null },
+              { label: 'Phone', value: c.phone ? <a href={telHref(String(c.phone))} className="link">{formatPhone(c.phone)}</a> : null },
               { label: 'Route', value: c.route_code ? `${c.route_code} — ${c.route_name}` : null },
               { label: 'Vehicle', value: c.vehicle_no },
               { label: 'Assigned to', value: c.assigned_name },

@@ -63,7 +63,7 @@ export function AccountTab({ user, onUpdated }: { user: ProfileUser; onUpdated: 
       <Card>
         <CardHeader title="Personal details" subtitle="Shown to colleagues in messages, activity logs and approvals." icon={UserRound} />
         <form onSubmit={submit} noValidate className="card-body space-y-5">
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Full name" required htmlFor="pf-name" error={errors.name}>
               <Input id="pf-name" value={form.name} onChange={set('name')} invalid={!!errors.name} maxLength={150} autoComplete="name" />
             </Field>
@@ -119,7 +119,7 @@ function AppearanceCard() {
     <Card>
       <CardHeader title="Appearance" subtitle="Your theme is saved to your account and follows you on every device." icon={Sun} />
       <div className="card-body">
-        <div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Theme">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Theme">
           {options.map((o) => {
             const active = theme === o.value;
             return (

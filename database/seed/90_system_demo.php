@@ -89,6 +89,16 @@ return function (array $opts): void {
     $rooms = ['A-104', 'A-212', 'B-118', 'B-204', 'C-007', 'G-112', 'G-215'];
     $hostels = ['Aryabhatta Boys Hostel', 'Kalpana Chawla Girls Hostel'];
     $student = fn () => demo_pick($students);
+    // real issued certificates (24_certificates runs first): audit entries and notifications quote their actual GIMT-{CODE}-{YEAR}-{n} numbers
+    $certs = [];
+    try {
+        require_once APP_ROOT . '/app/services/certificates.php';
+        foreach (db_all("SELECT c.id, c.certificate_no, c.type, TRIM(CONCAT_WS(' ', s.first_name, s.last_name)) AS name FROM certificates c JOIN students s ON s.id = c.student_id WHERE c.status = 'issued' ORDER BY c.id LIMIT 200") as $c) {
+            $certs[] = $c + ['label' => cert_type_label((string) $c['type'])];
+        }
+    } catch (Throwable $e) {
+        $certs = [];
+    }
     $subject = fn () => demo_pick($subjects);
     $inr = fn (int $n) => '₹' . number_in($n);
 
@@ -112,7 +122,7 @@ return function (array $opts): void {
     }
 
     /* ---------------------------------------------------------- 5. what each role does */
-    $actionsFor = function (string $role) use ($student, $subject, $programs, $faculty, $applicants, $enquirers, $companies, $books, $notices, $posts, $routes, $vehicles, $rooms, $hostels, $inr): array {
+    $actionsFor = function (string $role) use ($student, $subject, $certs, $programs, $faculty, $applicants, $enquirers, $companies, $books, $notices, $posts, $routes, $vehicles, $rooms, $hostels, $inr): array {
         $s = $student();
         $sb = $subject();
         $prog = demo_pick($programs);
@@ -170,7 +180,9 @@ return function (array $opts): void {
                 ['create', 'examination', null, "Scheduled End Semester Examination for $prog Semester " . mt_rand(1, 6), null],
                 ['update', 'results', null, "Verified marks of {$sb['name']} for {$sb['program']}", null],
                 ['publish', 'results', null, "Published results of Mid Term Examination ($prog)", null],
-                ['create', 'certificates', $s['id'], 'Issued ' . demo_pick(['Bonafide', 'Character', 'Provisional']) . ' certificate GIMT/' . demo_pick(['BC', 'CC', 'PC']) . '/2026/' . str_pad((string) mt_rand(10, 480), 4, '0', STR_PAD_LEFT) . " to {$s['name']}", null],
+                (($cert = $certs ? demo_pick($certs) : null)
+                    ? ['create', 'certificates', (int) $cert['id'], 'Issued ' . $cert['label'] . ' ' . $cert['certificate_no'] . ' to ' . $cert['name'], null]
+                    : ['update', 'examination', null, 'Updated the examination calendar', null]),
                 ['update', 'examination', null, 'Allocated invigilators for ' . date('d M', strtotime('+' . mt_rand(5, 40) . ' days')) . ' morning session', null],
             ],
             'librarian' => [
@@ -383,7 +395,8 @@ return function (array $opts): void {
         ['fees', 'fee', 'Fees overdue', fn () => mt_rand(12, 48) . ' students have fees overdue by more than 15 days.', 'admin/fees/invoices', 'alarm-clock'],
         ['attendance', 'attendance', 'Low attendance alert', fn () => mt_rand(6, 19) . ' students in ' . demo_pick($programs) . ' Sem ' . mt_rand(1, 6) . ' are below 75% attendance.', 'admin/attendance/reports', 'user-x'],
         ['examination', 'exam', 'Exam reminder', fn () => 'End Semester Examinations begin on ' . date('d M Y', strtotime('+' . mt_rand(20, 45) . ' days')) . '. Hall tickets are ready.', 'admin/examination', 'clipboard-list'],
-        ['certificates', 'certificate', 'Certificate generated', fn () => demo_pick(['Bonafide', 'Character', 'Provisional']) . ' certificate issued to ' . demo_pick($students)['name'] . '.', 'admin/certificates', 'award'],
+        ['certificates', 'certificate', 'Certificate generated', fn () => ($c = $certs ? demo_pick($certs) : null) ? $c['label'] . ' ' . $c['certificate_no'] . ' issued to ' . $c['name'] . '.'
+            : 'A certificate request is waiting for approval.', 'admin/certificates', 'award'],
         ['placement', 'application', 'Placement applications', fn () => mt_rand(18, 64) . ' students applied for the ' . demo_pick($companies) . ' drive.', 'admin/placement/applications', 'briefcase'],
         ['security', 'security', 'Multiple failed sign-ins', fn () => mt_rand(9, 46) . ' failed sign-in attempts from ' . demo_pick(['45.155.205.233', '185.220.101.47', '91.240.118.172']) . '.', 'admin/security?tab=logins', 'shield-alert'],
         ['security', 'security', 'Account locked', fn () => 'Account vikas.rana@gimt.ac.in was locked after 5 failed login attempts from 10.20.1.45.', 'admin/security', 'shield-alert'],

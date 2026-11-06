@@ -94,7 +94,7 @@ function sf_contact(): array
     $wa = preg_replace('/\D+/', '', (string) setting('whatsapp_number', ''));
     $lat = (string) setting('latitude', '');
     $lng = (string) setting('longitude', '');
-    $address = (string) setting('address', 'Plot No. 123, Knowledge Park, Greater Noida, Uttar Pradesh 201310, India');
+    $address = (string) setting('address', 'Wave One, 36th Floor, L-2A, Pocket G, Sector 18, Noida, Uttar Pradesh - 201301');
     $query = rawurlencode(institute_name() . ', ' . $address);
     return [
         'phone' => (string) setting('phone', '+91 9955446477'),
@@ -195,7 +195,7 @@ function sf_eligibility_table(array $programs): string
         $elig = e((string) ($p['eligibility'] ?: 'As per university norms.'));
         $rows .= '<tr class="group transition-colors hover:bg-brand-50/40">'
             . '<td class="align-top"><a href="' . e($url) . '" class="font-semibold text-brand-900 hover:text-brand-600">' . e($p['name']) . '</a>'
-            . ($suffix !== '' ? '<span class="ml-1.5 text-xs font-semibold text-slate-400">' . e($suffix) . '</span>' : '')
+            . ($suffix !== '' ? '<span class="ml-1.5 text-xs font-semibold text-slate-500">' . e($suffix) . '</span>' : '')
             . '<span class="mt-1 flex flex-wrap gap-1.5"><span class="badge badge-blue">' . e(program_level_label($p['level'])) . '</span>' . ($p['category'] ? '<span class="badge badge-slate">' . e($p['category']) . '</span>' : '') . '</span></td>'
             . '<td class="whitespace-nowrap align-top text-slate-700">' . e((string) ($p['duration_label'] ?: rtrim(rtrim((string) $p['duration_years'], '0'), '.') . ' Years')) . '</td>'
             . '<td class="max-w-sm align-top text-[13px] leading-relaxed text-slate-600">' . $elig . '</td>'
@@ -265,14 +265,8 @@ function sf_scholarships(): array
             'icon' => $icons[$r['category']] ?? 'award',
         ], $rows);
     }
-    return [
-        ['title' => 'Merit Scholarship', 'value' => 'Up to 50%', 'text' => 'On tuition fee for applicants with 85%+ in the qualifying exam or a top entrance-test score.', 'icon' => 'trophy'],
-        ['title' => 'Sports Excellence', 'value' => 'Up to 25%', 'text' => 'For state and national level sportspersons, renewed every year on performance.', 'icon' => 'medal'],
-        ['title' => 'Single Girl Child', 'value' => '10%', 'text' => 'Tuition fee concession for single girl children across all programs.', 'icon' => 'heart'],
-        ['title' => 'Economically Weaker Section', 'value' => 'Up to 30%', 'text' => 'Need-based support for families with annual income below ₹3 lakh (income certificate required).', 'icon' => 'hand-coins'],
-        ['title' => 'Defence & Ex-servicemen Ward', 'value' => '15%', 'text' => 'For children of serving and retired armed forces personnel.', 'icon' => 'shield-check'],
-        ['title' => 'Sibling & Alumni Ward', 'value' => '10%', 'text' => 'For siblings of current students and children of GIMT alumni.', 'icon' => 'users'],
-    ];
+    // no invented schemes or percentages: without active rows the page shows a neutral note instead (admissions.php)
+    return [];
 }
 
 /** Payment modes enabled in Settings > Payment, as labels. */
@@ -385,7 +379,7 @@ function sf_flash_notice(string $form): string
 /** Program options for EnquiryForm selects (value = id). */
 function sf_program_select_options(array $programs): array
 {
-    return array_map(fn ($p) => ['value' => (string) $p['id'], 'label' => $p['name']], $programs);
+    return site_program_select_options($programs);
 }
 
 /* ------------------------------------------------------------------ Online application (apply.php) */
@@ -400,7 +394,7 @@ function sf_apply_props(array $programs, ?array $initial): array
     $pairs = fn (array $a) => array_map(fn ($k, $v) => ['value' => (string) $k, 'label' => (string) $v], array_keys($a), array_values($a));
     $docs = [];
     foreach (pf_document_specs() as $key => $spec) {
-        $docs[] = ['key' => $key, 'label' => $spec['label'], 'hint' => $spec['hint'], 'when' => $spec['when'], 'image' => $spec['image'], 'max' => $spec['max']];
+        $docs[] = ['key' => $key, 'label' => $spec['label'], 'hint' => $spec['hint'], 'when' => $spec['when'], 'optionalFor' => $spec['optional_for'] ?? [], 'image' => $spec['image'], 'max' => $spec['max']];
     }
     return [
         'endpoint' => base_url('api/public/apply'),
@@ -494,9 +488,12 @@ function sf_apply_classic_form(array $programs, ?array $initial, array $old = []
         . '<span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-900 text-sm font-bold text-white">' . $n . '</span>' . e($title) . '</legend>'
         . '<p class="clear-both pt-1 text-sm text-slate-500">' . e($text) . '</p><div class="mt-5 grid gap-5 sm:grid-cols-12">' . $body . '</div></fieldset>';
 
+    // programs grouped like every other program select (Undergraduate / Postgraduate / Diploma / Certificate — group)
+    $byId = array_column($programs, null, 'id');
     $byLevel = [];
-    foreach ($programs as $p) {
-        $byLevel[program_level_label($p['level'])][(string) $p['id']] = $p['name'] . ' — ' . sf_fee_text($p);
+    foreach (site_program_select_options($programs) as $o) {
+        $p = $byId[(int) $o['value']];
+        $byLevel[$o['group']][$o['value']] = $p['name'] . (($fee = sf_fee_text($p)) !== '' ? ' — ' . $fee : '');
     }
     $courseOpts = [];
     foreach ($programs as $p) {
@@ -510,8 +507,13 @@ function sf_apply_classic_form(array $programs, ?array $initial, array $old = []
     }
     $default = $initial ? (string) $initial['id'] : '';
 
-    $html = '<form method="post" action="' . e(site_url('apply')) . '#application" enctype="multipart/form-data" class="space-y-8" novalidate>' . csrf_field()
-        . '<input type="text" name="website" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">';
+    // hidden fields go last so the space-y spacing starts at the first visible block (the error alert or fieldset 1)
+    $hidden = csrf_field() . '<input type="text" name="website" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">';
+    // plain phone inputs are Indian numbers unless typed with +code (pf_prepare_input() turns them into E.164)
+    foreach (['phone', 'whatsapp', 'father_phone', 'mother_phone', 'guardian_phone'] as $f) {
+        $hidden .= '<input type="hidden" name="' . e($f) . '_country" value="IN">';
+    }
+    $html = '<form method="post" action="' . e(site_url('apply')) . '#application" enctype="multipart/form-data" class="space-y-8" novalidate>';
     if ($message !== '') {
         $html .= '<div class="form-alert" role="alert">' . icon('circle-alert', 'h-4 w-4 shrink-0') . e($message) . '</div>';
     }
@@ -553,7 +555,7 @@ function sf_apply_classic_form(array $programs, ?array $initial, array $old = []
         . $input('guardian_relation', 'Relation', ['max' => 40, 'col' => 'sm:col-span-4'])
         . $input('guardian_phone', 'Guardian mobile', ['type' => 'tel', 'col' => 'sm:col-span-4'])
         . $input('family_income', 'Annual family income (₹)', ['type' => 'number', 'min_num' => 0, 'step' => '1000', 'inputmode' => 'numeric']));
-    $html .= $fieldset('5', 'Academic history', 'Class 10 and your qualifying examination (Class 12 for UG, graduation for PG programs).',
+    $html .= $fieldset('5', 'Academic history', 'Class 10 and your qualifying examination (Class 12 for UG, graduation for PG programs). Certificate courses need Class 10 only — the qualifying exam is optional.',
         $input('tenth_board', 'Class 10 board', ['required' => true, 'max' => 100, 'placeholder' => 'e.g. CBSE'])
         . $select('tenth_year', 'Class 10 passing year', $years, ['required' => true, 'col' => 'sm:col-span-3'])
         . $input('tenth_percentage', 'Class 10 marks %', ['required' => true, 'type' => 'number', 'step' => '0.01', 'min_num' => 0, 'max_num' => 100, 'col' => 'sm:col-span-3'])
@@ -567,7 +569,7 @@ function sf_apply_classic_form(array $programs, ?array $initial, array $old = []
     foreach (pf_document_specs() as $key => $spec) {
         $k = 'doc_' . $key;
         $req = $spec['when'] === 'always';
-        $docs .= '<div class="sm:col-span-6"><label for="cf-' . e($k) . '" class="form-label">' . e($spec['label']) . ($req ? '<span class="form-required"> *</span>' : ($spec['when'] === 'pg' ? ' <span class="text-xs font-normal text-slate-500">(PG programs)</span>' : ' <span class="text-xs font-normal text-slate-500">(optional)</span>')) . '</label>'
+        $docs .= '<div class="sm:col-span-6"><label for="cf-' . e($k) . '" class="form-label">' . e($spec['label']) . ($req ? '<span class="form-required"> *</span>' . (in_array('Certificate', $spec['optional_for'] ?? [], true) ? ' <span class="text-xs font-normal text-slate-500">(optional for certificate courses)</span>' : '') : ($spec['when'] === 'pg' ? ' <span class="text-xs font-normal text-slate-500">(PG programs)</span>' : ' <span class="text-xs font-normal text-slate-500">(optional)</span>')) . '</label>'
             . '<input id="cf-' . e($k) . '" name="' . e($k) . '" type="file" accept="' . ($spec['image'] ? 'image/jpeg,image/png,image/webp' : 'application/pdf,image/jpeg,image/png,image/webp') . '" class="form-input' . $inv($k) . '"' . ($req ? ' required' : '') . '>'
             . '<p class="form-hint">' . e($spec['hint']) . '</p>' . $err($k) . '</div>';
     }
@@ -580,7 +582,7 @@ function sf_apply_classic_form(array $programs, ?array $initial, array $old = []
         . '<span>I declare that the information provided is true and correct. I understand that my admission is subject to verification of original documents and eligibility, and I agree to the '
         . sf_link('/terms-and-conditions', 'Terms & Conditions') . ' and ' . sf_link('/privacy-policy', 'Privacy Policy') . '.</span></label>' . $err('declaration') . '</div>'
         . '<div class="sm:col-span-12"><button type="submit" class="btn btn-accent btn-lg w-full sm:w-auto">Submit Application' . icon('arrow-right', 'h-4 w-4') . '</button></div>');
-    $html .= '</form>';
+    $html .= '<div class="hidden">' . $hidden . '</div></form>';
 
     $wrapCls = $standalone ? '' : 'hidden [.js_&]:hidden [.js.no-motion_&]:block [.js_[data-island-state=error]_&]:block [html:not(.js)_&]:block';
     return '<div class="' . $wrapCls . '"><div class="rounded-3xl border border-slate-100 bg-white p-5 shadow-soft sm:p-8">' . $html . '</div></div>';
@@ -635,7 +637,7 @@ function sf_ack_view(array $a, bool $isNew): string
         . '<section><h2 class="font-display text-base font-bold text-brand-900">What happens next</h2><ol class="mt-3 space-y-3">' . $next . '</ol></section></div>'
         . '<footer class="flex flex-col gap-2 border-t border-slate-100 bg-slate-50 px-6 py-5 text-[13px] text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-8">'
         . '<p>Quote your application number in all communication. Helpline <a class="font-semibold text-brand-900" href="' . e(sf_tel($c['phone'])) . '">' . e($c['phone']) . '</a> · <a class="font-semibold text-brand-900" href="mailto:' . e($c['admission_email']) . '">' . e($c['admission_email']) . '</a></p>'
-        . '<p class="text-xs text-slate-400">Generated ' . e(format_datetime(date('Y-m-d H:i:s'))) . '</p></footer></article>';
+        . '<p class="text-xs text-slate-500">Generated ' . e(format_datetime(date('Y-m-d H:i:s'))) . '</p></footer></article>';
     $html .= '<div class="no-print mt-6 flex flex-wrap items-center justify-center gap-3">'
         . '<button type="button" class="btn btn-accent" onclick="window.print()">' . icon('printer', 'h-4 w-4') . 'Print / Save as PDF</button>'
         . button_link('Back to Admissions', '/admissions', 'outline', ['icon' => ''])

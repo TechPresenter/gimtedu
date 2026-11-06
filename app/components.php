@@ -238,6 +238,8 @@ function print_layout_start(string $title, bool $letterhead = true, string $orie
 {
     $name = institute_name();
     $css = is_file(APP_ROOT . '/assets/css/print.css') ? 'assets/css/print.css' : 'assets/css/style.css';
+    // "not found" / "access denied" sheets (4xx status set before this call) have nothing to print: Back only
+    $printable = (int) http_response_code() < 400;
     echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
         . '<title>' . e($title) . ' - ' . e($name) . '</title>'
         . '<link rel="icon" href="' . e(asset('assets/images/favicon.svg')) . '">'
@@ -247,7 +249,7 @@ function print_layout_start(string $title, bool $letterhead = true, string $orie
         . '<div class="no-print sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-200 px-4 py-2 flex items-center justify-between">'
         . '<span class="text-sm font-semibold text-slate-700">' . e($title) . '</span><div class="flex gap-2">'
         . '<button type="button" onclick="history.length>1?history.back():window.close()" class="btn btn-secondary btn-sm">' . icon('arrow-left', 'w-4 h-4') . 'Back</button>'
-        . '<button type="button" onclick="window.print()" class="btn btn-primary btn-sm">' . icon('printer', 'w-4 h-4') . 'Print / Save PDF</button></div></div>'
+        . ($printable ? '<button type="button" onclick="window.print()" class="btn btn-primary btn-sm">' . icon('printer', 'w-4 h-4') . 'Print / Save PDF</button>' : '') . '</div></div>'
         . '<div class="print-sheet bg-white mx-auto my-6 shadow-xl ' . ($orientation === 'landscape' ? 'w-[297mm] min-h-[210mm]' : 'w-[210mm] min-h-[297mm]') . ' p-[12mm]">';
     if ($letterhead) {
         echo print_letterhead();
@@ -256,7 +258,7 @@ function print_layout_start(string $title, bool $letterhead = true, string $orie
 
 function print_letterhead(): string
 {
-    $addr = setting('address', 'Plot No. 123, Knowledge Park, Greater Noida, Uttar Pradesh 201310, India');
+    $addr = setting('address', 'Wave One, 36th Floor, L-2A, Pocket G, Sector 18, Noida, Uttar Pradesh - 201301');
     return '<header class="flex items-center gap-5 pb-4 border-b-2 border-brand-800">'
         . '<img src="' . e(logo_url()) . '" alt="GIMT" class="h-16 w-auto">'
         . '<div class="flex-1 text-right"><p class="font-display text-lg font-extrabold text-brand-900 uppercase leading-tight">' . e(institute_name()) . '</p>'

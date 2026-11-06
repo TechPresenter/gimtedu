@@ -64,8 +64,30 @@ export function GuestOnly({ area, children }: { area: Area; children: ReactNode 
   return <>{children}</>;
 }
 
+function forcedChangeCopy(area: Area, session: AnySession): { title: string; text: string } {
+  const portal = area === 'student' ? 'student' : 'faculty';
+  switch (session.account?.password_change_reason) {
+    case 'expired':
+      return {
+        title: 'Your password has expired',
+        text: `For your security, passwords must be changed regularly. Choose a new password to continue to your ${portal} portal.`,
+      };
+    case 'required':
+      return {
+        title: 'Set a new password',
+        text: `The institute has asked you to set a new password. Choose a new private password to continue to your ${portal} portal.`,
+      };
+    default:
+      return {
+        title: 'Set your own password',
+        text: `You signed in with a temporary password issued by the institute. Choose a new private password to continue to your ${portal} portal.`,
+      };
+  }
+}
+
 function ForcedPasswordChange({ area, session, onSignOut }: { area: Area; session: AnySession; onSignOut: () => void }) {
   usePortalTitle('Set a new password', area);
+  const copy = forcedChangeCopy(area, session);
   return (
     <div className="min-h-[100dvh] bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200/70 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -85,10 +107,8 @@ function ForcedPasswordChange({ area, session, onSignOut }: { area: Area; sessio
                 <KeyRound className="h-5 w-5 text-flame-300" aria-hidden />
               </span>
               <div>
-                <h1 className="font-display text-xl font-extrabold text-white">Set your own password</h1>
-                <p className="mt-1 text-sm text-white/75">
-                  You signed in with a temporary password issued by the institute. Choose a new private password to continue to your {area === 'student' ? 'student' : 'faculty'} portal.
-                </p>
+                <h1 className="font-display text-xl font-extrabold text-white">{copy.title}</h1>
+                <p className="mt-1 text-sm text-white/75">{copy.text}</p>
               </div>
             </div>
           </div>

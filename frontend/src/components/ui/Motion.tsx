@@ -8,11 +8,16 @@ import clsx from 'clsx';
  *   <CountUp value={1248} />                         1,248 counting up when it scrolls into view
  *   <CountUp value={2840000} format={formatMoneyShort} />
  *   <Reveal delay={80}><Card>…</Card></Reveal>        fade + rise when scrolled into view
- *   <Stagger className="grid gap-4 sm:grid-cols-4" step={60}>{cards}</Stagger>   children reveal one after another
+ *   <Stagger className="grid grid-cols-1 gap-4 sm:grid-cols-4" step={60}>{cards}</Stagger>   children reveal one after another
  */
 
+/**
+ * True when motion should be skipped: the user asked for reduced motion, or the page runs in an automated browser
+ * (navigator.webdriver — Playwright / Selenium screenshots must show final states, not blank scroll-reveal sections).
+ */
 export function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (typeof window === 'undefined') return false;
+  return !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || navigator.webdriver === true;
 }
 
 /** True once the element has entered the viewport (stays true). */

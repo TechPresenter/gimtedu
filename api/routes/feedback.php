@@ -92,7 +92,7 @@ route('POST', '/feedback/{id:\d+}/status', function ($p) {
     api_require('feedback', 'edit');
     fb_api_find((int) $p['id']);
     $in = api_input();
-    $row = feedback_set_status((int) $p['id'], (string) ($in['status'] ?? ''), isset($in['resolution']) ? (string) $in['resolution'] : null, isset($in['remarks']) ? (string) $in['remarks'] : null);
+    $row = feedback_set_status((int) $p['id'], api_str($in['status'] ?? null), isset($in['resolution']) ? (string) $in['resolution'] : null, isset($in['remarks']) ? (string) $in['remarks'] : null);
     $msg = ['in_progress' => 'Ticket marked in progress.', 'resolved' => 'Ticket resolved.', 'closed' => 'Ticket closed.', 'open' => 'Ticket reopened.'][$row['status']] ?? 'Ticket updated.';
     api_ok(['status' => $row['status']], $msg);
 });
@@ -112,6 +112,7 @@ route('POST', '/feedback/{id:\d+}/assign', function ($p) {
     db_update('feedback', $upd, 'id = ?', [(int) $f['id']]);
     $who = $uid ? (string) db_value('SELECT name FROM users WHERE id = ?', [$uid]) : 'nobody';
     log_activity('update', 'feedback', $f['id'], sprintf('Assigned ticket %s to %s', $f['ticket_no'], $who), 'success', isset($upd['status']) ? ['from' => 'open', 'to' => 'in_progress'] : []);
+    try { if ($uid && $uid !== (int) $f['assigned_to'] && empty($f['is_anonymous'])) { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event(['GIMT_TICKET_ASSIGNED', 'GIMT_TICKET_ASSIGNED_STAFF'], ['ticket_id' => (int) $f['id'], 'counsellor_id' => $uid, 'assignee_name' => $who], ['dedupe_key' => 'fb:' . $f['id'] . ':u' . $uid, 'source' => 'admin']); } } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     if ($uid && $uid !== (int) user_id()) {
         notify($uid, 'feedback', 'Ticket assigned to you', $f['ticket_no'] . ': ' . str_limit($f['subject'], 80), 'admin/feedback?id=' . $f['id'], 'message-square');
     }

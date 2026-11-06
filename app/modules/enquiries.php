@@ -144,6 +144,7 @@ return [
             $n = db_exec('UPDATE enquiries SET assigned_to = ? WHERE id IN (' . implode(',', array_map('intval', $ids)) . ')', [$uid ?: null]);
             $who = $uid ? (string) db_value('SELECT name FROM users WHERE id = ?', [$uid]) : 'nobody';
             log_activity('update', 'enquiries', implode(',', array_slice($ids, 0, 20)), $uid ? sprintf('Assigned %d enquiries to %s', count($ids), $who) : sprintf('Removed the counsellor from %d enquiries', count($ids)));
+            try { if ($uid) { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_fanout(['GIMT_ENQUIRY_ASSIGNED', 'GIMT_LEAD_TRANSFERRED'], ['counsellor_id' => $uid, 'assigned_by' => (string) db_value('SELECT name FROM users WHERE id = ?', [(int) user_id()])], $ids, 'enq:{id}:u' . $uid . ':' . date('YmdHi'), ['source' => 'admin', 'id_key' => 'enquiry_id']); } } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
             if ($uid && $uid !== (int) user_id()) {
                 notify($uid, 'enquiry', count($ids) . ' enquiries assigned to you', 'Open the enquiries list to follow up.', 'admin/enquiries?f.assigned_to=' . $uid, 'message-circle');
             }

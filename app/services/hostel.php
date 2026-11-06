@@ -415,7 +415,7 @@ function hostel_vacate(int $id, array $input): array
     if ($date > date('Y-m-d', strtotime('+30 days'))) {
         throw new CrudValidationException(['vacated_on' => 'Vacating date cannot be more than 30 days ahead.']);
     }
-    $reason = trim((string) ($input['reason'] ?? ''));
+    $reason = trim(api_str($input['reason'] ?? null));
     if (mb_strlen($reason) > 255) {
         throw new CrudValidationException(['reason' => 'Reason may not be longer than 255 characters.']);
     }
@@ -438,7 +438,7 @@ function hostel_cancel(int $id, array $input): array
     if ($a['status'] !== 'active') {
         throw new CrudException('Only active allocations can be cancelled.');
     }
-    $reason = trim((string) ($input['reason'] ?? ''));
+    $reason = trim(api_str($input['reason'] ?? null));
     if (mb_strlen($reason) < 5) {
         throw new CrudValidationException(['reason' => 'Give a short reason for the cancellation (at least 5 characters).']);
     }
@@ -483,7 +483,7 @@ function hostel_transfer(int $id, array $input): array
     if ($date && $date < $a['allocated_on']) {
         $errors['transfer_date'] = 'Transfer date cannot be before the current allotment date (' . format_date($a['allocated_on']) . ').';
     }
-    $reason = trim((string) ($input['reason'] ?? ''));
+    $reason = trim(api_str($input['reason'] ?? null));
     if ($reason === '') {
         $errors['reason'] = 'Reason for the room change is required.';
     } elseif (mb_strlen($reason) > 200) {
@@ -629,7 +629,7 @@ function hostel_complaint_action(int $id, string $action, array $input): array
     }
     $now = date('Y-m-d H:i:s');
     $upd = [];
-    $note = trim((string) ($input['remarks'] ?? ''));
+    $note = trim(api_str($input['remarks'] ?? null));
     switch ($action) {
         case 'assign':
             $staffId = (int) ($input['assigned_staff_id'] ?? 0);
@@ -657,7 +657,7 @@ function hostel_complaint_action(int $id, string $action, array $input): array
             if (!in_array($c['status'], ['open', 'in_progress'], true)) {
                 throw new CrudException('Only open or in-progress complaints can be resolved.');
             }
-            $resolution = trim((string) ($input['resolution'] ?? ''));
+            $resolution = trim(api_str($input['resolution'] ?? null));
             if (mb_strlen($resolution) < 5) {
                 throw new CrudValidationException(['resolution' => 'Describe what was done to resolve the complaint (at least 5 characters).']);
             }
@@ -718,7 +718,7 @@ function hostel_visitor_checkout(int $id, array $input): array
         throw new CrudValidationException(['check_out' => 'Check-out time cannot be in the future.']);
     }
     $upd = ['check_out' => $out];
-    $remarks = trim((string) ($input['remarks'] ?? ''));
+    $remarks = trim(api_str($input['remarks'] ?? null));
     if ($remarks !== '') {
         $upd['remarks'] = mb_substr(trim(($v['remarks'] ? $v['remarks'] . ' · ' : '') . $remarks), 0, 255);
     }
@@ -1105,7 +1105,7 @@ function hostel_generate_rooms(array $in): array
     if ($perFloor < 1 || $perFloor > 60) {
         $errors['rooms_per_floor'] = 'Rooms per floor must be between 1 and 60.';
     }
-    $type = (string) ($in['room_type'] ?? 'double');
+    $type = api_str($in['room_type'] ?? null, 'double');
     if (!isset(hostel_room_types()[$type])) {
         $errors['room_type'] = 'Select a valid room type.';
     }
@@ -1117,7 +1117,7 @@ function hostel_generate_rooms(array $in): array
     if ($rent !== null && (!is_numeric($rent) || (float) $rent < 0 || (float) $rent > 1000000)) {
         $errors['annual_fee'] = 'Rent must be between 0 and 10,00,000.';
     }
-    $pattern = trim((string) ($in['pattern'] ?? '{floor}{nn}'));
+    $pattern = trim(api_str($in['pattern'] ?? null, '{floor}{nn}'));
     if ($pattern === '' || !str_contains($pattern, '{n') || mb_strlen($pattern) > 30) {
         $errors['pattern'] = 'The numbering pattern must contain {nn} or {n} (e.g. {block}-{floor}{nn}).';
     }
@@ -1176,8 +1176,18 @@ function hostel_print_fail(string $title, string $text, int $status = 404): void
     exit;
 }
 
+/**
+ * Guard of the HTML print views. The routes are registered with ['auth' => false] so that a print tab opened after the
+ * session ended goes to the admin sign-in page instead of showing a raw JSON 401 (same as the transport / library prints).
+ */
 function hostel_print_guard(): void
 {
+    if (!session_is_valid() && !login_from_remember_cookie()) {
+        redirect(admin_url('login'));
+    }
+    if (password_change_required()) {
+        redirect(admin_url('')); // the admin app shows the mandatory "Set a new password" screen first
+    }
     header('Content-Type: text/html; charset=utf-8');
     if (!can('hostel', 'view')) {
         hostel_print_fail('Access denied', 'You do not have permission to view hostel records.', 403);

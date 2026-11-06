@@ -1,7 +1,7 @@
 import { BedDouble, Building2, History, Phone } from 'lucide-react';
 import { Button, Card, CardBody, CardHeader, DescriptionList, Reveal, StatusBadge, type Column } from '@/components/ui';
 import { useApi } from '@/lib/queries';
-import { formatDate, formatMoney, labelize } from '@/lib/format';
+import { formatDate, formatMoney, formatPhone, labelize, telHref } from '@/lib/format';
 import { TabEmpty, TabError, TabLoading, TableCard, type TabProps } from './shared';
 
 interface Allocation extends Record<string, unknown> {
@@ -41,7 +41,7 @@ export default function HostelTab({ profile, studentId }: TabProps) {
                 { label: 'Hostel', value: `${c.hostel_name} (${labelize(c.hostel_type)})` },
                 { label: 'Room', value: `${c.room_no} · ${labelize(c.room_type)} · Floor ${c.floor_no}` },
                 { label: 'Bed', value: c.bed_no },
-                { label: 'Warden', value: c.warden_name ? <span className="inline-flex items-center gap-1.5">{c.warden_name}{c.warden_phone && <a href={`tel:${c.warden_phone}`} className="link inline-flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{c.warden_phone}</a>}</span> : null },
+                { label: 'Warden', value: c.warden_name ? <span className="inline-flex items-center gap-1.5">{c.warden_name}{c.warden_phone && <a href={telHref(c.warden_phone)} className="link inline-flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{formatPhone(c.warden_phone)}</a>}</span> : null },
                 { label: 'Annual fee', value: c.fee_amount ? formatMoney(c.fee_amount) : null },
                 { label: 'Session', value: c.session_name },
               ]} />

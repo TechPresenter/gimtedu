@@ -187,7 +187,7 @@ export function CertificateDrawer({ id, onClose, onOpen }: Props) {
             {data.fields.length > 0 && (
               <section>
                 <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">{c.type_label} details</h3>
-                <dl className="grid gap-2 sm:grid-cols-2">
+                <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {data.fields.map((f) => (
                     <div key={f.key} className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-800/50">
                       <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{f.label}</dt>
@@ -238,7 +238,7 @@ export function CertificateDrawer({ id, onClose, onOpen }: Props) {
               )}
             </section>
 
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <section>
                 <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><History className="h-4 w-4" />History</h3>
                 <Timeline

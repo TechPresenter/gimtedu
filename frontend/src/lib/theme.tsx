@@ -22,7 +22,17 @@ export function ThemeProvider({ children, initial }: { children: ReactNode; init
       return initial || 'light';
     }
   });
-  const resolved: 'light' | 'dark' = theme === 'system' ? (systemDark() ? 'dark' : 'light') : theme;
+  // follow the OS setting live while the theme is 'system'
+  const [sysDark, setSysDark] = useState(systemDark);
+  useEffect(() => {
+    if (theme !== 'system') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const on = () => setSysDark(mq.matches);
+    on();
+    mq.addEventListener?.('change', on);
+    return () => mq.removeEventListener?.('change', on);
+  }, [theme]);
+  const resolved: 'light' | 'dark' = theme === 'system' ? (sysDark ? 'dark' : 'light') : theme;
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', resolved === 'dark');

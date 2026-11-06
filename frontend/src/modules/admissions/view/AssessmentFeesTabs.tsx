@@ -49,14 +49,14 @@ export function AssessmentTab({ data }: { data: AdmissionProfile }) {
   };
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatTile label="Qualifying exam" value={a.previous_percentage ? `${toNumber(a.previous_percentage).toFixed(1)}%` : '—'} icon={FileText} tone="blue" sub={String(a.previous_qualification ?? '')} />
         <StatTile label={String(a.entrance_exam || 'Entrance score')} value={a.entrance_score !== null && a.entrance_score !== undefined ? toNumber(a.entrance_score).toFixed(1) : '—'} icon={Award} tone="purple" sub="Percentile / score" />
         <StatTile label="Interview score" value={a.interview_score !== null && a.interview_score !== undefined ? `${toNumber(a.interview_score).toFixed(0)}/100` : '—'} icon={ClipboardCheck} tone="green" sub={a.interview_date ? formatDateTime(a.interview_date) : 'Not scheduled'} />
       </div>
       <Card>
         <CardHeader title="Entrance & interview" subtitle="Scores are required before the application can go for approval" icon={ClipboardCheck} />
-        <div className="card-body grid gap-4 sm:grid-cols-12">
+        <div className="card-body grid grid-cols-1 gap-4 sm:grid-cols-12">
           <Field className="sm:col-span-6" label="Entrance exam" error={errors.entrance_exam} htmlFor="as-exam">
             <Input id="as-exam" value={String(v.entrance_exam)} onChange={(e) => set('entrance_exam', e.target.value)} disabled={!canEdit} maxLength={60} placeholder="e.g. CUET (UG), JEE Main, CAT" />
           </Field>
@@ -128,7 +128,7 @@ export function FeesTab({ data }: { data: AdmissionProfile }) {
   const status = !payable && paid <= 0 ? 'Not yet payable' : balance <= 0 ? 'Paid' : paid > 0 ? 'Partially paid' : 'Pending';
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatTile label="Admission fee" value={formatMoney(due)} icon={IndianRupee} tone="navy" sub={a.admission_fee ? 'As per offer' : 'Default for program'} />
         <StatTile label="Received" value={formatMoney(paid)} icon={Wallet} tone="green" sub={a.fee_paid_on ? `Last on ${formatDate(a.fee_paid_on)}` : 'No payment yet'} />
         <StatTile label="Balance" value={formatMoney(balance)} icon={Receipt} tone={balance > 0 ? 'amber' : 'green'} sub={status} />
@@ -159,7 +159,7 @@ export function FeesTab({ data }: { data: AdmissionProfile }) {
           {canRecord && (
             <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
               <h3 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">Record payment</h3>
-              <div className="grid gap-4 sm:grid-cols-12">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
                 <Field className="sm:col-span-4" label="Admission fee (total)" error={errors.admission_fee} htmlFor="fee-due" hint={paid > 0 ? 'Locked after the first payment' : 'Edit for concessions'}>
                   <Input id="fee-due" type="number" min={1} prefix="₹" value={v.admission_fee} onChange={(e) => set('admission_fee', e.target.value)} disabled={paid > 0} invalid={!!errors.admission_fee} />
                 </Field>

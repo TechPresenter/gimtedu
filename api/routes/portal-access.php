@@ -58,7 +58,7 @@ function pa_student_filters(array $q): array
 {
     $where = ['1 = 1'];
     $args = [];
-    $term = trim((string) ($q['q'] ?? ''));
+    $term = trim(api_str($q['q'] ?? null));
     if ($term !== '') {
         $like = '%' . $term . '%';
         $where[] = '(s.student_uid LIKE ? OR s.admission_no LIKE ? OR s.email LIKE ? OR s.mobile LIKE ? OR ' . pa_student_name_sql() . ' LIKE ? OR CONCAT(s.first_name, \' \', s.last_name) LIKE ?)';
@@ -70,12 +70,12 @@ function pa_student_filters(array $q): array
             $args[] = (int) $q[$k];
         }
     }
-    $status = (string) ($q['student_status'] ?? 'active');
+    $status = api_str($q['student_status'] ?? null, 'active');
     if ($status !== '' && $status !== 'all' && array_key_exists($status, students_status_options())) {
         $where[] = 's.status = ?';
         $args[] = $status;
     }
-    if (!empty($q['account']) && ($sql = pa_account_state_sql((string) $q['account']))) {
+    if (!empty($q['account']) && ($sql = pa_account_state_sql(api_str($q['account'])))) {
         $where[] = $sql;
     }
     return [implode(' AND ', $where), $args];
@@ -154,8 +154,8 @@ route('GET', '/portal-access/students', function () {
     $total = (int) db_value("SELECT COUNT(*) FROM students s LEFT JOIN student_accounts a ON a.student_id = s.id WHERE $where", $args);
     $pg = paginate($total, $page, $perPage);
     $sorts = ['name' => 's.first_name %d, s.last_name %d', 'student_uid' => 's.student_uid %d', 'last_login' => 'a.last_login_at IS NULL, a.last_login_at %d', 'program' => 'p.short_name %d, s.current_semester %d, s.student_uid'];
-    $sort = $sorts[$_GET['sort'] ?? ''] ?? $sorts['student_uid'];
-    $dir = strtolower((string) ($_GET['dir'] ?? 'asc')) === 'desc' ? 'DESC' : 'ASC';
+    $sort = $sorts[api_query('sort')] ?? $sorts['student_uid'];
+    $dir = strtolower(api_str($_GET['dir'] ?? null, 'asc')) === 'desc' ? 'DESC' : 'ASC';
     $order = str_replace('%d', $dir, $sort);
     $rows = db_all('SELECT s.id, s.student_uid, ' . pa_student_name_sql() . " AS full_name, s.photo, s.email, s.mobile, s.status AS student_status, s.current_semester,
                            p.short_name AS program, sc.name AS section, a.id AS account_id, a.username, a.status AS account_status, a.password_hash IS NOT NULL AS has_password,
@@ -183,7 +183,7 @@ route('POST', '/portal-access/students/{id:\d+}/reset', function ($p) {
 route('POST', '/portal-access/students/{id:\d+}/status', function ($p) {
     api_require('users', 'manage');
     $id = pa_student_id($p);
-    $status = (string) api_param('status', '');
+    $status = api_str(api_param('status'));
     if (!in_array($status, ['active', 'disabled'], true)) {
         api_error('Choose active or disabled.', 422, ['status' => 'Choose active or disabled.']);
     }
@@ -215,7 +215,7 @@ route('POST', '/portal-access/students/{id:\d+}/unlock', function ($p) {
 
 route('POST', '/portal-access/students/bulk', function () {
     api_require('users', 'manage');
-    $action = (string) api_param('action', '');
+    $action = api_str(api_param('action'));
     $ids = array_values(array_unique(array_filter(array_map('intval', (array) (api_input()['ids'] ?? [])))));
     if (!in_array($action, ['generate', 'enable', 'disable', 'unlock'], true)) {
         api_error('Unknown bulk action.', 422);
@@ -335,7 +335,7 @@ route('GET', '/portal-access/faculty', function () {
     api_require('users', 'manage');
     $where = ['1 = 1'];
     $args = [];
-    $term = trim((string) ($_GET['q'] ?? ''));
+    $term = trim(api_str($_GET['q'] ?? null));
     if ($term !== '') {
         $like = '%' . $term . '%';
         $where[] = "(f.employee_id LIKE ? OR f.email LIKE ? OR CONCAT(f.first_name, ' ', COALESCE(f.last_name, '')) LIKE ? OR u.username LIKE ?)";
@@ -345,14 +345,14 @@ route('GET', '/portal-access/faculty', function () {
         $where[] = 'f.department_id = ?';
         $args[] = (int) $_GET['department_id'];
     }
-    $fstatus = (string) ($_GET['faculty_status'] ?? 'current');
+    $fstatus = api_str($_GET['faculty_status'] ?? null, 'current');
     if ($fstatus === 'current') {
         $where[] = "f.status IN ('active', 'on_leave')";
     } elseif ($fstatus !== 'all' && $fstatus !== '') {
         $where[] = 'f.status = ?';
         $args[] = $fstatus;
     }
-    if (!empty($_GET['login']) && ($sql = pa_faculty_state_sql((string) $_GET['login']))) {
+    if (!empty($_GET['login']) && ($sql = pa_faculty_state_sql(api_str($_GET['login'])))) {
         $where[] = $sql;
     }
     $w = implode(' AND ', $where);
@@ -360,9 +360,9 @@ route('GET', '/portal-access/faculty', function () {
     $from = 'FROM faculty f LEFT JOIN departments d ON d.id = f.department_id LEFT JOIN users u ON u.id = f.user_id';
     $total = (int) db_value("SELECT COUNT(*) $from WHERE $w", $args);
     $pg = paginate($total, $page, $perPage);
-    $dir = strtolower((string) ($_GET['dir'] ?? 'asc')) === 'desc' ? 'DESC' : 'ASC';
+    $dir = strtolower(api_str($_GET['dir'] ?? null, 'asc')) === 'desc' ? 'DESC' : 'ASC';
     $order = ['name' => "f.first_name $dir, f.last_name $dir", 'employee_id' => "f.employee_id $dir", 'last_login' => "u.last_login_at IS NULL, u.last_login_at $dir",
-        'department' => "d.name $dir, f.first_name"][$_GET['sort'] ?? ''] ?? "f.employee_id $dir";
+        'department' => "d.name $dir, f.first_name"][api_query('sort')] ?? "f.employee_id $dir";
     $rows = db_all("SELECT f.id, f.employee_id, TRIM(CONCAT_WS(' ', f.title, f.first_name, f.last_name)) AS full_name, f.photo, f.designation, f.email, f.phone, f.status AS faculty_status,
                            d.name AS department, u.id AS user_id, u.username, u.email AS login_email, u.status AS user_status, u.faculty_id AS user_faculty_id, u.must_change_password,
                            u.locked_until, u.last_login_at, u.last_login_ip
@@ -379,7 +379,7 @@ route('GET', '/portal-access/faculty', function () {
 route('POST', '/portal-access/faculty/{id:\d+}/create', function ($p) {
     api_require('users', 'manage');
     $id = pa_faculty_id($p);
-    $r = portal_faculty_create_login($id, (string) api_param('username', ''), pa_bool(api_param('send_email')));
+    $r = portal_faculty_create_login($id, api_str(api_param('username')), pa_bool(api_param('send_email')));
     api_ok($r, 'Login created for ' . $r['name'] . '.' . ($r['emailed'] ? ' Login details emailed.' : ''));
 });
 
@@ -404,7 +404,7 @@ route('POST', '/portal-access/faculty/{id:\d+}/reset', function ($p) {
 route('POST', '/portal-access/faculty/{id:\d+}/status', function ($p) {
     api_require('users', 'manage');
     $id = pa_faculty_id($p);
-    $status = (string) api_param('status', '');
+    $status = api_str(api_param('status'));
     if (!in_array($status, ['active', 'inactive'], true)) {
         api_error('Choose active or inactive.', 422, ['status' => 'Choose active or inactive.']);
     }
@@ -434,7 +434,7 @@ route('POST', '/portal-access/faculty/{id:\d+}/unlock', function ($p) {
 
 route('GET', '/portal-access/users', function () {
     api_require('users', 'manage');
-    $term = trim((string) ($_GET['q'] ?? ''));
+    $term = trim(api_str($_GET['q'] ?? null));
     $where = "u.faculty_id IS NULL AND NOT EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.is_super = 1)";
     $args = [];
     if ($term !== '') {
@@ -452,11 +452,11 @@ route('GET', '/portal-access/users', function () {
 
 route('GET', '/portal-access/logins', function () {
     api_require('users', 'manage');
-    $type = (string) ($_GET['type'] ?? 'all');
-    $status = (string) ($_GET['status'] ?? '');
-    $term = trim((string) ($_GET['q'] ?? ''));
-    $from = (string) ($_GET['from'] ?? '');
-    $to = (string) ($_GET['to'] ?? '');
+    $type = api_str($_GET['type'] ?? null, 'all');
+    $status = api_str($_GET['status'] ?? null);
+    $term = trim(api_str($_GET['q'] ?? null));
+    $from = api_str($_GET['from'] ?? null);
+    $to = api_str($_GET['to'] ?? null);
     $parts = [];
     $args = [];
     $common = function (string $nameSql, string $refSql) use ($status, $term, $from, $to): array {

@@ -8,9 +8,13 @@
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/errors.php';
 require_once __DIR__ . '/includes/partials/content.php';
+require_once __DIR__ . '/app/services/seo.php';
 
+// Redirect manager first (Website CMS → Redirects): an admin 301/302 rule redirects and exits, a 410 rule answers
+// "Gone"; otherwise the lower-case / no-trailing-slash URL when it exists, and the 404 is logged for the 404 report.
+$__gone = !in_array(seo_site_path(), ['/404', '/404.php'], true) && seo_redirect_maybe(true) === 410;
 if (!headers_sent()) {
-    http_response_code(404);
+    http_response_code($__gone ? 410 : 404);
     header('X-Robots-Tag: noindex, follow');
 }
 $reqPath = (string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
@@ -28,7 +32,7 @@ $c = cp_contact();
 $shownPath = mb_strlen($rel) > 70 ? mb_substr($rel, 0, 67) . '…' : $rel;
 
 site_header([
-    'title' => 'Page Not Found',
+    'title' => $__gone ? 'Page Removed' : 'Page Not Found', // 410 Gone (redirect manager rule) or 404
     'description' => 'The page you were looking for could not be found. Search the ' . institute_name() . ' website or explore programs, admissions and contact details.',
     'robots' => 'noindex,follow',
     'loader' => false,
@@ -40,8 +44,8 @@ site_header([
   <div class="container-site relative grid items-center gap-10 py-14 sm:py-20 lg:grid-cols-12 lg:py-24">
     <div class="lg:col-span-7">
       <nav aria-label="Breadcrumb"><ol class="page-hero-crumbs"><li><a href="<?= e(site_url('')) ?>" class="underline-grow">Home</a></li><li aria-hidden="true"><?= icon('chevron-right', 'h-3.5 w-3.5 opacity-60') ?></li><li class="font-medium" aria-current="page">Page not found</li></ol></nav>
-      <p class="eyebrow mb-3 mt-6">Error 404</p>
-      <h1 id="nf-title" class="page-hero-title">We couldn’t find that page</h1>
+      <p class="eyebrow mb-3 mt-6"><?= $__gone ? 'Error 410' : 'Error 404' ?></p>
+      <h1 id="nf-title" class="page-hero-title"><?= $__gone ? 'This page has been removed' : 'We couldn’t find that page' ?></h1>
       <p class="page-hero-text mt-4">
         <?php if (!$direct): ?>There is no page at <code class="break-all rounded-md bg-white px-1.5 py-0.5 text-[0.9em] font-semibold text-brand-900 ring-1 ring-warm-2"><?= e($shownPath) ?></code>. <?php endif; ?>It may have moved, or the link may be mistyped. Search the website or pick one of the pages below.
       </p>

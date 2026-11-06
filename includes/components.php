@@ -98,7 +98,9 @@ function section_close(): string
  * Aliases: accent | orange = apply · primary | navy | ink = explore · outline = brochure · soft = callback; plus
  *          secondary (white, hairline) · outline-light (white outline on navy) · white · ghost.
  * @param array $o icon (trailing lucide name, default 'arrow-right' for apply/accent/orange/explore/primary/ink/navy, '' for none),
- *                 icon_left, size (sm|lg), magnetic (bool|float), shine (bool, light streak — primary CTAs), attention
+ *                 icon_left, size (sm|lg), magnetic (bool|float), shine (bool, light streak on hover — primary CTAs),
+ *                 gleam (bool, shine + the streak crosses on its own twice, 2.4 s apart, when the button comes into view —
+ *                 a few key CTAs only; not on the 'white' variant, the white streak is invisible there), attention
  *                 (bool, idle glow pulse — the single main hero CTA only), class, target, attrs (array)
  * Every .btn gets the colour-overlay sweep on hover / focus / touch (see "CTA buttons" in assets/css/src/style.css).
  */
@@ -106,7 +108,7 @@ function button_link(string $label, string $url, string $variant = 'primary', ar
 {
     $defaultIcon = in_array($variant, ['apply', 'accent', 'orange', 'explore', 'primary', 'ink', 'navy'], true) ? 'arrow-right' : '';
     $iconR = $o['icon'] ?? $defaultIcon;
-    $cls = 'btn btn-' . $variant . (!empty($o['size']) ? ' btn-' . $o['size'] : '') . (!empty($o['shine']) ? ' btn-shine' : '') . (!empty($o['attention']) ? ' btn-attention' : '') . (!empty($o['class']) ? ' ' . $o['class'] : '');
+    $cls = 'btn btn-' . $variant . (!empty($o['size']) ? ' btn-' . $o['size'] : '') . (!empty($o['shine']) || !empty($o['gleam']) ? ' btn-shine' : '') . (!empty($o['gleam']) ? ' btn-gleam' : '') . (!empty($o['attention']) ? ' btn-attention' : '') . (!empty($o['class']) ? ' ' . $o['class'] : '');
     $attrs = '';
     foreach (($o['attrs'] ?? []) as $k => $v) {
         $attrs .= ' ' . e($k) . '="' . e($v) . '"';
@@ -172,7 +174,7 @@ function dept_chip(array $p, string $class = ''): string
 }
 
 /**
- * Program card (Design v2): light-grey rounded card, rounded photo with a yellow "Most Popular"/"Trending" tag (only
+ * Program card (Design v2): light-grey rounded card, rounded photo with a yellow "Most Popular"/"Featured" tag (only
  * for programs flagged is_popular / is_featured in the DB) and a level pill, pastel department chip overlapping the
  * photo, title, meta (duration · level · fee — no ratings), actions and a black short-name tag in the bottom-right
  * corner. $p is a `programs` row (ideally from site_programs(), which adds the department).
@@ -189,10 +191,14 @@ function program_card(array $p, array $o = []): string
             $p += ['department_label' => $depts[$p['id']]['department_label'], 'dept_index' => $depts[$p['id']]['dept_index']];
         }
     }
+    // a category that only repeats the level ("Diploma" / "Certificate") would show the same word twice
+    if (strcasecmp(trim((string) ($p['category'] ?? '')), program_level_label($p['level'] ?? '')) === 0) {
+        $p['category'] = '';
+    }
     $variant = $o['variant'] ?? 'default';
     $url = site_url('programs/' . ($p['slug'] ?? ''));
     $apply = $o['apply_url'] ?? site_url('apply?program=' . rawurlencode((string) ($p['slug'] ?? '')));
-    $ribbon = $o['ribbon'] ?? (!empty($p['is_popular']) ? 'Most Popular' : (!empty($p['is_featured']) && $variant === 'landing' ? 'Trending' : ''));
+    $ribbon = $o['ribbon'] ?? (!empty($p['is_popular']) ? 'Most Popular' : (!empty($p['is_featured']) && $variant === 'landing' ? 'Featured' : ''));
     $h = $o['heading'] ?? 'h3';
     $fee = isset($p['fee_per_year']) && (float) $p['fee_per_year'] > 0 ? money($p['fee_per_year']) . ' ' . ($p['fee_label'] ?? '/ Year') : '';
     $reveal = ($o['reveal'] ?? false) ? reveal_attr((string) $o['reveal'], (int) ($o['delay'] ?? 0)) : '';
@@ -278,22 +284,25 @@ function stat_card($value, string $label, string $icon = '', array $o = []): str
  *                  'primary' => ['label' => 'Apply for Admission', 'url' => '/apply'],
  *                  'secondary' => ['label' => 'Download Brochure', 'url' => '/programs?brochure=1', 'icon' => 'download']]);
  * @param array $o title, text, primary, secondary, image (path), eyebrow, compact (bool), highlight (word to circle),
- *                 shell (bool, default true — cream backdrop wrapper; false = just the card, e.g. inside a section)
+ *                 gold (phrase of the title to mark with the yellow-gold highlight instead — never both), shell (bool,
+ *                 default true — cream backdrop wrapper; false = just the card, e.g. inside a section)
  */
 function cta_band(array $o = []): string
 {
     $img = site_image($o['image'] ?? 'assets/images/site/graduation.jpg');
     $title = (string) ($o['title'] ?? 'Ready to Build a Brighter Future?');
     $card = '<div class="cta-band-card"' . reveal_attr('fade-up') . '>';
-    $card .= '<img src="' . e($img) . '" alt="" class="cta-band-media" loading="lazy" decoding="async"><div class="cta-band-bg"></div>';
+    // intrinsic size of the bundled default (990×375) so the browser reserves the box (no CLS); uploads keep their ratio via CSS
+    [$iw, $ih] = cta_band_image_size((string) ($o['image'] ?? 'assets/images/site/graduation.jpg'));
+    $card .= '<img src="' . e($img) . '" alt="" class="cta-band-media" loading="lazy" decoding="async" width="' . $iw . '" height="' . $ih . '"><div class="cta-band-bg"></div>';
     $card .= geo_shapes('band', 'hidden md:block') . blob('-left-24 -bottom-32 h-[420px] w-[420px]', 'flame');
     $card .= '<div class="relative flex flex-col items-start gap-7 px-6 ' . (!empty($o['compact']) ? 'py-9' : 'py-10 sm:px-12 sm:py-14') . ' md:max-w-[62%]">';
     $card .= '<div>' . (!empty($o['eyebrow']) ? '<p class="eyebrow mb-3 !text-accent-300">' . e($o['eyebrow']) . '</p>' : '')
-        . '<h2 class="cta-band-title" data-text-reveal>' . scribble_text($title, !empty($o['highlight']) ? (string) $o['highlight'] : false, 'orange') . '</h2>'
+        . '<h2 class="cta-band-title" data-text-reveal>' . (!empty($o['gold']) ? gold_text($title, (string) $o['gold']) : scribble_text($title, !empty($o['highlight']) ? (string) $o['highlight'] : false, 'orange')) . '</h2>'
         . (($o['text'] ?? '') !== '' ? '<p class="mt-3 max-w-xl text-white/75">' . e($o['text']) . '</p>' : '') . '</div>';
     $card .= '<div class="flex flex-wrap gap-3">';
     if (!empty($o['primary'])) {
-        $card .= button_link($o['primary']['label'], $o['primary']['url'], 'apply', ['size' => 'lg', 'shine' => true, 'magnetic' => true, 'icon' => $o['primary']['icon'] ?? 'arrow-right']);
+        $card .= button_link($o['primary']['label'], $o['primary']['url'], 'apply', ['size' => 'lg', 'gleam' => true, 'magnetic' => true, 'icon' => $o['primary']['icon'] ?? 'arrow-right']);
     }
     if (!empty($o['secondary'])) {
         $card .= button_link($o['secondary']['label'], $o['secondary']['url'], 'outline-light', ['size' => 'lg', 'icon' => '', 'icon_left' => $o['secondary']['icon'] ?? null]);
@@ -303,6 +312,20 @@ function cta_band(array $o = []): string
         return '<div class="cta-band">' . $card . '</div>';
     }
     return '<section class="cta-band cta-band-shell" aria-label="' . e($title) . '"><div class="container-site">' . $card . '</div></section>';
+}
+
+/** Intrinsic [width, height] of a local CTA band image (cached per request; 990×375 when it cannot be read). */
+function cta_band_image_size(string $path): array
+{
+    static $cache = [];
+    if (!isset($cache[$path])) {
+        $cache[$path] = [990, 375];
+        $file = str_starts_with($path, 'assets/') ? APP_ROOT . '/' . $path : null;
+        if ($file && !str_contains($path, '..') && is_file($file) && ($size = @getimagesize($file)) && $size[0] > 0 && $size[1] > 0) {
+            $cache[$path] = [(int) $size[0], (int) $size[1]];
+        }
+    }
+    return $cache[$path];
 }
 
 /** Image card with ink fade, bold Jakarta title, text and a white pill link (Campus Life / Placements / News & Events). */
@@ -368,7 +391,79 @@ function scribble_text(string $text, $highlight = null, string $tone = 'orange')
         return e($text);
     }
     $len = mb_strlen((string) $highlight);
-    return e(mb_substr($text, 0, $pos)) . scribble(mb_substr($text, $pos, $len), $tone) . e(mb_substr($text, $pos + $len));
+    $before = mb_substr($text, 0, $pos);
+    $after = mb_substr($text, $pos + $len);
+    // punctuation touching the circled word ("(CSE)", "Programs.") stays on its line: one no-wrap group, which the
+    // text-reveal line splitter also measures as a single token
+    preg_match('/[(\[“"‘\'¿¡]*$/u', $before, $lead);
+    preg_match('/^[)\]”"’\'.,!?:;…]*/u', $after, $trail);
+    $lead = $lead[0] ?? '';
+    $trail = $trail[0] ?? '';
+    $mark = scribble(mb_substr($text, $pos, $len), $tone);
+    if ($lead === '' && $trail === '') {
+        return e($before) . $mark . e($after);
+    }
+    return e(mb_substr($before, 0, mb_strlen($before) - mb_strlen($lead))) . '<span class="whitespace-nowrap">' . e($lead) . $mark . e($trail) . '</span>' . e(mb_substr($after, mb_strlen($trail)));
+}
+
+/**
+ * Yellow-gold highlight (Design v3 addition, client request 2026-10-13 — docs/DESIGN.md / docs/WEBSITE.md §0). Use
+ * sparingly (max ~1–2 per screen), never on body paragraphs, never together with a scribble on the same heading. Text
+ * on gold is always navy (also in the dark theme).
+ *   gold_highlight('Free Counselling')                       marker band behind the phrase (drawn in on reveal)
+ *   gold_highlight('Most Popular', ['variant' => 'pill'])     solid gold pill label (data-driven tags only)
+ *   gold_highlight('up to 40%', ['variant' => 'soft'])        gold text + soft gold underline, for navy / dark bands
+ * React twin: frontend/site/lib/GoldMark.tsx (<GoldMark>, goldText()) renders identical markup.
+ * @param array $o variant (marker|pill|soft), draw (bool, default true: marker draws in left → right when it scrolls
+ *                 into view; static under reduced motion / automation / print), tall (bool: full-height marker for
+ *                 small text), icon (pill: lucide name before the text), size (pill: 'lg'), class, tag (span|mark)
+ */
+function gold_highlight(string $text, array $o = []): string
+{
+    $text = trim($text);
+    if ($text === '') {
+        return '';
+    }
+    $variant = in_array($o['variant'] ?? 'marker', ['marker', 'pill', 'soft'], true) ? ($o['variant'] ?? 'marker') : 'marker';
+    $tag = ($o['tag'] ?? 'span') === 'mark' ? 'mark' : 'span';
+    $extra = !empty($o['class']) ? ' ' . e($o['class']) : '';
+    if ($variant === 'pill') {
+        return '<' . $tag . ' class="pill-gold' . (($o['size'] ?? '') === 'lg' ? ' pill-gold-lg' : '') . $extra . '">' . (!empty($o['icon']) ? icon((string) $o['icon'], '') : '') . e($text) . '</' . $tag . '>';
+    }
+    if ($variant === 'soft') {
+        return '<' . $tag . ' class="hl-gold-soft' . $extra . '">' . e($text) . '</' . $tag . '>';
+    }
+    $words = [];
+    foreach (preg_split('/\s+/u', $text) ?: [] as $i => $w) {
+        $words[] = '<span class="hl-gold-w"' . ($i ? ' style="--w:' . $i . '"' : '') . '>' . e($w) . '</span>';
+    }
+    return '<' . $tag . ' class="hl-gold' . (!empty($o['tall']) ? ' hl-gold-tall' : '') . $extra . '"' . (($o['draw'] ?? true) ? ' data-draw' : '') . '>' . implode(' ', $words) . '</' . $tag . '>';
+}
+
+/**
+ * Escape $text and gold-highlight one phrase of it (first case-insensitive match). $phrase null = the part written in
+ * [square brackets] (admin-editable titles such as "Get [Free Counselling]"; the brackets are removed), false/'' = none.
+ *   echo '<h2 class="section-title">' . gold_text('Scholarships up to 40%', 'up to 40%') . '</h2>';
+ */
+function gold_text(string $text, $phrase = null, array $o = []): string
+{
+    if ($phrase === null) {
+        if (!preg_match('/\[([^\[\]]+)\]/u', $text, $m)) {
+            return e($text);
+        }
+        $text = str_replace($m[0], $m[1], $text);
+        $phrase = $m[1];
+    }
+    $text = str_replace(['[', ']'], '', $text);
+    if ($phrase === false || trim((string) $phrase) === '') {
+        return e($text);
+    }
+    $pos = mb_stripos($text, (string) $phrase);
+    if ($pos === false) {
+        return e($text);
+    }
+    $len = mb_strlen((string) $phrase);
+    return e(mb_substr($text, 0, $pos)) . gold_highlight(mb_substr($text, $pos, $len), $o) . e(mb_substr($text, $pos + $len));
 }
 
 /**
@@ -528,16 +623,24 @@ function admission_bar(array $o = []): string
 
 /**
  * Floating 2D geometric shapes (rings, dots grid, squares, plus, half-circle) for hero / band compositions — absolute
- * positioned, drifting slowly (static for reduced motion). $preset: hero | band | card. Parent must be relative.
+ * positioned, drifting slowly (static for reduced motion). $preset: hero | hero-text (no photo: nothing near the
+ * breadcrumb row) | band | card. Parent must be relative.
  */
 function geo_shapes(string $preset = 'hero', string $class = ''): string
 {
     $sets = [
         'hero' => [
-            ['geo-ring', 'left-[46%] top-10 h-24 w-24 hidden lg:block', '0s', '0deg'],
+            // top-right corner, clear of the breadcrumb / eyebrow row of left-aligned and centred heroes (behind the photo in split heroes)
+            ['geo-ring', 'right-[4%] top-6 h-20 w-20 hidden xl:block', '0s', '0deg'],
             ['geo-dots', 'right-[3%] bottom-12 h-24 w-28 hidden md:block', '1s', '0deg'],
             ['geo-square', 'left-[4%] bottom-16 h-4 w-4 hidden sm:block', '2s', '18deg'],
             ['geo-plus', 'right-[44%] bottom-10 h-5 w-5 hidden lg:block', '.5s', '0deg'],
+        ],
+        // text-only / centred heroes: the ring sits low on the right so long breadcrumbs and titles never run under it
+        'hero-text' => [
+            ['geo-ring', 'right-[4%] bottom-8 h-16 w-16 hidden xl:block', '0s', '0deg'],
+            ['geo-dots', 'right-[10%] top-10 h-20 w-24 hidden lg:block opacity-70', '1s', '0deg'],
+            ['geo-square', 'left-[4%] bottom-16 h-4 w-4 hidden sm:block', '2s', '18deg'],
         ],
         'band' => [
             ['geo-ring', 'right-[38%] -top-8 h-28 w-28', '0s', '0deg'],
@@ -608,37 +711,158 @@ function whatsapp_cta(string $label = 'Chat with us on WhatsApp', string $text =
 /**
  * Sticky admission enquiry CTA (desktop vertical side tab on the left edge) that opens the enquiry modal rendered by
  * enquiry_modal(). Rendered by site_footer() unless 'enquiry_tab' => false.
+ * Between 1024 and 1535 px the page gutter is only ~32 px, so the tab rests as a slim 24 px strip (text only, icon
+ * hidden) that never covers content, and slides out to full size on hover / keyboard focus. From 1536 px it is full size.
  */
 function enquiry_tab(string $label = 'Enquire Now', string $modalId = 'enquiry-modal'): string
 {
-    return '<button type="button" class="enquiry-tab no-print" data-modal-open="#' . e($modalId) . '" aria-haspopup="dialog"><span class="enquiry-tab-icon">' . icon('message-circle', 'h-4 w-4') . '</span><span class="enquiry-tab-text">' . e($label) . '</span></button>';
+    return '<button type="button" class="enquiry-tab no-print group/etab max-[1535px]:!gap-0 max-[1535px]:!px-1 max-[1535px]:!pb-3 max-[1535px]:!pt-3 max-[1535px]:!text-[12.5px] max-[1535px]:hover:!gap-2 max-[1535px]:hover:!px-2 max-[1535px]:focus-visible:!gap-2 max-[1535px]:focus-visible:!px-2" data-modal-open="#' . e($modalId) . '" aria-haspopup="dialog">'
+        . '<span class="enquiry-tab-icon max-[1535px]:!hidden max-[1535px]:group-hover/etab:!inline-flex max-[1535px]:group-focus-visible/etab:!inline-flex">' . icon('message-circle', 'h-4 w-4') . '</span><span class="enquiry-tab-text">' . e($label) . '</span></button>';
+}
+
+/** Name of the session admissions are open for ("2026-27"): admissions_open session, else the current one. Cached. */
+function site_admission_session_name(): string
+{
+    static $name = null;
+    if ($name === null) {
+        $name = '';
+        try {
+            $row = db_row('SELECT name FROM academic_sessions WHERE admissions_open = 1 ORDER BY is_current DESC, start_date DESC LIMIT 1')
+                ?: db_row('SELECT name FROM academic_sessions WHERE is_current = 1 LIMIT 1');
+            $name = (string) ($row['name'] ?? '');
+        } catch (Throwable $e) {
+            $name = '';
+        }
+    }
+    return $name;
 }
 
 /**
- * Accessible enquiry modal (vanilla data-modal) containing an EnquiryForm — opened by enquiry_tab() or any
- * [data-modal-open="#enquiry-modal"] trigger, e.g. "Request a Callback" buttons. Program options from site_programs().
- * @param array $o id, title, subtitle, source (hidden source value), theme (lead|light), program (preselected slug)
+ * Photo of the enquiry popup: setting enquiry_modal_image (admin upload, Settings › Website › Enquiry popup), else the
+ * bundled default (assets/images/site/popup-counsellor.webp — a transparent cut-out of a smiling counsellor, 640×544;
+ * client request 2026-10-26).
+ * A PNG / WebP upload with an alpha channel is treated as a cut-out (it stands on the gold blob without a frame);
+ * anything else is shown in the rounded arch frame (object-cover, face kept in view).
+ * @return array{src: string, webp: ?string, cutout: bool, width: int, height: int}
+ */
+function enquiry_popup_image(): array
+{
+    static $img = null;
+    if ($img !== null) {
+        return $img;
+    }
+    $path = trim((string) setting('enquiry_modal_image', ''));
+    $file = $path === '' ? '' : APP_ROOT . '/' . ltrim(str_starts_with($path, 'assets/') ? $path : 'assets/uploads/' . ltrim($path, '/'), '/');
+    if ($path === '' || str_contains($path, '..') || !is_file($file)) {
+        return $img = ['src' => asset('assets/images/site/popup-counsellor.webp'), 'webp' => null, 'cutout' => true, 'width' => 640, 'height' => 544];
+    }
+    $size = @getimagesize($file) ?: [0, 0];
+    return $img = ['src' => site_image($path), 'webp' => null, 'cutout' => enquiry_image_has_alpha($file), 'width' => (int) $size[0], 'height' => (int) $size[1]];
+}
+
+/** True when a PNG / WebP file declares an alpha channel (transparent cut-out photo). Reads the file header only. */
+function enquiry_image_has_alpha(string $file): bool
+{
+    $h = @file_get_contents($file, false, null, 0, 64);
+    if (!is_string($h) || strlen($h) < 30) {
+        return false;
+    }
+    if (str_starts_with($h, "\x89PNG")) {
+        $type = ord($h[25]); // IHDR colour type: 4 grey + alpha, 6 RGBA, 3 palette (transparent with a tRNS chunk)
+        return $type === 4 || $type === 6 || ($type === 3 && str_contains((string) @file_get_contents($file, false, null, 0, 8192), 'tRNS'));
+    }
+    if (str_starts_with($h, 'RIFF') && substr($h, 8, 4) === 'WEBP') {
+        $chunk = substr($h, 12, 4);
+        if ($chunk === 'VP8X') {
+            return (ord($h[20]) & 0x10) === 0x10; // ALPHA flag
+        }
+        if ($chunk === 'VP8L') {
+            return (ord($h[24]) & 0x10) === 0x10; // alpha_is_used bit of the lossless header
+        }
+    }
+    return false;
+}
+
+/**
+ * Premium two-panel enquiry popup (client request 2026-10-13; docs/DESIGN.md "attractive enquiry popup"): LEFT (a top
+ * strip on phones) a smiling student over a big yellow-gold blob with orange-red accents and doodles, an "Admissions Open
+ * <session>" ribbon and white trust chips (generic service wording + the real merit-scholarship maximum); RIGHT a white
+ * form panel — heading with a gold marker phrase, the EnquiryForm (international phone, form token, captcha, dedupe,
+ * consent, success state, dataLayer event — all from the forms platform), red submit button and a privacy line.
+ * Rendered by the footer (Enquire Now tab, "Request a Callback" triggers = any [data-modal-open="#enquiry-modal"], the
+ * homepage auto-open) and by landing pages (#lead-modal with the program preselected). Vanilla data-modal: role=dialog,
+ * aria-labelledby, focus trap, Esc, focus return and scroll lock (core/overlays.ts); auto-open rules: core/popup.ts.
+ * Settings (Settings › Website › Enquiry popup): enquiry_modal_image, enquiry_popup_title ("Get [Free Counselling]" —
+ * the [bracketed] words get the gold marker), enquiry_popup_ribbon ({session} = admission session), enquiry_popup_auto,
+ * enquiry_popup_delay. The card always stays light, also in the dark theme (.light-scope).
+ * @param array $o id, title, subtitle, ribbon, submit, source (hidden source value), program (preselected program id), consent
+ *                 (consent checkbox text — campaign landings pass their own, the same as their hero form),
+ *                 auto (int seconds: open automatically on this page after that delay — see core/popup.ts; 0 = never)
  */
 function enquiry_modal(array $o = []): string
 {
-    $id = (string) ($o['id'] ?? 'enquiry-modal');
-    $options = array_map(fn ($p) => ['value' => (string) $p['id'], 'label' => $p['name']], site_programs());
-    $theme = $o['theme'] ?? 'lead';
+    $id = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) ($o['id'] ?? 'enquiry-modal')) ?: 'enquiry-modal';
+    $session = site_admission_session_name();
+    $title = trim((string) ($o['title'] ?? '')) ?: (trim((string) setting('enquiry_popup_title', '')) ?: 'Get [Free Counselling]');
+    $plainTitle = trim(str_replace(['[', ']'], '', $title));
+    $ribbon = (string) ($o['ribbon'] ?? (trim((string) setting('enquiry_popup_ribbon', '')) ?: 'Admissions Open {session}'));
+    $ribbon = trim((string) preg_replace('/\s+/', ' ', str_replace('{session}', $session, $ribbon)));
+    $subtitle = (string) ($o['subtitle'] ?? 'Share your details — our admission counsellor will call you within 24 hours.');
+    $maxSch = site_max_scholarship();
+    $chips = [
+        ['user-round-check', 'Free expert counselling'],
+        ['award', $maxSch ? 'Scholarships up to ' . $maxSch . '%' : 'Scholarships for eligible students'],
+        ['phone', 'Callback within 24 hours'],
+    ];
+    $img = enquiry_popup_image();
+    $options = site_program_select_options();
     $form = enquiry_form([
-        'endpoint' => base_url('api/public/enquiry'), 'theme' => $theme, 'compact' => true, 'captureUtm' => true,
-        'title' => $o['title'] ?? 'Request a Callback', 'titleHighlight' => $o['highlight'] ?? 'Callback',
-        'subtitle' => $o['subtitle'] ?? 'Our admission counsellor will call you within one working day.',
-        'submitLabel' => $o['submit'] ?? 'Request Callback', 'hidden' => ['source' => (string) ($o['source'] ?? 'website'), 'form' => 'callback'],
-        'consent' => 'I agree to be contacted by GIMT about admissions by phone, SMS, email or WhatsApp.',
+        'endpoint' => base_url('api/public/enquiry'), 'theme' => 'plain', 'compact' => true, 'captureUtm' => true,
+        'submitLabel' => $o['submit'] ?? 'Get Free Counselling', 'hidden' => ['source' => (string) ($o['source'] ?? 'website'), 'form' => 'enquiry-popup'],
+        'successTitle' => 'Thank you!', 'successMessage' => 'Our admission counsellor will call you within 24 hours.',
+        'consent' => (string) ($o['consent'] ?? 'I agree to be contacted by GIMT about admissions by phone, SMS, email or WhatsApp.'),
         'fields' => [
             ['name' => 'name', 'label' => 'Full Name', 'required' => true, 'maxLength' => 150, 'autocomplete' => 'name'],
-            ['name' => 'phone', 'label' => 'Mobile Number', 'type' => 'tel', 'required' => true, 'prefix' => '+91', 'pattern' => '^[6-9][0-9]{9}$', 'patternMessage' => 'Enter a valid 10-digit mobile number.', 'autocomplete' => 'tel-national', 'maxLength' => 10],
+            ['name' => 'phone', 'label' => 'Mobile Number', 'type' => 'tel', 'required' => true, 'country' => 'IN', 'autocomplete' => 'tel'],
             ['name' => 'email', 'label' => 'Email Address', 'type' => 'email', 'autocomplete' => 'email'],
-            ['name' => 'program_id', 'label' => 'Program of interest', 'type' => 'select', 'options' => $options, 'placeholder' => 'Select program', 'value' => (string) ($o['program'] ?? '')],
+            ['name' => 'program_id', 'label' => 'Program of interest', 'type' => 'select', 'options' => $options, 'placeholder' => 'Program of interest', 'value' => (string) ($o['program'] ?? '')],
         ],
     ]);
-    return '<div id="' . e($id) . '" class="modal hidden" role="dialog" aria-modal="true" aria-label="' . e($o['title'] ?? 'Request a Callback') . '" data-modal>'
-        . '<div class="modal-scrim" data-modal-close></div><div class="modal-card modal-card-flush"><button type="button" class="modal-x" data-modal-close aria-label="Close">' . icon('x', 'h-5 w-5') . '</button>' . $form . '</div></div>';
+    $picture = '<picture>' . (!empty($img['webp']) ? '<source srcset="' . e($img['webp']) . '" type="image/webp">' : '')
+        . '<img src="' . e($img['src']) . '" alt="" width="' . ((int) $img['width'] ?: 564) . '" height="' . ((int) $img['height'] ?: 594) . '" loading="lazy" decoding="async"></picture>';
+    $privacy = function_exists('seo_path_exists') && !seo_path_exists('/privacy-policy') ? '' : ' <a href="' . e(site_url('privacy-policy')) . '" target="_blank" rel="noopener">Privacy Policy</a>';
+    $auto = (int) ($o['auto'] ?? 0);
+
+    // visual panel: ribbon on top; the stage (gold blob + orange-red accents + photo + floating trust chips) centred below
+    $visual = '<div class="epop-visual' . ($img['cutout'] ? ' is-cutout' : '') . '">'
+        . '<span class="epop-quarter" aria-hidden="true"></span><span class="epop-dots" aria-hidden="true"></span>'
+        . ($ribbon !== '' ? '<p class="epop-ribbon"><span>' . icon('graduation-cap', '') . e($ribbon) . '</span></p>' : '')
+        . '<div class="epop-stage">'
+        . '<span class="epop-blob" aria-hidden="true"></span><span class="epop-ring" aria-hidden="true"></span>'
+        . '<span class="epop-spark epop-spark-1" aria-hidden="true">' . doodle('sparkle', 'h-full w-full') . '</span>'
+        . '<span class="epop-spark epop-spark-2" aria-hidden="true">' . doodle('sparkle', 'h-full w-full') . '</span>'
+        . '<span class="epop-squiggle" aria-hidden="true">' . doodle('squiggle', 'h-full w-full') . '</span>'
+        . '<div class="epop-photo"><figure class="epop-figure">' . $picture . '</figure>'
+        . '<ul class="epop-chips" aria-label="Why talk to us">';
+    foreach ($chips as $i => [$ic, $label]) {
+        $visual .= '<li class="epop-chip epop-chip-' . ($i + 1) . '"><span class="epop-chip-icon">' . icon($ic, '') . '</span><span>' . e($label) . '</span></li>';
+    }
+    $visual .= '</ul></div></div></div>';
+
+    $body = '<div class="epop-body">'
+        . '<p class="epop-eyebrow">' . icon('sparkles', '') . 'Talk to an admission counsellor</p>'
+        . '<h2 class="epop-title" id="' . e($id) . '-title">' . gold_text($title, null, ['draw' => false]) . '</h2>'
+        . ($subtitle !== '' ? '<p class="epop-sub">' . e($subtitle) . '</p>' : '')
+        . '<div class="epop-form">' . $form . '</div>'
+        . '<p class="epop-privacy">' . icon('lock', '') . '<span>Your details are safe with us — no spam.' . $privacy . '</span></p>'
+        . '</div>';
+
+    return '<div id="' . e($id) . '" class="modal epop-modal hidden" role="dialog" aria-modal="true" aria-labelledby="' . e($id) . '-title" data-modal data-enquiry-popup'
+        . ($auto > 0 ? ' data-popup-auto="' . $auto . '"' : '') . '>'
+        . '<div class="modal-scrim" data-modal-close></div>'
+        . '<div class="modal-card epop light-scope" tabindex="-1">'
+        . '<button type="button" class="epop-x" data-modal-close aria-label="Close">' . icon('x', 'h-5 w-5') . '</button>'
+        . $visual . $body . '</div></div>';
 }
 
 /** Back-to-top button with a scroll-progress ring (rendered by site_footer()). */
@@ -662,7 +886,7 @@ function mobile_cta_bar(array $o = []): string
     return '<div class="mobile-cta no-print' . ($wa ? ' has-wa' : '') . '" role="region" aria-label="Quick actions">'
         . '<a href="' . e(site_tel($phone)) . '" class="btn btn-brochure" data-no-ripple>' . icon('phone', 'h-4 w-4') . 'Call</a>'
         . ($wa ? '<a href="' . e($wa) . '" target="_blank" rel="noopener" class="wa-action" aria-label="Chat with us on WhatsApp (opens in a new tab)">' . icon('whatsapp-brand', '') . '</a>' : '')
-        . '<a href="' . e(cms_link($apply['url'] ?? '/apply')) . '" class="btn btn-apply">' . e($apply['label'] ?? 'Apply Now') . icon('arrow-right', 'h-4 w-4') . '</a></div>';
+        . '<a href="' . e(cms_link($apply['url'] ?? '/apply')) . '" class="btn btn-apply btn-shine btn-gleam">' . e($apply['label'] ?? 'Apply Now') . icon('arrow-right', 'h-4 w-4') . '</a></div>';
 }
 
 /* ============================================================================ Island wrappers (fallback + island) */
@@ -673,7 +897,7 @@ function mobile_cta_bar(array $o = []): string
  * frame with doodles + sticker on the right, white pill chips, bold stat numbers with thin dividers. Fallback = first slide.
  *   echo hero_slider([
  *     'slides' => [['image' => site_image(...), 'eyebrow' => 'Shaping Future Leaders', 'title' => 'Shape Your Future.',
- *                   'scribble' => 'Future', 'highlight' => 'Build Your Legacy.', 'text' => '…',
+ *                   'scribble' => 'Future' (or 'gold' => 'Future': yellow-gold marker instead), 'highlight' => 'Build Your Legacy.', 'text' => '…',
  *                   'cta' => ['label' => 'Apply for Admission', 'url' => '/apply'],
  *                   'cta2' => ['label' => 'Explore Programs', 'url' => '/programs']], …],
  *     'chips' => [['icon' => 'briefcase-business', 'label' => 'Industry Focused'], …],
@@ -710,7 +934,7 @@ function hero_slider(array $props): string
     if (!empty($first['eyebrow'])) {
         $html .= '<p class="hero-eyebrow"><span class="hero-eyebrow-dot"></span>' . e($first['eyebrow']) . '</p>';
     }
-    $html .= '<h1 class="hero-title">' . scribble_text($first['title'], !empty($first['scribble']) ? $first['scribble'] : false, $dark ? 'light' : 'orange')
+    $html .= '<h1 class="hero-title">' . (!empty($first['gold']) ? gold_text($first['title'], (string) $first['gold']) : scribble_text($first['title'], !empty($first['scribble']) ? $first['scribble'] : false, $dark ? 'light' : 'orange'))
         . (!empty($first['highlight']) ? '<span class="hero-highlight">' . e($first['highlight']) . '</span>' : '') . '</h1>';
     if (!empty($first['text'])) {
         $html .= '<p class="hero-text">' . e($first['text']) . '</p>';
@@ -794,12 +1018,25 @@ function program_categories(): array
     ];
 }
 
+/** Category tile grid for ProgramExplorer (mirror of TILE_GRID in frontend/site/islands/ProgramExplorer.tsx): a single
+ * row only where every tile fits (8 tiles from xl, never squeezed into one row below 1280 px). */
+function program_tile_grid(int $n): string
+{
+    return [
+        1 => 'grid grid-cols-2 gap-3', 2 => 'grid grid-cols-2 gap-3', 3 => 'grid grid-cols-3 gap-3', 4 => 'grid grid-cols-2 gap-3 sm:grid-cols-4',
+        5 => 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5', 6 => 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6',
+        7 => 'grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7', 8 => 'grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8',
+    ][$n] ?? 'grid grid-cols-2 gap-3 sm:grid-cols-4';
+}
+
 /**
  * Program explorer (island ProgramExplorer): black-active pill tabs (or icon tiles) + search + animated filtering of
  * program cards. Fallback: the same pills wired to the vanilla data-filter behaviour + all program cards.
  *   echo program_explorer(site_programs(), ['layout' => 'pills', 'viewAll' => ['label' => 'View All Programs', 'url' => site_url('programs')]]);
  * @param array $props categories (default program_categories()), layout (pills|tiles), search (bool), syncParam,
- *                     gridClass, viewAll, emptyText, initial, card (program_card() options)
+ *                     gridClass, tileClass (tile grid classes; default program_tile_grid() by count), itemLabel
+ *                     (['one' => 'course', 'many' => 'courses'] for the live count / empty state), viewAll, emptyText,
+ *                     initial, card (program_card() options)
  */
 function program_explorer(array $programs, array $props = []): string
 {
@@ -825,7 +1062,7 @@ function program_explorer(array $programs, array $props = []): string
         $cards .= '<div class="h-full" data-key="' . e($p['slug'] ?? $p['id'] ?? '') . '" data-category="' . e($tokens) . '" data-search="' . e(trim(($p['name'] ?? '') . ' ' . ($p['short_name'] ?? '') . ' ' . ($p['category'] ?? '') . ' ' . program_level_label($p['level'] ?? ''))) . '" data-filter-item="all ' . e($tokens) . '" data-filter-group="' . $group . '">' . program_card($p, $cardOpts) . '</div>';
     }
     $fallback = '<div class="program-explorer"><div class="mb-8 flex flex-col gap-4' . ($layout === 'pills' ? ' lg:flex-row lg:items-center lg:justify-between' : '') . '">'
-        . '<div class="' . ($layout === 'tiles' ? 'grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8' : 'pill-row scrollbar-none') . '" role="toolbar" aria-label="Filter programs by category">' . $pills . '</div>'
+        . '<div class="' . e($layout === 'tiles' ? ($props['tileClass'] ?? program_tile_grid(count($props['categories']))) : 'pill-row scrollbar-none') . '" role="toolbar" aria-label="Filter ' . e($props['itemLabel']['many'] ?? 'programs') . ' by category">' . $pills . '</div>'
         . (!empty($props['viewAll']) ? '<div class="flex items-center gap-3"><a href="' . e($props['viewAll']['url']) . '" class="btn btn-outline btn-sm hidden shrink-0 sm:inline-flex">' . e($props['viewAll']['label']) . icon('arrow-right', 'h-4 w-4') . '</a></div>' : '')
         . '</div><div class="grid gap-6 ' . e($grid) . '" data-slot="items">' . $cards . '</div></div>';
     return island('ProgramExplorer', $props, $fallback);
@@ -1038,7 +1275,10 @@ function video_lightbox(array $props): string
 /**
  * Photo gallery with lightbox (island GalleryLightbox). Fallback: thumbnail grid opening the vanilla lightbox.
  * @param array $items [['src' => URL, 'thumb' => URL, 'alt' => '…', 'caption' => '…', 'category' => '…'], …]
- * @param array $props columns (2|3|4), layout (grid|masonry|bento), filter (bool), ariaLabel
+ * @param array $props columns (2|3|4), layout (grid|masonry|bento), filter (bool), ariaLabel,
+ *                     captions ('hover' default — caption in the hover overlay | 'always' — captions always visible on a
+ *                     soft bottom gradient, the zoom badge appears on hover / focus; applies to the island tiles too),
+ *                     class (extra classes on the island wrapper)
  */
 function gallery_grid(array $items, array $props = []): string
 {
@@ -1048,11 +1288,20 @@ function gallery_grid(array $items, array $props = []): string
     $cols = (int) ($props['columns'] ?? 3);
     $colCls = [2 => 'sm:grid-cols-2', 3 => 'sm:grid-cols-2 lg:grid-cols-3', 4 => 'sm:grid-cols-3 lg:grid-cols-4'][$cols] ?? 'sm:grid-cols-2 lg:grid-cols-3';
     $bento = ($props['layout'] ?? 'grid') === 'bento';
-    $html = '<ul class="grid grid-cols-2 gap-3 sm:gap-4 ' . $colCls . ($bento ? ' gallery-bento' : '') . '">';
+    $always = ($props['captions'] ?? 'hover') === 'always';
+    $extra = (string) ($props['class'] ?? '');
+    unset($props['captions'], $props['class']);
+    $html = '<div class="gallery"><ul class="grid grid-cols-2 gap-3 sm:gap-4 ' . $colCls . ($bento ? ' gallery-bento' : '') . '">';
     foreach ($props['items'] as $it) {
-        $html .= '<li><a href="' . e($it['src']) . '" data-lightbox="' . $group . '" data-caption="' . e($it['caption'] ?? $it['alt'] ?? '') . '" class="gallery-tile img-zoom group aspect-[4/3]"><img src="' . e($it['thumb'] ?? $it['src']) . '" alt="' . e($it['alt'] ?? '') . '" loading="lazy" class="h-full w-full object-cover"></a></li>';
+        $caption = (string) ($it['caption'] ?? '');
+        $html .= '<li><a href="' . e($it['src']) . '" data-lightbox="' . $group . '" data-caption="' . e($caption !== '' ? $caption : ($it['alt'] ?? '')) . '" class="gallery-tile img-zoom group aspect-[4/3]">'
+            . '<img src="' . e($it['thumb'] ?? $it['src']) . '" alt="' . e($it['alt'] ?? '') . '" loading="lazy" decoding="async" class="h-full w-full object-cover">'
+            . '<span class="gallery-tile-overlay" aria-hidden="true">' . icon('search', 'h-5 w-5') . ($caption !== '' ? '<span class="gallery-tile-caption">' . e($caption) . '</span>' : '') . '</span></a></li>';
     }
-    return island('GalleryLightbox', $props, $html . '</ul>');
+    $html .= '</ul></div>';
+    // always-visible captions: overlay shown with a bottom gradient, zoom badge only on hover / keyboard focus
+    $wrap = $always ? 'block [&_.gallery-tile-overlay]:opacity-100 [&_.gallery-tile-overlay]:[background:linear-gradient(180deg,rgba(7,26,59,0)_45%,rgba(7,26,59,.8))] [&_.gallery-tile-overlay>svg]:opacity-0 [&_.gallery-tile:hover_.gallery-tile-overlay>svg]:opacity-100 [&_.gallery-tile:focus-visible_.gallery-tile-overlay>svg]:opacity-100 [&_.gallery-tile-caption]:text-white' : '';
+    return island('GalleryLightbox', $props, $html, ['class' => trim($wrap . ' ' . $extra) ?: null]);
 }
 
 /** UTM / click-id parameters of the current request (sanitised) for lead forms. */
@@ -1069,25 +1318,144 @@ function site_utm_params(): array
 }
 
 /**
+ * Calling codes + names of every region and the default region, for the server-rendered phone fields — read from a
+ * small PHP cache file (storage/cache/site-phone-regions.php, OPcache-friendly) instead of decoding the 117 KB
+ * libphonenumber metadata JSON (app/data/phone_meta.json) on every page that renders a form (e.g. the enquiry popup in
+ * the footer). Rebuilt automatically when the JSON changes. ['default' => 'IN', 'regions' => ['IN' => ['91', 'India'], …]]
+ */
+function ef_phone_data(): array
+{
+    static $data = null;
+    if ($data !== null) {
+        return $data;
+    }
+    $json = APP_ROOT . '/app/data/phone_meta.json';
+    $cache = APP_ROOT . '/storage/cache/site-phone-regions.php';
+    $stamp = is_file($json) ? (int) filemtime($json) : 0;
+    $regions = null;
+    if (is_file($cache)) {
+        $c = @include $cache;
+        if (is_array($c) && ($c['stamp'] ?? -1) === $stamp && is_array($c['regions'] ?? null)) {
+            $regions = $c['regions'];
+        }
+    }
+    if ($regions === null) {
+        require_once APP_ROOT . '/app/services/phone.php';
+        $regions = [];
+        foreach (phone_meta()['regions'] as $iso => $r) {
+            $regions[(string) $iso] = [(string) ($r['c'] ?? ''), phone_country_name((string) $iso)];
+        }
+        if ($regions && is_dir(dirname($cache)) && is_writable(dirname($cache))) {
+            $tmp = $cache . '.' . getmypid() . '.tmp';
+            if (@file_put_contents($tmp, '<?php return ' . var_export(['stamp' => $stamp, 'regions' => $regions], true) . ';', LOCK_EX) !== false) {
+                @rename($tmp, $cache);
+            }
+        }
+    }
+    $def = strtoupper(trim((string) setting('phone_default_country', 'IN')));
+    return $data = ['default' => isset($regions[$def]) ? $def : 'IN', 'regions' => $regions];
+}
+
+/**
+ * Forms platform protection for a plain server-rendered form handled by the vanilla data-ajax-form handler (footer and
+ * blog newsletter): attributes for the <form> tag (data-secure + the public captcha config) and the hidden fields
+ * (one-time form token "_ft", honeypot, captcha holder, reCAPTCHA notice). core/widgets.ts posts it with the token +
+ * captcha answer and fetches a fresh token after a success.
+ *   '<form action="…/api/public/newsletter" method="post" data-ajax-form' . site_secure_form_attrs('newsletter') . '>' . csrf_field() . site_secure_form_fields()
+ */
+function site_secure_form_attrs(string $form): string
+{
+    require_once APP_ROOT . '/app/services/public_forms.php';
+    $captcha = pf_captcha_public();
+    return ' data-secure="' . e($form) . '"' . ($captcha ? ' data-captcha="' . e((string) json_encode($captcha)) . '"' : '');
+}
+
+function site_secure_form_fields(bool $dark = false): string
+{
+    require_once APP_ROOT . '/app/services/public_forms.php';
+    $captcha = pf_captcha_public();
+    $note = ($captcha['provider'] ?? '') === 'recaptcha_v3'
+        ? '<p class="mt-1.5 text-[11px] leading-snug ' . ($dark ? 'text-white/60' : 'text-slate-500') . '">Protected by reCAPTCHA — Google <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2">Privacy</a> &amp; <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2">Terms</a> apply.</p>'
+        : '';
+    return '<input type="hidden" name="_ft" value="' . e(pf_form_token()) . '">'
+        . '<input type="text" name="website" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">'
+        . ($captcha ? '<div data-captcha-holder class="flex justify-center empty:hidden"></div>' . $note : '');
+}
+
+/** Public form key of an endpoint ("…/api/public/event-registration" -> "event"); null for other endpoints. */
+function ef_form_key(string $endpoint): ?string
+{
+    $map = ['contact' => 'contact', 'enquiry' => 'enquiry', 'newsletter' => 'newsletter', 'event-registration' => 'event', 'apply' => 'apply', 'alumni-register' => 'alumni'];
+    return preg_match('#/api/public/([a-z-]+)/?$#', (string) parse_url($endpoint, PHP_URL_PATH), $m) ? ($map[$m[1]] ?? null) : null;
+}
+
+/**
+ * International phone + address fields for enquiry_form(): a legacy Indian-only tel definition (prefix '+91',
+ * pattern ^[6-9][0-9]{9}$, maxLength 10, tel-national) becomes an international phone field with India preselected
+ * (per-country validation replaces the pattern; the value is sent as E.164).
+ */
+function ef_normalize_field(array $f): array
+{
+    $type = $f['type'] ?? 'text';
+    if ($type === 'tel') {
+        if (empty($f['country'])) {
+            $cc = preg_match('/^\+(\d{1,3})$/', trim((string) ($f['prefix'] ?? '')), $m) ? $m[1] : '';
+            $f['country'] = $cc !== '' && $cc !== '91' ? (phone_meta()['codes'][$cc][0] ?? ef_phone_data()['default']) : ef_phone_data()['default'];
+        }
+        $f['country'] = strtoupper((string) $f['country']);
+        unset($f['prefix'], $f['pattern'], $f['patternMessage'], $f['minLength']);
+        $f['maxLength'] = 24;
+        if (in_array($f['autocomplete'] ?? '', ['', 'tel-national'], true)) {
+            $f['autocomplete'] = 'tel';
+        }
+        if (isset($f['placeholder']) && (str_contains((string) $f['placeholder'], '+') || preg_match('/10-digit/i', (string) $f['placeholder']))) {
+            unset($f['placeholder']); // the island shows a national example for the selected country
+        }
+    } elseif ($type === 'email') {
+        $f['autocomplete'] ??= 'email';
+        $f['maxLength'] ??= 190;
+    } elseif ($type === 'country') {
+        $f['autocomplete'] ??= 'country-name';
+        $c = address_country((string) ($f['value'] ?? 'IN'));
+        $f['value'] = $c ? $c['name'] : 'India';
+    } elseif ($type === 'postal') {
+        $f['autocomplete'] ??= 'postal-code';
+        $f['maxLength'] ??= 12;
+    } elseif ($type === 'state') {
+        $f['autocomplete'] ??= 'address-level1';
+        $f['maxLength'] ??= 80;
+    }
+    return $f;
+}
+
+/**
  * AJAX enquiry / counselling / contact form (island EnquiryForm). Fallback: an equivalent <form data-ajax-form> that
- * the vanilla form handler submits (and that posts normally without JS, with the _csrf field).
+ * the vanilla form handler submits (and that posts normally without JS, with the _csrf field) — it shows the result
+ * of a no-JS post inline: success message, errors under each field (aria-describedby, first invalid field focused),
+ * typed values refilled.
  *   echo enquiry_form(['endpoint' => base_url('api/public/enquiry'), 'title' => 'Need Help Choosing a Program?',
  *     'theme' => 'dark', 'compact' => true, 'submitLabel' => 'Get Free Counselling', 'hidden' => ['source' => 'programs-page'],
  *     'fields' => [['name' => 'name', 'label' => 'Full Name', 'required' => true, 'maxLength' => 150],
- *                  ['name' => 'phone', 'label' => 'Phone Number', 'type' => 'tel', 'required' => true, 'prefix' => '+91'],
+ *                  ['name' => 'phone', 'label' => 'Phone Number', 'type' => 'tel', 'required' => true],
  *                  ['name' => 'email', 'label' => 'Email Address', 'type' => 'email', 'required' => true],
  *                  ['name' => 'program', 'label' => 'Program Interest', 'type' => 'select', 'options' => ['MBA', 'BBA']]]]);
- * Field keys: name, label, type (text|email|tel|number|date|select|textarea|checkbox), required, placeholder, options
- * (strings or {value,label}), col (full|half), minLength, maxLength, min, max, pattern (+patternMessage), rows, help,
- * prefix (e.g. '+91' shown before a tel input), value.
+ * Field keys: name, label, type (text|email|tel|number|date|select|textarea|checkbox|country|state|postal), required,
+ * placeholder, options (strings or {value,label}), col (full|half), minLength, maxLength, min, max, pattern
+ * (+patternMessage), rows, help, value, country (tel: ISO2 preselected in the country-code selector, default India;
+ * the browser validates per country with libphonenumber and sends E.164; "<name>_country" carries the ISO2 code),
+ * countryField (state/postal: name of the country field they follow, default "country" — India shows the list of
+ * states & UTs and a 6-digit PIN code). 'prefix' => '+91' on tel fields is accepted for compatibility (= India).
  * Props: theme (light|dark|glass|lead|plain), compact, title, titleHighlight (part of the title in orange — lead card),
  * subtitle, icon, tags ([{icon, label}] small feature tags under the title — lead card), submitLabel, successTitle,
- * successMessage, hidden, consent, captureUtm (bool: add utm_* / gclid from the URL as hidden fields),
- * footer (HTML strip attached below the card, e.g. the yellow deadline/seats strip — server-rendered, outside the island),
- * id (anchor id on the wrapper).
+ * successMessage, resetLabel (success-state button, default "Submit another enquiry"), hidden, consent, captureUtm
+ * (bool: add utm_* / gclid from the URL as hidden fields), footer (HTML strip attached below the card, e.g. the yellow
+ * deadline/seats strip — server-rendered, outside the island), id (anchor id on the wrapper).
+ * Spam / duplicate protection is automatic: one-time form token, honeypot, captcha when configured (Admin › SEO ›
+ * Integrations), dedupe windows on the server; a successful send pushes {event: 'generate_lead', form} to dataLayer.
  */
 function enquiry_form(array $props): string
 {
+    require_once APP_ROOT . '/app/services/public_forms.php';
     $theme = $props['theme'] ?? 'light';
     $compact = !empty($props['compact']);
     if (!empty($props['captureUtm'])) {
@@ -1096,6 +1464,24 @@ function enquiry_form(array $props): string
     $footer = (string) ($props['footer'] ?? '');
     $wrapId = (string) ($props['id'] ?? '');
     unset($props['footer'], $props['id']);
+    $props['fields'] = array_map('ef_normalize_field', array_values($props['fields'] ?? []));
+    $endpoint = (string) ($props['endpoint'] ?? '');
+    $formKey = ef_form_key($endpoint);
+    $fid = 'f' . substr(md5($endpoint . '|' . json_encode($props['fields']) . '|' . ($props['title'] ?? '') . '|' . $theme . '|' . json_encode($props['hidden'] ?? [])), 0, 10);
+    $flash = $formKey ? pf_take_flash($formKey, $fid) : null;
+    $old = $flash && !$flash['ok'] ? (array) ($flash['old'] ?? []) : [];
+    $errs = $flash && !$flash['ok'] ? (array) ($flash['errors'] ?? []) : [];
+    $back = (string) (parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/');
+    $query = (string) (parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_QUERY) ?? '');
+    $back .= $query !== '' ? '?' . $query : '';
+    $props['formKey'] = $formKey;
+    $props['fid'] = $fid; // the island keeps values typed into this fallback form before it mounted
+    $props['resetLabel'] ??= ['event' => 'Register another person', 'contact' => 'Send another message', 'alumni' => 'Submit another registration'][$formKey ?? ''] ?? 'Submit another enquiry';
+    $props['formToken'] = pf_form_token();
+    $props['captcha'] = pf_captcha_public();
+    if ($flash) {
+        $props['initial'] = ['ok' => (bool) $flash['ok'], 'message' => (string) $flash['message'], 'errors' => (object) $errs, 'values' => (object) $old];
+    }
     $title = (string) ($props['title'] ?? '');
     $titleHtml = e($title);
     if ($title !== '' && !empty($props['titleHighlight']) && ($pos = mb_stripos($title, (string) $props['titleHighlight'])) !== false) {
@@ -1105,7 +1491,7 @@ function enquiry_form(array $props): string
     $html = '<div class="enquiry enquiry-' . e($theme) . ($compact ? ' enquiry-compact' : '') . '">';
     if ($title !== '' || !empty($props['icon'])) {
         $html .= '<div class="mb-5' . (in_array($theme, ['dark', 'lead'], true) ? ' text-center' : '') . '">' . (!empty($props['icon']) ? '<span class="enquiry-icon">' . icon($props['icon'], 'h-7 w-7') . '</span>' : '')
-            . ($title !== '' ? '<h3 class="enquiry-title">' . $titleHtml . '</h3>' : '');
+            . ($title !== '' ? (($props['titleTag'] ?? 'h3') === 'h2' ? '<h2 class="enquiry-title">' . $titleHtml . '</h2>' : '<h3 class="enquiry-title">' . $titleHtml . '</h3>') : '');
         if (!empty($props['tags'])) {
             $html .= '<p class="enquiry-tags">';
             foreach ($props['tags'] as $t) {
@@ -1115,39 +1501,102 @@ function enquiry_form(array $props): string
         }
         $html .= (!empty($props['subtitle']) ? '<p class="enquiry-subtitle">' . e($props['subtitle']) . '</p>' : '') . '</div>';
     }
-    $html .= '<form action="' . e($props['endpoint'] ?? '') . '" method="post" data-ajax-form data-success="' . e($props['successMessage'] ?? 'Thank you! We will contact you shortly.') . '" class="grid grid-cols-2 gap-3.5">' . csrf_field()
+    $html .= '<form action="' . e($endpoint) . '" method="post" data-ajax-form data-success="' . e($props['successMessage'] ?? 'Thank you! We will contact you shortly.') . '" class="grid grid-cols-2 gap-3.5" novalidate>'
+        . csrf_field() . '<input type="hidden" name="_ft" value="' . e($props['formToken']) . '"><input type="hidden" name="_fid" value="' . e($fid) . '"><input type="hidden" name="_back" value="' . e($back) . '">'
         . '<input type="text" name="website" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">';
     foreach (($props['hidden'] ?? []) as $k => $v) {
         $html .= '<input type="hidden" name="' . e($k) . '" value="' . e($v) . '">';
     }
-    foreach (($props['fields'] ?? []) as $f) {
-        $id = 'ef-' . substr(md5(json_encode($props['fields']) . ($props['title'] ?? '') . $theme . $f['name']), 0, 6) . '-' . e($f['name']);
+    if (!empty($props['consent']) && !isset($props['hidden']['consent_required'])) {
+        $html .= '<input type="hidden" name="consent_required" value="1">';   // the server then requires the consent box too
+    }
+    if ($flash) {
+        $html .= '<div class="col-span-2 form-message ' . ($flash['ok'] ? 'form-message-success' : 'form-message-error') . '" role="' . ($flash['ok'] ? 'status' : 'alert') . '">'
+            . '<p class="flex items-start gap-2">' . icon($flash['ok'] ? 'circle-check' : 'circle-alert', 'mt-0.5 h-4 w-4 shrink-0') . e($flash['message']) . '</p>'
+            . (array_diff_key($errs, array_flip(array_column($props['fields'], 'name')), ['consent' => 1]) ? '<ul class="mt-1.5 list-disc pl-6 text-[13px]">' . implode('', array_map(fn ($m) => '<li>' . e($m) . '</li>', array_diff_key($errs, array_flip(array_column($props['fields'], 'name')), ['consent' => 1]))) . '</ul>' : '')
+            . '</div>';
+    }
+    $firstInvalid = true;
+    $countryOf = fn (array $f): string => strtoupper((string) (address_country((string) ($old[$f['countryField'] ?? 'country'] ?? ''))['iso'] ?? 'IN'));
+    foreach ($props['fields'] as $f) {
+        $name = (string) $f['name'];
+        $id = $fid . '-' . e($name);
         $req = !empty($f['required']);
+        $type = $f['type'] ?? 'text';
+        $err = $errs[$name] ?? null;
+        $val = array_key_exists($name, $old) ? (string) $old[$name] : (isset($f['value']) ? (string) $f['value'] : null);
+        $describedBy = trim(($err ? $id . '-err ' : '') . (!empty($f['help']) ? $id . '-help' : ''));
         $label = '<label for="' . $id . '" class="form-label' . ($compact ? ' sr-only' : '') . '">' . e($f['label']) . ($req ? '<span class="form-required"> *</span>' : '') . '</label>';
         $ph = $f['placeholder'] ?? ($compact ? $f['label'] . ($req ? ' *' : '') : '');
-        $common = 'id="' . $id . '" name="' . e($f['name']) . '"' . ($req ? ' required' : '') . (!empty($f['maxLength']) ? ' maxlength="' . (int) $f['maxLength'] . '"' : '') . (!empty($f['pattern']) ? ' pattern="' . e($f['pattern']) . '"' : '');
-        $type = $f['type'] ?? 'text';
-        $html .= '<div class="' . (($f['col'] ?? 'full') === 'half' ? 'col-span-2 sm:col-span-1' : 'col-span-2') . '">';
-        if ($type === 'select') {
-            $opts = '<option value="">' . e($f['placeholder'] ?? 'Select ' . strtolower($f['label'])) . '</option>';
-            foreach (($f['options'] ?? []) as $o) {
-                $o = is_array($o) ? $o : ['value' => $o, 'label' => $o];
-                $opts .= '<option value="' . e($o['value']) . '"' . (isset($f['value']) && (string) $f['value'] === (string) $o['value'] ? ' selected' : '') . '>' . e($o['label']) . '</option>';
-            }
-            $html .= $label . '<select ' . $common . ' class="form-input">' . $opts . '</select>';
-        } elseif ($type === 'textarea') {
-            $html .= $label . '<textarea ' . $common . ' rows="' . (int) ($f['rows'] ?? 4) . '" class="form-input" placeholder="' . e($ph) . '"></textarea>';
-        } elseif ($type === 'checkbox') {
-            $html .= '<div class="flex items-start gap-2.5"><input ' . $common . ' type="checkbox" value="1" class="form-check mt-0.5"><label for="' . $id . '" class="text-sm">' . e($f['label']) . '</label></div>';
-        } else {
-            $input = '<input ' . $common . ' type="' . e($type) . '" class="form-input" placeholder="' . e($ph) . '"' . ($type === 'tel' ? ' inputmode="tel"' : '') . (isset($f['value']) ? ' value="' . e($f['value']) . '"' : '') . '>';
-            $html .= $label . (!empty($f['prefix']) ? '<div class="input-prefix"><span aria-hidden="true">' . e($f['prefix']) . '</span>' . $input . '</div>' : $input);
+        $common = 'id="' . $id . '" name="' . e($name) . '"' . ($req ? ' required aria-required="true"' : '') . (!empty($f['maxLength']) ? ' maxlength="' . (int) $f['maxLength'] . '"' : '')
+            . (!empty($f['pattern']) ? ' pattern="' . e($f['pattern']) . '"' : '') . (!empty($f['autocomplete']) ? ' autocomplete="' . e($f['autocomplete']) . '"' : '')
+            . ($err ? ' aria-invalid="true"' . ($firstInvalid ? ' autofocus' : '') : '') . ($describedBy !== '' ? ' aria-describedby="' . $describedBy . '"' : '');
+        $inv = $err ? ' is-invalid' : '';
+        if ($err) {
+            $firstInvalid = false;
         }
-        $html .= '<p class="form-error" data-error-for="' . e($f['name']) . '"></p></div>';
+        $html .= '<div class="' . (($f['col'] ?? 'full') === 'half' ? 'col-span-2 sm:col-span-1' : 'col-span-2') . '">';
+        if ($type === 'select' || $type === 'country') {
+            $options = $type === 'country' ? array_map(fn ($c) => ['value' => $c['name'], 'label' => $c['name']], phone_countries()) : ($f['options'] ?? []);
+            $opts = '<option value="">' . e($f['placeholder'] ?? 'Select ' . strtolower($f['label'])) . '</option>';
+            $openGroup = null;
+            foreach ($options as $o) {
+                $o = is_array($o) ? $o : ['value' => $o, 'label' => $o];
+                $group = isset($o['group']) ? (string) $o['group'] : null;
+                if ($group !== $openGroup) {
+                    $opts .= ($openGroup !== null ? '</optgroup>' : '') . ($group !== null ? '<optgroup label="' . e($group) . '">' : '');
+                    $openGroup = $group;
+                }
+                $opts .= '<option value="' . e($o['value']) . '"' . ($val !== null && (string) $val === (string) $o['value'] ? ' selected' : '') . '>' . e($o['label']) . '</option>';
+            }
+            $opts .= $openGroup !== null ? '</optgroup>' : '';
+            $html .= $label . '<select ' . $common . ' class="form-input' . $inv . '">' . $opts . '</select>';
+        } elseif ($type === 'textarea') {
+            $html .= $label . '<textarea ' . $common . ' rows="' . (int) ($f['rows'] ?? 4) . '" class="form-input' . $inv . '" placeholder="' . e($ph) . '">' . e($val ?? '') . '</textarea>';
+        } elseif ($type === 'checkbox') {
+            $html .= '<div class="flex items-start gap-2.5"><input ' . $common . ' type="checkbox" value="1" class="form-check mt-0.5' . $inv . '"' . (pf_truthy($val ?? '') ? ' checked' : '') . '>'
+                . '<label for="' . $id . '" class="text-sm">' . e($f['label']) . ($req ? '<span class="form-required"> *</span>' : '') . '</label></div>';
+        } elseif ($type === 'tel') {
+            // country-code selector (common countries; "Other" = type the number with its +code) + national number
+            $cur = strtoupper((string) ($old[$name . '_country'] ?? $f['country'] ?? 'IN'));
+            $regions = ef_phone_data()['regions'];
+            $pref = array_values(array_unique(array_merge([$cur], phone_preferred_countries())));
+            $opts = '';
+            foreach ($pref as $iso) {
+                if (($dial = (string) ($regions[$iso][0] ?? '')) !== '') {
+                    $opts .= '<option value="' . e($iso) . '"' . ($iso === $cur ? ' selected' : '') . '>+' . e($dial) . ' ' . e((string) $regions[$iso][1]) . '</option>';
+                }
+            }
+            $opts .= '<option value="">Other — type +code</option>';
+            $html .= $label . '<div class="phone-field form-input' . $inv . ' flex items-stretch !p-0 focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-500/10">'
+                . '<select name="' . e($name) . '_country" aria-label="Country calling code for ' . e($f['label']) . '" class="w-[6.25rem] shrink-0 cursor-pointer truncate rounded-l-[inherit] border-0 border-r border-black/10 bg-black/[.035] py-0 pl-2 pr-1 text-[14px] font-semibold text-inherit focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent-500">' . $opts . '</select>'
+                . '<input ' . $common . ' type="tel" inputmode="tel" class="min-w-0 flex-1 rounded-r-[inherit] border-0 bg-transparent px-3.5 ' . ($compact ? 'py-2.5' : 'py-3') . ' text-sm text-inherit placeholder:text-slate-400 focus:outline-none focus:ring-0" placeholder="' . e($compact ? $f['label'] . ($req ? ' *' : '') : ($f['placeholder'] ?? '')) . '"' . ($val !== null ? ' value="' . e($val) . '"' : '') . '></div>';
+        } elseif ($type === 'state') {
+            $listId = $id . '-states';
+            $html .= $label . '<input ' . $common . ' type="text" list="' . $listId . '" class="form-input' . $inv . '" placeholder="' . e($ph) . '"' . ($val !== null ? ' value="' . e($val) . '"' : '') . '>'
+                . '<datalist id="' . $listId . '">' . implode('', array_map(fn ($s) => '<option value="' . e($s) . '"></option>', address_india_states())) . '</datalist>';
+        } elseif ($type === 'postal') {
+            $iso = $countryOf($f);
+            $html .= $label . '<input ' . $common . ' type="text" class="form-input' . $inv . '" placeholder="' . e($ph) . '"' . ($iso === 'IN' ? ' inputmode="numeric"' : '') . ($val !== null ? ' value="' . e($val) . '"' : '') . '>';
+        } else {
+            $html .= $label . '<input ' . $common . ' type="' . e($type) . '" class="form-input' . $inv . '" placeholder="' . e($ph) . '"' . ($type === 'email' ? ' inputmode="email" autocapitalize="off" spellcheck="false"' : '')
+                . (isset($f['min']) ? ' min="' . e((string) $f['min']) . '"' : '') . (isset($f['max']) ? ' max="' . e((string) $f['max']) . '"' : '') . ($val !== null ? ' value="' . e($val) . '"' : '') . '>';
+        }
+        if (!empty($f['help'])) {
+            $html .= '<p class="form-hint" id="' . $id . '-help">' . e($f['help']) . '</p>';
+        }
+        $html .= '<p class="form-error" id="' . $id . '-err" data-error-for="' . e($name) . '">' . e($err ?? '') . '</p></div>';
     }
     if (!empty($props['consent'])) {
-        $cid = 'ef-consent-' . substr(md5(($props['title'] ?? '') . $theme . json_encode($props['fields'] ?? [])), 0, 6);
-        $html .= '<div class="col-span-2 flex items-start gap-2.5"><input id="' . $cid . '" name="consent" type="checkbox" value="1" required class="form-check mt-0.5"><label for="' . $cid . '" class="enquiry-consent text-sm">' . e($props['consent']) . '</label></div>';
+        $cid = $fid . '-consent';
+        $cerr = $errs['consent'] ?? null;
+        $html .= '<div class="col-span-2"><div class="flex items-start gap-2.5"><input id="' . $cid . '" name="consent" type="checkbox" value="1" required aria-required="true" class="form-check mt-0.5' . ($cerr ? ' is-invalid' : '') . '"'
+            . ($cerr ? ' aria-invalid="true" aria-describedby="' . $cid . '-err"' . ($firstInvalid ? ' autofocus' : '') : '') . (pf_truthy($old['consent'] ?? '') ? ' checked' : '') . '>'
+            . '<label for="' . $cid . '" class="enquiry-consent text-sm">' . e($props['consent']) . '<span class="form-required"> *</span></label></div>'
+            . '<p class="form-error" id="' . $cid . '-err" data-error-for="consent">' . e($cerr ?? '') . '</p></div>';
+    }
+    if ($props['captcha']) {
+        $html .= '<noscript><p class="col-span-2 form-hint">This form uses an automatic spam check that needs JavaScript. Please enable JavaScript, or call us on ' . e((string) setting('phone', '')) . '.</p></noscript>';
     }
     $html .= '<div class="col-span-2 pt-1"><button type="submit" class="btn btn-accent btn-shine w-full">' . e($props['submitLabel'] ?? 'Submit Enquiry') . icon('arrow-right', 'h-4 w-4') . '</button><p class="form-message" data-form-message></p></div></form></div>';
     $out = island('EnquiryForm', $props, $html);
@@ -1281,11 +1730,217 @@ function view_mode_open(string $key, array $o = []): string
     $GLOBALS['__view_mode_tags'][] = $tag;
     $js = '(function(e){try{var v=localStorage.getItem(' . js_json('gimt.view.' . $key) . ');if(/^(grid|list|compact|detailed)$/.test(v||""))e.setAttribute("data-view",v)}catch(x){}})(document.currentScript.parentNode)';
     return '<' . $tag . ' class="view-host' . (!empty($o['class']) ? ' ' . e($o['class']) : '') . '"' . (!empty($o['id']) ? ' id="' . e($o['id']) . '"' : '')
-        . ' data-view="' . e($mode) . '" data-view-key="' . e($key) . '"><script>' . $js . '</script>';
+        . ' data-view="' . e($mode) . '" data-view-key="' . e($key) . '"><script' . site_nonce_attr() . '>' . $js . '</script>';
 }
 
 function view_mode_close(): string
 {
     $tag = array_pop($GLOBALS['__view_mode_tags']) ?? 'div';
     return '</' . $tag . '>';
+}
+
+/* ============================================================================ CMS placements (docs/CMS.md §4 / §5)
+ * Website CMS › Banners (placements page_header, popup, strip) and › Announcements (types banner, popup) — live rows only
+ * (status active + inside the schedule, site_banners() / site_announcements()). Every helper returns '' when nothing is
+ * live, so pages render exactly as before without CMS data. */
+
+/** First live banner of a placement that has a heading (cached per request). */
+function site_live_banner(string $placement): ?array
+{
+    static $cache = [];
+    if (!array_key_exists($placement, $cache)) {
+        $cache[$placement] = null;
+        foreach (site_banners($placement) as $b) {
+            if (trim((string) ($b['title'] ?? '')) !== '') {
+                $cache[$placement] = $b;
+                break;
+            }
+        }
+    }
+    return $cache[$placement];
+}
+
+/** Banner buttons (cta / cta2) as button_link()s; $variants = [first, second]. */
+function site_banner_buttons(array $b, array $variants = ['apply', 'brochure'], array $o = []): string
+{
+    $html = '';
+    foreach ([['cta_text', 'cta_url'], ['cta2_text', 'cta2_url']] as $i => [$t, $u]) {
+        $label = trim((string) ($b[$t] ?? ''));
+        $url = trim((string) ($b[$u] ?? ''));
+        if ($label !== '' && $url !== '') {
+            $html .= button_link($label, $url, $variants[$i] ?? 'brochure', ['size' => $o['size'] ?? '', 'icon' => $i ? '' : 'arrow-right']);
+        }
+    }
+    return $html;
+}
+
+/** <picture> for a banner image (mobile_image below 640 px when set). Decorative unless image_alt is filled in. */
+function site_banner_picture(array $b, string $class = '', array $o = []): string
+{
+    $desk = trim((string) ($b['desktop_image'] ?? ''));
+    $mob = trim((string) ($b['mobile_image'] ?? ''));
+    if ($desk === '' && $mob === '') {
+        return '';
+    }
+    $src = site_image($desk !== '' ? $desk : $mob);
+    return '<picture>' . ($mob !== '' && $desk !== '' ? '<source media="(max-width: 639px)" srcset="' . e(site_image($mob)) . '">' : '')
+        . '<img src="' . e($src) . '" alt="' . e((string) ($b['image_alt'] ?? '')) . '" class="' . e($class) . '"'
+        . ' width="' . (int) ($o['width'] ?? 640) . '" height="' . (int) ($o['height'] ?? 420) . '" loading="' . (($o['eager'] ?? false) ? 'eager' : 'lazy') . '" decoding="async"></picture>';
+}
+
+/**
+ * Announcements of type "banner": dismissible alert bars above the header (closures, deadlines). Yellow = urgency
+ * (Design v3), navy text. Max 2 bars; a dismissed bar stays hidden in this browser until its text changes (the inline
+ * script hides it before the first paint — no flash / layout shift). Rendered by includes/header.php on every page.
+ */
+function site_alert_bars(): string
+{
+    $html = '';
+    $live = array_values(array_filter(site_announcements('banner'), fn ($a) => trim((string) ($a['title'] ?? '')) !== ''));
+    foreach (array_slice($live, 0, 2) as $a) {
+        $key = 'gimt.alert.' . (int) $a['id'] . '.' . substr(md5($a['title'] . '|' . ($a['link'] ?? '') . '|' . ($a['link_text'] ?? '')), 0, 6);
+        $link = trim((string) ($a['link'] ?? ''));
+        $linkText = trim((string) ($a['link_text'] ?? '')) ?: 'Read more';
+        $html .= '<div class="alert-bar no-print" role="region" aria-label="Important notice" data-dismiss="' . e($key) . '">'
+            . '<p class="alert-bar-inner"><span class="alert-bar-icon">' . icon('megaphone', '') . '</span>'
+            . '<span class="alert-bar-text">' . e(trim((string) $a['title'])) . '</span>'
+            . ($link !== '' ? '<a class="alert-bar-link" href="' . e(cms_link($link)) . '">' . e($linkText) . icon('arrow-right', '') . '</a>' : '')
+            . '</p><button type="button" class="alert-bar-close" data-dismiss-close aria-label="Dismiss this notice">' . icon('x', '') . '</button></div>'
+            . '<script' . site_nonce_attr() . '>(function(e){try{if(e&&localStorage.getItem(e.getAttribute("data-dismiss"))==="1")e.classList.add("is-dismissed")}catch(x){}})(document.currentScript.previousElementSibling)</script>';
+    }
+    return $html;
+}
+
+/**
+ * Banner placement "page_header": a wide promotional card under the page hero of inner pages (page_hero() prints it on
+ * Programs, Admissions, Academics, Campus, Placements, Faculty, Alumni and About — page_hero option 'promo' => true/false
+ * overrides). First live banner: image, eyebrow (gold pill), heading + highlighted line, sub-heading, up to 2 buttons.
+ */
+function site_page_promo(): string
+{
+    $b = site_live_banner('page_header');
+    if (!$b) {
+        return '';
+    }
+    $hl = trim((string) ($b['highlight'] ?? ''));
+    $eyebrow = trim((string) ($b['eyebrow'] ?? ''));
+    $sub = trim((string) ($b['subheading'] ?? ''));
+    $pic = site_banner_picture($b, 'promo-card-img', ['width' => 480, 'height' => 320]);
+    $buttons = site_banner_buttons($b, ['explore', 'brochure'], ['size' => 'sm']);
+    return '<section class="promo-card-wrap no-print" aria-label="' . e(trim((string) $b['title'])) . '"><div class="container-site">'
+        . '<div class="promo-card' . ($pic ? ' has-media' : '') . '"' . reveal_attr('fade-up') . '>'
+        . ($pic ? '<div class="promo-card-media">' . $pic . '</div>' : '')
+        . '<div class="promo-card-body">'
+        . ($eyebrow !== '' ? '<p class="promo-card-eyebrow">' . gold_highlight($eyebrow, ['variant' => 'pill', 'icon' => 'sparkles']) . '</p>' : '')
+        . '<h2 class="promo-card-title">' . e(trim((string) $b['title'])) . ($hl !== '' ? ' <span class="promo-card-hl">' . e($hl) . '</span>' : '') . '</h2>'
+        . ($sub !== '' ? '<p class="promo-card-text">' . e($sub) . '</p>' : '')
+        . '</div>'
+        . ($buttons !== '' ? '<div class="promo-card-actions">' . $buttons . '</div>' : '')
+        . '</div></div></section>';
+}
+
+/**
+ * Banner placement "strip": slim full-width navy promo bar between homepage sections (index.php prints it after the
+ * Programs section). Round thumbnail, gold eyebrow pill, heading + sub-heading, one or two buttons.
+ */
+function site_promo_strip(): string
+{
+    $b = site_live_banner('strip');
+    if (!$b) {
+        return '';
+    }
+    $eyebrow = trim((string) ($b['eyebrow'] ?? ''));
+    $sub = trim((string) ($b['subheading'] ?? ''));
+    $hl = trim((string) ($b['highlight'] ?? ''));
+    $pic = site_banner_picture($b, 'promo-strip-img', ['width' => 160, 'height' => 160]);
+    $buttons = site_banner_buttons($b, ['apply', 'outline-light'], ['size' => 'sm']);
+    return '<section class="promo-strip-wrap no-print" aria-label="' . e(trim((string) $b['title'])) . '"><div class="container-site">'
+        . '<div class="promo-strip' . ($pic ? ' has-media' : '') . '"' . reveal_attr('fade-up') . '>'
+        . '<span class="promo-strip-glow" aria-hidden="true"></span>'
+        . ($pic ? '<div class="promo-strip-media">' . $pic . '</div>' : '')
+        . '<div class="promo-strip-body">'
+        . ($eyebrow !== '' ? '<p class="promo-strip-eyebrow">' . gold_highlight($eyebrow, ['variant' => 'pill', 'icon' => 'calendar-check']) . '</p>' : '')
+        . '<p class="promo-strip-title">' . e(trim((string) $b['title'])) . ($hl !== '' ? ' <span class="promo-strip-hl">' . e($hl) . '</span>' : '') . '</p>'
+        . ($sub !== '' ? '<p class="promo-strip-text">' . e($sub) . '</p>' : '')
+        . '</div>'
+        . ($buttons !== '' ? '<div class="promo-strip-actions">' . $buttons . '</div>' : '')
+        . '</div></div></section>';
+}
+
+/**
+ * The notice popup for this page, or null: on the homepage the first live "popup" banner (Banners › Home popup),
+ * otherwise (or when there is none) the first live announcement of type "popup". Never on /apply, /contact, campaign
+ * landings (minimal header) or error pages. Returns ['kind' => banner|announcement, 'row' => …, 'key' => storage key].
+ */
+function site_notice_popup_data(): ?array
+{
+    $page = $GLOBALS['__site_page'] ?? [];
+    $active = (string) ($page['active'] ?? '');
+    if (($page['header'] ?? 'full') === 'minimal' || in_array($active, ['apply', 'contact', 'admissions-open'], true) || (int) (http_response_code() ?: 200) >= 400) {
+        return null;
+    }
+    $row = $active === 'home' ? site_live_banner('popup') : null;
+    $kind = 'banner';
+    if (!$row) {
+        $kind = 'announcement';
+        foreach (site_announcements('popup') as $a) {
+            if (trim((string) ($a['title'] ?? '')) !== '') {
+                $row = $a;
+                break;
+            }
+        }
+    }
+    if (!$row) {
+        return null;
+    }
+    $sig = $kind === 'banner'
+        ? $row['title'] . '|' . ($row['subheading'] ?? '') . '|' . ($row['cta_url'] ?? '') . '|' . ($row['desktop_image'] ?? '')
+        : $row['title'] . '|' . ($row['content'] ?? '') . '|' . ($row['link'] ?? '');
+    return ['kind' => $kind, 'row' => $row, 'key' => 'gimt.notice.' . ($kind === 'banner' ? 'b' : 'a') . (int) $row['id'] . '.' . substr(md5($sig), 0, 6)];
+}
+
+/**
+ * Notice popup (CMS "Home popup" banner / "Popup" announcement): a light card — image | text on wide screens (image on
+ * top on phones), or a text card under a gold header for announcements. Opened automatically once per browser session
+ * by core/popup.ts (data-notice-delay seconds after load; phones only after 35 % scroll or 20 s; never on top of another
+ * layer; on the homepage the enquiry popup goes first and the notice waits for a later page view); ?popup=notice opens it
+ * immediately (previews). role=dialog, focus trap, Esc, focus return (core/overlays.ts); a click on its links closes it.
+ */
+function notice_modal(?array $d = null): string
+{
+    $d ??= site_notice_popup_data();
+    if (!$d) {
+        return '';
+    }
+    $r = $d['row'];
+    $id = 'notice-modal';
+    if ($d['kind'] === 'banner') {
+        $eyebrow = trim((string) ($r['eyebrow'] ?? ''));
+        $text = trim((string) ($r['subheading'] ?? ''));
+        $hl = trim((string) ($r['highlight'] ?? ''));
+        $pic = site_banner_picture($r, 'npop-img', ['width' => 560, 'height' => 640]);
+        $buttons = site_banner_buttons($r, ['apply', 'brochure']);
+    } else {
+        $eyebrow = 'Announcement';
+        $text = trim((string) ($r['content'] ?? ''));
+        $hl = '';
+        $pic = '';
+        $link = trim((string) ($r['link'] ?? ''));
+        $buttons = $link !== '' ? button_link(trim((string) ($r['link_text'] ?? '')) ?: 'Read more', $link, 'apply') : '';
+    }
+    $title = trim((string) $r['title']);
+    return '<div id="' . $id . '" class="modal npop-modal hidden" role="dialog" aria-modal="true" aria-labelledby="' . $id . '-title"'
+        . ($text !== '' ? ' aria-describedby="' . $id . '-text"' : '') . ' data-modal data-notice-popup data-notice-key="' . e($d['key']) . '" data-notice-delay="3">'
+        . '<div class="modal-scrim" data-modal-close></div>'
+        . '<div class="modal-card npop light-scope' . ($pic ? ' has-media' : '') . '" tabindex="-1">'
+        . '<button type="button" class="epop-x" data-modal-close aria-label="Close">' . icon('x', 'h-5 w-5') . '</button>'
+        . ($pic
+            ? '<div class="npop-media">' . $pic . '<span class="npop-quarter" aria-hidden="true"></span></div>'
+            : '<div class="npop-head" aria-hidden="true"><span class="npop-dots"></span><span class="npop-head-icon">' . icon('megaphone', '') . '</span></div>')
+        . '<div class="npop-body">'
+        . ($eyebrow !== '' ? '<p class="npop-eyebrow">' . gold_highlight($eyebrow, ['variant' => 'pill']) . '</p>' : '')
+        . '<h2 class="npop-title" id="' . $id . '-title">' . e($title) . ($hl !== '' ? ' <span class="npop-hl">' . e($hl) . '</span>' : '') . '</h2>'
+        . ($text !== '' ? '<p class="npop-text" id="' . $id . '-text">' . e($text) . '</p>' : '')
+        . ($buttons !== '' ? '<div class="npop-actions">' . $buttons . '</div>' : '')
+        . '</div></div></div>';
 }

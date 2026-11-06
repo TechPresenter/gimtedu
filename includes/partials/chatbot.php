@@ -8,7 +8,7 @@
  * plus a tiny inline loader that turns the placeholder into the island only after the page is idle or on the first
  * interaction (pointer / key / scroll / tap on the launcher) — so the chat never competes with LCP and React is not
  * downloaded for visitors who never interact. Settings + API: app/services/chatbot.php, api/routes/chat.php.
- * Page opt-out: site_header([... 'chatbot' => false]).
+ * Page opt-outs: site_header([... 'chatbot' => false]) hides the assistant, 'chatbot_greeting' => false only its greeting bubble.
  */
 
 if (!function_exists('chatbot_widget')) {
@@ -37,6 +37,28 @@ if (!function_exists('chatbot_widget')) {
             . '</g></svg>';
     }
 
+    /**
+     * Greeting bubble behaviour for the current page: 'off' on the application, contact and portal pages (and when the
+     * page passes site_header([... 'chatbot_greeting' => false])), 'forms' on campaign landing pages (minimal header —
+     * never while a lead form is on screen), otherwise 'auto'. The island re-checks the path client-side.
+     */
+    function chatbot_greeting_mode(): string
+    {
+        $page = $GLOBALS['__site_page'] ?? [];
+        if (($page['chatbot_greeting'] ?? true) === false) {
+            return 'off';
+        }
+        $path = (string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
+        $base = rtrim(base_path(), '/');
+        if ($base !== '' && str_starts_with($path, $base)) {
+            $path = substr($path, strlen($base)) ?: '/';
+        }
+        if (preg_match('#^/(apply|contact|portal|student-portal|faculty-portal|admin)(\.php)?(/|$)#i', $path)) {
+            return 'off';
+        }
+        return ($page['header'] ?? 'full') === 'minimal' ? 'forms' : 'auto';
+    }
+
     function chatbot_widget(): string
     {
         static $done = false;
@@ -54,17 +76,22 @@ if (!function_exists('chatbot_widget')) {
             return '';
         }
         $done = true;
+        $config['greetingMode'] = chatbot_greeting_mode();
+        $config['greetingAfter'] = 20;   // seconds on the page before the bubble may appear without scrolling
+        $config['greetingScroll'] = 0.3; // ...or this share of the page scrolled
         $online = !empty($config['online']);
         $label = 'Chat with the ' . $config['botName'] . ($online ? ' (online)' : '');
         $avatar = $config['avatar']
             ? '<img src="' . e($config['avatar']) . '" alt="" width="54" height="54" class="h-full w-full object-cover" loading="lazy" decoding="async">'
             : chatbot_avatar_svg('gcbs');
-        $hostClass = 'gcb-host no-print' . (empty($config['showOnMobile']) ? ' hidden sm:block' : '');
+        // gcb-rest: below 1024 px the launcher waits until the visitor has scrolled half a screen (never covers the first
+        // screen's text / CTAs above the mobile admission bar); toggled by the inline script below, ignored without JS
+        $hostClass = 'gcb-host gcb-rest no-print' . (empty($config['showOnMobile']) ? ' hidden sm:block' : '');
         $props = htmlspecialchars(json_encode($config, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8');
         ob_start();
         ?>
 <div id="gimt-chat" class="<?= e($hostClass) ?>" data-chat-island="ChatWidget" data-props="<?= $props ?>">
-  <div class="fixed bottom-[calc(var(--mobile-cta-h,0px)+14px)] left-3 z-[44] sm:left-5 lg:bottom-6">
+  <div class="gcb-dock fixed bottom-[calc(var(--mobile-cta-h,0px)+14px)] left-3 z-[44] sm:left-5 lg:bottom-6">
     <a href="<?= e($config['contactUrl'] . '#message') ?>" class="group relative grid h-[60px] w-[60px] place-items-center rounded-full bg-white shadow-[0_14px_32px_-12px_rgba(7,26,59,.55)] ring-[3px] <?= $online ? 'ring-emerald-500' : 'ring-slate-300' ?> transition-transform duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-offset-2" aria-label="<?= e($label) ?>" data-chat-launcher>
       <span class="block h-[52px] w-[52px] overflow-hidden rounded-full"><?= $avatar ?></span>
       <span class="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white <?= $online ? 'bg-emerald-500' : 'bg-slate-400' ?>" aria-hidden="true"></span>
@@ -72,10 +99,40 @@ if (!function_exists('chatbot_widget')) {
     </a>
   </div>
 </div>
-<script>
+<script<?= site_nonce_attr() ?>>
 (function () {
   var host = document.getElementById('gimt-chat');
   if (!host || host.getAttribute('data-island')) return;
+  // phones / tablets: show the launcher once the page has been scrolled half a screen (or cannot scroll that far);
+  // laptops 1024–1439 px (the page gutter is narrower than the launcher): the same, but only when the launcher would
+  // cover a control, heading or text of the first screen (e.g. the program page tabs at 1280 px) — a free corner shows it
+  var rq = 0;
+  var SEL = 'a[href],button,input,select,textarea,label,summary,[role="button"],[role="tab"],h1,h2,h3,h4,h5,h6,p,li,dt,dd,figcaption,blockquote';
+  function covers() {
+    var a = host.querySelector('[data-chat-launcher], button[aria-haspopup="dialog"]');
+    if (!a || !document.elementsFromPoint) return false;
+    var r = a.getBoundingClientRect(), pts = [[.15, .15], [.85, .15], [.5, .5], [.15, .85], [.85, .85]];
+    for (var i = 0; i < pts.length; i++) {
+      var els = document.elementsFromPoint(r.left + r.width * pts[i][0], r.top + r.height * pts[i][1]);
+      for (var j = 0; j < els.length; j++) {
+        if (!host.contains(els[j]) && els[j].matches(SEL)) return true;
+      }
+    }
+    return false;
+  }
+  function rest() {
+    rq = 0;
+    var max = document.documentElement.scrollHeight - window.innerHeight, y = window.pageYOffset || 0, w = window.innerWidth;
+    var top = max > 80 && y < Math.min(window.innerHeight * 0.5, max * 0.5);
+    // never while the chat is open / the launcher has keyboard focus
+    var busy = host.getAttribute('data-open') || host.querySelector('[aria-expanded="true"]') || host.contains(document.activeElement);
+    host.classList.toggle('gcb-rest', !!(top && !busy && (w < 1024 || (w < 1440 && covers()))));
+  }
+  function queue() { if (!rq) rq = (window.requestAnimationFrame || setTimeout)(rest); }
+  rest();
+  window.addEventListener('scroll', queue, { passive: true });
+  window.addEventListener('resize', queue, { passive: true });
+  window.addEventListener('load', queue, { once: true });
   var started = false;
   function mount(open) {
     if (open) {

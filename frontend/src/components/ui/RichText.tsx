@@ -71,7 +71,7 @@ export function RichText({ value, onChange, placeholder = 'Write here…', inval
           </button>
         ))}
         <span className="mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700" />
-        <button type="button" onClick={() => setSource((s) => !s)} className={clsx('inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium', source ? 'bg-brand-800 text-white' : 'text-slate-500 hover:bg-white hover:text-slate-900 dark:hover:bg-slate-700')} aria-pressed={source}>
+        <button type="button" onClick={() => setSource((s) => !s)} className={clsx('inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium', source ? 'bg-brand-800 text-white' : 'text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white')} aria-pressed={source}>
           <Code2 className="h-3.5 w-3.5" /> HTML
         </button>
       </div>
@@ -87,7 +87,7 @@ export function RichText({ value, onChange, placeholder = 'Write here…', inval
           data-placeholder={placeholder}
           onInput={emit}
           onBlur={emit}
-          className="prose-editor max-w-none overflow-y-auto px-3.5 py-3 text-sm text-slate-800 outline-none empty:before:pointer-events-none empty:before:text-slate-400 empty:before:content-[attr(data-placeholder)] dark:text-slate-100 [&_a]:text-brand-700 [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-slate-200 [&_blockquote]:pl-3 [&_blockquote]:text-slate-600 [&_h2]:mb-2 [&_h2]:mt-3 [&_h2]:text-lg [&_h2]:font-bold [&_h3]:mb-1.5 [&_h3]:mt-2 [&_h3]:text-base [&_h3]:font-semibold [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1.5 [&_ul]:list-disc [&_ul]:pl-5"
+          className="prose-editor max-w-none overflow-y-auto px-3.5 py-3 text-sm text-slate-800 outline-none empty:before:pointer-events-none empty:before:text-slate-400 empty:before:content-[attr(data-placeholder)] dark:text-slate-100 [&_a]:text-brand-700 dark:[&_a]:text-brand-300 [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-slate-200 dark:[&_blockquote]:border-slate-700 [&_blockquote]:pl-3 [&_blockquote]:text-slate-600 dark:[&_blockquote]:text-slate-300 [&_h2]:mb-2 [&_h2]:mt-3 [&_h2]:text-lg [&_h2]:font-bold [&_h3]:mb-1.5 [&_h3]:mt-2 [&_h3]:text-base [&_h3]:font-semibold [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1.5 [&_ul]:list-disc [&_ul]:pl-5"
           style={{ minHeight }}
           suppressContentEditableWarning
         />

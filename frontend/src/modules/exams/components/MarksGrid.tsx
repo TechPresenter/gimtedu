@@ -394,7 +394,7 @@ export function MarksGrid({ sheet, examId, sectionId, onSaved }: { sheet: MarksS
               )}
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
             <div>
               <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span className="font-medium text-slate-600 dark:text-slate-300">

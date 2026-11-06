@@ -294,6 +294,14 @@ export interface PayOptions {
   office: { hours: string; phone: string; email: string; address: string };
   late_fee_per_day: number;
 }
+/** Online (Cashfree) payment started from the portal — GET fees/payments/{ref}. */
+export interface OnlinePayment {
+  ref: string;
+  status: 'created' | 'paid' | 'failed' | 'expired' | 'cancelled' | 'review';
+  amount: number;
+  receipt_no: string | null;
+  payment_id: number | null;
+}
 export interface StudentFees {
   totals: { invoices: number; net: number; paid: number; balance: number; overdue: number; concessions: number; fine: number };
   next_due: FeePart | null;

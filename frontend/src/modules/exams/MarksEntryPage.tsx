@@ -61,7 +61,7 @@ export default function MarksEntryPage() {
       />
 
       <Card className="mb-5 p-4 sm:p-5">
-        <div className="grid gap-3 md:grid-cols-[10rem_minmax(0,2fr)_minmax(0,2fr)_12rem]">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[10rem_minmax(0,2fr)_minmax(0,2fr)_12rem]">
           <Field label="Session" htmlFor="me-session">
             <Select id="me-session" value={String(sessionId ?? '')} onChange={(ev) => set({ session: ev.target.value, exam: null, subject: null, section: null })} options={sessions.map((s) => ({ value: String(s.id), label: s.name }))} />
           </Field>
@@ -103,11 +103,11 @@ export default function MarksEntryPage() {
           <Card>
             <CardHeader title="Exams awaiting marks" subtitle="Papers held and marks still pending" icon={ClipboardList} />
             {exams.isLoading ? (
-              <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
                 {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
               </div>
             ) : pending.length ? (
-              <Stagger className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3" step={50}>
+              <Stagger className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3" step={50}>
                 {pending.map((e) => (
                   <button key={e.id} type="button" onClick={() => set({ exam: e.id, subject: null, section: null })} className="w-full rounded-xl border border-slate-200 p-4 text-left transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-soft dark:border-slate-800 dark:hover:border-brand-500/30">
                     <div className="flex items-start justify-between gap-2">
@@ -141,9 +141,9 @@ export default function MarksEntryPage() {
             {progress.error ? (
               <div className="p-5"><Alert variant="error">{(progress.error as ApiError).message}</Alert></div>
             ) : !progress.data ? (
-              <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}</div>
+              <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}</div>
             ) : subjects.length ? (
-              <Stagger className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3" step={50}>
+              <Stagger className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3" step={50}>
                 {subjects.map((s) => (
                   <button
                     key={s.subject_id}

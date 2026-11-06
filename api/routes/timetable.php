@@ -44,7 +44,7 @@ route('GET', '/timetable/meta', function () {
 
 route('GET', '/timetable/grid', function () {
     api_require('timetable', 'view');
-    $view = (string) ($_GET['view'] ?? 'class');
+    $view = api_str($_GET['view'] ?? null, 'class');
     if (!in_array($view, ['class', 'faculty', 'room', 'student'], true)) {
         api_error('Unknown timetable view.', 400);
     }
@@ -102,7 +102,7 @@ route('GET', '/timetable/free-rooms', function () {
     if ($errors) {
         api_error('Choose a day and a time slot.', 422, $errors);
     }
-    $rows = tt_free_rooms(tt_request_session(), $day, $slot, ['type' => $_GET['type'] ?? null, 'min_capacity' => $_GET['min_capacity'] ?? null, 'building' => $_GET['building'] ?? null]);
+    $rows = tt_free_rooms(tt_request_session(), $day, $slot, ['type' => api_query('type') ?: null, 'min_capacity' => api_query('min_capacity') ?: null, 'building' => api_query('building') ?: null]);
     api_ok(['rows' => $rows, 'total' => count($rows), 'busy' => (int) db_value("SELECT COUNT(*) FROM classrooms WHERE status = 'active'") - count($rows)]);
 });
 

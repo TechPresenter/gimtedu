@@ -22,7 +22,7 @@ $ids = [];
 if (input_int('id')) {
     $ids[] = input_int('id');
 }
-foreach (explode(',', (string) input('ids', '')) as $v) {
+foreach (explode(',', api_str(input('ids'))) as $v) {
     if ((int) $v > 0) {
         $ids[] = (int) $v;
     }

@@ -27,7 +27,7 @@ route('GET', '/academics/programs/{id:\d+}/tree', function ($p) {
 route('GET', '/academics/workload', function () {
     api_require('academics', 'view');
     $sid = acad_request_session_id();
-    $rows = acad_workload($sid, ['department_id' => $_GET['department_id'] ?? null, 'q' => trim((string) ($_GET['q'] ?? ''))]);
+    $rows = acad_workload($sid, ['department_id' => $_GET['department_id'] ?? null, 'q' => trim(api_str($_GET['q'] ?? null))]);
     $assigned = array_filter($rows, fn ($r) => $r['planned_hours'] > 0);
     api_ok([
         'rows' => $rows,

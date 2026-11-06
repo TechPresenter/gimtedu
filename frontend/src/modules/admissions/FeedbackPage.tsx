@@ -13,7 +13,7 @@ import { CrudTable } from '@/components/crud';
 import { api, ApiError } from '@/lib/api';
 import { useApi, useInvalidate, useLookup } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
-import { formatDateTime, formatNumber, formatPercent, labelize, timeAgo, toNumber } from '@/lib/format';
+import { formatDateTime, formatNumber, formatPercent, formatPhone, labelize, telHref, timeAgo, toNumber } from '@/lib/format';
 import type { Row } from '@/lib/types';
 import type { BadgeColor } from '@/lib/status';
 import { useExternalNavKey } from './shared';
@@ -148,7 +148,7 @@ export default function FeedbackPage() {
         bulkActions={can('feedback', 'edit') ? [{ label: 'Assign', icon: Users, onClick: (ids, clear) => setAssign({ ids, clear }) }] : []}
       />
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-12">
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
         <Reveal className="min-w-0 lg:col-span-8">
           <Card className="h-full">
             <CardHeader title="By category" subtitle="All tickets vs still open" icon={MessageSquare} />
@@ -309,7 +309,7 @@ function TicketDrawer({ id, onClose, onAssign }: { id: number | null; onClose: (
               { label: 'Submitted by', value: Number(t.is_anonymous) ? `Confidential (${labelize(String(t.submitted_by_type))})` : `${String(t.name)} (${labelize(String(t.submitted_by_type))})` },
               { label: 'Student', value: t.student_uid ? <span className="font-mono">{String(t.student_uid)}</span> : null },
               { label: 'Email', value: !Number(t.is_anonymous) && t.email ? <a className="link" href={`mailto:${t.email}`}>{String(t.email)}</a> : null },
-              { label: 'Phone', value: !Number(t.is_anonymous) && t.phone ? String(t.phone) : null },
+              { label: 'Phone', value: !Number(t.is_anonymous) && t.phone ? <a className="link" href={telHref(t.phone)}>{formatPhone(t.phone)}</a> : null },
               { label: 'Assigned to', value: (t.assignee_name as string) || 'Unassigned' },
               { label: 'Rating', value: t.rating ? <Stars value={Number(t.rating)} /> : null },
             ]}

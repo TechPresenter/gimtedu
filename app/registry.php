@@ -41,6 +41,16 @@ function permission_modules(): array
         'blog'             => ['label' => 'Blog / News', 'group' => 'Website', 'actions' => ['view', 'create', 'edit', 'delete', 'publish', 'manage']],
         'media'            => ['label' => 'Media Library & Gallery', 'group' => 'Website', 'actions' => ['view', 'create', 'edit', 'delete', 'manage']],
         'seo'              => ['label' => 'SEO Management', 'group' => 'Website', 'actions' => ['view', 'edit', 'manage']],
+        // Faculty Portal (/portal/faculty): view = sign in, create = mark own class attendance, edit = enter marks for own papers.
+        'faculty_portal'   => ['label' => 'Faculty Portal (own classes only)', 'group' => 'Portals', 'actions' => ['view', 'create', 'edit']],
+        // WhatsApp Automation (Interakt). view = see, create = send / add, edit = change, manage = everyone's data + config.
+        'whatsapp'            => ['label' => 'WhatsApp Inbox & Dashboard (create = send messages)', 'group' => 'WhatsApp', 'actions' => ['view', 'create', 'edit', 'delete', 'export', 'manage']],
+        'whatsapp_contacts'   => ['label' => 'WhatsApp Contacts, Leads & Follow-ups', 'group' => 'WhatsApp', 'actions' => ['view', 'create', 'edit', 'delete', 'export', 'import', 'manage']],
+        'whatsapp_templates'  => ['label' => 'WhatsApp Templates (approve = submit to Interakt / sync)', 'group' => 'WhatsApp', 'actions' => ['view', 'create', 'edit', 'delete', 'approve', 'manage']],
+        'whatsapp_campaigns'  => ['label' => 'WhatsApp Campaigns (publish = send)', 'group' => 'WhatsApp', 'actions' => ['view', 'create', 'edit', 'delete', 'export', 'publish', 'manage']],
+        'whatsapp_automation' => ['label' => 'WhatsApp Automations, Events, Follow-up rules & AI Bot (publish = activate)', 'group' => 'WhatsApp', 'actions' => ['view', 'create', 'edit', 'delete', 'publish', 'manage']],
+        'whatsapp_reports'    => ['label' => 'WhatsApp Reports & Analytics', 'group' => 'WhatsApp', 'actions' => ['view', 'export']],
+        'whatsapp_settings'   => ['label' => 'WhatsApp Integration, API, Team & Settings', 'group' => 'WhatsApp', 'actions' => ['view', 'edit', 'manage']],
         'reports'          => ['label' => 'Reports & Analytics', 'group' => 'System', 'actions' => ['view', 'export']],
         'users'            => ['label' => 'Users', 'group' => 'System', 'actions' => ['view', 'create', 'edit', 'delete', 'export', 'manage']],
         'roles'            => ['label' => 'Roles & Permissions', 'group' => 'System', 'actions' => ['view', 'create', 'edit', 'delete', 'manage']],

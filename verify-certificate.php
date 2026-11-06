@@ -25,6 +25,11 @@ if ($raw !== '' && preg_match('#/verify-certificate(\.php)?/?$#', $path)) {
 }
 
 $result = $raw !== '' ? cert_verify($raw, $sig !== null && $sig !== '' ? 'qr' : 'web', $sig) : null;
+if (!empty($result['marksheet_url'])) {
+    // a marksheet number (GIMT-MS-…) typed here: the marksheet verification page checks it (and asks for its security code)
+    header('Location: ' . $result['marksheet_url'], true, 302);
+    exit;
+}
 $state = $result['state'] ?? null;
 $cert = $result['certificate'] ?? null;
 $number = $result['number'] ?? '';
@@ -41,19 +46,15 @@ site_header([
     'active' => 'verify-certificate',
     'robots' => $raw !== '' ? 'noindex,nofollow' : 'index,follow',
     'canonical' => absolute_url('verify-certificate'),
-    'seo' => ['route', '/verify-certificate'],
+    'seo' => ['route', '/verify-certificate'], 'announce' => false, 'loader' => false,
 ]);
-page_hero(
+// form page: compact text-only header so the form / the result is on the first screen (QR scans on phones)
+site_form_page_hero(
     'Certificate Verification',
-    'Instant. Secure. Tamper-proof.',
-    ['Verify Certificate'],
-    // Result pages (mostly QR scans on phones) use the compact text-only hero so the answer is on the first screen.
-    $raw !== '' ? '' : 'assets/images/site/graduation.jpg',
     $raw !== '' ? 'Result of the authenticity check for certificate ' . ($number !== '' ? $number : $raw) . '.'
-        : 'Employers, universities and embassies can confirm that a certificate was genuinely issued by ' . $institute . '. Scan the QR code printed on the certificate or enter its number below.',
-    // Result pages (often opened from a QR scan on a phone) keep the hero compact so the answer is visible at once.
-    $raw !== '' ? [] : [['icon' => 'qr-code', 'label' => 'QR-secured certificates'], ['icon' => 'shield-check', 'label' => 'Official institute records'], ['icon' => 'clock', 'label' => 'Result in seconds']],
-    ['size' => 'md']
+        : 'Confirm that a certificate was genuinely issued by ' . $institute . ' — scan its QR code or enter the certificate number.',
+    ['Verify Certificate'],
+    $raw !== '' ? [] : [['qr-code', 'QR-secured certificates'], ['shield-check', 'Official institute records'], ['clock', 'Result in seconds']]
 );
 
 /** One detail row of the result card. */
@@ -64,7 +65,7 @@ $detail = function (string $label, string $value, string $extra = ''): string {
 $fmt = fn (?string $d) => $d ? e(date('d M Y', strtotime($d))) : '—';
 ?>
 <div class="verify-certificate-page">
-  <section class="section-tight relative isolate bg-gradient-to-b from-brand-50/70 to-white" aria-label="Verify a certificate">
+  <section class="section-tight relative isolate bg-white" aria-label="Verify a certificate">
     <div class="container-site">
       <div class="grid gap-8 lg:grid-cols-12">
         <div class="lg:col-span-7">
@@ -168,10 +169,10 @@ $fmt = fn (?string $d) => $d ? e(date('d M Y', strtotime($d))) : '—';
           <?php endif; ?>
           <?php $resultHtml = ob_get_clean(); ?>
           <?php if ($state !== null): // result first (QR visitors on phones), then "verify another" ?>
-            <div class="relative -mt-16 sm:-mt-20"><?= $resultHtml ?></div>
+            <div class="relative"><?= $resultHtml ?></div>
             <div class="mt-6"><?= str_replace(['>Verify a certificate<', 'shadow-xl'], ['>Verify another certificate<', 'shadow-card'], $formHtml) ?></div>
           <?php else: ?>
-            <div class="relative -mt-16 sm:-mt-20"><?= $formHtml ?></div>
+            <div class="relative"><?= $formHtml ?></div>
             <div class="mt-8"<?= reveal_attr('fade-up', 120) ?>>
               <h2 class="font-display text-lg font-bold text-brand-900">What the result means</h2>
               <p class="mt-1 text-sm text-slate-600">Every lookup returns one of four answers, straight from the institute register.</p>
@@ -198,7 +199,7 @@ $fmt = fn (?string $d) => $d ? e(date('d M Y', strtotime($d))) : '—';
         </div>
 
         <aside class="space-y-5 lg:col-span-5 lg:pt-2">
-          <div class="card p-5 sm:p-6"<?= reveal_attr('fade-up', 80) ?>>
+          <div class="card p-5 sm:p-6">
             <p class="eyebrow">How it works</p>
             <h2 class="mt-1 font-display text-lg font-bold text-brand-900">Three steps to a trusted answer</h2>
             <ol class="mt-4 space-y-4">
@@ -215,24 +216,12 @@ $fmt = fn (?string $d) => $d ? e(date('d M Y', strtotime($d))) : '—';
               <?php endforeach; ?>
             </ol>
           </div>
-          <div class="card p-5 sm:p-6"<?= reveal_attr('fade-up', 160) ?>>
-            <h2 class="flex items-center gap-2 font-display text-base font-bold text-brand-900"><?= icon('shield', 'h-5 w-5 text-accent-600') ?>Privacy first</h2>
-            <p class="mt-2 text-sm text-slate-600">Verification never reveals contact details, date of birth, marks or addresses. Certificates that were revoked or replaced are clearly reported so they cannot be misused.</p>
-            <div class="mt-4 grid grid-cols-2 gap-2 text-xs font-medium text-slate-600">
-              <?php foreach (['Bonafide', 'Transfer (TC)', 'Character', 'Course Completion', 'Internship', 'Migration', 'Provisional'] as $t): ?>
-                <span class="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5"><?= icon('file-badge', 'h-3.5 w-3.5 text-brand-600') ?><?= e($t) ?></span>
-              <?php endforeach; ?>
-            </div>
-          </div>
-          <div class="card relative overflow-hidden bg-brand-900 p-5 text-white sm:p-6"<?= reveal_attr('fade-up', 240) ?>>
-            <div class="pattern-dots-light pointer-events-none absolute inset-0 opacity-40" aria-hidden="true"></div>
-            <div class="relative">
-              <h2 class="font-display text-base font-bold text-white">Need an official confirmation?</h2>
-              <p class="mt-1.5 text-sm text-white/80">For bulk or written verification requests, write to the examination office with the certificate number and the holder's consent.</p>
-              <div class="mt-4 flex flex-col gap-2 text-sm">
-                <a class="inline-flex items-center gap-2 font-semibold text-white hover:text-accent-300" href="mailto:<?= e($email) ?>"><?= icon('mail', 'h-4 w-4') ?><?= e($email) ?></a>
-                <a class="inline-flex items-center gap-2 font-semibold text-white hover:text-accent-300" href="tel:<?= e(preg_replace('/[^0-9+]/', '', $phone)) ?>"><?= icon('phone', 'h-4 w-4') ?><?= e($phone) ?></a>
-              </div>
+          <div class="card p-5 sm:p-6">
+            <h2 class="font-display text-base font-bold text-brand-900">Need an official confirmation?</h2>
+            <p class="mt-1.5 text-sm text-slate-600">For bulk or written verification requests, write to the examination office with the certificate number and the holder's consent. Verification never reveals contact details, marks or addresses.</p>
+            <div class="mt-4 flex flex-col gap-2 text-sm">
+              <a class="inline-flex items-center gap-2 font-semibold text-brand-900 hover:text-accent-700" href="mailto:<?= e($email) ?>"><?= icon('mail', 'h-4 w-4 text-accent-600') ?><?= e($email) ?></a>
+              <a class="inline-flex items-center gap-2 font-semibold text-brand-900 hover:text-accent-700" href="tel:<?= e(preg_replace('/[^0-9+]/', '', $phone)) ?>"><?= icon('phone', 'h-4 w-4 text-accent-600') ?><?= e($phone) ?></a>
             </div>
           </div>
         </aside>
@@ -240,4 +229,4 @@ $fmt = fn (?string $d) => $d ? e(date('d M Y', strtotime($d))) : '—';
     </div>
   </section>
 </div>
-<?php site_footer();
+<?php site_footer(site_form_page_footer());

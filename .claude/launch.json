@@ -1,0 +1,40 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "gimt-php",
+      "runtimeExecutable": "C:\\xampp\\php\\php.exe",
+      "runtimeArgs": ["-S", "127.0.0.1:8000", "tools/router.php"],
+      "port": 8000,
+      "url": "http://127.0.0.1:8000"
+    },
+    {
+      "name": "gimt-live-copy",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "set GIMT_DB_NAME=gimt_prod&& C:\\xampp\\php\\php.exe -S 127.0.0.1:8000 tools/router.php"],
+      "port": 8000,
+      "url": "http://127.0.0.1:8000"
+    },
+    {
+      "name": "gimt-wa-dev",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "set GIMT_DB_NAME=gimt_wa&& set GIMT_URL=http://127.0.0.1:8002&& C:\\xampp\\php\\php.exe -d extension=zip -S 127.0.0.1:8002 tools/router.php"],
+      "port": 8002,
+      "url": "http://127.0.0.1:8002"
+    },
+    {
+      "name": "gimt-spa-dev",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "set GIMT_API_TARGET=http://127.0.0.1:8002&& cd frontend&& npx vite --port 5173 --strictPort --host 127.0.0.1"],
+      "port": 5173,
+      "url": "http://127.0.0.1:5173"
+    },
+    {
+      "name": "gimt-live-copy-8001",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "set GIMT_DB_NAME=gimt_prod&& set GIMT_URL=http://127.0.0.1:8001&& C:\\xampp\\php\\php.exe -S 127.0.0.1:8001 tools/router.php"],
+      "port": 8001,
+      "url": "http://127.0.0.1:8001"
+    }
+  ]
+}

@@ -50,7 +50,7 @@ export default function ResultsPage() {
         }
       />
       <Card className="mb-5 p-4">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[11rem_minmax(0,1fr)_11rem_minmax(0,2fr)]">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[11rem_minmax(0,1fr)_11rem_minmax(0,2fr)]">
           <Select inputSize="sm" aria-label="Session" value={String(sessionId ?? '')} onChange={(ev) => set({ session: ev.target.value, exam: null })} options={sessions.map((s) => ({ value: String(s.id), label: s.name }))} />
           <Select inputSize="sm" aria-label="Program" value={program} onChange={(ev) => set({ program: ev.target.value, exam: null })} options={programs.data ?? []} placeholder="All programs" />
           <Select inputSize="sm" aria-label="Semester" value={semester} onChange={(ev) => set({ semester: ev.target.value, exam: null })} options={SEMESTER_OPTIONS} placeholder="All semesters" />
@@ -293,7 +293,7 @@ function ExamResults({ examId, onBack, onLoaded }: { examId: number; onBack: () 
             ]}
           </Stagger>
           {d.toppers.length > 0 && (
-            <Stagger className="grid gap-3 sm:grid-cols-3 xl:grid-cols-5" step={60}>
+            <Stagger className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-5" step={60}>
               {d.toppers.map((t, i) => (
                 <button key={t.id} type="button" onClick={() => setDrawer(t.id)} className={clsx('w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-soft', i === 0 ? 'border-amber-200 bg-gradient-to-br from-amber-50 to-white dark:border-amber-500/30 dark:from-amber-500/10 dark:to-slate-900' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900')}>
                   <div className="flex items-center justify-between">
@@ -361,6 +361,8 @@ function ExamResults({ examId, onBack, onLoaded }: { examId: number; onBack: () 
           </Reveal>
           <CrudTable
             module="results"
+            // ?q= from the global search (and the sheet's own search / filters) live in the URL
+            urlState
             title="Result sheet"
             description={`${formatNumber(c.total)} students · ranked by percentage among passed students`}
             scope={{ exam_id: e.id }}

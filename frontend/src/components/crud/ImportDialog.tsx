@@ -6,7 +6,80 @@ import { api, ApiError, downloadFile } from '@/lib/api';
 import { formatNumber } from '@/lib/format';
 import type { ImportSummary } from './types';
 
-export function ImportDialog({ open, onClose, module, title }: { open: boolean; onClose: () => void; module: string; title: string }) {
+/** A field the table is scoped to (e.g. the event of an embedded participants table). */
+export interface ImportScopeField {
+  name: string;
+  label: string;
+  value: string | number;
+}
+
+/* ---------------------------------------------------------------- minimal RFC 4180 CSV read / write */
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else quoted = false;
+      } else cell += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ',') {
+      row.push(cell);
+      cell = '';
+    } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = '';
+    } else cell += ch;
+  }
+  if (cell !== '' || row.length) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows;
+}
+
+const csvCell = (v: string) => (/[",\r\n]/.test(v) || v !== v.trim() ? `"${v.replace(/"/g, '""')}"` : v);
+const headerKey = (h: string) => h.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+/**
+ * Scoped imports (e.g. participants inside one event): the server's import does not know the table's scope, so CSV
+ * files get the scope column added / filled in the browser before upload. Cells that already hold a value are kept.
+ * Excel files are uploaded unchanged (the dialog asks for the column instead).
+ */
+async function applyScope(file: File, scope: ImportScopeField[]): Promise<File> {
+  if (!scope.length || !/\.csv$/i.test(file.name)) return file;
+  const text = await file.text();
+  const bom = text.charCodeAt(0) === 0xfeff;
+  const rows = parseCsv(bom ? text.slice(1) : text);
+  if (!rows.length) return file;
+  const header = rows[0];
+  scope.forEach((s) => {
+    let idx = header.findIndex((h) => headerKey(h) === s.name.toLowerCase() || headerKey(h) === headerKey(s.label));
+    if (idx === -1) {
+      header.push(s.name);
+      idx = header.length - 1;
+    }
+    for (let r = 1; r < rows.length; r++) {
+      if (rows[r].every((c) => c.trim() === '')) continue;
+      while (rows[r].length <= idx) rows[r].push('');
+      if (rows[r][idx].trim() === '') rows[r][idx] = String(s.value);
+    }
+  });
+  const out = (bom ? String.fromCharCode(0xfeff) : '') + rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
+  return new File([out], file.name, { type: 'text/csv' });
+}
+
+export function ImportDialog({ open, onClose, module, title, scope = [] }: { open: boolean; onClose: () => void; module: string; title: string; scope?: ImportScopeField[] }) {
   const toast = useToast();
   const qc = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
@@ -33,7 +106,7 @@ export function ImportDialog({ open, onClose, module, title }: { open: boolean; 
     setError(null);
     try {
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', await applyScope(file, scope));
       fd.append('mode', mode);
       const res = await api.post<ImportSummary>(`crud/${module}/import`, fd);
       setSummary(res.data);
@@ -114,6 +187,12 @@ export function ImportDialog({ open, onClose, module, title }: { open: boolean; 
           <Alert variant="info" action={<Button size="sm" variant="secondary" icon={Download} onClick={() => downloadFile(`crud/${module}/import-template`)}>Template</Button>}>
             Download the template, fill one record per row and upload it here. Dates use YYYY-MM-DD; for linked records you can use the ID or the exact name.
           </Alert>
+          {scope.length > 0 && (
+            <Alert variant="warning" title={`Rows are added to this ${scope.map((f) => f.label.toLowerCase()).join(' / ')}`}>
+              CSV files get the {scope.map((f) => <code key={f.name} className="rounded bg-white/60 px-1 text-xs dark:bg-slate-900/60">{f.name}</code>)} column filled in automatically.
+              In an Excel file, add that column with the value {scope.map((f) => <strong key={f.name}>{String(f.value)}</strong>)} on every row.
+            </Alert>
+          )}
           {error && <Alert variant="error">{error}</Alert>}
           <Field label="File" required>
             <FileUpload file={file} onFile={setFile} accept=".csv,.xlsx" maxSize={10 * 1024 * 1024} onError={setError} />

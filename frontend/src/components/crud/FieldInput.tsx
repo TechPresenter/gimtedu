@@ -1,4 +1,5 @@
-import { Combobox, FileUpload, Input, RadioGroup, RichText, Select, Textarea, Toggle } from '@/components/ui';
+import { useState } from 'react';
+import { Combobox, FileUpload, Input, PhoneInput, RadioGroup, RichText, Select, Textarea, Toggle } from '@/components/ui';
 import type { Option } from '@/lib/types';
 import type { CrudField } from './types';
 
@@ -16,6 +17,112 @@ interface FieldInputProps {
   removed?: boolean;
   disabled?: boolean;
   onError?: (msg: string) => void;
+}
+
+/* ---- email: same normalisation as app/services/phone.php email_normalize() + typo hints for common providers ---- */
+
+const EMAIL_DOMAINS = ['gmail.com', 'yahoo.com', 'yahoo.co.in', 'yahoo.in', 'hotmail.com', 'outlook.com', 'outlook.in', 'live.com', 'icloud.com', 'rediffmail.com', 'ymail.com', 'aol.com', 'msn.com', 'protonmail.com', 'zoho.com'];
+const TLD_FIX: Record<string, string> = { con: 'com', cmo: 'com', ocm: 'com', vom: 'com', xom: 'com', comm: 'com', coom: 'com', cpm: 'com', 'co.inn': 'co.in', 'con.in': 'co.in' };
+
+/** Trim, drop spaces / "mailto:", lowercase, IDN domain -> ASCII (punycode via the URL parser). */
+function normalizeEmail(v: string): string {
+  const e = v.replace(/\s+/g, '').replace(/^mailto:/i, '');
+  const at = e.lastIndexOf('@');
+  if (at < 0) return e.toLowerCase();
+  let domain = e
+    .slice(at + 1)
+    .toLowerCase()
+    .replace(/\.+$/, '');
+  if (/[^\x20-\x7e]/.test(domain)) {
+    try {
+      domain = new URL(`http://${domain}/`).hostname || domain;
+    } catch {
+      /* keep */
+    }
+  }
+  return `${e.slice(0, at).toLowerCase()}@${domain}`;
+}
+
+function editDistance(a: string, b: string): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)] as number[]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  return d[a.length][b.length];
+}
+
+/** "name@gmial.com" -> "name@gmail.com"; null when nothing looks mistyped. */
+function suggestEmail(v: string): string | null {
+  const at = v.lastIndexOf('@');
+  if (at < 1) return null;
+  const domain = v.slice(at + 1);
+  if (!domain || EMAIL_DOMAINS.includes(domain)) return null;
+  let best: string | null = null;
+  let score = 3;
+  const name = domain.split('.')[0];
+  for (const d of EMAIL_DOMAINS) {
+    // same provider name with another ending = a regional domain ("yahoo.co.uk"), not a typo
+    if (d.split('.')[0] === name) continue;
+    const s = editDistance(domain, d);
+    if (s < score && s <= (d.length > 9 ? 2 : 1)) {
+      best = d;
+      score = s;
+    }
+  }
+  // provider name with a missing / mistyped ending ("gmail", "gmail.co", "yahoo.om")
+  const provider = !best ? EMAIL_DOMAINS.find((d) => d.split('.')[0] === name) : undefined;
+  if (provider && (domain === name || ['co', 'om', 'cm', 'ni', ...Object.keys(TLD_FIX)].includes(domain.slice(name.length + 1)))) best = provider;
+  if (!best) {
+    const dot = domain.indexOf('.');
+    const tld = dot > 0 ? domain.slice(dot + 1) : '';
+    if (TLD_FIX[tld]) best = `${domain.slice(0, dot)}.${TLD_FIX[tld]}`;
+  }
+  return best && best !== domain ? `${v.slice(0, at)}@${best}` : null;
+}
+
+function EmailField({ id, value, onChange, invalid, disabled, placeholder, maxLength }: { id: string; value: string; onChange: (v: unknown) => void; invalid?: boolean; disabled?: boolean; placeholder?: string; maxLength?: number }) {
+  const [hint, setHint] = useState<string | null>(null);
+  return (
+    <>
+      <Input
+        id={id}
+        type="email"
+        inputMode="email"
+        autoCapitalize="off"
+        spellCheck={false}
+        value={value}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        invalid={invalid}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => {
+          const norm = normalizeEmail(e.target.value);
+          if (norm !== e.target.value) onChange(norm);
+          setHint(suggestEmail(norm));
+        }}
+      />
+      {hint && (
+        <p className="form-hint" aria-live="polite">
+          Did you mean{' '}
+          <button
+            type="button"
+            className="font-semibold text-brand-700 underline underline-offset-2 dark:text-brand-300"
+            onClick={() => {
+              onChange(hint);
+              setHint(null);
+            }}
+          >
+            {hint}
+          </button>
+          ?
+        </p>
+      )}
+    </>
+  );
 }
 
 /** Renders the control for a CRUD field definition. */
@@ -127,13 +234,28 @@ export function FieldInput({ field: f, value, onChange, invalid, values, labels,
           <Input id={id} value={str} onChange={(e) => onChange(e.target.value)} placeholder="#0B2A5B" invalid={invalid} className="font-mono" />
         </div>
       );
+    case 'tel':
+      // international number with a country-code selector; the server stores E.164 (app/crud.php)
+      return (
+        <PhoneInput
+          id={id}
+          value={str}
+          onChange={(v) => onChange(v)}
+          defaultCountry={((f as { country?: string }).country || 'IN').toUpperCase()}
+          invalid={invalid}
+          disabled={disabled}
+          placeholder={f.placeholder && !f.placeholder.includes('+') ? f.placeholder : undefined}
+        />
+      );
+    case 'email':
+      return <EmailField id={id} value={str} onChange={onChange} invalid={invalid} disabled={disabled} placeholder={f.placeholder} maxLength={f.maxlength} />;
     case 'password':
       return <Input id={id} type="password" autoComplete="new-password" value={str} placeholder={f.placeholder ?? '••••••••'} invalid={invalid} disabled={disabled} onChange={(e) => onChange(e.target.value)} />;
     default:
       return (
         <Input
           id={id}
-          type={f.type === 'email' ? 'email' : f.type === 'tel' ? 'tel' : f.type === 'url' ? 'url' : 'text'}
+          type={f.type === 'url' ? 'url' : 'text'}
           value={str}
           placeholder={f.placeholder}
           maxLength={f.maxlength}

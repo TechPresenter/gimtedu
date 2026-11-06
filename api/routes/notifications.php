@@ -17,9 +17,9 @@ route('GET', '/notifications', function () {
     if (($_GET['filter'] ?? '') === 'unread') {
         $where .= ' AND is_read = 0';
     }
-    if (!empty($_GET['type'])) {
+    if (($type = api_query('type')) !== '') {
         $where .= ' AND type = ?';
-        $args[] = $_GET['type'];
+        $args[] = $type;
     }
     $total = (int) db_value("SELECT COUNT(*) FROM notifications WHERE $where", $args);
     $p = paginate($total, $page, $perPage);

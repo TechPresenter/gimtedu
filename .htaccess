@@ -1,6 +1,7 @@
 # =====================================================================
 # GIMT SmartCampus - Apache configuration (mod_rewrite required)
 # If installed in a sub-folder, set RewriteBase accordingly (e.g. /gimt/).
+# tools/router.php mirrors these rules for PHP's built-in development server.
 # =====================================================================
 Options -Indexes -MultiViews
 DirectoryIndex index.php
@@ -12,9 +13,12 @@ ErrorDocument 500 /500.php
   RewriteBase /
 
   # Block internal folders and dot-files
-  RewriteRule ^(app|config|database|storage|tools|frontend|includes|node_modules|install/lib)(/|$) - [F,L]
+  RewriteRule ^(app|config|database|storage|tools|frontend|includes|node_modules|docs|install/lib)(/|$) - [F,L]
   RewriteRule (^|/)\.(?!well-known) - [F,L]
   RewriteRule \.(sql|md|lock|log|sh|cjs|json)$ - [F,L,NC]
+
+  # Website JavaScript error reporter (contract URL) -> /api/integrations/client-error
+  RewriteRule ^api/public/client-error/?$ api/index.php?r=integrations/client-error [L,QSA]
 
   # JSON API
   RewriteRule ^api(/.*)?$ api/index.php [L,QSA]
@@ -24,9 +28,34 @@ ErrorDocument 500 /500.php
   # Student & Faculty portal SPA (/portal/...) handled by portal/.htaccess
   RewriteRule ^portal$ portal/ [R=301,L]
 
-  # SEO files
+  # SEO files: sitemap index + child sitemaps, robots.txt
   RewriteRule ^sitemap\.xml$ sitemap.php [L]
+  RewriteRule ^sitemap-([a-z]+)\.xml$ sitemap.php?type=$1 [L,QSA]
   RewriteRule ^robots\.txt$ robots.php [L]
+
+  # Pretty marksheet verification URL (QR codes) -> GET /api/marksheets/verify/{no}
+  RewriteRule ^verify-marksheet/([A-Za-z0-9\-]+)/?$ api/index.php?r=marksheets/verify/$1 [L,QSA]
+
+  # ---- One URL per page (301, GET/HEAD only) --------------------------------------------------------
+  # /about.php -> /about (only for requests that really asked for .php, not for internal rewrites)
+  RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
+  RewriteCond %{THE_REQUEST} \s/+(?:[^?\s]*/)?([a-z0-9\-]+)\.php[\s?] [NC]
+  RewriteCond %1 !^(index|sitemap|robots)$ [NC]
+  RewriteRule ^([a-z0-9\-]+)\.php$ $1 [R=301,L,NC]
+  # /index.php -> / (the home page has one URL; DirectoryIndex sub-requests are not affected). In a sub-folder
+  # install, change "/" to the RewriteBase.
+  RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
+  RewriteCond %{THE_REQUEST} \s/+index\.php[\s?] [NC]
+  RewriteRule ^index\.php$ / [R=301,L,NC]
+  # /about/ -> /about (not the admin / portal SPAs, the API or real folders; mixed-case paths are fixed in one hop below)
+  RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^(?!(?:admin|api|assets|portal|storage)(?:/|$))([^A-Z]+)/$ $1 [R=301,L]
+  # Mixed-case URLs -> 404.php, which 301s to an admin redirect rule or to the lower-case URL when it exists
+  # (certificate / marksheet numbers keep their case)
+  RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^(?!(?:admin|api|assets|portal|storage|verify-certificate|verify-marksheet)(?:/|$))(.*[A-Z].*)$ 404.php [L]
 
   # Pretty URLs for the public website
   RewriteRule ^verify-certificate/([A-Za-z0-9/\-]+)/?$ verify-certificate.php?no=$1 [L,QSA]
@@ -44,10 +73,12 @@ ErrorDocument 500 /500.php
   RewriteCond %{REQUEST_FILENAME}.php -f
   RewriteRule ^([a-z0-9\-]+)/?$ $1.php [L,QSA]
 
-  # Any other single-segment slug -> CMS page
+  # Any other single-segment slug -> CMS page (page.php answers 404 via 404.php, which consults the redirect manager)
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^([a-z0-9\-]+)/?$ page.php?slug=$1 [L,QSA]
+
+  # Everything else that does not exist ends at ErrorDocument 404 -> 404.php (redirect rules, 410 Gone, 404 log)
 </IfModule>
 
 <IfModule mod_headers.c>
@@ -59,5 +90,5 @@ ErrorDocument 500 /500.php
 </IfModule>
 
 <IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml text/xml application/xml
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml text/xml application/xml text/plain
 </IfModule>

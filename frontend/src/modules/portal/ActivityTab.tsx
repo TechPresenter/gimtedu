@@ -71,7 +71,7 @@ export function ActivityTab() {
 
   return (
     <Card>
-      <div className="grid gap-2 border-b border-slate-100 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))] dark:border-slate-800">
+      <div className="grid grid-cols-1 gap-2 border-b border-slate-100 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))] dark:border-slate-800">
         <SearchInput value={q} onChange={setQ} placeholder="Name, Student / Employee ID, IP…" size="sm" />
         <Select inputSize="sm" aria-label="Account type" value={type} onChange={(e) => setType(e.target.value)} options={[{ value: 'all', label: 'Students & faculty' }, { value: 'student', label: 'Students' }, { value: 'faculty', label: 'Faculty' }]} />
         <Select inputSize="sm" aria-label="Event" value={status} onChange={(e) => setStatus(e.target.value)} options={STATUS_OPTIONS} placeholder="All events" />

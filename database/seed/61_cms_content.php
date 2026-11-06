@@ -56,8 +56,9 @@ return function (array $opts): void {
         'students-atrium.jpg' => ['Student Atrium', 'campus', 'Students walking through the campus atrium between classes', 'The atrium between classes.'],
         'students-lawn.jpg' => ['Campus Lawns', 'campus', 'Students studying together on the campus lawn', 'Group study on the central lawn.'],
         'students-laptop.jpg' => ['Students Collaborating', 'general', 'Two students collaborating on a laptop', 'Project work in the learning commons.'],
-        'hero-campus-students.jpg' => ['Students on Campus', 'banners', 'Smiling students standing in front of the campus building', 'Hero image used on the home page.'],
-        'dashboard-banner.jpg' => ['Campus Panorama', 'banners', 'Wide view of the campus buildings and lawns', null],
+        'hero-campus-students.jpg' => ['Students on Campus', 'banners', 'Smiling students standing in front of the campus building', 'Students in front of the main campus building.'],
+        // admin dashboard welcome banner (contains UI text) - kept in the library for the admin, never used in public albums
+        'dashboard-banner.jpg' => ['Admin Dashboard Banner', 'banners', 'Admin dashboard welcome banner with the GIMT building', null],
         'graduation.jpg' => ['Convocation Ceremony', 'events', 'Graduates throwing their caps at the convocation ceremony', 'Convocation day celebrations.'],
         'news-campus.jpg' => ['Campus Event', 'events', 'Students gathered at a campus event', 'Students at a campus event.'],
         'placement-student.jpg' => ['Placement Interview', 'placements', 'Student in formal wear ready for a placement interview', 'Placement season on campus.'],
@@ -67,9 +68,10 @@ return function (array $opts): void {
         'program-bcom.jpg' => ['B.Com Students', 'programs', 'Commerce students in an accounting lecture', 'B.Com (Hons) program.'],
         'program-dca.jpg' => ['Computer Applications', 'programs', 'Students learning computer applications in the lab', 'Diploma in Computer Applications.'],
         'program-digital-marketing.jpg' => ['Digital Marketing', 'programs', 'Digital marketing workshop with analytics dashboards', 'Certificate in Digital Marketing.'],
-        'leader-1.jpg' => ['Dr. R.K. Sharma', 'people', 'Portrait of Dr. R.K. Sharma, Chairman', 'Chairman.'],
-        'leader-2.jpg' => ['Prof. Neha Verma', 'people', 'Portrait of Prof. Neha Verma, Director', 'Director.'],
-        'leader-3.jpg' => ['Dr. Amit Kumar', 'people', 'Portrait of Dr. Amit Kumar, Academic Dean', 'Academic Dean.'],
+        // placeholder portraits for the leadership cards (05_cms_core) until GIMT supplies verified photos
+        'leader-1.jpg' => ['Leadership portrait 1 (placeholder)', 'people', 'Placeholder portrait for the Chairman', 'Placeholder - replace with the photo of the Chairman.'],
+        'leader-2.jpg' => ['Leadership portrait 2 (placeholder)', 'people', 'Placeholder portrait for the Director', 'Placeholder - replace with the photo of the Director.'],
+        'leader-3.jpg' => ['Leadership portrait 3 (placeholder)', 'people', 'Placeholder portrait for the Academic Dean', 'Placeholder - replace with the photo of the Academic Dean.'],
     ];
     $mediaRows = [];
     $i = 0;
@@ -376,7 +378,6 @@ return function (array $opts): void {
     demo_bulk_insert('blog_posts', $postRows);
 
     // SEO for most published / scheduled posts (a few left without, so the "SEO missing" filter is meaningful)
-    $site = rtrim((string) setting('site_url', ''), '/');
     $seoRows = [];
     foreach (db_all("SELECT id, title, slug, excerpt, thumbnail, tags, published_at, status FROM blog_posts WHERE status <> 'draft' ORDER BY id") as $n => $post) {
         if ($n % 6 === 5) {
@@ -388,10 +389,9 @@ return function (array $opts): void {
         $seoRows[] = [
             'entity_type' => 'post', 'entity_id' => (int) $post['id'], 'route' => null, 'meta_title' => $metaTitle, 'meta_description' => $desc,
             'meta_keywords' => $post['tags'], 'canonical_url' => null, 'og_title' => $post['title'], 'og_description' => $desc, 'og_image' => $post['thumbnail'],
-            'robots' => 'index,follow',
-            'schema_json' => json_encode(['@context' => 'https://schema.org', '@type' => 'NewsArticle', 'headline' => mb_substr($post['title'], 0, 110),
-                'datePublished' => date('c', strtotime($post['published_at'])), 'author' => ['@type' => 'Organization', 'name' => 'Global Institute of Management & Technology'],
-                'image' => ($site ?: '') . '/' . $post['thumbnail']], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            // no per-post schema_json: post.php prints its own BlogPosting JSON-LD from the post itself, and a seeded
+            // NewsArticle here produced two article entities per page
+            'robots' => 'index,follow', 'schema_json' => null,
             'include_in_sitemap' => 1, 'sitemap_priority' => 0.6, 'sitemap_changefreq' => 'monthly',
         ];
     }
@@ -404,9 +404,10 @@ return function (array $opts): void {
         ['Labs & Learning Spaces', 'labs', 'Smart classrooms, computer labs, the library and student facilities.', -150, 'published',
             ['facility-labs.jpg', 'facility-classroom.jpg', 'facility-library.jpg', 'program-btech.jpg', 'program-dca.jpg', 'facility-hostel.jpg']],
         ['Convocation 2026', 'convocation', 'Graduates, families and faculty celebrate the class of 2026.', -76, 'published',
-            ['graduation.jpg', 'hero-campus-students.jpg', 'students-lawn.jpg', 'leader-1.jpg', 'leader-2.jpg', 'leader-3.jpg']],
+            // no leader-*.jpg: those are placeholder portraits for the leadership cards, not convocation photos
+            ['graduation.jpg', 'hero-campus-students.jpg', 'students-lawn.jpg', 'news-campus.jpg', 'students-atrium.jpg', 'campus-main.jpg']],
         ['Utkarsh 2026 — Annual Fest', 'cultural', 'Three days of performances, competitions and the student startup expo.', -34, 'published',
-            ['news-campus.jpg', 'students-atrium.jpg', 'dashboard-banner.jpg', 'students-lawn.jpg', 'program-digital-marketing.jpg']],
+            ['news-campus.jpg', 'students-atrium.jpg', 'students-laptop.jpg', 'students-lawn.jpg', 'program-digital-marketing.jpg']],
         ['Annual Sports Meet 2026', 'sports', 'Athletics, team sports and the inter-department championship.', -52, 'published',
             ['facility-sports.jpg', 'facility-green-campus.jpg', 'students-lawn.jpg', 'news-campus.jpg']],
         ['Industry Visit — Noida Tech Park', 'placements', 'MBA and BCA students visit technology and operations centres in Noida.', -9, 'draft',

@@ -103,14 +103,22 @@ function csv_safe($value): string
     return $v !== '' && in_array($v[0], ['=', '+', '-', '@', "\t", "\r"], true) && !is_numeric($v) ? "'" . $v : $v;
 }
 
+/** Reverse of csv_safe(): drops the protective apostrophe in front of = + - @ TAB CR (also typed by Excel users). */
+function csv_unsafe(string $v): string
+{
+    return preg_replace("/^\\s*'(?=[=+\\-@\\t\\r])/", '', $v) ?? $v;
+}
+
 function csv_download(string $filename, array $headers, array $rows): void
 {
     download_headers($filename, 'text/csv; charset=utf-8');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, $headers);
+    // separator, enclosure and escape passed explicitly (same values as PHP's defaults): PHP 8.4 deprecates relying on
+    // the default escape and would print the notice into the downloaded file in development
+    fputcsv($out, $headers, ',', '"', '\\');
     foreach ($rows as $row) {
-        fputcsv($out, array_map('csv_safe', array_values($row)));
+        fputcsv($out, array_map('csv_safe', array_values($row)), ',', '"', '\\');
     }
     fclose($out);
     exit;
@@ -123,9 +131,22 @@ function xlsx_read(string $path, int $maxRows = 20000): array
     if ($zip->open($path) !== true) {
         throw new RuntimeException('The Excel file could not be opened.');
     }
+    // a small upload can unpack to gigabytes ("zip bomb"): refuse workbooks whose parts expand beyond 64 MB in total
+    $unpacked = 0;
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $unpacked += (int) ($zip->statIndex($i)['size'] ?? 0);
+    }
+    if ($unpacked > 64 * 1024 * 1024) {
+        $zip->close();
+        throw new RuntimeException('The Excel file is too large to import. Split it into smaller files or save it as CSV.');
+    }
     $shared = [];
     if (($ss = $zip->getFromName('xl/sharedStrings.xml')) !== false) {
         $xml = simplexml_load_string($ss, 'SimpleXMLElement', LIBXML_NONET);
+        if ($xml === false) {
+            $zip->close();
+            throw new RuntimeException('The Excel file is damaged (shared strings could not be read).');
+        }
         foreach ($xml->si as $si) {
             if (isset($si->t)) {
                 $shared[] = (string) $si->t;
@@ -142,7 +163,7 @@ function xlsx_read(string $path, int $maxRows = 20000): array
     if (($wb = $zip->getFromName('xl/workbook.xml')) !== false && ($rels = $zip->getFromName('xl/_rels/workbook.xml.rels')) !== false) {
         $wbx = simplexml_load_string($wb, 'SimpleXMLElement', LIBXML_NONET);
         $relx = simplexml_load_string($rels, 'SimpleXMLElement', LIBXML_NONET);
-        $first = $wbx->sheets->sheet[0] ?? null;
+        $first = $wbx !== false && $relx !== false ? ($wbx->sheets->sheet[0] ?? null) : null;
         if ($first) {
             $rid = (string) $first->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships')['id'];
             foreach ($relx->Relationship as $rel) {
@@ -158,6 +179,9 @@ function xlsx_read(string $path, int $maxRows = 20000): array
         throw new RuntimeException('No worksheet found in the Excel file.');
     }
     $xml = simplexml_load_string($sheetXml, 'SimpleXMLElement', LIBXML_NONET);
+    if ($xml === false || !isset($xml->sheetData)) {
+        throw new RuntimeException('The Excel file is damaged (the first worksheet could not be read).');
+    }
     $rows = [];
     foreach ($xml->sheetData->row as $row) {
         $cells = [];
@@ -178,7 +202,7 @@ function xlsx_read(string $path, int $maxRows = 20000): array
             } else {
                 $v = (string) $c->v;
             }
-            $cells[$col] = $v;
+            $cells[$col] = csv_unsafe($v); // a CSV export re-saved as .xlsx keeps the protective apostrophe as text
         }
         if ($cells) {
             $max = max(array_keys($cells));
@@ -203,7 +227,7 @@ function csv_read(string $path, int $maxRows = 20000): array
         throw new RuntimeException('The CSV file could not be opened.');
     }
     $first = true;
-    while (($line = fgetcsv($fh)) !== false) {
+    while (($line = fgetcsv($fh, null, ',', '"', '\\')) !== false) { // PHP's defaults, passed explicitly (PHP 8.4 deprecation)
         if ($first) {
             $line[0] = preg_replace('/^\xEF\xBB\xBF/', '', (string) $line[0]);
             $first = false;
@@ -211,7 +235,9 @@ function csv_read(string $path, int $maxRows = 20000): array
         if ($line === [null]) {
             continue;
         }
-        $rows[] = array_map(fn ($v) => trim((string) $v), $line);
+        // csv_download() prefixes values that start with = + - @ (phone numbers like "+91 ...") with an apostrophe
+        // against formula injection: remove it again so exported files and import templates can be imported back
+        $rows[] = array_map(fn ($v) => trim(csv_unsafe((string) $v)), $line);
         if (count($rows) >= $maxRows) {
             break;
         }

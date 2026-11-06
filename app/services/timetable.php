@@ -448,6 +448,7 @@ function tt_set_status(?int $sectionId, int $sessionId, bool $publish): int
     log_activity($publish ? 'publish' : 'update', 'timetable', $sectionId, ($publish ? 'Published' : 'Unpublished') . ' timetable of ' . $label);
     if ($publish && $sectionId && $n) {
         notify('perm:attendance', 'academic', 'Timetable published', 'The timetable of ' . $label . ' has been published.', 'admin/timetable?section=' . $sectionId, 'calendar-days');
+        try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_fanout('GIMT_TIMETABLE_PUBLISHED', ['section_id' => $sectionId, 'timetable_label' => $label, 'classes_count' => $n, 'class_date' => date('d M Y', strtotime('+1 day')), 'portal_link' => absolute_url('portal/student')], db_column("SELECT id FROM students WHERE section_id = ? AND status = 'active'", [$sectionId]), 'tt:' . $sectionId . ':' . date('YmdHi'), ['source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     }
     return $n;
 }

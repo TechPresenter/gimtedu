@@ -154,7 +154,7 @@ export default function GalleryPage() {
           {list.error ? (
             <Alert variant="error" title="Unable to load albums">{(list.error as ApiError).message}</Alert>
           ) : list.isLoading ? (
-            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="card overflow-hidden">
                   <div className="skeleton aspect-[16/10] rounded-none" />

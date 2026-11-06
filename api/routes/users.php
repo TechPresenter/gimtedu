@@ -198,7 +198,7 @@ route('POST', '/users/{id:\d+}/reset-password', function ($p) {
     $u = users_target((int) $p['id']);
     users_guard_super($u);
     $in = api_input();
-    $mode = (string) ($in['mode'] ?? 'temporary');
+    $mode = api_str($in['mode'] ?? null, 'temporary');
     if (!in_array($mode, ['temporary', 'link'], true)) {
         api_error('Choose how to reset the password.', 422, ['mode' => 'Choose how to reset the password.']);
     }
@@ -225,7 +225,7 @@ route('POST', '/users/{id:\d+}/reset-password', function ($p) {
         api_ok(['mode' => 'link', 'email' => $u['email'], 'logged' => $logged, 'expires_minutes' => 60],
             $logged ? 'Reset link generated. Development mode: the email was written to storage/logs/mail.log.' : "A password reset link has been emailed to {$u['email']}. It expires in 60 minutes.");
     }
-    $password = trim((string) ($in['password'] ?? ''));
+    $password = trim(api_str($in['password'] ?? null));
     $generated = false;
     if ($password === '') {
         $password = system_generate_password();
@@ -239,6 +239,8 @@ route('POST', '/users/{id:\d+}/reset-password', function ($p) {
         'must_change_password' => $mustChange ? 1 : 0, 'failed_attempts' => 0, 'locked_until' => null], 'id = ?', [$u['id']]);
     if ((int) $u['id'] !== user_id()) {
         db_exec("DELETE FROM user_tokens WHERE user_id = ? AND type IN ('remember','reset')", [$u['id']]);
+    } else {
+        session_refresh_password_fp(); // resetting your own password keeps this browser signed in
     }
     log_activity('password_reset', 'users', $u['id'], 'Set a temporary password for ' . $u['name'] . ($mustChange ? ' (must change at next sign-in)' : ''), 'success', ['generated' => $generated]);
     notify((int) $u['id'], 'security', 'Your password was reset', 'An administrator set a new password for your account' . ($mustChange ? '. You will be asked to change it after signing in.' : '.'), 'admin/profile', 'key-round');

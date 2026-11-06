@@ -12,6 +12,21 @@
  * site_assets_head()/site_assets_footer() below, includes/components.php and docs/WEBSITE.md).
  */
 require_once __DIR__ . '/../app/init.php';
+/* Public pages only take scalar query parameters and cookies: an array (?category[]=x, ?q[a][b]=x, cookie gimt_theme[]=x)
+ * is dropped before any page code runs, so no page can raise "Array to string conversion" warnings or a TypeError (500)
+ * from crafted URLs (security audit 2026-10-17). API requests that load this file (e.g. marksheets) are left untouched. */
+if (!defined('API_REQUEST')) {
+    foreach ($_GET as $k => $v) {
+        if (is_array($v)) {
+            unset($_GET[$k], $_REQUEST[$k]);
+        }
+    }
+    foreach ($_COOKIE as $k => $v) {
+        if (is_array($v)) {
+            unset($_COOKIE[$k], $_REQUEST[$k]);
+        }
+    }
+}
 require_once __DIR__ . '/errors.php';   // branded 500 page + logging for public pages (production)
 require_once __DIR__ . '/../app/auth.php';     // starts the session (CSRF for public forms); no login required
 require_once __DIR__ . '/components.php';      // reusable website render helpers (program_card, feature_tile, cta_band …)
@@ -42,6 +57,8 @@ function cms_link(?string $url): string
     if (preg_match('#^(https?:|mailto:|tel:|\#)#i', $url)) {
         return $url;
     }
+    // retired portal URLs (they 302 to the portal logins): link the target directly, whatever older CMS menus still hold
+    $url = ['/student-portal' => '/portal/student/login', '/faculty-portal' => '/portal/faculty/login'][rtrim(strtolower($url), '/')] ?? $url;
     return site_url($url);
 }
 
@@ -137,17 +154,57 @@ function seo_lookup(?string $type, ?int $id, ?string $route): ?array
     return null;
 }
 
-/** Social profile links from settings. */
+/**
+ * Social profile links from settings (Settings › Social). Placeholders without a profile path such as
+ * "https://facebook.com/" (the seeded defaults) are skipped: a link to a network's home page is a decorative control
+ * pretending to work — the icons appear once GIMT enters its real profile URLs.
+ */
 function social_links(): array
 {
     $map = ['facebook' => 'facebook_url', 'instagram' => 'instagram_url', 'linkedin' => 'linkedin_url', 'youtube' => 'youtube_url', 'x-twitter' => 'x_url'];
     $out = [];
     foreach ($map as $icon => $key) {
-        if ($url = setting($key)) {
-            $out[$icon] = $url;
+        $url = trim((string) setting($key, ''));
+        $p = $url !== '' ? parse_url($url) : false;
+        if (!$p || empty($p['host']) || !in_array(strtolower($p['scheme'] ?? ''), ['http', 'https'], true)
+            || trim((string) ($p['path'] ?? ''), '/') === '' && trim((string) ($p['query'] ?? '')) === '') {
+            continue;
         }
+        $out[$icon] = $url;
     }
     return $out;
+}
+
+/**
+ * SEO title that fits a search result: the first candidate whose "{title} | GIMT" (the suffix seo_page_meta() adds)
+ * stays within $max characters, else the shortest candidate. Pages pass their richest wording first.
+ */
+function site_fit_title(array $candidates, int $max = 66): string
+{
+    $suffix = mb_strlen(' | ' . (string) setting('institute_short_name', 'GIMT'));
+    $list = array_values(array_filter(array_map(fn ($c) => trim((string) $c), $candidates), fn ($c) => $c !== ''));
+    foreach ($list as $c) {
+        if (mb_strlen($c) + $suffix <= $max) {
+            return $c;
+        }
+    }
+    usort($list, fn ($a, $b) => mb_strlen($a) <=> mb_strlen($b));
+    return $list[0] ?? '';
+}
+
+/** Meta description of at most $max characters (search results show ~155–160), cut on a word boundary. */
+function site_meta_description(string $text, int $max = 158): string
+{
+    $t = trim((string) preg_replace('/\s+/u', ' ', strip_tags($text)));
+    if (mb_strlen($t) <= $max) {
+        return $t;
+    }
+    $cut = mb_substr($t, 0, $max - 1);
+    $space = mb_strrpos($cut, ' ');
+    if ($space !== false && $space > $max * 0.6) {
+        $cut = mb_substr($cut, 0, $space);
+    }
+    return rtrim($cut, " ,;:.-–—(") . '…';
 }
 
 /* ------------------------------------------------------------------ Design v2 data helpers (DB first, graceful fallbacks) */
@@ -206,6 +263,57 @@ function site_program_levels(): array
     $present = array_unique(array_map(fn ($p) => (string) ($p['level'] ?? ''), site_programs()));
     $map = ['UG' => 'Undergraduate', 'PG' => 'Postgraduate', 'PhD' => 'Doctoral', 'Diploma' => 'Diploma', 'Certificate' => 'Certificate'];
     return array_filter($map, fn ($k) => in_array($k, $present, true), ARRAY_FILTER_USE_KEY);
+}
+
+/**
+ * Certificate course groups in display order (programs.category of level-Certificate programs, set by seed
+ * 62_certificate_courses): key => label, icon, hue (.hue-* class key), blurb. Keys double as /certifications?group= values.
+ */
+function site_cert_groups(): array
+{
+    return [
+        'management-business' => ['label' => 'Management & Business', 'icon' => 'briefcase-business', 'hue' => 'mgt', 'blurb' => 'Business, HR, marketing, office administration and entrepreneurship.'],
+        'computer-technology' => ['label' => 'Computer & Technology', 'icon' => 'laptop', 'hue' => 'tech', 'blurb' => 'Computer basics, MS Office, Excel, digital marketing and IT skills.'],
+        'skill-development' => ['label' => 'Skill Development', 'icon' => 'messages-square', 'hue' => 'com', 'blurb' => 'Communication, spoken English, soft skills, interviews and leadership.'],
+        'emerging-skills' => ['label' => 'Emerging Skills', 'icon' => 'sparkles', 'hue' => 'ca', 'blurb' => 'Artificial intelligence, AI tools, generative AI and the digital workplace.'],
+        'academic-career-preparation' => ['label' => 'Academic & Career Preparation', 'icon' => 'target', 'hue' => 'sci', 'blurb' => 'Competitive exams, career planning and employability skills.'],
+    ];
+}
+
+/** Group key of a certificate program ('' for other levels or a category that is not a group). */
+function site_cert_group_key(array $p): string
+{
+    if (($p['level'] ?? '') !== 'Certificate') {
+        return '';
+    }
+    $key = slugify((string) ($p['category'] ?? ''));
+    return isset(site_cert_groups()[$key]) ? $key : '';
+}
+
+/** Active website certificate courses (site_programs() order). */
+function site_cert_programs(): array
+{
+    return array_values(array_filter(site_programs(), fn ($p) => $p['level'] === 'Certificate'));
+}
+
+/**
+ * Program options for enquiry / application selects, grouped by level (and certificate group) so a long list stays
+ * scannable: [['value' => id, 'label' => name, 'group' => 'Undergraduate Programs'], …] — `group` renders as <optgroup>.
+ * $suffix appends the acronym ("Bachelor of Business Administration (BBA)").
+ */
+function site_program_select_options(?array $programs = null, bool $suffix = false): array
+{
+    $groups = site_cert_groups();
+    $levelGroup = ['UG' => 'Undergraduate Programs', 'PG' => 'Postgraduate Programs', 'PhD' => 'Doctoral Programs', 'Diploma' => 'Diploma Programs'];
+    $order = array_merge(array_values($levelGroup), array_map(fn ($g) => 'Certificate — ' . $g['label'], array_values($groups)), ['Certificate Courses', 'Other Programs']);
+    $buckets = array_fill_keys($order, []);
+    foreach ($programs ?? site_programs() as $p) {
+        $level = (string) ($p['level'] ?? '');
+        $group = $levelGroup[$level] ?? ($level === 'Certificate' ? (($g = site_cert_group_key($p)) !== '' ? 'Certificate — ' . $groups[$g]['label'] : 'Certificate Courses') : 'Other Programs');
+        $label = (string) $p['name'] . ($suffix && program_title_suffix($p) !== '' ? ' (' . program_title_suffix($p) . ')' : '');
+        $buckets[$group][] = ['value' => (string) $p['id'], 'label' => $label, 'group' => $group];
+    }
+    return array_merge(...array_values($buckets));
 }
 
 /** Specialisations (courses) per program id: [program_id => [course rows]] — empty when the table is unavailable. */
@@ -328,8 +436,9 @@ function site_max_scholarship(): ?int
 }
 
 /**
- * Announcement strip items (plain text + optional link): announcements of type "topbar" (falls back to "ticker"),
- * else setting announcement_strip_text ("A | B | C"), else the admissions-open line.
+ * Announcement strip items (plain text + optional link): announcements of type "topbar" first, then the "ticker" news
+ * items (both scroll in the one navy strip above the header; max 8), else setting announcement_strip_text ("A | B | C"),
+ * else the admissions-open line.
  * @return array<int, array{text: string, url: ?string}>
  */
 function site_announcement_items(?string $override = null): array
@@ -343,7 +452,10 @@ function site_announcement_items(?string $override = null): array
         }
         return $items;
     }
-    foreach (site_announcements('topbar') ?: site_announcements('ticker') as $a) {
+    foreach (array_merge(site_announcements('topbar'), site_announcements('ticker')) as $a) {
+        if (trim((string) ($a['title'] ?? '')) === '') {
+            continue;
+        }
         $items[] = ['text' => (string) $a['title'], 'url' => !empty($a['link']) ? cms_link($a['link']) : null];
     }
     if (!$items) {
@@ -413,6 +525,91 @@ function site_manifest_imports(array $manifest, string $key, array &$seen = []):
     return $files;
 }
 
+/* ------------------------------------------------------------------ Content-Security-Policy (report-only) */
+
+/**
+ * Per-request CSP nonce. Every <script> the website itself prints carries it (nonce="…" via site_nonce_attr()), so the
+ * strict "nonce + 'strict-dynamic'" policy below can be enforced one day without touching the templates; scripts
+ * that those trusted scripts load (islands, analytics after consent, captcha widgets) are allowed by 'strict-dynamic'.
+ */
+function site_csp_nonce(): string
+{
+    static $nonce = null;
+    return $nonce ??= base64_encode(random_bytes(18));
+}
+
+/** ' nonce="…"' for a <script> / <link rel="modulepreload"> tag the site prints itself (never for page content). */
+function site_nonce_attr(): string
+{
+    return ' nonce="' . site_csp_nonce() . '"';
+}
+
+/**
+ * Add the nonce to the <script> and <link rel="modulepreload"> tags of TRUSTED server-generated head markup (the SEO
+ * platform's error reporter / Sentry loader / extra head tags). Never run it over CMS or visitor content: a nonce
+ * given to injected markup would defeat the policy.
+ */
+function site_csp_tag(string $html): string
+{
+    if ($html === '' || stripos($html, '<') === false) {
+        return $html;
+    }
+    return (string) preg_replace('/<(script|link(?=[^>]*\brel=["\']?modulepreload))\b(?![^>]*\bnonce=)/i', '<$1' . site_nonce_attr(), $html);
+}
+
+/**
+ * Content-Security-Policy-Report-Only for public pages (security audit 2026-10-17). Report-only: browsers never block
+ * anything, they only report violations (DevTools console, plus a report-uri when configured). On by default; switch
+ * off with env GIMT_CSP_REPORT_ONLY=0 or config app.csp_report_only = false. Reports go to env GIMT_CSP_REPORT_URI /
+ * config app.csp_report_uri when set. See docs/WEBSITE.md "Content-Security-Policy".
+ */
+function site_csp_enabled(): bool
+{
+    $env = getenv('GIMT_CSP_REPORT_ONLY');
+    if ($env !== false && $env !== '') {
+        return !in_array(strtolower(trim($env)), ['0', 'off', 'false', 'no'], true);
+    }
+    $cfg = app_config('app')['csp_report_only'] ?? true;
+    return $cfg !== false && $cfg !== 0 && $cfg !== '0';
+}
+
+function site_csp_policy(): string
+{
+    $dev = site_dev_server();   // Vite dev server (HMR socket + modules) — development only
+    $devSrc = $dev ? ' ' . $dev . ' ' . preg_replace('#^http#', 'ws', $dev) : '';
+    $policy = [
+        "default-src 'self'",
+        // nonce + strict-dynamic (CSP3 browsers); https: and 'unsafe-inline' are only the fallback for CSP1/2 browsers
+        // ('unsafe-hashes' + the hash of "window.print()": the three Print buttons' onclick, nothing else)
+        "script-src 'nonce-" . site_csp_nonce() . "' 'strict-dynamic' 'unsafe-hashes' 'sha256-MguIPR6qNR8D3B+eAlK+bIRTZe8t3wkOY4B/56Me9FU=' https: 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com" . ($dev ? ' ' . $dev : ''),
+        "img-src 'self' data: blob: https:",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        "connect-src 'self' https:" . $devSrc,
+        "media-src 'self' blob: https:",
+        "frame-src 'self' https:",
+        "worker-src 'self' blob:",
+        "manifest-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'self'",
+    ];
+    $uri = (string) (getenv('GIMT_CSP_REPORT_URI') ?: (app_config('app')['csp_report_uri'] ?? ''));
+    if ($uri !== '' && preg_match('#^(https?://|/)[^\s;,]+$#', $uri)) {
+        $policy[] = 'report-uri ' . $uri;
+    }
+    return implode('; ', $policy);
+}
+
+/** Send the report-only CSP header (site_header() calls it before any output). */
+function site_csp_header(): void
+{
+    if (!headers_sent() && site_csp_enabled()) {
+        header('Content-Security-Policy-Report-Only: ' . site_csp_policy());
+    }
+}
+
 /**
  * Tags for <head>: an inline bootstrap script (adds the `js` class so scroll-reveal states apply before first
  * paint, decides whether the first-visit loader shows, and un-hides content if the bundle never boots) plus either
@@ -420,12 +617,12 @@ function site_manifest_imports(array $manifest, string $key, array &$seen = []):
  */
 function site_assets_head(): string
 {
-    $out = '<script>(function(d,w){var h=d.documentElement;h.classList.add("js");try{if(w.sessionStorage.getItem("gimt.visited")||w.matchMedia("(prefers-reduced-motion: reduce)").matches||navigator.webdriver){h.classList.add("loader-skip")}}catch(e){h.classList.add("loader-skip")}'
+    $out = '<script' . site_nonce_attr() . '>(function(d,w){var h=d.documentElement;h.classList.add("js");try{if(w.sessionStorage.getItem("gimt.visited")||w.matchMedia("(prefers-reduced-motion: reduce)").matches||navigator.webdriver){h.classList.add("loader-skip")}}catch(e){h.classList.add("loader-skip")}'
         . 'w.setTimeout(function(){if(!w.__gimtSite){h.classList.add("no-motion");h.classList.add("loader-skip")}},4000)})(document,window);</script>' . "\n";
     if ($dev = site_dev_server()) {
         return $out
-            . '  <script type="module">import RefreshRuntime from "' . e($dev) . '/@react-refresh";RefreshRuntime.injectIntoGlobalHook(window);window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>(t)=>t;window.__vite_plugin_react_preamble_installed__=true;</script>' . "\n"
-            . '  <script type="module" src="' . e($dev) . '/@vite/client"></script>' . "\n";
+            . '  <script type="module"' . site_nonce_attr() . '>import RefreshRuntime from "' . e($dev) . '/@react-refresh";RefreshRuntime.injectIntoGlobalHook(window);window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>(t)=>t;window.__vite_plugin_react_preamble_installed__=true;</script>' . "\n"
+            . '  <script type="module" src="' . e($dev) . '/@vite/client"' . site_nonce_attr() . '></script>' . "\n";
     }
     $m = site_manifest();
     $entry = $m['site/main.tsx'] ?? null;
@@ -433,9 +630,9 @@ function site_assets_head(): string
         return $out;
     }
     $base = base_url('assets/site/');
-    $out .= '  <link rel="modulepreload" href="' . e($base . $entry['file']) . '">' . "\n";
+    $out .= '  <link rel="modulepreload" href="' . e($base . $entry['file']) . '"' . site_nonce_attr() . '>' . "\n";
     foreach (site_manifest_imports($m, 'site/main.tsx') as $file) {
-        $out .= '  <link rel="modulepreload" href="' . e($base . $file) . '">' . "\n";
+        $out .= '  <link rel="modulepreload" href="' . e($base . $file) . '"' . site_nonce_attr() . '>' . "\n";
     }
     foreach ($entry['css'] ?? [] as $css) {
         $out .= '  <link rel="stylesheet" href="' . e($base . $css) . '">' . "\n";
@@ -450,12 +647,12 @@ function site_assets_head(): string
 function site_assets_footer(): string
 {
     if ($dev = site_dev_server()) {
-        return '<script type="module" src="' . e($dev) . '/site/main.tsx"></script>' . "\n";
+        return '<script type="module" src="' . e($dev) . '/site/main.tsx"' . site_nonce_attr() . '></script>' . "\n";
     }
     $m = site_manifest();
     $entry = $m['site/main.tsx'] ?? null;
     if (!$entry) {
-        return '<script src="' . e(asset('assets/js/main.js')) . '" defer></script>' . "\n";
+        return '<script src="' . e(asset('assets/js/main.js')) . '" defer' . site_nonce_attr() . '></script>' . "\n";
     }
     $base = base_url('assets/site/');
     $out = '';
@@ -472,11 +669,11 @@ function site_assets_footer(): string
         }
         foreach (array_unique($files) as $file) {
             if ($file !== $entry['file']) {
-                $out .= '<link rel="modulepreload" href="' . e($base . $file) . '">' . "\n";
+                $out .= '<link rel="modulepreload" href="' . e($base . $file) . '"' . site_nonce_attr() . '>' . "\n";
             }
         }
     }
-    return $out . '<script type="module" src="' . e($base . $entry['file']) . '"></script>' . "\n";
+    return $out . '<script type="module" src="' . e($base . $entry['file']) . '"' . site_nonce_attr() . '></script>' . "\n";
 }
 
 /**
@@ -531,21 +728,57 @@ function island(string $name, array $props = [], string $fallback = '', array $a
 function site_header(array $page = []): void
 {
     $GLOBALS['__site_page'] = $page;
+    site_csp_header();
     include __DIR__ . '/header.php';
 }
 
 /**
  * Close <main>, render the CTA band + footer + floating helpers and the bundle scripts.
  * $opts: cta (bool, default true), cta_title, cta_text, cta_primary [label,url], cta_secondary [label,url,icon],
- *        cta_image, cta_highlight (word of cta_title to circle), footer ('full' default | 'minimal' = copyright bar for
+ *        cta_image, cta_highlight (word of cta_title to circle), cta_gold (phrase of cta_title with the yellow-gold
+ *        marker instead — the default title marks "Brighter Future"), popup_auto (bool: auto-open the enquiry popup on
+ *        this page; default only the homepage + setting enquiry_popup_auto), footer ('full' default | 'minimal' = copyright bar for
  *        campaign pages), directory (bool, default true — expandable "All Programs" directory in the footer card),
  *        mobile_cta (bool | ['call' => phone, 'apply' => ['label', 'url']] — sticky Call · Apply bar on phones;
- *        default setting site_mobile_cta = 1, off on /apply)
+ *        default setting site_mobile_cta = 1, off on /apply), chat ('tab' | 'button' | 'none' — floating WhatsApp
+ *        widget; default setting site_chat_style), enquiry_tab (bool), chatbot (bool, default true — assistant widget)
  */
 function site_footer(array $opts = []): void
 {
     $GLOBALS['__site_footer'] = $opts;
     include __DIR__ . '/footer.php';
+}
+
+/**
+ * Footer options for form pages (apply, contact, verify certificate): the form stays the only focus — no CTA band, no
+ * program directory, no floating WhatsApp / enquiry tab / chatbot / mobile Call · Apply bar. $opts override.
+ */
+function site_form_page_footer(array $opts = []): array
+{
+    return $opts + ['cta' => false, 'directory' => false, 'chat' => 'none', 'enquiry_tab' => false, 'mobile_cta' => false, 'chatbot' => false];
+}
+
+/**
+ * Compact text-only header for form pages: breadcrumb, title, one line of text and optional small facts
+ * ([['icon', 'text'], …] as a quiet inline list) — no photo, chips, stickers or shapes.
+ * $breadcrumbs: ['Label' => '/url', 'Current page'] like page_hero().
+ */
+function site_form_page_hero(string $title, string $text = '', array $breadcrumbs = [], array $facts = []): void
+{
+    $h = '<section class="form-hero"><div class="container-site form-hero-inner">';
+    if ($breadcrumbs) {
+        $h .= '<nav aria-label="Breadcrumb"><ol class="page-hero-crumbs"><li><a href="' . e(site_url('')) . '" class="underline-grow">Home</a></li>';
+        foreach ($breadcrumbs as $label => $url) {
+            $h .= '<li aria-hidden="true">' . icon('chevron-right', 'h-3.5 w-3.5 opacity-60') . '</li>'
+                . (is_string($label) ? '<li><a class="underline-grow" href="' . e(cms_link($url)) . '">' . e($label) . '</a></li>' : '<li class="font-medium" aria-current="page">' . e($url) . '</li>');
+        }
+        $h .= '</ol></nav>';
+    }
+    $h .= '<h1 class="form-hero-title">' . e($title) . '</h1>' . ($text !== '' ? '<p class="form-hero-text">' . e($text) . '</p>' : '');
+    if ($facts) {
+        $h .= '<ul class="form-hero-facts">' . implode('', array_map(fn ($f) => '<li>' . icon($f[0], 'h-4 w-4') . e($f[1]) . '</li>', $facts)) . '</ul>';
+    }
+    echo $h . '</div></section>';
 }
 
 /**
@@ -572,7 +805,8 @@ function site_footer(array $opts = []): void
  *       script (string — sticker tag on the photo, e.g. "Learn Grow Succeed"), actions (HTML buttons), size
  *       ('md'|'lg'), align ('left'|'center'), id (section id), image_alt (string), image2 (inset secondary photo path;
  *       default a different campus photo; false = none), badge (['icon', 'text'] glass badge on the photo; default the
- *       admissions_open_text setting; false = none).
+ *       admissions_open_text setting; false = none), gold (phrase of $title to mark with the yellow-gold highlight
+ *       instead of the scribble — never both on one heading).
  */
 function page_hero(string $title, string $subtitle = '', array $breadcrumbs = [], string $image = 'assets/images/site/campus-building.jpg', string $text = '', array $features = [], array $opts = []): void
 {
@@ -581,6 +815,8 @@ function page_hero(string $title, string $subtitle = '', array $breadcrumbs = []
     $center = ($opts['align'] ?? 'left') === 'center';
     $idAttr = !empty($opts['id']) ? ' id="' . e($opts['id']) . '"' : '';
     $highlight = array_key_exists('highlight', $opts) ? $opts['highlight'] : null;
+    $gold = !empty($opts['gold']) ? (string) $opts['gold'] : '';
+    $titleHtml = fn (string $tone): string => $gold !== '' ? gold_text($title, $gold) : scribble_text($title, $highlight, $tone);
     $crumbs = function () use ($breadcrumbs, $center): string {
         if (!$breadcrumbs) {
             return '';
@@ -619,7 +855,7 @@ function page_hero(string $title, string $subtitle = '', array $breadcrumbs = []
             echo '<div class="pointer-events-none absolute inset-y-0 left-0 -z-[1] w-2/3 pattern-grid-light pattern-fade opacity-70" aria-hidden="true"></div>';
         }
         echo '<div class="container-site relative ' . $pad . ($center ? ' text-center' : '') . '">' . $crumbs() . $eyebrow;
-        echo '<h1 class="page-hero-title max-w-3xl animate-fade-up' . ($center ? ' mx-auto' : '') . '">' . scribble_text($title, $highlight, 'light') . '</h1>';
+        echo '<h1 class="page-hero-title max-w-3xl animate-fade-up' . ($center ? ' mx-auto' : '') . '">' . $titleHtml('light') . '</h1>';
         if ($subtitle !== '') {
             echo '<p class="page-hero-subtitle animate-fade-up delay-1">' . e($subtitle) . '</p>';
         }
@@ -634,6 +870,7 @@ function page_hero(string $title, string $subtitle = '', array $breadcrumbs = []
             echo '<p class="page-hero-script float-slow" aria-hidden="true">' . implode('<br>', array_map('e', preg_split('/\s+/', trim($opts['script'])))) . '</p>';
         }
         echo '</section>';
+        echo page_hero_promo($opts);
         return;
     }
 
@@ -648,10 +885,10 @@ function page_hero(string $title, string $subtitle = '', array $breadcrumbs = []
     if (!$dark && ($opts['pattern'] ?? true)) {
         echo '<div class="page-hero-paper" aria-hidden="true"></div>';
     }
-    echo geo_shapes('hero');
+    echo geo_shapes($split ? 'hero' : 'hero-text');
     echo '<div class="container-site relative grid items-center gap-10 ' . $pad . ($split ? ' lg:grid-cols-12 lg:gap-12' : '') . '">';
     echo '<div class="' . ($split ? 'lg:col-span-7' : ($center ? 'mx-auto max-w-3xl text-center' : 'max-w-3xl')) . '">' . $crumbs() . $eyebrow;
-    echo '<h1 class="page-hero-title' . ($center ? ' mx-auto' : '') . '" data-text-reveal>' . scribble_text($title, $highlight, $dark ? 'light' : 'orange') . '</h1>';
+    echo '<h1 class="page-hero-title' . ($center ? ' mx-auto' : '') . '" data-text-reveal>' . $titleHtml($dark ? 'light' : 'orange') . '</h1>';
     if ($subtitle !== '') {
         echo '<p class="page-hero-subtitle animate-fade-up delay-1">' . e($subtitle) . '</p>';
     }
@@ -692,6 +929,18 @@ function page_hero(string $title, string $subtitle = '', array $breadcrumbs = []
         echo '</div>';
     }
     echo '</div></section>';
+    echo page_hero_promo($opts);
+}
+
+/**
+ * CMS banner placement "page_header" (site_page_promo()) under the hero: on the main inner pages by default, or wherever
+ * page_hero() gets 'promo' => true ('promo' => false hides it).
+ */
+function page_hero_promo(array $opts = []): string
+{
+    $active = (string) (($GLOBALS['__site_page'] ?? [])['active'] ?? '');
+    $on = $opts['promo'] ?? in_array($active, ['programs', 'admissions', 'academics', 'campus', 'placement', 'faculty', 'alumni', 'about'], true);
+    return $on && (int) (http_response_code() ?: 200) < 400 && function_exists('site_page_promo') ? site_page_promo() : '';
 }
 
 /**
@@ -700,7 +949,8 @@ function page_hero(string $title, string $subtitle = '', array $breadcrumbs = []
  *                        ['highlight' => 'Programs', 'sticker' => ['text' => 'Future ready', 'color' => 'blush']]);
  * @param array $o highlight (word/phrase of $title to circle), sticker (string | ['text', 'color', 'rotate']),
  *                 tag (h2|h1|h3, default h2), class (extra wrapper classes), lead_class, scribble ('orange'|'light'|'ink'),
- *                 reveal (bool, default true — text-mask line reveal of the title)
+ *                 reveal (bool, default true — text-mask line reveal of the title), gold (word/phrase of $title to mark
+ *                 with the yellow-gold highlight — replaces the scribble: never both on one heading; max one per section)
  */
 function section_heading(string $title, string $lead = '', string $eyebrow = '', string $align = 'left', string $action = '', array $o = []): string
 {
@@ -711,10 +961,11 @@ function section_heading(string $title, string $lead = '', string $eyebrow = '',
         $st = is_array($o['sticker']) ? $o['sticker'] : ['text' => (string) $o['sticker']];
         $sticker = ' <span class="ml-2 inline-block align-middle">' . sticker((string) ($st['text'] ?? ''), ['color' => $st['color'] ?? 'blush', 'rotate' => $st['rotate'] ?? -12, 'size' => 'sm']) . '</span>';
     }
-    $titleHtml = !empty($o['highlight']) ? scribble_text($title, (string) $o['highlight'], $o['scribble'] ?? 'orange') : e($title);
+    $titleHtml = !empty($o['gold']) ? gold_text($title, (string) $o['gold'])
+        : (!empty($o['highlight']) ? scribble_text($title, (string) $o['highlight'], $o['scribble'] ?? 'orange') : e($title));
     return '<div class="mb-10 flex flex-col gap-5 ' . ($center ? 'items-center text-center' : 'sm:flex-row sm:items-end sm:justify-between') . (!empty($o['class']) ? ' ' . e($o['class']) : '') . '">'
         . '<div class="' . ($center ? 'mx-auto max-w-3xl' : 'max-w-3xl') . '">'
-        . ($eyebrow !== '' ? '<p class="eyebrow mb-3">' . e($eyebrow) . '</p>' : '')
+        . ($eyebrow !== '' ? '<p class="eyebrow mb-3"' . (($o['reveal'] ?? true) ? ' data-reveal="wipe"' : '') . '>' . e($eyebrow) . '</p>' : '')
         . '<' . $tag . ' class="section-title"' . (($o['reveal'] ?? true) ? ' data-text-reveal' : '') . '>' . $titleHtml . $sticker . '</' . $tag . '>'
         . ($lead !== '' ? '<p class="section-lead' . ($center ? ' mx-auto' : '') . (!empty($o['lead_class']) ? ' ' . e($o['lead_class']) : '') . '">' . e($lead) . '</p>' : '')
         . '</div>' . ($action !== '' && !$center ? '<div class="shrink-0">' . $action . '</div>' : '') . '</div>';

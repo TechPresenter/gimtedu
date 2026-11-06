@@ -52,6 +52,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('auth:expired', onExpired);
   }, []);
 
+  // The server requires a new password (forced by an administrator or expired while signed in): the admin layout
+  // swaps the app for the mandatory "Set a new password" screen.
+  useEffect(() => {
+    const onPasswordChange = (e: Event) => {
+      const reason = (e as CustomEvent<{ reason?: 'expired' | 'required' }>).detail?.reason ?? 'required';
+      setSession((s) => (s?.user && !s.user.must_change_password ? { ...s, user: { ...s.user, must_change_password: true, password_change_reason: reason } } : s));
+    };
+    window.addEventListener('auth:password-change', onPasswordChange);
+    return () => window.removeEventListener('auth:password-change', onPasswordChange);
+  }, []);
+
   const can = useCallback(
     (module: string, action: PermissionAction = 'view') => {
       if (!session?.authenticated) return false;

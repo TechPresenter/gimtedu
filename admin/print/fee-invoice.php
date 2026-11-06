@@ -25,6 +25,12 @@ $gateway = fees_gateway_info();
 $stamp = ['paid' => ['Paid', 'border-emerald-500/60 text-emerald-600/60'], 'cancelled' => ['Cancelled', 'border-red-500/60 text-red-500/50'], 'waived' => ['Waived', 'border-violet-500/60 text-violet-600/50']][$inv['status']] ?? null;
 $statusClass = ['paid' => 'bg-emerald-50 text-emerald-700', 'overdue' => 'bg-red-50 text-red-700', 'partial' => 'bg-amber-50 text-amber-700', 'cancelled' => 'bg-red-50 text-red-700'][$inv['status']] ?? 'bg-slate-100 text-slate-700';
 $cell = 'border border-slate-200 px-2 py-1.5';
+// Direct-transfer details from Settings > Payment > Bank & UPI (printed only when filled in and the mode is accepted)
+$modes = array_filter(array_map('trim', explode(',', (string) setting('enabled_payment_modes', 'cash'))));
+$bank = array_map(fn ($k) => trim((string) setting($k, '')), ['name' => 'bank_account_name', 'bank' => 'bank_name', 'no' => 'bank_account_no', 'ifsc' => 'bank_ifsc', 'branch' => 'bank_branch']);
+$showBank = $bank['no'] !== '' && $bank['ifsc'] !== '' && in_array('bank_transfer', $modes, true);
+$upi = in_array('upi', $modes, true) ? trim((string) setting('upi_id', '')) : '';
+$officeHours = trim((string) setting('office_hours', ''));
 
 print_layout_start('Invoice ' . $inv['invoice_no']);
 ?>
@@ -129,8 +135,13 @@ print_layout_start('Invoice ' . $inv['invoice_no']);
     <div class="rounded-lg bg-slate-50 p-3">
       <p class="font-semibold text-slate-800">How to pay</p>
       <ul class="mt-1 list-disc space-y-0.5 pl-4">
-        <li>At the accounts office (cash / card / UPI / cheque / DD), Monday–Saturday 9:30 AM – 4:00 PM.</li>
-        <li>Cheques / DDs in favour of "<?= e(institute_name()) ?>" — write the invoice number on the reverse.</li>
+        <li>At the accounts office (cash / card / UPI / cheque / DD)<?= $officeHours !== '' ? ', ' . e($officeHours) : '' ?>.</li>
+        <li>Cheques / DDs in favour of "<?= e($bank['name'] !== '' ? $bank['name'] : institute_name()) ?>" — write the invoice number on the reverse.</li>
+        <?php if ($showBank): ?>
+          <li>Bank transfer (NEFT / RTGS / IMPS): <?= $bank['name'] !== '' ? e($bank['name']) . ', ' : '' ?>A/c <span class="font-mono font-semibold text-slate-800"><?= e($bank['no']) ?></span>,
+            IFSC <span class="font-mono font-semibold text-slate-800"><?= e($bank['ifsc']) ?></span><?= $bank['bank'] !== '' ? ', ' . e($bank['bank']) : '' ?><?= $bank['branch'] !== '' ? ' (' . e($bank['branch']) . ')' : '' ?> — quote invoice <?= e($inv['invoice_no']) ?> in the remarks.</li>
+        <?php endif; ?>
+        <?php if ($upi !== ''): ?><li>UPI: <span class="font-mono font-semibold text-slate-800"><?= e($upi) ?></span> — add invoice <?= e($inv['invoice_no']) ?> in the payment note.</li><?php endif; ?>
         <?php if ($gateway['gateway']): ?><li>Online through the <?= e($gateway['label']) ?> payment link shared by the institute.</li><?php endif; ?>
         <li>Late fee: <?= (float) $inv['late_fee_rate']['per_day'] > 0 ? e(money($inv['late_fee_rate']['per_day'])) . ' per day after the due date' . ($inv['late_fee_rate']['max'] ? ' (max ' . e(money($inv['late_fee_rate']['max'])) . ')' : '') : 'as per institute rules' ?>.</li>
       </ul>

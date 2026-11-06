@@ -49,6 +49,21 @@ function fees_enabled_modes(): array
     return $out ?: $all;
 }
 
+/**
+ * Public receipt verification (the QR on every printed receipt): GET /api/fees/verify?no=RCPT/…&h=<sig>. The signature
+ * is an HMAC of the receipt number with the app key, so a valid link can only come from a printed receipt - nobody can
+ * walk through other receipt numbers - and the page shows just enough to confirm the paper is genuine.
+ */
+function fees_receipt_verify_sig(string $receiptNo): string
+{
+    return substr(hash_hmac('sha256', 'receipt|' . $receiptNo, 'fees-verify|' . (string) (app_config('app')['key'] ?? '')), 0, 16);
+}
+
+function fees_receipt_verify_url(string $receiptNo): string
+{
+    return absolute_url('api/fees/verify?no=' . rawurlencode($receiptNo) . '&h=' . fees_receipt_verify_sig($receiptNo));
+}
+
 function fees_mode_label(?string $mode): string
 {
     return fees_modes()[$mode ?? ''] ?? label_from_key((string) $mode);
@@ -375,6 +390,7 @@ function fees_create_invoice(int $studentId, string $title, array $items, array 
         $inv = db_row('SELECT invoice_no FROM student_fees WHERE id = ?', [$id]);
         log_activity('create', 'fees', $id, sprintf('Raised invoice %s (%s, %s) for %s (%s)', $inv['invoice_no'], $title, money($total), trim($student['first_name'] . ' ' . $student['last_name']), $student['student_uid']));
     }
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; $waInv = db_row('SELECT invoice_no, net_amount, due_date FROM student_fees WHERE id = ?', [$id]); gimt_wa_event('GIMT_FEE_INVOICE_RAISED', ['student_id' => $studentId, 'invoice_id' => (int) $id, 'invoice_no' => $waInv['invoice_no'] ?? '', 'invoice_number' => $waInv['invoice_no'] ?? '', 'fee_title' => $title, 'amount' => (float) ($waInv['net_amount'] ?? $total), 'due_date' => !empty($waInv['due_date']) ? date('d M Y', strtotime($waInv['due_date'])) : '', 'payment_link' => absolute_url('portal/student/fees')], ['dedupe_key' => 'inv:' . $id, 'source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     return (int) $id;
 }
 
@@ -701,7 +717,7 @@ function fees_collect(array $in): array
     if (!$student) {
         $errors['student_id'] = 'Select the student.';
     }
-    $date = trim((string) ($in['payment_date'] ?? ''));
+    $date = trim(api_str($in['payment_date'] ?? null));
     $dt = DateTime::createFromFormat('Y-m-d', $date);
     if (!$dt || $dt->format('Y-m-d') !== $date) {
         $errors['payment_date'] = 'Enter a valid payment date.';
@@ -710,12 +726,12 @@ function fees_collect(array $in): array
     } elseif ($date < date('Y-m-d', strtotime('-90 days'))) {
         $errors['payment_date'] = 'Back-dated entries older than 90 days are not allowed.';
     }
-    $mode = (string) ($in['mode'] ?? '');
+    $mode = api_str($in['mode'] ?? null);
     if (!isset(fees_enabled_modes()[$mode])) {
         $errors['mode'] = 'Select an enabled payment mode.';
     }
-    $reference = trim((string) ($in['reference_no'] ?? ''));
-    $bank = trim((string) ($in['bank_name'] ?? ''));
+    $reference = trim(api_str($in['reference_no'] ?? null));
+    $bank = trim(api_str($in['bank_name'] ?? null));
     if ($mode !== 'cash' && isset(fees_modes()[$mode]) && $reference === '') {
         $errors['reference_no'] = match ($mode) {
             'cheque' => 'Enter the cheque number.', 'dd' => 'Enter the demand draft number.', 'upi' => 'Enter the UPI transaction ID (UTR).',
@@ -729,7 +745,7 @@ function fees_collect(array $in): array
     }
     $applyLate = !empty($in['apply_late_fee']) && $in['apply_late_fee'] !== '0';
     $discount = fees_round((float) ($in['discount_amount'] ?? 0));
-    $discountReason = trim((string) ($in['discount_reason'] ?? ''));
+    $discountReason = trim(api_str($in['discount_reason'] ?? null));
     if ($discount < 0) {
         $errors['discount_amount'] = 'Discount cannot be negative.';
     } elseif ($discount > 0) {
@@ -739,7 +755,7 @@ function fees_collect(array $in): array
             $errors['discount_reason'] = 'Enter the reason / approval reference for the discount.';
         }
     }
-    $remarks = trim((string) ($in['remarks'] ?? ''));
+    $remarks = trim(api_str($in['remarks'] ?? null));
     if (mb_strlen($remarks) > 255) {
         $errors['remarks'] = 'Remarks may not be longer than 255 characters.';
     }
@@ -836,6 +852,7 @@ function fees_collect(array $in): array
     });
     $pay = db_row('SELECT * FROM payments WHERE id = ?', [$paymentId]);
     log_activity('create', 'fees', $paymentId, sprintf('Collected %s from %s (%s) via %s — receipt %s', money($total, 2), $student['name'], $student['student_uid'], fees_mode_label($mode), $pay['receipt_no']));
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; $waBal = (float) (fees_student_totals((int) $student['id'])['balance'] ?? 0); gimt_wa_event(['GIMT_PAYMENT_SUCCESS', 'GIMT_RECEIPT_GENERATED'], ['student_id' => (int) $student['id'], 'payment_id' => (int) $paymentId, 'receipt_no' => $pay['receipt_no'], 'amount' => (float) $total, 'mode' => fees_mode_label($mode), 'payment_date' => date('d M Y', strtotime((string) $date)), 'transaction_id' => (string) ($pay['gateway_txn_id'] ?: $pay['reference_no']), 'balance' => $waBal, 'balance_text' => money($waBal), 'receipt_link' => fees_receipt_verify_url($pay['receipt_no'])], ['dedupe_key' => 'pay:' . $paymentId, 'source' => $mode === 'online' ? 'payment' : 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     $emailed = false;
     if (!empty($in['email_receipt']) && $student['email']) {
         $emailed = fees_email_receipt($paymentId);
@@ -901,6 +918,7 @@ function fees_void_payment(int $paymentId, string $reason): array
     });
     $total = (float) $p['amount'] + (float) $p['fine_amount'];
     log_activity('update', 'fees', $paymentId, sprintf('Voided receipt %s (%s) of %s — %s', $p['receipt_no'], money($total, 2), $p['student_name'] ?? '—', $reason));
+    try { if (!empty($p['student_id'])) { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event('GIMT_RECEIPT_CANCELLED', ['student_id' => (int) $p['student_id'], 'payment_id' => $paymentId, 'receipt_no' => $p['receipt_no'], 'amount' => $total, 'reason' => $reason], ['dedupe_key' => 'pay:' . $paymentId . ':void', 'source' => 'admin']); } } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     notify('perm:fees', 'fee', 'Receipt voided', sprintf('%s (%s) of %s was voided: %s', $p['receipt_no'], money($total), $p['student_name'] ?? '—', $reason), 'admin/fees/payments', 'receipt');
     return ['invoices' => count($invoiceIds)];
 }
@@ -978,6 +996,7 @@ function fees_refund_request(int $paymentId, float $amount, string $reason): int
     $no = db_value('SELECT refund_no FROM refunds WHERE id = ?', [$id]);
     log_activity('create', 'fees', $id, sprintf('Requested refund %s of %s against receipt %s (%s)', $no, money($amount, 2), $p['receipt_no'], $p['student_name'] ?? '—'));
     notify('perm:fees', 'fee', 'Refund request awaiting approval', sprintf('%s: %s to %s against %s', $no, money($amount), $p['student_name'] ?? '—', $p['receipt_no']), 'admin/fees/refunds', 'undo-2');
+    try { if (!empty($p['student_id'])) { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event('GIMT_REFUND_REQUESTED', ['student_id' => (int) $p['student_id'], 'refund_id' => (int) $id, 'refund_no' => (string) $no, 'transaction_id' => (string) $no, 'amount' => $amount, 'refund_amount' => money($amount), 'receipt_no' => $p['receipt_no'], 'reason' => $reason], ['dedupe_key' => 'rf:' . $id . ':requested', 'source' => 'admin']); } } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     return (int) $id;
 }
 
@@ -994,14 +1013,14 @@ function fees_refund_transition(int $id, string $action, array $in = []): array
             if ($r['status'] !== 'pending') {
                 throw new CrudException('Only pending refunds can be approved.');
             }
-            db_update('refunds', ['status' => 'approved', 'approved_by' => user_id(), 'approved_at' => $now, 'remarks' => trim((string) ($in['remarks'] ?? '')) ?: $r['remarks']], 'id = ?', [$id]);
+            db_update('refunds', ['status' => 'approved', 'approved_by' => user_id(), 'approved_at' => $now, 'remarks' => trim(api_str($in['remarks'] ?? null)) ?: $r['remarks']], 'id = ?', [$id]);
             log_activity('approve', 'fees', $id, sprintf('Approved refund %s (%s)', $r['refund_no'], money($r['amount'], 2)));
             break;
         case 'reject':
             if (!in_array($r['status'], ['pending', 'approved'], true)) {
                 throw new CrudException('Only pending or approved refunds can be rejected.');
             }
-            $remarks = trim((string) ($in['remarks'] ?? ''));
+            $remarks = trim(api_str($in['remarks'] ?? null));
             if (mb_strlen($remarks) < 5) {
                 throw new CrudValidationException(['remarks' => 'Enter the reason for rejecting (at least 5 characters).']);
             }
@@ -1013,15 +1032,15 @@ function fees_refund_transition(int $id, string $action, array $in = []): array
                 throw new CrudException('Approve the refund before marking it paid.');
             }
             $errors = [];
-            $mode = (string) ($in['mode'] ?? '');
+            $mode = api_str($in['mode'] ?? null);
             if (!isset(fees_modes()[$mode]) || $mode === 'online') {
                 $errors['mode'] = 'Select how the refund was paid.';
             }
-            $ref = trim((string) ($in['reference_no'] ?? ''));
+            $ref = trim(api_str($in['reference_no'] ?? null));
             if ($mode !== 'cash' && $ref === '') {
                 $errors['reference_no'] = 'Enter the UTR / cheque number of the refund.';
             }
-            $date = (string) ($in['refund_date'] ?? '');
+            $date = api_str($in['refund_date'] ?? null);
             $dt = DateTime::createFromFormat('Y-m-d', $date);
             if (!$dt || $dt->format('Y-m-d') !== $date) {
                 $errors['refund_date'] = 'Enter a valid refund date.';
@@ -1031,7 +1050,7 @@ function fees_refund_transition(int $id, string $action, array $in = []): array
             if ($errors) {
                 throw new CrudValidationException($errors);
             }
-            $remarks = trim((string) ($in['remarks'] ?? ''));
+            $remarks = trim(api_str($in['remarks'] ?? null));
             db_transaction(function () use ($id, $r, $mode, $ref, $date, $now, $remarks) {
                 db_update('refunds', ['status' => 'processed', 'mode' => $mode, 'reference_no' => $ref !== '' ? mb_substr($ref, 0, 100) : null, 'refund_date' => $date, 'processed_by' => user_id(), 'processed_at' => $now,
                     'remarks' => $remarks !== '' ? mb_substr($remarks, 0, 255) : $r['remarks']], 'id = ?', [$id]);
@@ -1045,6 +1064,7 @@ function fees_refund_transition(int $id, string $action, array $in = []): array
         default:
             throw new InvalidArgumentException('Unknown refund action.');
     }
+    try { if (!empty($r['student_id'])) { require_once APP_ROOT . '/app/whatsapp_hook.php'; $waRf = db_row('SELECT * FROM refunds WHERE id = ?', [$id]); gimt_wa_event(['approve' => 'GIMT_REFUND_APPROVED', 'reject' => 'GIMT_REFUND_REJECTED', 'process' => 'GIMT_REFUND_PROCESSED'][$action], ['student_id' => (int) $r['student_id'], 'refund_id' => $id, 'refund_no' => $r['refund_no'], 'amount' => (float) $r['amount'], 'refund_amount' => money((float) $r['amount']), 'receipt_no' => $r['receipt_no'], 'payment_date' => date('d M Y', strtotime((string) ($waRf['refund_date'] ?? '') ?: 'now')), 'mode' => !empty($waRf['mode']) ? fees_mode_label($waRf['mode']) : '', 'reference' => (string) ($waRf['reference_no'] ?? ''), 'transaction_id' => (string) (($waRf['reference_no'] ?? '') ?: $r['refund_no']), 'reason' => (string) ($waRf['remarks'] ?? '')], ['dedupe_key' => 'rf:' . $id . ':' . $action, 'source' => 'admin']); } } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     return db_row('SELECT * FROM refunds WHERE id = ?', [$id]);
 }
 
@@ -1100,6 +1120,7 @@ function fees_send_reminders(array $invoiceIds): array
         if ($sent) {
             db_exec('UPDATE student_fees SET reminder_count = reminder_count + 1, last_reminder_at = NOW() WHERE id = ?', [(int) $r['id']]);
             log_activity('remind', 'fees', (int) $r['id'], sprintf('Sent fee reminder for %s (%s) to %s', $r['invoice_no'], $amountText, $r['student_name']));
+            try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event('GIMT_FEE_REMINDER', ['student_id' => (int) $r['student_id'], 'invoice_id' => (int) $r['id'], 'invoice_no' => $r['invoice_no'], 'fee_title' => $r['title'], 'amount' => $overdue > 0 ? $overdue : $balance, 'balance' => $balance, 'due_date' => $nextDue ? date('d M Y', strtotime((string) $nextDue)) : '', 'overdue' => $overdue > 0, 'payment_link' => absolute_url('portal/student/fees')], ['dedupe_key' => 'inv:' . $r['id'] . ':remind:' . date('YmdHi'), 'source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
             $out['sent']++;
         } else {
             $out['skipped']++;
@@ -1217,7 +1238,7 @@ function fees_save_structure(array $in, ?int $id = null): int
         'year_no' => !empty($in['year_no']) ? (int) $in['year_no'] : (!empty($in['semester_no']) ? (int) ceil((int) $in['semester_no'] / 2) : null),
         'total_amount' => $total, 'due_date' => $insts ? end($insts)['due_date'] : $in['due_date'], 'late_fee_per_day' => fees_round((float) ($in['late_fee_per_day'] ?? 0)),
         'late_fee_max' => ($in['late_fee_max'] ?? '') !== '' && $in['late_fee_max'] !== null ? fees_round((float) $in['late_fee_max']) : null,
-        'installments_allowed' => max(1, count($insts)), 'description' => trim((string) ($in['description'] ?? '')) ?: null, 'status' => $in['status'],
+        'installments_allowed' => max(1, count($insts)), 'description' => trim(api_str($in['description'] ?? null)) ?: null, 'status' => $in['status'],
     ];
     $sid = db_transaction(function () use ($data, $items, $insts, $id) {
         if ($id) {
@@ -1481,18 +1502,18 @@ function fees_dashboard(?int $sessionId = null): array
 function fees_report_filters(array $q): array
 {
     $ses = fees_session(!empty($q['session_id']) ? (int) $q['session_id'] : null);
-    $from = (string) ($q['from'] ?? '');
-    $to = (string) ($q['to'] ?? '');
+    $from = api_str($q['from'] ?? null);
+    $to = api_str($q['to'] ?? null);
     $isDate = fn ($d) => (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $d);
     return [
         'session' => $ses,
         'from' => $isDate($from) ? $from : $ses['start_date'],
         'to' => $isDate($to) ? $to : min($ses['end_date'], fees_today()),
-        'mode' => isset(fees_modes()[$q['mode'] ?? '']) ? $q['mode'] : null,
+        'mode' => isset(fees_modes()[api_str($q['mode'] ?? null)]) ? $q['mode'] : null,
         'program_id' => !empty($q['program_id']) ? (int) $q['program_id'] : null,
         'semester' => !empty($q['semester']) ? (int) $q['semester'] : null,
         'collector' => !empty($q['collector']) ? (int) $q['collector'] : null,
-        'q' => trim((string) ($q['q'] ?? '')),
+        'q' => trim(api_str($q['q'] ?? null)),
         'min_days' => isset($q['min_days']) && $q['min_days'] !== '' ? max(0, (int) $q['min_days']) : 0,
     ];
 }
@@ -1794,7 +1815,7 @@ function expenses_transition(int $id, string $action, array $in = []): array
             if ($e['status'] !== 'pending') {
                 throw new CrudException('Only pending expenses can be approved.');
             }
-            db_update('expenses', ['status' => 'approved', 'approved_by' => user_id(), 'approved_at' => $now, 'remarks' => trim((string) ($in['remarks'] ?? '')) ?: null], 'id = ?', [$id]);
+            db_update('expenses', ['status' => 'approved', 'approved_by' => user_id(), 'approved_at' => $now, 'remarks' => trim(api_str($in['remarks'] ?? null)) ?: null], 'id = ?', [$id]);
             log_activity('approve', 'expenses', $id, sprintf('Approved expense %s "%s" (%s)', $e['expense_no'], $e['title'], money($total, 2)));
             if ($e['created_by'] && (int) $e['created_by'] !== user_id()) {
                 notify((int) $e['created_by'], 'system', 'Expense approved', sprintf('%s "%s" (%s) was approved.', $e['expense_no'], $e['title'], money($total)), 'admin/expenses', 'circle-check');
@@ -1804,7 +1825,7 @@ function expenses_transition(int $id, string $action, array $in = []): array
             if (!in_array($e['status'], ['pending', 'approved'], true)) {
                 throw new CrudException('Only pending or approved expenses can be rejected.');
             }
-            $remarks = trim((string) ($in['remarks'] ?? ''));
+            $remarks = trim(api_str($in['remarks'] ?? null));
             if (mb_strlen($remarks) < 5) {
                 throw new CrudValidationException(['remarks' => 'Enter the reason for rejecting (at least 5 characters).']);
             }
@@ -1823,13 +1844,13 @@ function expenses_transition(int $id, string $action, array $in = []): array
             if (!isset(fees_modes()[$mode]) || $mode === 'online') {
                 $errors['payment_mode'] = 'Select how the vendor was paid.';
             }
-            $ref = trim((string) ($in['payment_reference'] ?? ''));
+            $ref = trim(api_str($in['payment_reference'] ?? null));
             if ($mode !== 'cash' && $ref === '') {
                 $errors['payment_reference'] = 'Enter the UTR / cheque number of the payment.';
             } elseif (mb_strlen($ref) > 100) {
                 $errors['payment_reference'] = 'Reference may not be longer than 100 characters.';
             }
-            $paidOn = trim((string) ($in['paid_on'] ?? ''));
+            $paidOn = trim(api_str($in['paid_on'] ?? null));
             if ($paidOn !== '') {
                 $dt = DateTime::createFromFormat('Y-m-d', $paidOn);
                 if (!$dt || $dt->format('Y-m-d') !== $paidOn) {

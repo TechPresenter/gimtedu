@@ -203,7 +203,7 @@ export default function PromotionPage() {
           </Card>
         </Reveal>
       ) : (
-        <div className="mb-5 grid gap-5 xl:grid-cols-[370px_minmax(0,1fr)]">
+        <div className="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-[370px_minmax(0,1fr)]">
           <div className="space-y-5">
             <Card>
               <CardHeader title="Current class" icon={ListChecks} subtitle="Students who are active in this class" />

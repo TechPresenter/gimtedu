@@ -88,8 +88,8 @@ route('GET', '/leaves/summary', function () {
 route('GET', '/leaves/preview', function () {
     api_require('faculty', 'view');
     $ref = hr_parse_ref($_GET['employee_ref'] ?? '');
-    $from = (string) ($_GET['from'] ?? '');
-    $to = (string) ($_GET['to'] ?? '') ?: $from;
+    $from = api_str($_GET['from'] ?? null);
+    $to = api_str($_GET['to'] ?? null) ?: $from;
     $valid = fn ($d) => (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && strtotime($d);
     if (!$valid($from) || !$valid($to) || $to < $from) {
         api_ok(['days' => 0, 'calendar_days' => 0, 'weekly_offs' => 0, 'holidays' => [], 'errors' => (object) [], 'balance' => null]);
@@ -101,7 +101,7 @@ route('GET', '/leaves/preview', function () {
     $wd = hr_working_days($from, $to, $half);
     $errors = [];
     $balance = null;
-    $leaveType = (string) ($_GET['leave_type'] ?? '');
+    $leaveType = api_str($_GET['leave_type'] ?? null);
     if ($ref) {
         $errors = hr_validate_leave(['employee_type' => $ref[0], 'employee_id' => $ref[1], 'leave_type' => $leaveType, 'from_date' => $from, 'to_date' => $to, 'is_half_day' => $half],
             !empty($_GET['exclude_id']) ? (int) $_GET['exclude_id'] : null);
@@ -141,7 +141,7 @@ route('GET', '/leaves/balances', function () {
         $where[] = 'e.department_id = ?';
         $args[] = (int) $_GET['department_id'];
     }
-    $q = trim((string) ($_GET['q'] ?? ''));
+    $q = trim(api_str($_GET['q'] ?? null));
     if ($q !== '') {
         $where[] = '(e.name LIKE ? OR e.code LIKE ?)';
         $args[] = '%' . $q . '%';
@@ -185,7 +185,7 @@ route('GET', '/leaves/balances', function () {
 
 route('GET', '/leaves/calendar', function () {
     api_require('faculty', 'view');
-    $month = preg_match('/^\d{4}-\d{2}$/', (string) ($_GET['month'] ?? '')) ? $_GET['month'] : date('Y-m');
+    $month = preg_match('/^\d{4}-\d{2}$/', api_str($_GET['month'] ?? null)) ? $_GET['month'] : date('Y-m');
     $start = $month . '-01';
     $end = date('Y-m-t', strtotime($start));
     $statuses = !empty($_GET['include_pending']) && $_GET['include_pending'] !== '0' ? ['approved', 'pending'] : ['approved'];
@@ -201,7 +201,7 @@ route('GET', '/leaves/calendar', function () {
     }
     if (!empty($_GET['leave_type'])) {
         $where[] = 'l.leave_type = ?';
-        $args[] = (string) $_GET['leave_type'];
+        $args[] = api_str($_GET['leave_type']);
     }
     $rows = db_all("SELECT l.id, l.employee_type, l.employee_id, l.leave_type, l.from_date, l.to_date, l.days, l.is_half_day, l.status, l.reason,
                            lt.name AS leave_type_name, lt.color,

@@ -155,7 +155,7 @@ export function RestoreModal({ backup, onClose, onDone }: { backup: BackupRow | 
           {!isFiles && (
             <div className="space-y-3">
               <p className="form-label !mb-0">What to restore</p>
-              <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Restore scope">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Restore scope">
                 {[
                   { k: 'all' as const, t: 'Entire database', d: `All ${restorable.length || backup.meta?.tables || ''} tables (recommended)` },
                   { k: 'selected' as const, t: 'Selected tables only', d: 'Advanced — e.g. roll back just settings' },

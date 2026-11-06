@@ -3,8 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
-  BookOpenText, CalendarRange, ChartPie, CircleCheck, ExternalLink, FileCode2, FileText, Globe, GraduationCap, Map as MapIcon, Megaphone, Pencil, Plus, Route as RouteIcon,
-  Download, RotateCcw, Save, SearchCheck, TriangleAlert,
+  ArrowLeftRight, BookOpenText, CalendarRange, ChartPie, CircleCheck, ExternalLink, FileCode2, FileText, Globe, GraduationCap, Map as MapIcon, Megaphone, Pencil, Plus, Radar,
+  RefreshCcw, Route as RouteIcon, Download, RotateCcw, Save, SearchCheck, TriangleAlert,
 } from 'lucide-react';
 import {
   Alert, Badge, Button, Card, CardHeader, DataTable, EmptyState, Field, Input, Modal, PageHeader, Pagination, Reveal, SearchInput, Select, Skeleton, Stagger, StatCard, Tabs, Textarea,
@@ -17,6 +17,7 @@ import { useApi } from '@/lib/queries';
 import { useDebounce } from '@/lib/hooks';
 import { formatNumber, labelize } from '@/lib/format';
 import { SeoEditor, type SeoTarget } from './site/SeoEditor';
+import { SeoAudit } from './site/SeoAudit';
 
 interface Entry {
   key: string;
@@ -61,6 +62,7 @@ interface Overview {
 
 const TABS = [
   { key: 'overview', label: 'Overview', icon: ChartPie },
+  { key: 'audit', label: 'Audit', icon: Radar },
   { key: 'routes', label: 'Routes', icon: RouteIcon },
   { key: 'pages', label: 'Pages', icon: FileText },
   { key: 'programs', label: 'Programs', icon: GraduationCap },
@@ -101,12 +103,18 @@ export default function SeoPage() {
         title="SEO Management"
         description="Search titles, descriptions, social cards and structured data for every public URL, plus robots.txt and the sitemap."
         breadcrumbs={[{ label: 'Website CMS', to: '/cms' }, { label: 'SEO Management' }]}
-        actions={<Button variant="secondary" icon={MapIcon} onClick={() => setTab('robots')}>Sitemap & robots.txt</Button>}
+        actions={
+          <>
+            <Button variant="secondary" icon={ArrowLeftRight} to="/redirects">Redirects</Button>
+            <Button variant="secondary" icon={MapIcon} onClick={() => setTab('robots')}>Sitemap & robots.txt</Button>
+          </>
+        }
       />
       <Tabs className="mb-6" value={tab} onChange={(k) => setTab(k)} tabs={TABS.map((t) => ({ ...t, count: counts[t.key] }))} />
 
       {tab === 'overview' && <OverviewTab q={overview} onOpen={(e) => setSeo(targetOf(e))} onTab={setTab} />}
       {TAB_TYPE[tab] && <EntriesTab key={tab} type={TAB_TYPE[tab]} label={TABS.find((t) => t.key === tab)!.label} onEdit={(e) => setSeo(targetOf(e))} onAddRoute={(route) => setSeo({ type: 'route', route, title: route })} canEdit={overview.data?.can.edit ?? false} />}
+      {tab === 'audit' && <SeoAudit />}
       {tab === 'robots' && <RobotsTab />}
 
       <SeoEditor target={seo} onClose={() => setSeo(null)} />
@@ -298,32 +306,40 @@ function EntriesTab({ type, label, onEdit, onAddRoute, canEdit }: { type: string
 
 interface Served { sitemap: boolean; robots: boolean }
 interface RobotsPayload { content: string; is_custom: boolean; default: string; robots_url: string; sitemap_url: string; served: Served; can: { edit: boolean } }
+interface ServedRobots { served: string; default: string; is_custom: boolean; blocked: boolean; robots_url: string }
 interface SitemapPayload { urls: { loc: string; path: string; type: string; title: string; lastmod: string | null; changefreq: string; priority: number; pending: boolean }[]; counts: Record<string, number>; live: number; pending: number; sitemap_url: string; served: Served }
+interface SitemapIndex { index_url: string; children: { name: string; label: string; loc: string; lastmod: string; count: number }[]; blocked: boolean; images_enabled: boolean }
 
 function RobotsTab() {
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
   const robots = useApi<RobotsPayload>(['seo', 'robots'], 'seo/robots');
+  const served = useApi<ServedRobots>(['seo', 'robots-served'], 'integrations/robots');
   const sitemap = useApi<SitemapPayload>(['seo', 'sitemap'], 'seo/sitemap');
+  const index = useApi<SitemapIndex>(['seo', 'sitemap-index'], 'integrations/sitemaps');
   const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [rebuilding, setRebuilding] = useState(false);
   const [filter, setFilter] = useState('all');
+  // Without custom rules the website serves the recommended defaults (app/services/seo.php) — show those.
+  const baseline = robots.data ? (robots.data.is_custom ? robots.data.content : served.data?.default ?? robots.data.content) : '';
   useEffect(() => {
-    if (robots.data) setContent(robots.data.content);
-  }, [robots.data]);
+    if (robots.data && (robots.data.is_custom || served.data)) setContent(baseline);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [robots.data, served.data]);
   const canEdit = robots.data?.can.edit ?? false;
-  const dirty = !!robots.data && content !== robots.data.content;
+  const dirty = !!robots.data && content !== baseline;
   const save = async (reset = false) => {
-    if (reset && !(await confirm({ title: 'Reset robots.txt?', message: 'The default rules (allow everything except /admin, /api and /storage, plus the sitemap line) will be used.', confirmText: 'Reset', danger: true }))) return;
+    if (reset && !(await confirm({ title: 'Use the recommended robots.txt?', message: 'The recommended rules allow the website and keep /admin, /api, /portal, internal search and filtered or tracking URLs out of search engines, plus the Sitemap line.', confirmText: 'Use recommended rules' }))) return;
     setSaving(true);
     setError(null);
     try {
-      const res = await api.put<{ content: string; is_custom: boolean }>('seo/robots', reset ? { reset: true } : { content });
-      qc.setQueryData(['seo', 'robots'], { ...robots.data, ...res.data });
-      void qc.invalidateQueries({ queryKey: ['seo', 'overview'] });
-      toast.success(res.message);
+      const toDefault = reset || content.trim() === (served.data?.default ?? '').trim();
+      const res = await api.put<{ content: string; is_custom: boolean }>('seo/robots', toDefault ? { reset: true } : { content });
+      await qc.invalidateQueries({ queryKey: ['seo'] });
+      toast.success(toDefault ? 'robots.txt now uses the recommended rules.' : res.message);
     } catch (e) {
       const err = e as ApiError;
       setError(err.errors?.content ?? err.message);
@@ -331,81 +347,107 @@ function RobotsTab() {
       setSaving(false);
     }
   };
+  const rebuild = async () => {
+    setRebuilding(true);
+    try {
+      const res = await api.post('integrations/sitemaps/rebuild');
+      toast.success(res.message);
+      void qc.invalidateQueries({ queryKey: ['seo', 'sitemap-index'] });
+    } catch (e) {
+      toast.error((e as ApiError).message);
+    } finally {
+      setRebuilding(false);
+    }
+  };
   const urls = (sitemap.data?.urls ?? []).filter((u) => filter === 'all' || (filter === 'pending' ? u.pending : u.type === filter && !u.pending));
   const lines = content.split('\n').length;
   return (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
       <Card className="h-fit">
-        <CardHeader icon={FileCode2} title="robots.txt" subtitle={robots.data?.is_custom ? 'Custom rules' : 'Default rules'}
-          actions={robots.data && (
-            <>
-              <Button size="sm" variant="ghost" icon={Download} onClick={() => downloadFile('seo/robots-txt')}>Download</Button>
-              {robots.data.served.robots && <Button size="sm" variant="ghost" icon={ExternalLink} href={robots.data.robots_url} target="_blank">Open</Button>}
-            </>
-          )} />
+        <CardHeader icon={FileCode2} title="robots.txt" subtitle={robots.data?.is_custom ? 'Custom rules' : 'Recommended rules'}
+          actions={robots.data && <Button size="sm" variant="ghost" icon={ExternalLink} href={robots.data.robots_url} target="_blank">Open</Button>} />
         <div className="card-body space-y-3">
-          {robots.error ? <Alert variant="error">{(robots.error as ApiError).message}</Alert> : robots.isLoading ? <Skeleton className="h-64 w-full" /> : (
+          {served.data?.blocked && <Alert variant="warning" title="Indexing is switched off">Settings → Integrations → Search engines: the website currently serves “Disallow: /” and every page is noindex. These rules apply again once indexing is allowed.</Alert>}
+          {robots.error ? <Alert variant="error">{(robots.error as ApiError).message}</Alert> : robots.isLoading || served.isLoading ? <Skeleton className="h-64 w-full" /> : (
             <>
-              <Field label="Rules" htmlFor="robots-txt" error={error} hint="One directive per line: User-agent, Allow, Disallow, Sitemap, Crawl-delay. Lines starting with # are comments.">
+              <Field label="Rules" htmlFor="robots-txt" error={error} hint="One directive per line: User-agent, Allow, Disallow, Sitemap, Crawl-delay. Lines starting with # are comments. A Sitemap line is added automatically when missing.">
                 <Textarea id="robots-txt" rows={Math.min(18, Math.max(10, lines + 1))} value={content} disabled={!canEdit} invalid={!!error} className="font-mono text-xs leading-relaxed" spellCheck={false}
                   onChange={(e) => { setContent(e.target.value); setError(null); }} />
               </Field>
               {canEdit && (
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  {robots.data?.is_custom && <Button variant="ghost" icon={RotateCcw} onClick={() => save(true)} className="mr-auto">Reset to default</Button>}
-                  {dirty && <Button variant="secondary" onClick={() => setContent(robots.data?.content ?? '')}>Discard</Button>}
+                  {robots.data?.is_custom && <Button variant="ghost" icon={RotateCcw} onClick={() => save(true)} className="mr-auto">Use recommended rules</Button>}
+                  {dirty && <Button variant="secondary" onClick={() => setContent(baseline)}>Discard</Button>}
                   <Button icon={Save} onClick={() => save(false)} loading={saving} disabled={!dirty}>Save robots.txt</Button>
                 </div>
               )}
               {content.includes('Disallow: /\n') || /Disallow:\s*\/\s*$/m.test(content) ? <Alert variant="warning">“Disallow: /” blocks search engines from the whole website.</Alert> : null}
-              {robots.data && !robots.data.served.robots && <Alert variant="info">The website does not serve /robots.txt yet (its robots.php is missing) — these rules are saved and used as soon as it does. Use Download to publish the file manually.</Alert>}
             </>
           )}
         </div>
       </Card>
-      <Card className="overflow-hidden">
-        <CardHeader icon={MapIcon} title="Sitemap preview" subtitle={sitemap.data ? `${formatNumber(sitemap.data.live)} URLs in sitemap.xml${sitemap.data.pending ? ` · ${sitemap.data.pending} waiting for website templates` : ''}` : 'URLs that /sitemap.xml lists'}
-          actions={sitemap.data && (
-            <>
-              <Button size="sm" variant="ghost" icon={Download} onClick={() => downloadFile('seo/sitemap-xml')}>Download</Button>
-              {sitemap.data.served.sitemap && <Button size="sm" variant="ghost" icon={ExternalLink} href={sitemap.data.sitemap_url} target="_blank">sitemap.xml</Button>}
-            </>
-          )} />
-        {sitemap.data && !sitemap.data.served.sitemap && (
-          <div className="px-4 pt-3"><Alert variant="warning">The website does not serve /sitemap.xml yet (its sitemap.php is missing). Download the generated file to submit it to Google Search Console, or publish it with the website.</Alert></div>
-        )}
-        <div className="flex flex-wrap gap-1.5 border-b border-slate-100 px-4 py-3 dark:border-slate-800">
-          {['all', 'route', 'page', 'program', 'post', 'event', 'notice', 'gallery', 'pending'].map((t) => (
-            <button key={t} type="button" onClick={() => setFilter(t)} className={clsx('rounded-full px-3 py-1 text-xs font-semibold transition', filter === t ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300')}>
-              {t === 'all' ? 'All' : t === 'pending' ? 'Pending' : labelize(t)}
-              <span className="ml-1 opacity-70">{t === 'all' ? sitemap.data?.live ?? 0 : t === 'pending' ? sitemap.data?.pending ?? 0 : sitemap.data?.counts[t] ?? 0}</span>
-            </button>
-          ))}
-        </div>
-        {sitemap.error ? <div className="p-5"><Alert variant="error">{(sitemap.error as ApiError).message}</Alert></div> : sitemap.isLoading ? <div className="p-5"><Skeleton className="h-72 w-full" /></div> : (
-          <div className="max-h-[560px] overflow-auto">
-            <table className="data-table">
-              <caption className="sr-only">Sitemap URLs</caption>
-              <thead><tr><th>URL</th><th>Type</th><th>Priority · frequency</th><th className="hidden lg:table-cell">Last modified</th></tr></thead>
-              <tbody>
-                {urls.map((u) => (
-                  <tr key={u.path} className={clsx(u.pending && 'opacity-60')}>
-                    <td className="max-w-[360px]">
-                      <a href={u.loc} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-slate-800 hover:text-brand-700 dark:text-slate-100">{u.path}</a>
-                      <span className="block truncate text-xs text-slate-500">{u.title}{u.pending && ' · template pending'}</span>
-                    </td>
-                    <td><Badge color={u.pending ? 'amber' : 'blue'}>{labelize(u.type)}</Badge></td>
-                    <td className="whitespace-nowrap"><span className="font-semibold tabular-nums">{u.priority.toFixed(1)}</span> <span className="text-xs capitalize text-slate-500">· {u.changefreq}</span></td>
-                    <td className="hidden whitespace-nowrap text-xs lg:table-cell">{u.lastmod ?? '—'}</td>
-                  </tr>
-                ))}
-                {!urls.length && <tr><td colSpan={4}><EmptyState icon={MapIcon} title="No URLs in this group" /></td></tr>}
-              </tbody>
-            </table>
+      <div className="min-w-0 space-y-6">
+        <Card>
+          <CardHeader icon={MapIcon} title="Sitemap index" subtitle={index.data ? `${index.data.children.length} child sitemaps · cached and rebuilt automatically when content changes` : 'sitemap.xml and its child sitemaps'}
+            actions={index.data && (
+              <>
+                <Button size="sm" variant="ghost" icon={ExternalLink} href={index.data.index_url} target="_blank">sitemap.xml</Button>
+                {canEdit && <Button size="sm" variant="secondary" icon={RefreshCcw} loading={rebuilding} onClick={() => void rebuild()}>Rebuild</Button>}
+              </>
+            )} />
+          {index.error ? <div className="p-5"><Alert variant="error">{(index.error as ApiError).message}</Alert></div> : index.isLoading ? <div className="p-5"><Skeleton className="h-24 w-full" /></div> : index.data?.blocked ? (
+            <div className="p-5"><Alert variant="warning">Indexing is switched off, so the sitemaps are empty.</Alert></div>
+          ) : (
+            <ul className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+              {(index.data?.children ?? []).map((c) => (
+                <li key={c.name} className="rounded-xl border border-slate-200 p-3.5 dark:border-slate-700">
+                  <a href={c.loc} target="_blank" rel="noreferrer" className="flex items-center gap-1 font-mono text-xs font-semibold text-slate-800 hover:text-brand-700 dark:text-slate-100 dark:hover:text-brand-300">
+                    <span className="truncate">sitemap-{c.name}.xml</span><ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+                  </a>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{c.label} · <span className="font-semibold tabular-nums">{formatNumber(c.count)}</span> {c.name === 'images' ? 'images' : 'URLs'}</p>
+                  <p className="text-[11px] text-slate-500">Last modified {c.lastmod}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="border-t border-slate-100 px-4 py-2.5 text-xs text-slate-500 dark:border-slate-800">Submit <span className="break-all font-mono">{index.data?.index_url ?? '/sitemap.xml'}</span> in Google Search Console and Bing Webmaster Tools.</p>
+        </Card>
+        <Card className="overflow-hidden">
+          <CardHeader icon={MapIcon} title="Sitemap URLs" subtitle={sitemap.data ? `${formatNumber(sitemap.data.live)} indexable URLs${sitemap.data.pending ? ` · ${sitemap.data.pending} waiting for website templates` : ''}` : 'URLs the sitemaps list'}
+            actions={sitemap.data && <Button size="sm" variant="ghost" icon={Download} onClick={() => downloadFile('seo/sitemap-xml')}>Download as one file</Button>} />
+          <div className="flex flex-wrap gap-1.5 border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+            {['all', 'route', 'page', 'program', 'post', 'blog_category', 'event', 'notice', 'gallery', 'pending'].map((t) => (
+              <button key={t} type="button" onClick={() => setFilter(t)} className={clsx('rounded-full px-3 py-1 text-xs font-semibold transition', filter === t ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300')}>
+                {t === 'all' ? 'All' : t === 'pending' ? 'Pending' : t === 'blog_category' ? 'News categories' : labelize(t)}
+                <span className="ml-1 opacity-70">{t === 'all' ? sitemap.data?.live ?? 0 : t === 'pending' ? sitemap.data?.pending ?? 0 : sitemap.data?.counts[t] ?? 0}</span>
+              </button>
+            ))}
           </div>
-        )}
-        <p className="border-t border-slate-100 px-4 py-2.5 text-xs text-slate-500 dark:border-slate-800">URLs marked noindex or excluded in their SEO settings are left out. <Link to="/cms/seo?tab=routes" className="link">Edit route SEO</Link></p>
-      </Card>
+          {sitemap.error ? <div className="p-5"><Alert variant="error">{(sitemap.error as ApiError).message}</Alert></div> : sitemap.isLoading ? <div className="p-5"><Skeleton className="h-72 w-full" /></div> : (
+            <div className="max-h-[560px] overflow-auto">
+              <table className="data-table">
+                <caption className="sr-only">Sitemap URLs</caption>
+                <thead><tr><th>URL</th><th>Type</th><th>Priority · frequency</th><th className="hidden lg:table-cell">Last modified</th></tr></thead>
+                <tbody>
+                  {urls.map((u) => (
+                    <tr key={u.path} className={clsx(u.pending && 'opacity-60')}>
+                      <td className="max-w-[360px]">
+                        <a href={u.loc} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-slate-800 hover:text-brand-700 dark:text-slate-100">{u.path}</a>
+                        <span className="block truncate text-xs text-slate-500">{u.title}{u.pending && ' · template pending'}</span>
+                      </td>
+                      <td><Badge color={u.pending ? 'amber' : 'blue'}>{u.type === 'blog_category' ? 'News category' : labelize(u.type)}</Badge></td>
+                      <td className="whitespace-nowrap"><span className="font-semibold tabular-nums">{u.priority.toFixed(1)}</span> <span className="text-xs capitalize text-slate-500">· {u.changefreq}</span></td>
+                      <td className="hidden whitespace-nowrap text-xs lg:table-cell">{u.lastmod ?? '—'}</td>
+                    </tr>
+                  ))}
+                  {!urls.length && <tr><td colSpan={4}><EmptyState icon={MapIcon} title="No URLs in this group" /></td></tr>}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="border-t border-slate-100 px-4 py-2.5 text-xs text-slate-500 dark:border-slate-800">Only indexable canonical URLs are listed: noindex, excluded, draft, campaign-landing and error pages are left out. <Link to="/cms/seo?tab=routes" className="link">Edit route SEO</Link></p>
+        </Card>
+      </div>
     </div>
   );
 }

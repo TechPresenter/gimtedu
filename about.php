@@ -30,11 +30,11 @@ $steps = [];
 $first = true;
 foreach ($milestones as $year => $names) {
     $steps[] = ['title' => (string) $year, 'icon' => $first ? 'landmark' : 'school',
-        'text' => ($first ? 'GIMT founded in Greater Noida with the ' : 'Launched the ') . implode(' and ', $names) . '.'];
+        'text' => ($first ? 'GIMT founded in Noida with the ' : 'Launched the ') . implode(' and ', $names) . '.'];
     $first = false;
 }
 if (!$steps) {
-    $steps[] = ['title' => (string) $established, 'icon' => 'landmark', 'text' => 'GIMT founded in Knowledge Park, Greater Noida.'];
+    $steps[] = ['title' => (string) $established, 'icon' => 'landmark', 'text' => 'GIMT founded in Sector 18, Noida.'];
 }
 $firstYear = $milestones ? array_key_first($milestones) : $established;
 $firstCount = $milestones ? count($milestones[$firstYear]) : 0;
@@ -64,7 +64,7 @@ $hods = array_values(array_filter($departments, fn ($d) => !empty($d['hod_id']))
 $heroText = $cms['excerpt'] ?? '' ?: 'Global Institute of Management & Technology (GIMT) is committed to providing high-quality, industry-oriented education with a focus on innovation, research and holistic development.';
 site_header([
     'title' => 'About Us — Our Story, Vision & Leadership',
-    'description' => 'About Global Institute of Management & Technology (GIMT), Greater Noida — our story since ' . $established . ', vision and mission, leadership, campus, approvals and why students choose GIMT.',
+    'description' => 'About Global Institute of Management & Technology (GIMT), Noida — our story since ' . $established . ', vision and mission, leadership, campus, approvals and why students choose GIMT.',
     'active' => 'about',
     'seo' => ['route', '/about'],
     'image' => $heroImage,
@@ -72,8 +72,8 @@ site_header([
     'schema' => array_values(array_filter([
         sa_breadcrumb_ld([['Home', ''], ['About Us', null]]),
         sa_seo_schema_has('AboutPage', 'route', null, '/about') ? null : ['@context' => 'https://schema.org', '@type' => 'AboutPage', 'name' => 'About GIMT', 'url' => absolute_url('about'),
-         'mainEntity' => ['@type' => 'CollegeOrUniversity', 'name' => institute_name(), 'foundingDate' => (string) $established, 'url' => absolute_url(''),
-             'numberOfEmployees' => ['@type' => 'QuantitativeValue', 'value' => $counts['faculty']]]],
+         'mainEntity' => ['@type' => 'CollegeOrUniversity', 'name' => institute_name(), 'foundingDate' => (string) $established, 'url' => absolute_url('')]
+             + ($counts['faculty'] ? ['numberOfEmployees' => ['@type' => 'QuantitativeValue', 'value' => $counts['faculty']]] : [])],
     ])),
 ]);
 
@@ -82,7 +82,7 @@ page_hero('About GIMT', $cms['subtitle'] ?? '' ?: 'Empowering Minds. Shaping Fut
     ['icon' => 'cog', 'label' => 'Industry-Focused Learning'],
     ['icon' => 'users', 'label' => 'Experienced Faculty'],
     ['icon' => 'globe', 'label' => 'Global Opportunities'],
-], ['image_alt' => 'GIMT campus building in Knowledge Park, Greater Noida']);
+], ['image_alt' => 'GIMT campus building in Sector 18, Noida']);
 ?>
 
 <!-- Our story + live stats -->
@@ -94,8 +94,8 @@ page_hero('About GIMT', $cms['subtitle'] ?? '' ?: 'Empowering Minds. Shaping Fut
       <?php if ($story !== ''): ?>
         <div class="prose-site mt-4 max-w-none text-slate-600"><?= $story ?></div>
       <?php else: ?>
-        <p class="section-lead">Established in <?= (int) $established ?> with a vision to create a world-class institution, GIMT has grown into a leading centre for management and technology education. We combine academic rigour, industry collaboration and practical learning to prepare our students for successful careers in a dynamic global environment.</p>
-        <p class="mt-3 text-slate-600">Today <?= e(number_format($counts['students'])) ?> students learn across <?= (int) $counts['programs'] ?> programs in <?= (int) $counts['departments'] ?> departments, mentored by <?= (int) $counts['faculty'] ?> faculty members<?= $counts['phd'] ? ' — ' . (int) $counts['phd'] . ' of them doctorates' : '' ?>.</p>
+        <p class="section-lead">Established in <?= (int) $established ?> with a vision to create an institution of excellence, GIMT offers management, technology, commerce and computer applications programs on one campus. We combine academic rigour, industry collaboration and practical learning to prepare our students for successful careers in a dynamic global environment.</p>
+        <p class="mt-3 text-slate-600">Today <?= e(number_format($counts['students'])) ?> students learn across <?= (int) $counts['programs'] ?> programs in <?= (int) $counts['departments'] ?> departments<?= $counts['faculty'] ? ', mentored by ' . (int) $counts['faculty'] . ' faculty members' . ($counts['phd'] ? ' — ' . (int) $counts['phd'] . ' of them doctorates' : '') : '' ?>.</p>
       <?php endif; ?>
       <div class="mt-7"><?= button_link('Discover Our Journey', '#journey', 'navy', ['magnetic' => true]) ?></div>
     </div>
@@ -103,9 +103,14 @@ page_hero('About GIMT', $cms['subtitle'] ?? '' ?: 'Empowering Minds. Shaping Fut
       <div class="rounded-3xl border border-slate-100 bg-white p-2 shadow-card sm:p-3 [&_.stat-cards]:gap-3 [&_.stat-cards]:border-0 [&_.stat-cards]:bg-transparent [&_.stat-cards]:px-3 [&_.stat-cards]:py-4 [&_.stat-cards]:shadow-none lg:[&_.stat-cards]:flex-col lg:[&_.stat-cards]:items-start xl:[&_.stat-cards]:flex-row xl:[&_.stat-cards]:items-center [&_.stat-icon]:h-11 [&_.stat-icon]:w-11 [&_.stat-icon]:rounded-xl [&_.stat-value]:text-[1.45rem] sm:[&_.stat-value]:text-[1.6rem] [&_.stat-label]:mt-1 [&_.stat-label]:text-[13px] [&_.stat-label]:leading-snug [&_.stat-group]:gap-0 [&_.stat-item:nth-child(-n+2)]:border-b [&_.stat-item:nth-child(odd)]:border-r [&_.stat-item]:border-slate-100">
         <?= stat_counter([
             ['value' => sa_round($counts['students'])[0], 'suffix' => sa_round($counts['students'])[1], 'label' => 'Students', 'icon' => 'users'],
-            ['value' => sa_round($counts['faculty'])[0], 'suffix' => sa_round($counts['faculty'])[1], 'label' => 'Faculty Members', 'icon' => 'user-round'],
+            // the 2x2 card grid keeps four cards: departments stand in until faculty profiles exist
+            $counts['faculty']
+                ? ['value' => sa_round($counts['faculty'])[0], 'suffix' => sa_round($counts['faculty'])[1], 'label' => 'Faculty Members', 'icon' => 'user-round']
+                : ['value' => (int) $counts['departments'], 'label' => 'Departments', 'icon' => 'school'],
             ['value' => $counts['programs'], 'label' => 'Programs', 'icon' => 'book-open'],
-            ['value' => $satisfaction, 'decimals' => fmod($satisfaction, 1.0) ? 1 : 0, 'suffix' => '%', 'label' => 'Student Satisfaction', 'icon' => 'trophy'],
+            $satisfaction !== null
+                ? ['value' => $satisfaction, 'decimals' => fmod($satisfaction, 1.0) ? 1 : 0, 'suffix' => '%', 'label' => 'Student Satisfaction', 'icon' => 'trophy']
+                : ['value' => max(1, (int) date('Y') - (int) $established), 'label' => 'Years of Excellence', 'icon' => 'award'],
         ], ['variant' => 'cards', 'gridClass' => 'grid-cols-2']) ?>
       </div>
     </div>
@@ -238,20 +243,25 @@ page_hero('About GIMT', $cms['subtitle'] ?? '' ?: 'Empowering Minds. Shaping Fut
   <?php endif; ?>
 <?= section_close() ?>
 
-<!-- Approvals & affiliations -->
+<!-- Approvals & affiliations (verified list from settings — the section is left out when none is entered) -->
+<?php $approvals = sa_approvals(); $nAppr = count($approvals);
+// literal Tailwind classes per count: grid-cols-1 grid-cols-2 sm:grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4 lg:grid-cols-5
+$apprGrid = [1 => 'grid-cols-1 lg:grid-cols-2', 2 => 'grid-cols-2 lg:grid-cols-2', 3 => 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-3', 4 => 'grid-cols-2 lg:grid-cols-4'][$nAppr] ?? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5';
+if ($approvals): ?>
 <?= section_open(['id' => 'approvals', 'padding' => 'tight', 'class' => 'scroll-mt-24']) ?>
   <div class="grid items-center gap-10 lg:grid-cols-12">
     <div class="lg:col-span-4"<?= reveal_attr('slide-left') ?>>
       <p class="eyebrow mb-2">Our Approvals &amp; Affiliations</p>
       <h2 class="section-title">Recognized and Trusted</h2>
-      <p class="section-lead">GIMT is approved and affiliated with leading educational bodies, ensuring quality education and global recognition.</p>
+      <p class="section-lead">GIMT’s programs are offered with the approvals and university affiliation listed here.</p>
       <?php if ($aff = trim((string) setting('affiliation', ''))): ?><p class="mt-4 inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-800"><?= icon('badge-check', 'h-4 w-4 text-accent-600') ?><?= e($aff) ?></p><?php endif; ?>
     </div>
-    <ul class="grid grid-cols-2 gap-y-8 sm:grid-cols-3 lg:col-span-8 lg:grid-cols-5 lg:divide-x lg:divide-slate-200" data-stagger="80">
-      <?php foreach (sa_approvals() as $i => $a): ?><?= sa_emblem($a, $i) ?><?php endforeach; ?>
+    <ul class="grid gap-y-8 <?= $apprGrid ?> lg:col-span-8 lg:divide-x lg:divide-slate-200" data-stagger="80">
+      <?php foreach ($approvals as $i => $a): ?><?= sa_emblem($a, $i) ?><?php endforeach; ?>
     </ul>
   </div>
 <?= section_close() ?>
+<?php endif; ?>
 
 <?php site_footer([
     'cta_title' => 'Join GIMT and Be Part of a Global Community',

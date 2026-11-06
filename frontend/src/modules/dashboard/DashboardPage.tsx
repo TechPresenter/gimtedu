@@ -1,15 +1,16 @@
 import { useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { RefreshCw } from 'lucide-react';
-import { Alert, Button, CardSkeleton, Reveal, Skeleton, useToast } from '@/components/ui';
+import { ArrowRightLeft, CalendarClock, RefreshCw } from 'lucide-react';
+import { Alert, Button, Card, CardSkeleton, Reveal, Skeleton, useToast } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useApi } from '@/lib/queries';
 import { useAcademicSession, useAuth } from '@/lib/auth';
 import { useDocumentTitle } from '@/lib/hooks';
 import { timeAgo } from '@/lib/format';
 import type { DashboardData } from './components/types';
-import { WelcomeBanner } from './components/WelcomeBanner';
+import { HeroBanner } from './components/hero/HeroBanner';
 import { GlanceStrip, KpiRow } from './components/KpiGrid';
 import {
   AdmissionsTrendCard, AttendanceCard, DepartmentsCard, DistributionCard, ExamPerformanceCard, FeeCollectionCard, GenderCard, PlacementCard, StudentGrowthCard,
@@ -66,7 +67,7 @@ function CardGrid({ cols, items }: { cols: Cols; items: GridItem[] }) {
     if (used > 0) spans[list.length - 1][bp] = (spans[list.length - 1][bp] as number) + (c - used);
   });
   return (
-    <div className={clsx('grid gap-5', (Object.keys(cols) as Breakpoint[]).map((bp) => GRID_COLS[bp][cols[bp] as number]))}>
+    <div className={clsx('grid gap-4 sm:gap-6', (Object.keys(cols) as Breakpoint[]).map((bp) => GRID_COLS[bp][cols[bp] as number]))}>
       {list.map((i, idx) => (
         <Reveal key={i.key} delay={Math.min(idx, 4) * 70} className={clsx('min-w-0', (Object.keys(spans[idx]) as Breakpoint[]).map((bp) => COL_SPAN[bp][spans[idx][bp] as number]))}>
           {i.node}
@@ -78,7 +79,7 @@ function CardGrid({ cols, items }: { cols: Cols; items: GridItem[] }) {
 
 function SkeletonGrid({ count, className }: { count: number; className: string }) {
   return (
-    <div className={clsx('grid gap-5', className)}>
+    <div className={clsx('grid gap-4 sm:gap-6', className)}>
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="card p-5">
           <Skeleton className="h-4 w-1/3" />
@@ -90,15 +91,56 @@ function SkeletonGrid({ count, className }: { count: number; className: string }
   );
 }
 
+/**
+ * Shown instead of the KPI grid and the analytics charts when a non-current session without any data is selected
+ * (e.g. next year's session before admissions open): zeros and "down 100%" trends would only mislead.
+ */
+function NoDataSession({ name, currentId, currentName, onSwitch }: { name: string; currentId?: number | null; currentName?: string | null; onSwitch: (id: number, name: string) => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center" role="status">
+      <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300" aria-hidden>
+        <CalendarClock className="h-5 w-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-display text-[15px] font-semibold text-slate-900 dark:text-white">No figures for session {name} yet</p>
+        <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+          This session has no admissions, students or fee invoices yet, so its KPIs and charts are hidden instead of showing zeros.
+          {currentName ? <> Switch to <strong className="font-semibold text-slate-700 dark:text-slate-200">{currentName}</strong> for live figures.</> : null}
+        </p>
+      </div>
+      {currentId ? (
+        <Button
+          icon={ArrowRightLeft}
+          loading={busy}
+          className="shrink-0"
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await onSwitch(currentId, currentName ?? '');
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Switch to {currentName ?? 'the current session'}
+        </Button>
+      ) : null}
+    </Card>
+  );
+}
+
 export default function DashboardPage() {
   useDocumentTitle('Dashboard');
-  const { session, can } = useAuth();
+  const { session, can, setAcademicSession } = useAuth();
   const academic = useAcademicSession();
   const toast = useToast();
   const qc = useQueryClient();
   const sessionId = academic.id ?? null;
   const key = ['dashboard', sessionId];
-  const { data, isLoading, error, refetch } = useApi<DashboardData>(key, 'dashboard', { session_id: sessionId ?? undefined }, { staleTime: 60_000 });
+  // The hero shows live counters ("classes running now", "collected today"): refresh them every 5 minutes while the tab
+  // is visible (the server caches the payload for 60 s, so this stays cheap).
+  const { data, isLoading, error, refetch } = useApi<DashboardData>(key, 'dashboard', { session_id: sessionId ?? undefined }, { staleTime: 60_000, refetchInterval: 5 * 60_000 });
   const { data: counts } = useQuery({
     queryKey: ['notification-counts'],
     queryFn: () => api.get<{ notifications: number; messages: number }>('notifications/count', undefined, { background: true }),
@@ -120,6 +162,18 @@ export default function DashboardPage() {
     }
   };
 
+  const switchSession = async (id: number, sessionName: string) => {
+    try {
+      await setAcademicSession(id);
+      toast.success(`Switched to academic session ${sessionName}.`);
+    } catch (e) {
+      toast.error((e as ApiError).message);
+    }
+  };
+
+  const ses = data?.session;
+  // a past / upcoming session that has nothing recorded yet
+  const noData = !!ses && !ses.is_current && ses.has_data === false;
   const k = data?.kpis;
   const c = data?.charts;
   const l = data?.lists;
@@ -127,11 +181,22 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <WelcomeBanner name={name} data={data} sessionName={data?.session.name ?? academic.session?.name ?? ''} counts={counts} />
+      {/* Very soft colour mesh behind the page so the white cards pop (fixed, decorative, outside the page transform). */}
+      {typeof document !== 'undefined' && createPortal(<div className="dh-page-mesh pointer-events-none fixed inset-0 -z-10" aria-hidden />, document.body)}
+
+      <HeroBanner
+        name={name}
+        data={data}
+        loading={isLoading}
+        counts={counts}
+        sessionName={data?.session.name ?? academic.session?.name ?? ''}
+        onSwitchSession={switchSession}
+      />
 
       <div className="-mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          Overview{data ? ` · Session ${data.session.name}` : ''}
+        <h2 className="flex items-center gap-2 font-display text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+          <span className="h-4 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-sky-400" aria-hidden />
+          Overview{data ? <span className="font-semibold text-slate-400 dark:text-slate-500">· Session {data.session.name}</span> : ''}
         </h2>
         <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
           {data && <span aria-live="polite">Updated {timeAgo(data.generated_at)}</span>}
@@ -147,13 +212,19 @@ export default function DashboardPage() {
         </Alert>
       ) : (
         <>
-          <KpiRow kpis={k} loading={isLoading} />
-          <GlanceStrip kpis={k} loading={isLoading} />
+          {noData && ses ? (
+            <NoDataSession name={ses.name} currentId={ses.current_id} currentName={ses.current_name} onSwitch={switchSession} />
+          ) : (
+            <>
+              <KpiRow kpis={k} loading={isLoading} />
+              <GlanceStrip kpis={k} loading={isLoading} />
+            </>
+          )}
 
           {isLoading || !data ? (
             <>
               <SkeletonGrid count={4} className="md:grid-cols-2 2xl:grid-cols-4" />
-              <div className="grid gap-5 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
                 <CardSkeleton lines={6} />
                 <CardSkeleton lines={6} />
                 <CardSkeleton lines={6} />
@@ -161,7 +232,7 @@ export default function DashboardPage() {
             </>
           ) : (
             <>
-              <CardGrid
+              {!noData && <CardGrid
                 cols={{ md: 2, '2xl': 4 }}
                 items={[
                   { key: 'adm', node: c?.admissions_trend && <AdmissionsTrendCard data={c.admissions_trend} can={can} /> },
@@ -169,7 +240,7 @@ export default function DashboardPage() {
                   { key: 'att', node: c?.attendance && <AttendanceCard data={c.attendance} can={can} /> },
                   { key: 'dist', node: c?.distribution && <DistributionCard data={c.distribution} /> },
                 ]}
-              />
+              />}
 
               <CardGrid
                 cols={{ lg: 2, xl: 3 }}
@@ -188,7 +259,7 @@ export default function DashboardPage() {
                 ]}
               />
 
-              <CardGrid
+              {!noData && <CardGrid
                 cols={{ lg: 2, xl: 3 }}
                 items={[
                   { key: 'growth', node: c?.student_growth && <StudentGrowthCard data={c.student_growth} />, span: { lg: 2, xl: 2 } },
@@ -197,7 +268,7 @@ export default function DashboardPage() {
                   { key: 'exam', node: c?.exam_performance && <ExamPerformanceCard data={c.exam_performance} can={can} /> },
                   { key: 'place', node: c?.placement && <PlacementCard data={c.placement} can={can} /> },
                 ]}
-              />
+              />}
 
               <CardGrid
                 cols={{ lg: 2 }}

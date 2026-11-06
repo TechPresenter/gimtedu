@@ -44,7 +44,7 @@ function admission_stage_label(?string $stage): string
 function admission_sources(): array
 {
     return ['website' => 'Website', 'walk_in' => 'Walk-in', 'phone' => 'Phone Call', 'social_media' => 'Social Media', 'referral' => 'Referral',
-        'campaign' => 'Ad Campaign', 'education_fair' => 'Education Fair', 'whatsapp' => 'WhatsApp', 'chatbot' => 'AI Chatbot', 'other' => 'Other'];
+        'campaign' => 'Ad Campaign', 'education_fair' => 'Education Fair', 'whatsapp' => 'WhatsApp', 'chatbot' => 'AI Chatbot', 'faq' => 'FAQ page', 'other' => 'Other'];
 }
 
 function admission_doc_types(): array
@@ -379,6 +379,7 @@ function admission_move(int $id, string $to, ?string $remarks = null): array
     $name = admission_full_name($result);
     $desc = sprintf('Moved %s (%s) from %s to %s', $name, $result['application_no'], admission_stage_label($result['from_stage']), admission_stage_label($to));
     log_activity(in_array($to, ['fee_payment'], true) && in_array($result['from_stage'], ['approval', 'waitlisted'], true) ? 'approve' : ($to === 'rejected' ? 'reject' : 'update'), 'admissions', $id, $desc . ($remarks ? ' — ' . $remarks : ''));
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event(gimt_wa_stage_codes((string) $result['from_stage'], $to), ['admission_id' => $id, 'from_stage' => $result['from_stage'], 'to_stage' => $to, 'admission_stage' => $to, 'stage_label' => admission_stage_label($to), 'remarks' => (string) $remarks, 'reason' => (string) $remarks, 'offer_letter_no' => $result['offer_letter_no'] ?? null, 'admission_fee' => $result['admission_fee'] !== null ? (float) $result['admission_fee'] : null, 'fee_amount' => $result['admission_fee'] !== null ? money((float) $result['admission_fee']) : null, 'payment_status' => (float) ($result['fee_paid'] ?? 0) > 0 ? 'Paid' : 'Pending'], ['dedupe_key' => 'adm:' . $id . ':' . $result['from_stage'] . '>' . $to . ':' . date('YmdHi'), 'source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     $url = 'admin/admissions/' . $id;
     if ($to === 'fee_payment' && in_array($result['from_stage'], ['approval', 'waitlisted'], true)) {
         notify('perm:admissions', 'admission', 'Application approved', $name . ' (' . $result['application_no'] . ') was approved. Offer letter ' . $result['offer_letter_no'] . ' issued.', $url, 'badge-check');
@@ -436,7 +437,7 @@ function followup_log(array $in): int
         if ($enquiryId) {
             $e = db_row('SELECT * FROM enquiries WHERE id = ?', [$enquiryId]);
             $upd = ['follow_up_date' => ($in['next_followup_date'] ?? '') !== '' ? $in['next_followup_date'] : null];
-            if (!empty($in['status']) && isset(enquiry_statuses()[$in['status']]) && $in['status'] !== 'converted') {
+            if (!empty($in['status']) && is_string($in['status']) && isset(enquiry_statuses()[$in['status']]) && $in['status'] !== 'converted') {
                 $upd['status'] = $in['status'];
             } elseif ($e && $e['status'] === 'new') {
                 $upd['status'] = ($in['outcome'] ?? '') === 'not_interested' ? 'not_interested' : (($in['outcome'] ?? '') === 'interested' ? 'interested' : 'contacted');
@@ -495,7 +496,7 @@ function followups_due(string $scope = 'due', int $limit = 50, ?int $sessionId =
                AND (e.id IS NULL OR e.status NOT IN ('converted','closed','not_interested'))";
     $total = (int) db_value("SELECT COUNT(*) $base", $args);
     $rows = db_all("SELECT f.id, f.type, f.notes, f.outcome, f.next_followup_date, f.created_at, f.admission_id, f.enquiry_id,
-                       COALESCE(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), e.name) AS name,
+                       COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''), e.name) AS name,
                        COALESCE(a.phone, e.phone) AS phone, a.application_no, a.stage, e.status AS enquiry_status,
                        COALESCE(pa.short_name, pe.short_name, e.program_interest) AS program, u.name AS counsellor
                     $base ORDER BY f.next_followup_date ASC, f.id ASC LIMIT " . max(1, min(200, $limit)) . ' OFFSET ' . max(0, $offset), $args);
@@ -545,7 +546,7 @@ function admission_record_fee(int $id, array $in): array
     if (empty($errors['paid_on']) && !empty($in['paid_on']) && $in['paid_on'] > date('Y-m-d')) {
         $errors['paid_on'] = 'Payment date cannot be in the future.';
     }
-    if (empty($errors['mode']) && ($in['mode'] ?? '') !== 'cash' && trim((string) ($in['reference'] ?? '')) === '') {
+    if (empty($errors['mode']) && ($in['mode'] ?? '') !== 'cash' && trim(api_str($in['reference'] ?? null)) === '') {
         $errors['reference'] = 'Enter the transaction / UTR / cheque reference for non-cash payments.';
     }
     if ($errors) {
@@ -556,14 +557,15 @@ function admission_record_fee(int $id, array $in): array
     db_transaction(function () use ($id, $a, $in, $due, $amount, $receiptNo) {
         db_update('admissions', [
             'admission_fee' => $due, 'fee_paid' => round((float) $a['fee_paid'] + $amount, 2), 'fee_mode' => $in['mode'],
-            'fee_reference' => trim((string) ($in['reference'] ?? '')) ?: null, 'fee_paid_on' => $in['paid_on'], 'fee_receipt_no' => $receiptNo, 'fee_collected_by' => user_id(),
+            'fee_reference' => trim(api_str($in['reference'] ?? null)) ?: null, 'fee_paid_on' => $in['paid_on'], 'fee_receipt_no' => $receiptNo, 'fee_collected_by' => user_id(),
         ], 'id = ?', [$id]);
         if (!empty($a['student_id'])) {
-            admission_post_fee_to_student($id, $amount, $receiptNo, (string) $in['mode'], trim((string) ($in['reference'] ?? '')) ?: null, (string) $in['paid_on']);
+            admission_post_fee_to_student($id, $amount, $receiptNo, (string) $in['mode'], trim(api_str($in['reference'] ?? null)) ?: null, (string) $in['paid_on']);
         }
     });
     $name = admission_full_name($a);
     log_activity('create', 'admissions', $id, sprintf('Recorded admission fee %s from %s (%s) — receipt %s', money($amount), $name, $a['application_no'], $receiptNo));
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event('GIMT_ADMISSION_FEE_RECEIVED', ['admission_id' => $id, 'receipt_no' => $receiptNo, 'amount' => $amount, 'mode' => admission_payment_modes()[$in['mode']] ?? $in['mode'], 'payment_date' => date('d M Y', strtotime((string) $in['paid_on'])), 'balance' => max(0, round($due - (float) $a['fee_paid'] - $amount, 2)), 'payment_status' => round($due - (float) $a['fee_paid'] - $amount, 2) <= 0 ? 'Paid' : 'Partially paid'], ['dedupe_key' => 'admr:' . $receiptNo, 'source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     notify('perm:fees', 'fee', 'Admission fee received', sprintf('%s received from %s (%s), receipt %s.', money($amount), $name, $a['application_no'], $receiptNo), 'admin/admissions/' . $id, 'indian-rupee');
     return db_row('SELECT * FROM admissions WHERE id = ?', [$id]);
 }
@@ -754,6 +756,7 @@ function admission_convert(int $id): array
     $name = admission_full_name($a);
     log_activity('create', 'students', $result['student_id'], sprintf('Converted applicant %s (%s) to student %s', $name, $a['application_no'], $result['student_uid']));
     log_activity('update', 'admissions', $id, sprintf('Admission confirmed: %s enrolled in %s as %s', $name, $a['program_short'], $result['student_uid']));
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event($a['stage'] === 'confirmed' ? ['GIMT_STUDENT_ENROLLED'] : ['GIMT_ADMISSION_CONFIRMED', 'GIMT_STUDENT_ENROLLED'], ['student_id' => (int) $result['student_id'], 'admission_id' => $id, 'application_no' => $a['application_no'], 'student_uid' => $result['student_uid'], 'admission_no' => $result['admission_no'], 'roll_no' => $result['roll_no'], 'payment_status' => (float) $a['fee_paid'] > 0 ? 'Paid' : 'Pending'], ['dedupe_key' => 'st:' . $result['student_id'], 'source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     notify('perm:students', 'admission', 'New admission', sprintf('%s joined %s (Student ID %s).', $name, $a['program_short'], $result['student_uid']), 'admin/students/' . $result['student_id'], 'user-plus');
     if ($a['email']) {
         send_template_mail('admission_confirmed', $a['email'], ['name' => $name, 'program' => $a['program_short'] . ' — ' . $a['program_name'], 'student_uid' => $result['student_uid']],
@@ -821,6 +824,7 @@ function contact_message_to_enquiry(int $id, ?bool &$linked = null): int
         return $eid;
     });
     log_activity('create', 'enquiries', $enqId, sprintf('Converted contact message #%d from %s into enquiry #%d', $id, $m['name'], $enqId));
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event('GIMT_ENQUIRY_CREATED', ['enquiry_id' => (int) $enqId, 'contact_message_id' => $id, 'source' => 'website'], ['dedupe_key' => 'enq:' . $enqId, 'source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     notify('perm:enquiries', 'enquiry', 'New enquiry', $m['name'] . ' (' . $m['phone'] . ') — converted from a website message.', 'admin/enquiries?q=' . rawurlencode((string) $m['phone']), 'message-circle');
     return $enqId;
 }
@@ -828,9 +832,40 @@ function contact_message_to_enquiry(int $id, ?bool &$linked = null): int
 /** Notify staff about a new website contact message (call from the public contact form handler). */
 function contact_message_notify(int $id): void
 {
-    $m = db_row('SELECT name, subject, enquiry_type FROM contact_messages WHERE id = ?', [$id]);
+    $m = db_row('SELECT name, email, phone, subject, message, enquiry_type FROM contact_messages WHERE id = ?', [$id]);
     if ($m) {
         notify('perm:contact_messages', 'contact', 'New contact message', $m['name'] . ': ' . ($m['subject'] ?: label_from_key((string) $m['enquiry_type'])), 'admin/contact-messages?id=' . $id, 'inbox');
+        // Recruiter / placement enquiries ("Hire from GIMT" on /placement, contact type Placements & Careers) also reach
+        // the Training & Placement Cell. Its users usually cannot open the contact inbox, so the notification carries the
+        // contact details and the message itself (users who can see the inbox were notified above).
+        if ($m['enquiry_type'] === 'placement') {
+            $perm = "SELECT DISTINCT u.id FROM users u JOIN user_roles ur ON ur.user_id = u.id JOIN roles r ON r.id = ur.role_id
+                LEFT JOIN role_permissions rp ON rp.role_id = r.id LEFT JOIN permissions p ON p.id = rp.permission_id
+                WHERE u.status = 'active' AND (r.is_super = 1 OR (p.module = ? AND p.action = 'view'))";
+            try {
+                $ids = array_values(array_diff(array_map('intval', db_column($perm, ['placement'])), array_map('intval', db_column($perm, ['contact_messages']))));
+            } catch (Throwable $e) {
+                $ids = [];
+            }
+            if ($ids) {
+                $contact = implode(' · ', array_filter([$m['email'], $m['phone']]));
+                notify($ids, 'placement', 'New recruiter / placement enquiry', $m['name'] . ($contact !== '' ? ' (' . $contact . ')' : '') . ': ' . mb_substr(trim((string) $m['message']), 0, 380),
+                    'admin/placement', 'briefcase-business');
+            }
+            // Settings > General > Placement cell email: the cell's shared mailbox gets a copy as well
+            $cell = trim((string) setting('placement_email', ''));
+            if ($cell !== '' && filter_var($cell, FILTER_VALIDATE_EMAIL) && function_exists('send_mail')) {
+                $rows = '';
+                foreach (['Name' => $m['name'], 'Email' => $m['email'], 'Phone' => $m['phone'], 'Subject' => $m['subject']] as $label => $val) {
+                    if (trim((string) $val) !== '') {
+                        $rows .= '<tr><td style="color:#64748b;padding:4px 12px 4px 0">' . e($label) . '</td><td style="padding:4px 0">' . e((string) $val) . '</td></tr>';
+                    }
+                }
+                send_mail($cell, 'New recruiter / placement enquiry from ' . $m['name'],
+                    '<p>A recruiter / placement enquiry was received on the website.</p><table>' . $rows . '</table><p style="white-space:pre-line">' . e((string) $m['message']) . '</p>',
+                    ['related_type' => 'contact_message', 'related_id' => $id]);
+            }
+        }
     }
 }
 
@@ -926,6 +961,7 @@ function feedback_set_status(int $id, string $to, ?string $resolution = null, ?s
     $verb = ['in_progress' => 'Started work on', 'resolved' => 'Resolved', 'closed' => 'Closed', 'open' => 'Reopened'][$to];
     log_activity('update', 'feedback', $id, sprintf('%s ticket %s "%s"', $verb, $f['ticket_no'], str_limit($f['subject'], 60)) . ($remarks ? ' — ' . str_limit($remarks, 200) : ''), 'success',
         ['from' => $f['status'], 'to' => $to]);
+    try { if (in_array($to, ['resolved', 'closed'], true) && !$f['is_anonymous']) { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event(['GIMT_TICKET_RESOLVED', 'GIMT_FEEDBACK_REQUEST'], ['ticket_id' => $id, 'ticket_status' => $to, 'resolution' => $resolution !== '' ? $resolution : (string) $f['resolution']], ['dedupe_key' => 'fb:' . $id . ':' . $to . ':' . date('Y-m-d'), 'source' => 'admin']); } } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     if ($f['assigned_to'] && (int) $f['assigned_to'] !== (int) user_id() && in_array($to, ['open'], true)) {
         notify((int) $f['assigned_to'], 'system', 'Ticket reopened', $f['ticket_no'] . ': ' . $f['subject'], 'admin/feedback?id=' . $id, 'message-square');
     }

@@ -616,7 +616,7 @@ function transport_cancel_allocation(int $id, array $in, bool $log = true): arra
     if ($a['status'] !== 'active') {
         throw new CrudException('Only active allocations can be cancelled.');
     }
-    $date = (string) ($in['date'] ?? '') ?: date('Y-m-d');
+    $date = api_str($in['date'] ?? null) ?: date('Y-m-d');
     $dt = DateTime::createFromFormat('Y-m-d', $date);
     if (!$dt || $dt->format('Y-m-d') !== $date) {
         throw new CrudValidationException(['date' => 'Enter a valid cancellation date.']);
@@ -628,7 +628,7 @@ function transport_cancel_allocation(int $id, array $in, bool $log = true): arra
             throw new CrudValidationException(['date' => 'Cancellation date cannot be before the start date (' . format_date($a['start_date']) . ').']);
         }
     }
-    $reason = trim((string) ($in['reason'] ?? ''));
+    $reason = trim(api_str($in['reason'] ?? null));
     if (mb_strlen($reason) < 3) {
         throw new CrudValidationException(['reason' => 'Enter a reason for cancelling.']);
     }
@@ -663,7 +663,7 @@ function transport_transfer_allocation(int $id, array $in): array
     }
     $routeId = (int) ($in['route_id'] ?? 0);
     $stopId = (int) ($in['stop_id'] ?? 0);
-    $date = (string) ($in['effective_date'] ?? '');
+    $date = api_str($in['effective_date'] ?? null);
     $errors = [];
     $dt = $date ? DateTime::createFromFormat('Y-m-d', $date) : null;
     if (!$dt || $dt->format('Y-m-d') !== $date) {
@@ -695,7 +695,7 @@ function transport_transfer_allocation(int $id, array $in): array
     }
     $note = null;
     $newId = db_transaction(function () use ($a, $id, $new, $date, $in, $routeId, &$note) {
-        $remarks = trim((string) ($in['remarks'] ?? ''));
+        $remarks = trim(api_str($in['remarks'] ?? null));
         db_update('transport_allocations', ['status' => 'transferred', 'end_date' => date('Y-m-d', strtotime($date . ' -1 day')),
             'remarks' => mb_substr('Transferred' . ($remarks ? ': ' . $remarks : ''), 0, 255)], 'id = ?', [$id]);
         $newId = db_insert('transport_allocations', $new + [
@@ -909,7 +909,7 @@ function transport_complete_maintenance(int $id, array $in): array
     }
     $data = ['status' => 'completed'];
     $errors = [];
-    $date = (string) ($in['service_date'] ?? '') ?: date('Y-m-d');
+    $date = api_str($in['service_date'] ?? null) ?: date('Y-m-d');
     $dt = DateTime::createFromFormat('Y-m-d', $date);
     if (!$dt || $dt->format('Y-m-d') !== $date) {
         $errors['service_date'] = 'Enter a valid date.';
@@ -960,13 +960,13 @@ function transport_renew_document(int $vehicleId, array $in): array
     if (!$v) {
         throw new CrudException('Vehicle not found.');
     }
-    $doc = (string) ($in['document'] ?? '');
+    $doc = api_str($in['document'] ?? null);
     $col = transport_document_renewals()[$doc] ?? null;
     $errors = [];
     if (!$col) {
         $errors['document'] = 'Select the document to renew.';
     }
-    $expiry = (string) ($in['expiry'] ?? '');
+    $expiry = api_str($in['expiry'] ?? null);
     $dt = $expiry ? DateTime::createFromFormat('Y-m-d', $expiry) : null;
     if (!$dt || $dt->format('Y-m-d') !== $expiry) {
         $errors['expiry'] = 'Enter the new expiry date.';
@@ -975,7 +975,7 @@ function transport_renew_document(int $vehicleId, array $in): array
     } elseif ($col && $v[$col] && $expiry <= $v[$col]) {
         $errors['expiry'] = 'New expiry must be after the current one (' . format_date($v[$col]) . ').';
     }
-    $date = (string) ($in['date'] ?? '') ?: date('Y-m-d');
+    $date = api_str($in['date'] ?? null) ?: date('Y-m-d');
     if ($date > date('Y-m-d')) {
         $errors['date'] = 'Renewal date cannot be in the future.';
     }
@@ -990,7 +990,7 @@ function transport_renew_document(int $vehicleId, array $in): array
     $mid = db_transaction(function () use ($vehicleId, $doc, $col, $expiry, $date, $cost, $in, $v, $label) {
         $mid = db_insert('transport_maintenance', [
             'vehicle_id' => $vehicleId, 'service_date' => $date, 'type' => $doc, 'description' => $label . ' renewed till ' . format_date($expiry),
-            'cost' => round((float) $cost, 2), 'vendor' => trim((string) ($in['vendor'] ?? '')) ?: null, 'bill_no' => trim((string) ($in['bill_no'] ?? '')) ?: null,
+            'cost' => round((float) $cost, 2), 'vendor' => trim(api_str($in['vendor'] ?? null)) ?: null, 'bill_no' => trim(api_str($in['bill_no'] ?? null)) ?: null,
             'odometer' => $v['current_odometer'], 'next_service_date' => $expiry, 'status' => 'completed', 'created_by' => user_id(),
         ]);
         db_update('vehicles', [$col => $expiry], 'id = ?', [$vehicleId]);
@@ -1437,11 +1437,11 @@ function transport_save_settings(array $in): array
     if (!is_numeric($staffPct) || (int) $staffPct < 0 || (int) $staffPct > 100) {
         $errors['staff_fee_percent'] = 'Enter a percentage between 0 and 100.';
     }
-    $provider = (string) ($in['gps_provider'] ?? '');
+    $provider = api_str($in['gps_provider'] ?? null);
     if (!array_key_exists($provider, transport_gps_providers())) {
         $errors['gps_provider'] = 'Select a supported provider.';
     }
-    $url = trim((string) ($in['gps_api_url'] ?? ''));
+    $url = trim(api_str($in['gps_api_url'] ?? null));
     if ($url !== '' && (!filter_var($url, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', $url))) {
         $errors['gps_api_url'] = 'Enter a valid http(s) URL.';
     }
@@ -1578,12 +1578,19 @@ function transport_print_passes(array $ids): void
                            JOIN transport_routes r ON r.id = t.route_id LEFT JOIN transport_stops ts ON ts.id = t.stop_id LEFT JOIN vehicles v ON v.id = t.vehicle_id
                            LEFT JOIN academic_sessions ses ON ses.id = t.academic_session_id
                            WHERE t.id IN (' . implode(',', $ids) . ") AND t.status = 'active' ORDER BY r.code, name", []) : [];
-    print_layout_start(count($rows) === 1 ? 'Transport Pass — ' . $rows[0]['name'] : 'Transport Passes (' . count($rows) . ')', false);
     if (!$rows) {
-        echo '<p class="mt-10 text-center text-slate-500">No active allocations selected. Passes are issued for active allocations only.</p>';
+        // nothing to print: a friendly sheet without the Print button (print_layout_start hides it for 4xx)
+        http_response_code(404);
+        $title = 'No active allocations to print';
+        print_layout_start($title, false);
+        echo '<div class="py-24 text-center"><p class="font-display text-xl font-bold text-brand-900">' . e($title) . '</p>'
+            . '<p class="mx-auto mt-2 max-w-md text-sm text-slate-500">' . e($ids ? 'The selected allocations are no longer active (ended or cancelled). Transport passes are issued for active allocations only.'
+                : 'No allocations were selected. Select one or more active allocations in the allocation register, then print their passes.') . '</p>'
+            . '<a href="' . e(admin_url('transport/allocations')) . '" class="btn btn-primary btn-sm mt-5 no-print">Open transport allocations</a></div>';
         print_layout_end();
         return;
     }
+    print_layout_start(count($rows) === 1 ? 'Transport Pass — ' . $rows[0]['name'] : 'Transport Passes (' . count($rows) . ')', false);
     echo '<div class="grid grid-cols-2 gap-5">';
     foreach ($rows as $p) {
         // QR opens the allocation register filtered by the rider's ID (no personal name in the URL).

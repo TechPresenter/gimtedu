@@ -93,7 +93,7 @@ function PasswordCard({ onChanged, passwordAge }: { onChanged: () => void; passw
         }
       />
       <form onSubmit={submit} noValidate className="card-body">
-        <div className="grid gap-6 md:grid-cols-5">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-5">
           <div className="space-y-4 md:col-span-3">
             {field('current_password', 'Current password', 'current-password')}
             {field('password', 'New password', 'new-password')}

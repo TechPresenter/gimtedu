@@ -9,7 +9,7 @@ import { CrudTable } from '@/components/crud';
 import { useApi, useInvalidate } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
 import { printUrl } from '@/lib/config';
-import { formatNumber } from '@/lib/format';
+import { formatNumber, formatPhone, telHref } from '@/lib/format';
 import type { Row } from '@/lib/types';
 import { CATEGORIES, GENDERS, INACTIVE_STATUSES, STUDENT_STATUSES } from './constants';
 import { useAcademicTree, useTreeOptions } from './hooks';
@@ -43,8 +43,8 @@ const RENDERERS: Record<string, (r: Row) => ReactNode> = {
   batch_label: (r) => nowrap(r.batch_label),
   mobile: (r) =>
     r.mobile ? (
-      <a href={`tel:${String(r.mobile).replace(/\s/g, '')}`} className="whitespace-nowrap hover:text-brand-700 dark:hover:text-brand-300">
-        {r.mobile}
+      <a href={telHref(String(r.mobile))} className="whitespace-nowrap hover:text-brand-700 dark:hover:text-brand-300">
+        {formatPhone(r.mobile)}
       </a>
     ) : (
       nowrap(null)

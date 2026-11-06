@@ -28,10 +28,12 @@ return function (array $opts): void {
         ['Academic Admin', 'academic-admin', 'Programs, subjects, timetable and attendance.', 1, 0, 'purple', [
             'dashboard' => ['view'], 'academics' => ['*'], 'timetable' => ['*'], 'attendance' => ['*'], 'students' => ['view', 'edit', 'export'],
             'faculty' => ['view', 'export'], 'examination' => ['view'], 'results' => ['view'], 'reports' => ['view', 'export'],
-            'notices' => ['view', 'create', 'edit', 'publish'], 'events' => ['view', 'create', 'edit']]],
-        ['Faculty', 'faculty', 'Teaching staff: attendance, marks entry and class information.', 1, 0, 'cyan', [
-            'dashboard' => ['view'], 'students' => ['view'], 'attendance' => ['view', 'create', 'edit'], 'timetable' => ['view'],
-            'examination' => ['view'], 'results' => ['view', 'create', 'edit'], 'notices' => ['view'], 'events' => ['view'], 'library' => ['view'], 'academics' => ['view']]],
+            'notices' => ['view', 'create', 'edit', 'publish'], 'events' => ['view', 'create', 'edit'],
+            // requests certificates (bonafide, character ...) without approving them: the Exam Controller approves
+            'certificates' => ['view', 'create']]],
+        // Faculty work in the Faculty Portal only (own timetable, classes, attendance, marks, leave) - no admin-panel access.
+        ['Faculty', 'faculty', 'Teaching staff: Faculty Portal only (own classes, attendance, marks entry, leave).', 1, 0, 'cyan', [
+            'faculty_portal' => ['*']]],
         ['Accountant', 'accountant', 'Fee collection, invoices, refunds and expenses.', 1, 0, 'amber', [
             'dashboard' => ['view'], 'fees' => ['*'], 'expenses' => ['*'], 'students' => ['view', 'export'], 'reports' => ['view', 'export'], 'admissions' => ['view'], 'academics' => ['view']]],
         ['Exam Controller', 'exam-controller', 'Examinations, results, marksheets and certificates.', 1, 0, 'orange', [
@@ -49,7 +51,9 @@ return function (array $opts): void {
             'dashboard' => ['view'], 'alumni' => ['*'], 'events' => ['view', 'create', 'edit', 'publish'], 'communication' => ['view', 'create'], 'reports' => ['view']]],
         ['Content Manager', 'content-manager', 'Website pages, blog, media, banners and SEO.', 1, 0, 'pink', [
             'dashboard' => ['view'], 'cms' => ['*'], 'blog' => ['*'], 'media' => ['*'], 'seo' => ['*'], 'events' => ['*'],
-            'notices' => ['view', 'create', 'edit', 'publish'], 'enquiries' => ['view'], 'contact_messages' => ['view'], 'academics' => ['view']]],
+            'notices' => ['view', 'create', 'edit', 'publish'], 'enquiries' => ['view'], 'contact_messages' => ['view'], 'academics' => ['view'],
+            // Reports > Website / CMS only: every report also needs view on its own module (reports_allowed())
+            'reports' => ['view', 'export']]],
         ['Staff', 'staff', 'General staff with read-only access to common modules.', 1, 0, 'slate', [
             'dashboard' => ['view'], 'students' => ['view'], 'notices' => ['view'], 'events' => ['view']]],
     ];
@@ -83,25 +87,30 @@ return function (array $opts): void {
         'general' => [
             'institute_name' => 'Global Institute of Management & Technology', 'institute_short_name' => 'GIMT', 'brand_name' => 'Global IMT',
             'tagline' => 'Education • Innovation • Opportunity', 'established_year' => '2008',
-            'address' => 'Plot No. 123, Knowledge Park, Greater Noida, Uttar Pradesh 201310, India', 'city' => 'Greater Noida', 'state' => 'Uttar Pradesh',
-            'country' => 'India', 'pincode' => '201310', 'phone' => '+91 9955446477', 'phone_alt' => '+91 120 4567890', 'email' => 'info@gimt.ac.in',
+            'address' => 'Wave One, 36th Floor, L-2A, Pocket G, Sector 18, Noida, Uttar Pradesh - 201301', 'city' => 'Noida', 'state' => 'Uttar Pradesh',
+            'country' => 'India', 'pincode' => '201301', 'phone' => '+91 90600 31540', 'phone_alt' => '+91 120 4567890', 'email' => 'info@gimt.ac.in',
             'admission_email' => 'admissions@gimt.ac.in', 'support_email' => 'support@gimt.ac.in', 'website' => 'www.gimt.ac.in',
             'office_hours' => 'Mon - Sat, 9:00 AM - 6:00 PM', 'affiliation' => 'Affiliated to State University · Approved by AICTE',
-            'map_embed_url' => 'https://www.google.com/maps?q=Knowledge+Park+Greater+Noida&output=embed', 'latitude' => '28.4744', 'longitude' => '77.5040',
+            'map_embed_url' => 'https://www.google.com/maps?q=Wave+One,+Sector+18,+Noida,+Uttar+Pradesh+201301&output=embed', 'latitude' => '', 'longitude' => '',
             'date_format' => 'd M Y', 'timezone' => 'Asia/Kolkata', 'currency_code' => 'INR', 'currency_symbol' => '₹',
             'admissions_open_text' => 'Admissions Open for 2026-27',
+            'placement_email' => '', 'alumni_email' => '', // blank = the general email (pages fall back to it)
         ],
         'website' => [
             'logo' => '', 'logo_white' => '', 'favicon' => '', 'primary_color' => '#0B2A5B', 'accent_color' => '#22943F', 'secondary_color' => '#1D4ED8',
             'heading_font' => 'Plus Jakarta Sans', 'body_font' => 'Inter', 'header_cta_text' => 'Apply Now', 'header_cta_url' => '/apply',
             'show_topbar' => '1', 'footer_about' => 'Global Institute of Management & Technology (GIMT) is committed to providing high-quality, industry-oriented education with a focus on innovation, research and holistic development.',
-            'copyright_text' => '© {year} Global Institute of Management & Technology (GIMT). All Rights Reserved.', 'whatsapp_number' => '919955446477',
+            'copyright_text' => '© {year} Global Institute of Management & Technology (GIMT). All Rights Reserved.', 'whatsapp_number' => '919060031540',
             'maintenance_mode' => '0',
         ],
         'academic' => [
             'semester_system' => 'semester', 'grading_system' => 'cgpa_10', 'passing_percentage' => '40', 'min_attendance_percent' => '75',
             'attendance_alert_threshold' => '75', 'late_counts_as_present' => '1', 'max_sgpa' => '10', 'student_id_prefix' => 'GIMT',
             'roll_no_format' => '{program}{year}{n:3}',
+            // attendance, working days, timetable and exam rules (Settings > Academic) - the defaults the code uses
+            'attendance_edit_days' => '7', 'attendance_late_after' => '09:15', 'attendance_late_grace_minutes' => '10', 'attendance_weekly_off' => '7',
+            'hr_weekly_off' => '0', 'timetable_last_day' => '6', 'max_teaching_hours' => '24',
+            'exam_block_fee_dues' => '1', 'exam_fee_grace_days' => '30', 'exam_max_backlogs' => '3', 'exam_controller_designation' => 'Controller of Examinations',
         ],
         'email' => [
             'mail_driver' => 'smtp', 'smtp_host' => '', 'smtp_port' => '587', 'smtp_encryption' => 'tls', 'smtp_username' => '', 'smtp_password' => '',
@@ -113,6 +122,9 @@ return function (array $opts): void {
             'payment_gateway' => 'razorpay', 'gateway_mode' => 'test', 'gateway_key_id' => '', 'gateway_key_secret' => '', 'tax_percent' => '0',
             'gstin' => '', 'receipt_prefix' => 'RCPT/{session}/{n:6}', 'invoice_prefix' => 'INV/{session}/{n:6}', 'late_fee_per_day' => '50',
             'receipt_footer_note' => 'This is a computer generated receipt and does not require a signature.', 'enabled_payment_modes' => 'cash,bank_transfer,cheque,dd,upi,card,online',
+            // direct-transfer details are supplied by the institute (Settings > Payment > Bank & UPI) - never invented
+            'bank_account_name' => '', 'bank_name' => '', 'bank_account_no' => '', 'bank_ifsc' => '', 'bank_branch' => '', 'upi_id' => '',
+            'accounts_phone' => '', 'accounts_email' => '',
         ],
         'security' => [
             'password_min_length' => '8', 'password_require_uppercase' => '1', 'password_require_number' => '1', 'password_require_special' => '1',
@@ -135,7 +147,7 @@ return function (array $opts): void {
     // ---------------- Email templates ----------------
     $templates = [
         ['password_reset', 'Password reset', 'Reset your {{institute_name}} admin password',
-            '<p>Hello {{name}},</p><p>We received a request to reset your password. Click the button below to choose a new password. This link expires in 60 minutes.</p><p><a href="{{reset_link}}" style="display:inline-block;background:#0B2A5B;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Reset password</a></p><p>If you did not request this, you can ignore this email.</p>', 'name,reset_link'],
+            '<p>Hello {{name}},</p><p>We received a request to reset your password. Click the button below to choose a new password. This link expires in 60 minutes.</p><p><a href="{{reset_link}}" style="display:inline-block;background:#0B2A5B;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Reset password</a></p><p style="font-size:13px;color:#64748b">Button not working? Copy this link into your browser:<br>{{reset_link}}</p><p>If you did not request this, you can ignore this email - your password will not change.</p>', 'name,reset_link'],
         ['admission_received', 'Application received', 'We received your application {{application_no}}',
             '<p>Dear {{name}},</p><p>Thank you for applying to <strong>{{program}}</strong> at {{institute_name}}. Your application number is <strong>{{application_no}}</strong>.</p><p>Our admission team will contact you shortly.</p>', 'name,program,application_no'],
         ['admission_confirmed', 'Admission confirmed', 'Admission confirmed - {{program}}',

@@ -3,7 +3,7 @@ import { Badge, PageHeader, PersonCell, StatTile, Stagger } from '@/components/u
 import { CrudTable } from '@/components/crud';
 import { useCrudList } from '@/lib/queries';
 import clsx from 'clsx';
-import { formatNumber, labelize } from '@/lib/format';
+import { formatNumber, formatPhone, labelize, telHref } from '@/lib/format';
 import type { Row } from '@/lib/types';
 import { ExpiryCell, SummaryStrip, useTransportRefresh } from './transport/shared';
 
@@ -32,8 +32,8 @@ export default function DriversPage() {
   const alertDays = s?.alert_days ?? 30;
 
   const rowMenu = (r: Row) => [
-    r.phone && { label: `Call ${r.phone}`, icon: Phone, href: `tel:${String(r.phone).replace(/\s/g, '')}` },
-    r.emergency_phone && { label: 'Call emergency contact', icon: Phone, href: `tel:${String(r.emergency_phone).replace(/\s/g, '')}` },
+    r.phone && { label: `Call ${formatPhone(r.phone)}`, icon: Phone, href: telHref(r.phone) },
+    r.emergency_phone && { label: 'Call emergency contact', icon: Phone, href: telHref(r.emergency_phone) },
     r.vehicle_no && { label: `Open vehicle ${r.vehicle_no}`, icon: Bus, to: `/transport/vehicles?q=${encodeURIComponent(String(r.vehicle_no))}` },
   ];
 
@@ -73,7 +73,7 @@ export default function DriversPage() {
                 sub={
                   <span className="inline-flex items-center gap-1.5">
                     <span className={clsx('font-semibold', ROLE_TONE[String(r.type)] ?? 'text-slate-600 dark:text-slate-300')}>{ROLES[String(r.type)] ?? labelize(String(r.type))}</span>
-                    {r.phone && <span>· {r.phone}</span>}
+                    {r.phone && <span className="whitespace-nowrap">· {formatPhone(r.phone)}</span>}
                   </span>
                 }
               />

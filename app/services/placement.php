@@ -233,7 +233,7 @@ function placement_eligible_list(array $drive, array $req): array
     $base = PLACEMENT_ELIGIBLE_FROM . ' LEFT JOIN placement_applications pa ON pa.drive_id = ' . $driveId . ' AND pa.student_id = s.id';
     $baseWhere = $where;
     $baseArgs = $args;
-    $q = trim((string) ($req['q'] ?? ''));
+    $q = trim(api_str($req['q'] ?? null));
     if ($q !== '') {
         foreach (preg_split('/\s+/', mb_substr($q, 0, 80)) as $word) {
             $where[] = '(s.first_name LIKE ? OR s.last_name LIKE ? OR s.student_uid LIKE ? OR s.roll_no LIKE ?)';
@@ -244,7 +244,7 @@ function placement_eligible_list(array $drive, array $req): array
         $where[] = 's.program_id = ?';
         $args[] = (int) $req['program_id'];
     }
-    $show = (string) ($req['show'] ?? 'all');
+    $show = api_str($req['show'] ?? null, 'all');
     if ($show === 'unregistered') {
         $where[] = 'pa.id IS NULL';
     } elseif ($show === 'registered') {
@@ -533,8 +533,8 @@ function placement_record_round(int $appId, array $in): array
     $round = trim((string) $in['round_name']);
     $data = [
         'application_id' => $appId, 'round_name' => mb_substr($round, 0, 60), 'scheduled_at' => date('Y-m-d H:i:s', $ts),
-        'mode' => ($in['mode'] ?? '') ?: null, 'panel' => trim((string) ($in['panel'] ?? '')) ?: null, 'result' => $in['result'],
-        'score' => ($in['score'] ?? '') === '' || !isset($in['score']) ? null : round((float) $in['score'], 2), 'feedback' => trim((string) ($in['feedback'] ?? '')) ?: null,
+        'mode' => ($in['mode'] ?? '') ?: null, 'panel' => trim(api_str($in['panel'] ?? null)) ?: null, 'result' => $in['result'],
+        'score' => ($in['score'] ?? '') === '' || !isset($in['score']) ? null : round((float) $in['score'], 2), 'feedback' => trim(api_str($in['feedback'] ?? null)) ?: null,
     ];
     $id = db_transaction(function () use ($appId, $data, $round) {
         // Re-recording a pending round updates it instead of adding a duplicate.
@@ -572,7 +572,7 @@ function placement_bulk_applications(string $action, array $ids, array $opts = [
     $apps = db_all('SELECT a.id, a.status, a.current_round, a.drive_id, d.rounds, c.name AS company_name FROM placement_applications a
                     JOIN placement_drives d ON d.id = a.drive_id JOIN companies c ON c.id = d.company_id WHERE a.id IN (' . implode(',', $ids) . ')');
     $when = !empty($opts['date']) && strtotime((string) $opts['date']) ? date('Y-m-d H:i:s', strtotime((string) $opts['date'])) : date('Y-m-d H:i:s');
-    $remarks = mb_substr(trim((string) ($opts['remarks'] ?? '')), 0, 255) ?: null;
+    $remarks = mb_substr(trim(api_str($opts['remarks'] ?? null)), 0, 255) ?: null;
     $done = 0;
     $skipped = 0;
     $selected = 0;
@@ -793,7 +793,7 @@ function placement_training_participants(int $tid, array $req): array
 {
     $where = ['tp.training_id = ?'];
     $args = [$tid];
-    $q = trim((string) ($req['q'] ?? ''));
+    $q = trim(api_str($req['q'] ?? null));
     if ($q !== '') {
         foreach (preg_split('/\s+/', mb_substr($q, 0, 80)) as $word) {
             $where[] = '(s.first_name LIKE ? OR s.last_name LIKE ? OR s.student_uid LIKE ?)';

@@ -61,7 +61,7 @@ export function MarkAttendance({ selection, onChange }: { selection: MarkSelecti
             Choose a class to see today&apos;s periods and the student roster.
           </div>
         ) : periods.isLoading ? (
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="h-24 rounded-xl" />
             ))}

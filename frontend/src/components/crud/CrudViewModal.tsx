@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Download, Pencil } from 'lucide-react';
-import { Button, DescriptionList, Modal, PageLoader, StatusBadge } from '@/components/ui';
+import { Button, DescriptionList, Modal, PageLoader, PhoneLink, StatusBadge } from '@/components/ui';
 import { api, apiUrl } from '@/lib/api';
 import { appUrl } from '@/lib/config';
 import { formatDate, formatDateTime, formatMoney, formatNumber, formatTime } from '@/lib/format';
@@ -45,6 +45,12 @@ function display(f: CrudField, v: unknown, labels?: { value: unknown; label: str
       );
     case 'richtext':
       return <div className="prose-sm max-w-none text-slate-700 dark:text-slate-200 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: String(v) }} />;
+    case 'tel':
+      return <PhoneLink value={String(v)} className="link !font-medium" />;
+    case 'email':
+      return <a className="link !font-medium break-all" href={`mailto:${String(v)}`}>{String(v)}</a>;
+    case 'url':
+      return /^https?:\/\//i.test(String(v)) ? <a className="link !font-medium break-all" href={String(v)} target="_blank" rel="noopener noreferrer">{String(v)}</a> : String(v);
     case 'password':
       return '••••••••';
     case 'color':

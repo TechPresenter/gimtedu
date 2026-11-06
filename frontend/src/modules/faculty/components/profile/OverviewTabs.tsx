@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, CalendarClock, ExternalLink, Globe, KeyRound, Lightbulb, MapPin, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
 import { Badge, Button, Card, CardHeader, DescriptionList, EmptyState, Reveal, StatusBadge } from '@/components/ui';
-import { formatDate, formatDateTime, formatNumber, labelize, timeAgo } from '@/lib/format';
+import { formatDate, formatDateTime, formatNumber, formatPhone, labelize, telHref, timeAgo } from '@/lib/format';
 import { daysLabel, STAFF_CATEGORIES, type EmployeeType, type ProfilePayload } from '../../hr';
 import { LeaveBalanceList } from '../LeaveBalance';
 
@@ -68,7 +68,7 @@ export function OverviewTab({ type, data, onTab, onCreateLogin }: { type: Employ
               <DescriptionList
                 items={[
                   { label: type === 'faculty' ? 'Official email' : 'Email', value: p.email ? <a className="link !font-medium" href={`mailto:${p.email}`}>{p.email}</a> : null },
-                  { label: 'Mobile', value: p.phone ? <a className="hover:text-brand-700" href={`tel:${p.phone.replace(/\s/g, '')}`}>{p.phone}</a> : null },
+                  { label: 'Mobile', value: p.phone ? <a className="hover:text-brand-700" href={telHref(p.phone)}>{formatPhone(p.phone)}</a> : null },
                   { label: 'Alternate phone', value: p.alternate_phone },
                   { label: 'Gender', value: p.gender ? labelize(p.gender) : null },
                   { label: 'Date of birth', value: p.dob ? `${formatDate(p.dob)}${age(p.dob)}` : null },

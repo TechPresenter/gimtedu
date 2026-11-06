@@ -1,5 +1,5 @@
-import { Suspense, useState } from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Suspense, useEffect, useState } from 'react';
+import { Navigate, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '@/lib/auth';
 import { useHotkey, useLocalStorage } from '@/lib/hooks';
@@ -9,6 +9,8 @@ import { Topbar } from './Topbar';
 import { GlobalSearch } from './GlobalSearch';
 import { SessionTimeout } from './SessionTimeout';
 import { ErrorBoundary } from './ErrorBoundary';
+import { ForcePasswordChange } from './ForcePasswordChange';
+import { PORTAL_ONLY_MODULES, PortalOnlyAccount } from './PortalOnlyAccount';
 
 /** Authenticated application shell: sidebar + topbar + routed page. */
 export function AdminLayout() {
@@ -17,6 +19,14 @@ export function AdminLayout() {
   const [collapsed, setCollapsed] = useLocalStorage('gimt.sidebar.collapsed', false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  // A new page starts at the top (a row link clicked far down a long list used to open the detail page part-way
+  // down). Only the path counts: search/filter/pagination/tab params on the same page keep the scroll position, and
+  // Back/Forward (POP) keep the browser's own scroll restoration.
+  const navigationType = useNavigationType();
+  useEffect(() => {
+    if (navigationType !== 'POP') window.scrollTo(0, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
   useHotkey('k', (e) => {
     e.preventDefault();
     setSearchOpen(true);
@@ -27,6 +37,12 @@ export function AdminLayout() {
     const redirect = location.pathname + location.search;
     return <Navigate to={`/login${redirect && redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`} replace />;
   }
+  // Temporary / expired password: nothing else is available until a new one is set (the API answers 403 meanwhile).
+  if (session.user?.must_change_password) return <ForcePasswordChange />;
+  // Portal-only accounts (e.g. Faculty: Faculty Portal only) or accounts without any admin role: a friendly screen
+  // instead of a dashboard full of 403 errors.
+  const adminModules = Object.entries(session.permissions ?? {}).filter(([m, actions]) => !PORTAL_ONLY_MODULES.includes(m) && actions.length > 0);
+  if (!session.is_super && adminModules.length === 0) return <PortalOnlyAccount />;
 
   return (
     <div className="min-h-screen">
@@ -36,7 +52,9 @@ export function AdminLayout() {
       <Sidebar collapsed={collapsed} mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
       <div className={clsx('flex min-h-screen flex-col transition-all duration-200', collapsed ? 'lg:pl-[76px]' : 'lg:pl-[272px]')}>
         <Topbar collapsed={collapsed} onToggleCollapse={() => setCollapsed(!collapsed)} onOpenMobile={() => setMobileOpen(true)} onOpenSearch={() => setSearchOpen(true)} />
-        <main id="main" className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        {/* min-height = viewport minus the 64px top bar: the footer always starts below the fold, so it no longer
+            flashes near the top while a page loads and then jumps down (layout shift) */}
+        <main id="main" className="mx-auto min-h-[calc(100vh-4rem)] w-full max-w-[1600px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
           <ErrorBoundary key={location.pathname}>
             <Suspense fallback={<PageLoader />}>
               {/* subtle page-enter transition on every route change */}

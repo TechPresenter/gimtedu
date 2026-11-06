@@ -15,7 +15,7 @@ $e = exam_find(input_int('exam_id'));
 $only = null;
 if (input_int('student_id')) {
     $only = [input_int('student_id')];
-} elseif (trim((string) input('ids', '')) !== '') {
+} elseif (trim(api_str(input('ids'))) !== '') {
     $only = array_values(array_filter(array_map('intval', explode(',', (string) input('ids')))));
 }
 $data = $e ? exam_admit_cards($e, $only) : ['students' => [], 'papers' => []];

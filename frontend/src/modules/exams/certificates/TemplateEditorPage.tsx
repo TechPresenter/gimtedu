@@ -82,7 +82,7 @@ export default function TemplateEditorPage() {
     return (
       <>
         <PageHeader title={isNew ? 'New template' : 'Edit template'} breadcrumbs={[{ label: 'Certificates', to: '/certificates' }, { label: 'Templates', to: '/certificates/templates' }, { label: isNew ? 'New' : 'Edit' }]} />
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <div className="space-y-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 w-full" />)}</div>
           <Skeleton className="h-[640px] w-full" />
         </div>
@@ -248,11 +248,11 @@ function Editor({ config, row }: { config: CertConfig; row: TemplateRow | null }
         <Alert variant="info" className="mb-5">Certificates already issued keep their own copy of the wording and design — changes apply to new certificates only.</Alert>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <fieldset disabled={!canSave} className="min-w-0 space-y-6">
           <Card>
             <CardHeader title="Template" subtitle="Name, certificate type and status" icon={Wand2} />
-            <div className="card-body grid gap-4 sm:grid-cols-2">
+            <div className="card-body grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Template name" required error={errors.name} htmlFor="t-name">
                 <Input id="t-name" value={form.name} maxLength={150} onChange={(e) => set('name', e.target.value)} invalid={!!errors.name} placeholder="e.g. Bonafide Certificate — Standard" />
               </Field>
@@ -279,7 +279,7 @@ function Editor({ config, row }: { config: CertConfig; row: TemplateRow | null }
           <Card>
             <CardHeader title="Heading & wording" subtitle="Click a placeholder to insert it where the cursor is" icon={PenLine} />
             <div className="card-body space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Heading" required error={errors.title} htmlFor="t-title">
                   <Input id="t-title" value={form.title} maxLength={190} onFocus={() => (lastInput.current = 'title')} onChange={(e) => set('title', e.target.value)} invalid={!!errors.title} />
                 </Field>
@@ -348,7 +348,7 @@ function Editor({ config, row }: { config: CertConfig; row: TemplateRow | null }
                   ))}
                 </div>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Accent colour" required error={errors.accent_color} htmlFor="t-accent">
                   <div className="flex items-center gap-2">
                     <input id="t-accent" type="color" value={form.accent_color} onChange={(e) => set('accent_color', e.target.value.toUpperCase())} className="h-10 w-12 cursor-pointer rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900" aria-label="Accent colour picker" />
@@ -365,7 +365,7 @@ function Editor({ config, row }: { config: CertConfig; row: TemplateRow | null }
                   <Select id="t-font" value={form.font_style} onChange={(e) => set('font_style', e.target.value)} options={config.font_styles} />
                 </Field>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Toggle checked={form.show_qr} onChange={(v) => set('show_qr', v)} label="QR code" description="Links to verification" />
                 <Toggle checked={form.show_seal} onChange={(v) => set('show_seal', v)} label="Institute seal" />
                 <Toggle checked={form.show_photo} onChange={(v) => set('show_photo', v)} label="Student photo" />
@@ -375,7 +375,7 @@ function Editor({ config, row }: { config: CertConfig; row: TemplateRow | null }
 
           <Card>
             <CardHeader title="Signatories & validity" icon={Sparkles} />
-            <div className="card-body grid gap-4 sm:grid-cols-2">
+            <div className="card-body grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Signatory name" error={errors.signatory_name} htmlFor="t-s1"><Input id="t-s1" value={form.signatory_name} maxLength={150} onChange={(e) => set('signatory_name', e.target.value)} placeholder="Dr. Rajeev Saxena" /></Field>
               <Field label="Designation" error={errors.signatory_designation} htmlFor="t-s1d"><Input id="t-s1d" value={form.signatory_designation} maxLength={150} onChange={(e) => set('signatory_designation', e.target.value)} placeholder="Registrar" /></Field>
               <Field label="Second signatory (optional)" error={errors.signatory2_name} htmlFor="t-s2"><Input id="t-s2" value={form.signatory2_name} maxLength={150} onChange={(e) => set('signatory2_name', e.target.value)} placeholder="Prof. Neha Verma" /></Field>

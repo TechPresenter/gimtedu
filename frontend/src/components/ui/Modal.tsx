@@ -25,8 +25,10 @@ export function Modal({ open, onClose, title, description, size = 'md', children
       <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-[2px] animate-fade-in" aria-hidden="true" />
       <div className="fixed inset-0 overflow-y-auto">
         <div className="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
-          <DialogPanel className={clsx('w-full animate-slide-up rounded-t-2xl bg-white shadow-pop sm:rounded-2xl dark:bg-slate-900 dark:ring-1 dark:ring-slate-800', sizes[size])}>
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+          {/* Column layout capped to the visible viewport (dvh follows the mobile URL bar; vh is the fallback): only the
+              body scrolls, so the header and the footer buttons stay on screen on phones even when the footer wraps. */}
+          <DialogPanel className={clsx('flex max-h-[calc(100vh-1rem)] w-full animate-slide-up flex-col supports-[height:100dvh]:max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100vh-2rem)] sm:supports-[height:100dvh]:max-h-[calc(100dvh-2rem)] rounded-t-2xl bg-white shadow-pop sm:rounded-2xl dark:bg-slate-900 dark:ring-1 dark:ring-slate-800', sizes[size])}>
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
               <div className="flex min-w-0 items-start gap-3">
                 {icon}
                 <div className="min-w-0">
@@ -38,8 +40,8 @@ export function Modal({ open, onClose, title, description, size = 'md', children
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="max-h-[calc(100vh-11rem)] overflow-y-auto px-5 py-5">{children}</div>
-            {footer && <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-5 py-3.5 dark:border-slate-800">{footer}</div>}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">{children}</div>
+            {footer && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-5 py-3.5 dark:border-slate-800">{footer}</div>}
           </DialogPanel>
         </div>
       </div>
@@ -74,7 +76,7 @@ export function Drawer({ open, onClose, title, description, children, footer, wi
             </button>
           </div>
           <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
-          {footer && <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3.5 dark:border-slate-800">{footer}</div>}
+          {footer && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-5 py-3.5 dark:border-slate-800">{footer}</div>}
         </DialogPanel>
       </div>
     </Dialog>

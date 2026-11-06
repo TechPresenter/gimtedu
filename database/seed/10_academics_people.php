@@ -60,6 +60,12 @@ return function (array $opts): void {
         'Diploma' => '10+2 in any stream from a recognised board.',
         'Certificate' => '10+2 or graduation in any discipline. Working professionals are welcome.',
     ];
+    $careers = [
+        'CDM' => "Digital Marketing Executive\nSEO / SEM Specialist\nSocial Media Manager\nContent Marketing Associate\nPerformance Marketing Analyst",
+        'CDA' => "Data Analyst\nBusiness Intelligence Analyst\nMIS Executive\nReporting Analyst\nJunior Data Scientist",
+        'DCAP' => "IT Support Technician\nOffice Automation Assistant\nData Entry & MIS Assistant\nJunior Web Designer\nComputer Operator",
+        'BSCDS' => "Data Analyst\nData Scientist\nBusiness Analyst\nMachine Learning Engineer\nStatistical Analyst",
+    ];
     $programIds = [];
     $programMeta = [];
     foreach ($programs as $i => [$code, $dept, $name, $short, $level, $degree, $cat, $years, $sems, $fee, $intake, $feat, $pop, $img, $dur, $feeLabel]) {
@@ -69,9 +75,10 @@ return function (array $opts): void {
             'total_credits' => $sems * 22, 'intake_capacity' => $intake, 'fee_per_year' => $fee, 'fee_label' => $feeLabel,
             'eligibility' => $eligibility[$level], 'overview' => $overviews[$code],
             'highlights' => "Industry-aligned curriculum designed with recruiters\nLive projects, internships and industrial visits\nCertifications and skill labs included\nDedicated placement and career support",
-            'career_prospects' => $cat === 'Management' ? "Business Analyst\nMarketing Manager\nHR Executive\nEntrepreneur\nOperations Manager"
+            // program-specific roles first (certificate / diploma / data science programs), then the department's typical roles
+            'career_prospects' => $careers[$code] ?? ($cat === 'Management' ? "Business Analyst\nMarketing Manager\nHR Executive\nEntrepreneur\nOperations Manager"
                 : ($cat === 'Commerce' ? "Chartered Accountancy\nFinancial Analyst\nTax Consultant\nBanking & Insurance\nAuditor"
-                : "Software Engineer\nData Analyst\nCloud Engineer\nFull Stack Developer\nAI/ML Engineer"),
+                : "Software Engineer\nData Analyst\nCloud Engineer\nFull Stack Developer\nAI/ML Engineer")),
             'image' => $img, 'is_featured' => $feat, 'is_popular' => $pop, 'show_on_website' => 1, 'sort_order' => $i, 'status' => 'active',
         ]);
         $programMeta[$code] = ['id' => $programIds[$code], 'sems' => $sems, 'years' => $years, 'dept' => $deptIds[$dept], 'level' => $level, 'fee' => $fee, 'short' => $short];

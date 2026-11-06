@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, Minus } from 'lucide-react';
-import { Avatar, PersonCell, StatusBadge } from '@/components/ui';
-import { formatDate, formatDateTime, formatMoney, formatNumber, formatTime, labelize } from '@/lib/format';
+import { Avatar, PersonCell, PhoneLink, StatusBadge } from '@/components/ui';
+import { formatDate, formatDateTime, formatMoney, formatNumber, formatPhone, formatTime, labelize } from '@/lib/format';
 import { appUrl } from '@/lib/config';
 import type { BadgeColor } from '@/lib/status';
 import type { CrudColumn } from './types';
@@ -17,7 +17,9 @@ export function fillTemplate(tpl: string, row: Record<string, unknown>): string 
 /** Render a list cell according to its column format. */
 export function renderCell(col: CrudColumn, row: Record<string, unknown>, onView?: () => void): ReactNode {
   const v = row[col.key];
-  const sub = col.sub ? (row[col.sub] as ReactNode) : undefined;
+  // a phone number as the secondary line (e.g. Lead / Applicant name + mobile) is shown readable, like a phone column
+  const subRaw = col.sub ? row[col.sub] : undefined;
+  const sub = col.sub && /phone|mobile|whatsapp/i.test(col.sub) && subRaw ? formatPhone(subRaw) : (subRaw as ReactNode);
   const empty = v === null || v === undefined || v === '';
   const wrapLink = (node: ReactNode) => {
     if (!col.link) return node;
@@ -72,7 +74,8 @@ export function renderCell(col: CrudColumn, row: Record<string, unknown>, onView
     case 'email':
       return empty ? dash : <a href={`mailto:${v}`} className="link !font-normal">{String(v)}</a>;
     case 'phone':
-      return empty ? dash : <a href={`tel:${String(v).replace(/\s/g, '')}`} className="whitespace-nowrap hover:text-brand-700">{String(v)}</a>;
+      // shown readable (+91 99554 46477), dialled in E.164 (tel:+919955446477)
+      return empty ? dash : <PhoneLink value={String(v)} className="hover:text-brand-700 dark:hover:text-brand-300" />;
     case 'image':
       return empty ? <Avatar name={String(row.name ?? row.title ?? '?')} size="sm" /> : <img src={appUrl(String(v))} alt="" loading="lazy" className="h-10 w-14 rounded-md object-cover ring-1 ring-slate-200 dark:ring-slate-700" />;
     case 'tags':

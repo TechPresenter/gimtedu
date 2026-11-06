@@ -95,11 +95,11 @@ function chatbot_quick_replies(): array
     }
     $out = [];
     foreach ($list as $q) {
-        $label = trim((string) ($q['label'] ?? ''));
+        $label = trim(api_str($q['label'] ?? null));
         if ($label === '') {
             continue;
         }
-        $action = (string) ($q['action'] ?? '');
+        $action = api_str($q['action'] ?? null);
         if ($action === 'whatsapp' && !chatbot_wa_link()) {
             continue;
         }
@@ -322,7 +322,7 @@ function chatbot_public_config(): array
     $f = chatbot_facts();
     $ai = chatbot_provider_chain() !== [];
     $open = chatbot_is_open_now();
-    $phone = (string) ($f['phone'] ?? '');
+    $phone = api_str($f['phone'] ?? null);
     return [
         'enabled' => chatbot_flag('enabled'),
         'botName' => (string) chatbot_cfg('bot_name'),
@@ -887,11 +887,14 @@ function chatbot_submit_lead(array $in, ?array $conv): array
     }
     $payload = [
         'name' => $in['name'] ?? null, 'phone' => $in['phone'] ?? null, 'email' => $in['email'] ?? null,
+        // the country picked next to the number: a national number such as "07911 123456" with GB must not be read as Indian
+        'phone_country' => $in['phone_country'] ?? null,
         'program_id' => ($in['program_id'] ?? '') !== '' ? $in['program_id'] : null, 'program' => $in['program'] ?? null,
         'message' => $note !== '' ? mb_substr($note, 0, 1900) : null, 'source' => 'chatbot', 'form' => 'ai-chat',
         'utm_source' => $conv['utm_source'] ?? ($in['utm_source'] ?? null), 'utm_campaign' => $conv['utm_campaign'] ?? ($in['utm_campaign'] ?? null),
     ];
-    $res = pf_submit_enquiry($payload);
+    // same phone normalisation as every website form (forms platform): national number + phone_country -> E.164
+    $res = pf_submit_enquiry(pf_prepare_input($payload));
     $enquiryId = (int) $res['id'];
     // new enquiries from the chat window are attributed to the chatbot (a repeat enquiry keeps its first source)
     db_exec("UPDATE enquiries SET source = 'chatbot', priority = 'high' WHERE id = ? AND notes LIKE 'Website form: Chatbot%'", [$enquiryId]);
@@ -1009,7 +1012,7 @@ function chatbot_admin_settings(): array
         'sources' => array_map(fn ($k, $label) => ['key' => $k, 'label' => $label, 'count' => $sourceCounts[$k] ?? 0], array_keys(chatbot_source_labels()), chatbot_source_labels()),
         'knowledge' => ['snippets' => count(chatbot_snippets()), 'prompt_chars' => mb_strlen(chatbot_system_prompt())],
         'warnings' => array_values(array_filter([
-            $appKey === '' || $appKey === 'change-this-key-on-install' ? 'The application key (config app.key / GIMT_APP_KEY) is not set — stored API keys are encrypted with a weak default key. Set a random app key, then re-enter the API keys.' : null,
+            $appKey === '' || in_array($appKey, ['change-this-key-on-install', 'generate-a-64-character-random-string'], true) ?'The application key (config app.key / GIMT_APP_KEY) is not set — stored API keys are encrypted with a weak default key. Set a random app key, then re-enter the API keys.' : null,
             !function_exists('curl_init') ? 'The PHP curl extension is disabled — AI providers cannot be reached; the rule-based assistant is used.' : null,
             PHP_SAPI === 'cli-server' && chatbot_flag('streaming') ? 'Streaming is on, but the PHP built-in development server handles one request at a time. Use Apache / Nginx + PHP-FPM in production.' : null,
         ])),
@@ -1096,11 +1099,11 @@ function chatbot_validate_settings(array $in): array
             $errors['quick_replies'] = 'Add up to 10 quick replies.';
         } else {
             foreach ($qr as $i => $q) {
-                $label = trim((string) ($q['label'] ?? ''));
-                $action = (string) ($q['action'] ?? '');
+                $label = trim(api_str($q['label'] ?? null));
+                $action = api_str($q['action'] ?? null);
                 if ($label === '' || mb_strlen($label) > 40) {
                     $errors['quick_replies'] = 'Quick reply ' . ($i + 1) . ': the label is required (max 40 characters).';
-                } elseif ($action === 'link' && chatbot_safe_url((string) ($q['url'] ?? '')) === null) {
+                } elseif ($action === 'link' && chatbot_safe_url(api_str($q['url'] ?? null)) === null) {
                     $errors['quick_replies'] = 'Quick reply ' . ($i + 1) . ': enter a valid link (/page or https://…).';
                 } elseif (!in_array($action, ['', 'message', 'lead', 'whatsapp', 'link'], true)) {
                     $errors['quick_replies'] = 'Quick reply ' . ($i + 1) . ': unknown action.';
@@ -1164,12 +1167,12 @@ function chatbot_save_settings(array $in, ?array $avatar = null): array
         $qr = is_array($in['quick_replies']) ? $in['quick_replies'] : (json_decode((string) $in['quick_replies'], true) ?: []);
         $clean = [];
         foreach ($qr as $q) {
-            $action = (string) ($q['action'] ?? '');
-            $item = ['label' => trim(strip_tags((string) ($q['label'] ?? '')))];
+            $action = api_str($q['action'] ?? null);
+            $item = ['label' => trim(strip_tags(api_str($q['label'] ?? null)))];
             if (in_array($action, ['lead', 'whatsapp'], true)) {
                 $item['action'] = $action;
             } elseif ($action === 'link') {
-                $item += ['action' => 'link', 'url' => chatbot_safe_url((string) ($q['url'] ?? '')) ?? '/'];
+                $item += ['action' => 'link', 'url' => chatbot_safe_url(api_str($q['url'] ?? null)) ?? '/'];
             } else {
                 $item['message'] = trim(strip_tags((string) ($q['message'] ?? $item['label'])));
             }
@@ -1220,8 +1223,8 @@ function chatbot_admin_list(array $q, int $page, int $perPage): array
 {
     [$where, $args] = chatbot_admin_where($q);
     $sorts = ['started_at' => 'c.started_at', 'last_message_at' => 'c.last_message_at', 'message_count' => 'c.message_count', 'lead_status' => 'c.lead_status', 'feedback' => '(c.feedback_up - c.feedback_down)'];
-    $sort = $sorts[$q['sort'] ?? ''] ?? 'c.started_at';
-    $dir = strtolower((string) ($q['dir'] ?? 'desc')) === 'asc' ? 'ASC' : 'DESC';
+    $sort = $sorts[api_str($q['sort'] ?? null)] ?? 'c.started_at';
+    $dir = strtolower(api_str($q['dir'] ?? null, 'desc')) === 'asc' ? 'ASC' : 'DESC';
     $total = (int) db_value('SELECT COUNT(*) FROM chatbot_conversations c WHERE ' . $where, $args);
     $pg = paginate($total, $page, $perPage);
     $rows = db_all("SELECT c.id, c.public_id, c.title, c.language, c.message_count, c.user_message_count, c.last_provider, c.lead_status, c.enquiry_id, c.lead_name,
@@ -1245,7 +1248,7 @@ function chatbot_admin_where(array $q): array
 {
     $where = ['1 = 1'];
     $args = [];
-    $search = trim((string) ($q['q'] ?? ''));
+    $search = trim(api_str($q['q'] ?? null));
     if ($search !== '') {
         $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], mb_substr($search, 0, 100)) . '%';
         $where[] = '(c.title LIKE ? OR c.lead_name LIKE ? OR c.page_url LIKE ? OR EXISTS (SELECT 1 FROM chatbot_messages m WHERE m.conversation_id = c.id AND m.content LIKE ?))';
@@ -1271,7 +1274,7 @@ function chatbot_admin_where(array $q): array
         $args[] = $q['language'];
     }
     foreach (['from' => '>=', 'to' => '<='] as $k => $op) {
-        $d = (string) ($q[$k] ?? '');
+        $d = api_str($q[$k] ?? null);
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
             $where[] = 'c.started_at ' . $op . ' ?';
             $args[] = $d . ($k === 'from' ? ' 00:00:00' : ' 23:59:59');

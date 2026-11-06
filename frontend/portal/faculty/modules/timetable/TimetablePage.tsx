@@ -31,7 +31,9 @@ const STATE_META: Record<TimetablePeriod['state'], { label: string; cls: string;
 /** Where a period card leads: the register for held classes, the class roster otherwise. */
 function periodLink(p: TimetablePeriod): string {
   if (p.date && (p.state === 'marked' || p.state === 'pending' || p.state === 'now')) {
-    return `${fpath('attendance')}?date=${p.date}&section_id=${p.section_id}&subject_id=${p.subject_id}&slot=${p.time_slot_id}`;
+    // slot 0 = the class's register without a period (extra class) that covers this period
+    const slot = p.state === 'marked' ? (p.register_slot_id ?? 0) : p.time_slot_id;
+    return `${fpath('attendance')}?date=${p.date}&section_id=${p.section_id}&subject_id=${p.subject_id}&slot=${slot}`;
   }
   return fpath(`classes/${p.section_id}/${p.subject_id}`);
 }

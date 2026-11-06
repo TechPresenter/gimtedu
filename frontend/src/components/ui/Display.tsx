@@ -1,9 +1,9 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { ArrowDownRight, ArrowRight, ArrowUpRight, ChevronRight, House, type LucideIcon } from 'lucide-react';
 import { appUrl } from '@/lib/config';
-import { initials } from '@/lib/format';
+import { formatPhone, initials, telHref } from '@/lib/format';
 import { useDocumentTitle } from '@/lib/hooks';
 import { CountUp } from './Motion';
 
@@ -43,7 +43,7 @@ export function PageHeader({ title, description, breadcrumbs, actions, children 
   return (
     <div className="mb-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
+        <div className="min-w-0 sm:flex-1">
           {breadcrumbs && breadcrumbs.length > 0 && (
             <nav aria-label="Breadcrumb" className="mb-1.5">
               <ol className="flex flex-wrap items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
@@ -72,7 +72,8 @@ export function PageHeader({ title, description, breadcrumbs, actions, children 
           <h1 className="page-title">{title}</h1>
           {description && <p className="page-subtitle">{description}</p>}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+        {/* actions keep their natural width (up to ~2/3 of the row) instead of being squeezed by a long description */}
+        {actions && <div className="flex flex-wrap items-center gap-2 sm:max-w-[66%] sm:shrink-0 sm:justify-end">{actions}</div>}
       </div>
       {children && <div className="mt-4">{children}</div>}
     </div>
@@ -135,7 +136,7 @@ export function StatTile({ label, value, icon: Icon, tone = 'blue', sub, loading
         <Icon className="h-5 w-5" aria-hidden />
       </span>
       <div className="min-w-0">
-        <p className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
+        <p className="line-clamp-2 text-xs font-medium leading-snug text-slate-500 dark:text-slate-400 sm:line-clamp-1" title={label}>{label}</p>
         {loading ? <div className="skeleton mt-1 h-6 w-16" /> : <p className="font-display text-xl font-bold leading-tight text-slate-900 dark:text-white">{typeof value === 'number' ? <CountUp value={value} /> : value}</p>}
         {sub && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{sub}</p>}
       </div>
@@ -144,20 +145,69 @@ export function StatTile({ label, value, icon: Icon, tone = 'blue', sub, loading
 }
 
 /* ---------------------------------------------------------------- Avatar */
-const avatarPalette = ['bg-blue-100 text-blue-700', 'bg-emerald-100 text-emerald-700', 'bg-violet-100 text-violet-700', 'bg-amber-100 text-amber-700', 'bg-rose-100 text-rose-700', 'bg-cyan-100 text-cyan-700'];
+const avatarPalette = [
+  'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-200',
+  'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200',
+  'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200',
+  'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200',
+  'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200',
+  'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-200',
+];
 function hash(s: string) {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
   return Math.abs(h);
 }
 
-export function Avatar({ name, src, size = 'md', className }: { name?: string | null; src?: string | null; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'; className?: string }) {
+/**
+ * Round photo / initials avatar for people. `variant="logo"` is for organisations (recruiters, companies): a rounded
+ * white box that keeps wide logos whole (object-contain, never cropped into a circle) and falls back to a text
+ * wordmark of the name.
+ */
+export function Avatar({ name, src, size = 'md', className, variant = 'person' }: { name?: string | null; src?: string | null; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'; className?: string; variant?: 'person' | 'logo' }) {
+  if (variant === 'logo') {
+    const box = { xs: 'h-6 w-10 text-[8px]', sm: 'h-8 w-14 text-[10px]', md: 'h-9 w-16 text-[11px]', lg: 'h-12 w-20 text-xs', xl: 'h-20 w-32 text-sm' }[size];
+    if (src) {
+      return (
+        <span className={clsx(box, 'inline-flex shrink-0 items-center justify-center rounded-lg bg-white px-1.5 py-1 ring-1 ring-slate-200 dark:ring-slate-700', className)}>
+          <img src={appUrl(src)} alt={name ?? ''} loading="lazy" className="max-h-full max-w-full object-contain" />
+        </span>
+      );
+    }
+    return (
+      <span className={clsx(box, 'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-brand-50 px-1 ring-1 ring-brand-100 dark:bg-brand-500/15 dark:ring-brand-500/20', className)} title={name ?? undefined} aria-hidden>
+        <span className="truncate font-display font-extrabold tracking-tight text-brand-800 dark:text-brand-200">{wordmark(name)}</span>
+      </span>
+    );
+  }
   const sz = { xs: 'h-6 w-6 text-[10px]', sm: 'h-8 w-8 text-xs', md: 'h-9 w-9 text-xs', lg: 'h-12 w-12 text-sm', xl: 'h-20 w-20 text-xl' }[size];
   if (src) return <img src={appUrl(src)} alt={name ?? ''} loading="lazy" className={clsx(sz, 'shrink-0 rounded-full object-cover ring-2 ring-white dark:ring-slate-800', className)} />;
   return (
     <span className={clsx(sz, avatarPalette[hash(name ?? '') % avatarPalette.length], 'inline-flex shrink-0 items-center justify-center rounded-full font-semibold', className)} aria-hidden>
       {initials(name)}
     </span>
+  );
+}
+
+/** Short text wordmark for an organisation without a logo ("NovaByte Technologies" -> "NovaByte", "ZS Associates" -> "ZS Associates"). */
+function wordmark(name?: string | null): string {
+  const words = String(name ?? '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return '?';
+  return words[0].length <= 3 && words[1] ? `${words[0]} ${words[1]}` : words[0];
+}
+
+/**
+ * Phone number as a tap-to-call link: shown readable ('+91 99554 46477'), dialled in E.164 ('tel:+919955446477').
+ * Renders a dash when there is no number.
+ */
+export function PhoneLink({ value, className, icon: Icon, children }: { value?: string | null; className?: string; icon?: LucideIcon; children?: ReactNode }) {
+  if (!value) return <span className="text-slate-400">—</span>;
+  return (
+    <a href={telHref(value)} className={clsx('whitespace-nowrap', Icon && 'inline-flex items-center gap-1', className)}>
+      {Icon && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+      {formatPhone(value)}
+      {children}
+    </a>
   );
 }
 
@@ -275,12 +325,35 @@ export interface TabDef {
 }
 
 export function Tabs({ tabs, value, onChange, variant = 'underline', className }: { tabs: TabDef[]; value: string; onChange: (k: string) => void; variant?: 'underline' | 'pills'; className?: string }) {
+  const listRef = useRef<HTMLDivElement>(null);
+  // On narrow screens the strip scrolls sideways: keep the active tab in view (also when it changes from the URL).
+  useEffect(() => {
+    const list = listRef.current;
+    const active = list?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!list || !active || list.scrollWidth <= list.clientWidth) return;
+    const pad = 24;
+    const behavior: ScrollBehavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    const left = active.getBoundingClientRect().left - list.getBoundingClientRect().left + list.scrollLeft;
+    if (left - pad < list.scrollLeft) list.scrollTo({ left: Math.max(0, left - pad), behavior });
+    else if (left + active.offsetWidth + pad > list.scrollLeft + list.clientWidth) list.scrollTo({ left: left + active.offsetWidth + pad - list.clientWidth, behavior });
+  }, [value, tabs.length]);
+  // WAI-ARIA tabs keyboard pattern: arrows / Home / End move between tabs (roving tabindex)
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const i = tabs.findIndex((t) => t.key === value);
+    const next = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : null;
+    if (next === null || !tabs.length) return;
+    e.preventDefault();
+    const t = tabs[(next + tabs.length) % tabs.length];
+    onChange(t.key);
+    requestAnimationFrame(() => listRef.current?.querySelector<HTMLElement>(`[data-tab-key="${CSS.escape(t.key)}"]`)?.focus());
+  };
+  const focusKey = tabs.some((t) => t.key === value) ? value : tabs[0]?.key;
   if (variant === 'pills') {
     return (
-      <div className={clsx('pill-tabs max-w-full overflow-x-auto scrollbar-none', className)} role="tablist">
+      <div ref={listRef} className={clsx('pill-tabs max-w-full overflow-x-auto scrollbar-none', className)} role="tablist" onKeyDown={onKeyDown}>
         {tabs.map((t) => (
-          <button key={t.key} type="button" role="tab" aria-selected={value === t.key} onClick={() => onChange(t.key)} className={clsx('pill-tab inline-flex items-center gap-1.5 whitespace-nowrap', value === t.key && 'pill-tab-active')}>
-            {t.icon && <t.icon className="h-3.5 w-3.5" />}
+          <button key={t.key} type="button" role="tab" data-tab-key={t.key} aria-selected={value === t.key} tabIndex={focusKey === t.key ? 0 : -1} onClick={() => onChange(t.key)} className={clsx('pill-tab inline-flex items-center gap-1.5 whitespace-nowrap', value === t.key && 'pill-tab-active')}>
+            {t.icon && <t.icon className="h-3.5 w-3.5" aria-hidden />}
             {t.label}
             {t.count !== undefined && <span className="rounded-full bg-slate-200/70 px-1.5 text-[10px] font-semibold dark:bg-slate-700">{t.count}</span>}
           </button>
@@ -289,10 +362,10 @@ export function Tabs({ tabs, value, onChange, variant = 'underline', className }
     );
   }
   return (
-    <div className={clsx('tabs scrollbar-none', className)} role="tablist">
+    <div ref={listRef} className={clsx('tabs scrollbar-none', className)} role="tablist" onKeyDown={onKeyDown}>
       {tabs.map((t) => (
-        <button key={t.key} type="button" role="tab" aria-selected={value === t.key} onClick={() => onChange(t.key)} className={clsx('tab', value === t.key && 'tab-active')}>
-          {t.icon && <t.icon className="h-4 w-4" />}
+        <button key={t.key} type="button" role="tab" data-tab-key={t.key} aria-selected={value === t.key} tabIndex={focusKey === t.key ? 0 : -1} onClick={() => onChange(t.key)} className={clsx('tab', value === t.key && 'tab-active')}>
+          {t.icon && <t.icon className="h-4 w-4" aria-hidden />}
           {t.label}
           {t.count !== undefined && <span className="rounded-full bg-slate-100 px-1.5 py-px text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{t.count}</span>}
         </button>

@@ -2,7 +2,7 @@ import { Contact, MapPin, Pencil, ShieldCheck, User } from 'lucide-react';
 import { Button, Card, CardBody, CardHeader, DescriptionList, Reveal } from '@/components/ui';
 import { CrudTable } from '@/components/crud';
 import { useAuth } from '@/lib/auth';
-import { formatDate, formatDateTime, labelize } from '@/lib/format';
+import { formatDate, formatDateTime, formatPhone, labelize, telHref, whatsappHref } from '@/lib/format';
 import type { TabProps } from './shared';
 
 export default function PersonalTab({ profile, studentId, refresh }: TabProps) {
@@ -11,7 +11,7 @@ export default function PersonalTab({ profile, studentId, refresh }: TabProps) {
   const edit = can('students', 'edit') ? <Button size="sm" variant="secondary" icon={Pencil} to={`/students/${studentId}/edit`}>Edit</Button> : undefined;
   return (
     <div className="space-y-5">
-      <div className="grid gap-5 lg:grid-cols-2 [&>*]:min-w-0">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 [&>*]:min-w-0">
         <Reveal>
           <Card className="h-full">
             <CardHeader title="Personal information" icon={User} actions={edit} />
@@ -35,10 +35,10 @@ export default function PersonalTab({ profile, studentId, refresh }: TabProps) {
             <CardHeader title="Contact & address" icon={Contact} />
             <CardBody>
               <DescriptionList items={[
-                { label: 'Mobile', value: <a className="link !font-medium" href={`tel:${s.mobile.replace(/\s/g, '')}`}>{s.mobile}</a> },
-                { label: 'WhatsApp', value: s.whatsapp },
+                { label: 'Mobile', value: <a className="link !font-medium" href={telHref(s.mobile)}>{formatPhone(s.mobile)}</a> },
+                { label: 'WhatsApp', value: s.whatsapp ? <a className="link !font-medium" href={whatsappHref(s.whatsapp)} target="_blank" rel="noreferrer">{formatPhone(s.whatsapp)}</a> : null },
                 { label: 'Email', value: s.email ? <a className="link !font-medium break-all" href={`mailto:${s.email}`}>{s.email}</a> : null },
-                { label: 'Emergency contact', value: s.emergency_contact_name ? `${s.emergency_contact_name}${s.emergency_contact_phone ? ` · ${s.emergency_contact_phone}` : ''}` : null },
+                { label: 'Emergency contact', value: s.emergency_contact_name ? `${s.emergency_contact_name}${s.emergency_contact_phone ? ` · ${formatPhone(s.emergency_contact_phone)}` : ''}` : null },
                 { label: 'Correspondence address', full: true, value: [s.address, s.city, s.state, s.pincode, s.country].filter(Boolean).join(', ') || null },
                 { label: 'Permanent address', full: true, value: s.permanent_address },
               ]} />

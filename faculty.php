@@ -1,7 +1,8 @@
 <?php
 /**
  * Faculty directory (/faculty) — public profiles of faculty members (show_on_website = 1): department filter pills,
- * search, progressive "load more", profile modal with a short bio. Only public-safe fields are rendered (name,
+ * search, progressive "load more", Grid / List / Compact / Detailed view modes (view_mode_toggle('faculty'),
+ * remembered per visitor; SSR default from setting view_mode_faculty → view_mode_default), profile modal with a short bio. Only public-safe fields are rendered (name,
  * designation, department, qualification, specialization, experience, bio, research interests, publications, photo,
  * LinkedIn) — never salary, phone, personal email, bank details or address.
  * Deep links: ?department=cse&q=analytics (also the no-JS fallback via a GET form).
@@ -46,14 +47,14 @@ $avgExp = (int) round($counts['experience']);
 $heroImg = 'assets/images/site/students-atrium.jpg';
 site_header([
     'title' => 'Our Faculty — Professors & Mentors',
-    'description' => 'Meet the ' . count($faculty) . ' faculty members of GIMT Greater Noida — professors, heads of department and mentors across management, technology, commerce, computer applications and sciences.',
+    'description' => 'Meet the ' . ($faculty ? count($faculty) . ' ' : '') . 'faculty members of GIMT Noida — professors, heads of department and mentors across management, technology, commerce, computer applications and sciences.',
     'active' => 'faculty',
     'seo' => ['route', '/faculty'],
     'image' => $heroImg,
     'preload' => [asset($heroImg)],
     'schema' => array_values(array_filter([
         sa_breadcrumb_ld([['Home', ''], ['About', 'about'], ['Faculty', null]]),
-        sa_seo_schema_has('ItemList', 'route', null, '/faculty') ? null : ['@context' => 'https://schema.org', '@type' => 'ItemList', 'name' => 'Faculty of ' . institute_name(), 'numberOfItems' => count($faculty),
+        !$faculty || sa_seo_schema_has('ItemList', 'route', null, '/faculty') ? null : ['@context' => 'https://schema.org', '@type' => 'ItemList', 'name' => 'Faculty of ' . institute_name(), 'numberOfItems' => count($faculty),
          'itemListElement' => array_map(fn ($f, $i) => ['@type' => 'ListItem', 'position' => $i + 1, 'item' => array_filter(['@type' => 'Person', 'name' => sa_person_name($f), 'jobTitle' => $f['designation'],
              'worksFor' => ['@type' => 'CollegeOrUniversity', 'name' => institute_name()], 'knowsAbout' => $f['specialization'] ?: null, 'sameAs' => $f['linkedin_url'] ?: null])], array_slice($faculty, 0, 60), array_keys(array_slice($faculty, 0, 60)))],
     ])),
@@ -61,11 +62,16 @@ site_header([
 
 page_hero('Our Faculty', 'Mentors Who Inspire Excellence', ['About' => '/about', 'Faculty'], $heroImg,
     'Experienced academics, researchers and industry practitioners who teach, mentor and guide every GIMT student towards their goals.',
-    [
+    // numbers only once profiles are published (no "0 Faculty Members" chips on an empty directory)
+    $faculty ? [
         ['icon' => 'users', 'label' => count($faculty) . ' Faculty Members'],
         ['icon' => 'graduation-cap', 'label' => $counts['phd'] . ' PhD Holders'],
         ['icon' => 'briefcase', 'label' => $avgExp . '+ Yrs Avg. Experience'],
         ['icon' => 'book-open', 'label' => sa_round_label($counts['publications']) . ' Publications'],
+    ] : [
+        ['icon' => 'users', 'label' => 'Experienced Faculty'],
+        ['icon' => 'briefcase', 'label' => 'Industry Practitioners'],
+        ['icon' => 'handshake', 'label' => 'Mentorship for Every Student'],
     ],
     ['image_alt' => 'GIMT students and faculty on campus']);
 ?>
@@ -92,12 +98,16 @@ page_hero('Our Faculty', 'Mentors Who Inspire Excellence', ['About' => '/about',
       </form>
     </div>
 
-    <p class="mb-5 text-sm text-slate-500" aria-live="polite" data-fac-status>Showing <strong class="text-brand-900" data-fac-count><?= $matching ?></strong> of <?= count($faculty) ?> faculty members</p>
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <p class="text-sm text-slate-500" aria-live="polite" data-fac-status>Showing <strong class="text-brand-900" data-fac-count><?= $matching ?></strong> of <?= count($faculty) ?> faculty members</p>
+      <div class="hidden [.js_&]:block"><?= view_mode_toggle('faculty', ['grid', 'list', 'compact', 'detailed'], view_mode_default('faculty')) ?><?= function_exists('site_view_sync_script') ? site_view_sync_script('faculty') : '' ?></div>
+    </div>
 
-    <ul class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-fac-grid>
+    <ul class="faculty-views grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-fac-grid<?= sa_view_scope_attrs('faculty') ?>>
+      <?= sa_view_scope_script('faculty') ?>
       <?php $shown = 0; foreach ($faculty as $f): $ok = $matches($f); if ($ok) { $shown++; } ?>
         <li class="<?= !$ok ? 'hidden' : ($shown > $perPage ? '[.js_&]:hidden' : '') ?>" data-fac-item data-dept="<?= e(strtolower((string) $f['department_code'])) ?>" data-search="<?= e($searchText($f)) ?>">
-          <?= sa_faculty_card($f, ['modal' => true]) ?>
+          <?= sa_faculty_card($f, ['modal' => true, 'extra' => true]) ?>
         </li>
       <?php endforeach; ?>
     </ul>
@@ -125,13 +135,14 @@ page_hero('Our Faculty', 'Mentors Who Inspire Excellence', ['About' => '/about',
 <!-- Why our faculty -->
 <?= section_open(['id' => 'expertise']) ?>
   <div class="grid items-center gap-10 lg:grid-cols-12">
-    <div class="lg:col-span-5"<?= reveal_attr('slide-left') ?>>
+    <div class="<?= $faculty ? 'lg:col-span-5' : 'lg:col-span-12' ?>"<?= reveal_attr('slide-left') ?>>
       <p class="eyebrow mb-2">Teaching Excellence</p>
       <h2 class="section-title">Academics With Industry Insight</h2>
       <p class="section-lead">Our faculty combine doctoral research with consulting and corporate experience, so classroom learning stays connected to how organisations really work.</p>
       <?= check_list(['Faculty development programmes every semester', 'Mentor assigned to every student from day one', 'Guest faculty and practitioners from partner companies', 'Research guidance for student projects and publications'], 'mt-6') ?>
       <div class="mt-7 flex flex-wrap gap-3"><?= button_link('Explore Departments', '/academics#departments', 'navy') ?><?= button_link('Research at GIMT', '/academics#research', 'outline', ['icon' => '']) ?></div>
     </div>
+    <?php if ($faculty): ?>
     <div class="lg:col-span-7"<?= reveal_attr('fade-up', 100) ?>>
       <?= stat_counter([
           ['value' => count($faculty), 'label' => 'Faculty members', 'icon' => 'users'],
@@ -140,6 +151,7 @@ page_hero('Our Faculty', 'Mentors Who Inspire Excellence', ['About' => '/about',
           ['value' => sa_round($counts['publications'])[0], 'suffix' => sa_round($counts['publications'])[1], 'label' => 'Research publications', 'icon' => 'book-open'],
       ], ['variant' => 'cards', 'gridClass' => 'grid-cols-1 sm:grid-cols-2']) ?>
     </div>
+    <?php endif; ?>
   </div>
 <?= section_close() ?>
 
@@ -152,7 +164,7 @@ page_hero('Our Faculty', 'Mentors Who Inspire Excellence', ['About' => '/about',
   </div>
 </div>
 
-<script>
+<script<?= site_nonce_attr() ?>>
 /* Faculty directory: department pills + search + load more + profile modal content (progressive enhancement). */
 (function () {
   var grid = document.querySelector('[data-fac-grid]');

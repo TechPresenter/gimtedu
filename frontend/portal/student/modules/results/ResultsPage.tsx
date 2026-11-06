@@ -79,7 +79,7 @@ export default function StudentResultsPage() {
   const { data, isLoading, error, refetch } = useStudent<StudentResults>(['results'], 'results');
   const [params, setParams] = useSearchParams();
   const openId = params.get('result') ? Number(params.get('result')) : null;
-  const [tab, setTab] = useState<'semester' | 'internal'>('semester');
+  const [tabChoice, setTab] = useState<'semester' | 'internal' | null>(null);
   const open = (id: number | null) => {
     const p = new URLSearchParams(params);
     if (id) p.set('result', String(id));
@@ -88,6 +88,8 @@ export default function StudentResultsPage() {
   };
   const finals = useMemo(() => (data?.results ?? []).filter((r) => r.is_final), [data]);
   const internals = useMemo(() => (data?.results ?? []).filter((r) => !r.is_final), [data]);
+  // until the student picks a tab, open the one that has results (e.g. only a mid-term result so far)
+  const tab = tabChoice ?? (finals.length === 0 && internals.length > 0 ? 'internal' : 'semester');
   const list = tab === 'semester' ? finals : internals;
   const s = data?.summary;
   const trend = data?.trend ?? [];
@@ -139,8 +141,15 @@ export default function StudentResultsPage() {
                 label="Active backlogs"
                 icon={s.backlogs ? TriangleAlert : Medal}
                 tone={s.backlogs ? 'red' : 'green'}
-                value={s.backlogs}
-                badge={s.backlogs ? <span className="badge badge-red">Clear in the next supplementary exam</span> : <span className="badge badge-green">All subjects cleared</span>}
+                value={s.semesters_completed ? s.backlogs : '—'}
+                badge={
+                  !s.semesters_completed ? undefined : s.backlogs ? (
+                    <span className="badge badge-red">Clear in the next supplementary exam</span>
+                  ) : (
+                    <span className="badge badge-green">All subjects cleared</span>
+                  )
+                }
+                foot={s.semesters_completed ? undefined : 'Counted from your semester results.'}
               />,
             ]}
           </Stagger>

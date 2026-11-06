@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Columns3, Download, Eye, FileSpreadsheet, FileText, FilterX, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, Trash2, Upload, X, type LucideIcon } from 'lucide-react';
+import { Columns3, Download, Eye, FileSpreadsheet, FileText, FilterX, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, RotateCcw, Trash2, Upload, X, type LucideIcon } from 'lucide-react';
 import {
   Button, Card, Combobox, DataTable, Dropdown, EmptyState, IconButton, Input, Pagination, SearchInput, Select, useConfirm, useToast,
   type Column, type DropdownItem, type SortState, Alert,
@@ -16,7 +17,7 @@ import { renderCell, fillTemplate } from './cells';
 import { CrudFormModal } from './CrudForm';
 import { CrudViewModal } from './CrudViewModal';
 import { ImportDialog } from './ImportDialog';
-import type { CrudFilter, CrudMeta } from './types';
+import type { CrudColumn, CrudFilter, CrudMeta } from './types';
 
 export interface CrudBulkAction {
   label: string;
@@ -30,10 +31,19 @@ export interface CrudTableProps {
   /** Card title (defaults to module title). Set to false to hide the header row. */
   title?: string | false;
   description?: string;
-  /** Fixed hidden filters (module must declare them in 'scopes'), e.g. { student_id: 5 } */
+  /** Fixed hidden filters (module must declare them in 'scopes'), e.g. { student_id: 5 }. Changing it resets to page 1. */
   scope?: Record<string, string | number>;
   /** Initial filter values */
   defaultFilters?: Record<string, unknown>;
+  /**
+   * Filter values controlled by the page (e.g. an academic picker outside the table). Whenever their content changes
+   * they are merged into the table's filters (no remount needed); `onFiltersChange` reports every change made in the
+   * table's own filter bar.
+   */
+  filters?: Record<string, unknown>;
+  onFiltersChange?: (filters: Record<string, unknown>) => void;
+  /** Initial sort for this table instance (wins over the module's default_sort). */
+  defaultSort?: SortState;
   hideColumns?: string[];
   hideFilters?: string[];
   /** Override cell rendering per column key */
@@ -48,16 +58,23 @@ export interface CrudTableProps {
   /** Override "Add" (e.g. navigate to a full page form) */
   onCreate?: () => void;
   createTo?: string;
+  /** false hides "Add" even when the role may create (e.g. records are created on another screen). */
+  canCreate?: boolean;
   onEdit?: (row: Row) => void;
   editTo?: (row: Row) => string;
+  /** Per-row switches for the Edit / Delete icons (e.g. hide Delete on records the server will refuse). */
+  canEdit?: (row: Row) => boolean;
+  canDelete?: (row: Row) => boolean;
   formDefaults?: Record<string, unknown>;
   bulkActions?: CrudBulkAction[];
-  /** Sync search/filters/page into the URL query string */
+  /** Sync search/filters/page into the URL query string (and follow links that change them). */
   urlState?: boolean;
   addLabel?: string;
   emptyTitle?: string;
   emptyText?: string;
   onSaved?: (row: Row | null, id: number) => void;
+  /** Called after records were deleted from this table (single delete or bulk delete). */
+  onDeleted?: (ids: number[]) => void;
   /** Render inside a Card (default) or bare */
   bare?: boolean;
   /** Hide row action buttons */
@@ -76,6 +93,47 @@ function cleanFilters(f: Record<string, unknown>) {
     out[k] = v;
   });
   return out;
+}
+
+/* ---------------------------------------------------------------- URL state
+ * ?q=rahul&page=2&f.status=active&f.result_status=pass,backlog&f.created_at.from=2026-07-01&f.created_at.to=2026-07-31
+ */
+const isTableParam = (k: string) => k === 'q' || k === 'page' || k.startsWith('f.');
+
+/** Canonical form of the table's own URL params — tells the table's writes apart from outside navigation. */
+function urlStateKey(p: URLSearchParams): string {
+  return [...p.entries()]
+    .filter(([k, v]) => isTableParam(k) && v !== '')
+    .map(([k, v]) => `${k}=${v}`)
+    .sort()
+    .join('&');
+}
+
+function filtersFromUrl(p: URLSearchParams, defs: CrudFilter[]): Record<string, unknown> {
+  const f: Record<string, unknown> = {};
+  defs.forEach((def) => {
+    if (def.type === 'daterange') {
+      const from = p.get(`f.${def.key}.from`) ?? '';
+      const to = p.get(`f.${def.key}.to`) ?? '';
+      if (from || to) f[def.key] = { from, to };
+      return;
+    }
+    const v = p.get(`f.${def.key}`);
+    if (v === null || v === '') return;
+    f[def.key] = def.type === 'multiselect' ? v.split(',').filter(Boolean) : v;
+  });
+  return f;
+}
+
+function writeFiltersToUrl(next: URLSearchParams, filters: Record<string, unknown>) {
+  Object.entries(cleanFilters(filters)).forEach(([k, v]) => {
+    if (Array.isArray(v)) next.set(`f.${k}`, v.join(','));
+    else if (v && typeof v === 'object') {
+      const r = v as { from?: string; to?: string };
+      if (r.from) next.set(`f.${k}.from`, r.from);
+      if (r.to) next.set(`f.${k}.to`, r.to);
+    } else next.set(`f.${k}`, String(v));
+  });
 }
 
 /**
@@ -109,8 +167,9 @@ export function CrudTable(props: CrudTableProps) {
 }
 
 function CrudTableInner({
-  module, meta, title, description, scope, defaultFilters, hideColumns = [], hideFilters = [], renderers = {}, rowMenu, toolbar, viewTo, onView,
-  onCreate, createTo, onEdit, editTo, formDefaults, bulkActions = [], urlState, addLabel, emptyTitle, emptyText, onSaved, bare, noRowActions, className, header,
+  module, meta, title, description, scope, defaultFilters, filters: controlledFilters, onFiltersChange, defaultSort, hideColumns = [], hideFilters = [], renderers = {}, rowMenu,
+  toolbar, viewTo, onView, onCreate, createTo, canCreate, onEdit, editTo, canEdit, canDelete, formDefaults, bulkActions = [], urlState, addLabel, emptyTitle, emptyText,
+  onSaved, onDeleted, bare, noRowActions, className, header,
 }: CrudTableProps & { meta: CrudMeta }) {
   const navigate = useNavigate();
   const toast = useToast();
@@ -118,46 +177,112 @@ function CrudTableInner({
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
 
-  const initialFilters = useMemo(() => {
+  /** Filters the table starts from without anything in the URL: page defaults, module defaults, page-controlled values. */
+  const baseFilters = (): Record<string, unknown> => {
     const f: Record<string, unknown> = { ...(defaultFilters ?? {}) };
     meta.filters.forEach((flt) => {
       if (flt.default !== undefined && f[flt.key] === undefined) f[flt.key] = flt.default;
-      if (urlState && params.get(`f.${flt.key}`)) f[flt.key] = params.get(`f.${flt.key}`);
     });
-    return f;
+    return controlledFilters ? { ...f, ...controlledFilters } : f;
+  };
+
+  const initial = useMemo(() => {
+    const f = baseFilters();
+    if (urlState) Object.assign(f, filtersFromUrl(params, meta.filters));
+    return { filters: f, q: urlState ? params.get('q') ?? '' : '', page: urlState ? Math.max(1, Number(params.get('page') ?? 1) || 1) : 1 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta]);
 
-  const [q, setQ] = useState(urlState ? params.get('q') ?? '' : '');
-  const [filters, setFilters] = useState<Record<string, unknown>>(initialFilters);
-  const [page, setPage] = useState(urlState ? Number(params.get('page') ?? 1) : 1);
+  const [q, setQ] = useState(initial.q);
+  // the search actually applied (debounced typing, or set at once by a link)
+  const [appliedQ, setAppliedQ] = useState(initial.q);
+  const [filters, setFilters] = useState<Record<string, unknown>>(initial.filters);
+  const [page, setPage] = useState(initial.page);
   const [perPage, setPerPage] = useLocalStorage<number>(`gimt.perPage.${module}`, meta.per_page || 25);
-  const [sort, setSort] = useState<SortState | null>(meta.default_sort ?? null);
+  const [sort, setSort] = useState<SortState | null>(defaultSort ?? meta.default_sort ?? null);
   const [selected, setSelected] = useState<Set<string | number>>(new Set());
-  const [hiddenCols, setHiddenCols] = useLocalStorage<string[]>(`gimt.cols.${module}`, meta.columns.filter((c) => c.hidden).map((c) => c.key));
+  const defaultHidden = useMemo(() => meta.columns.filter((c) => c.hidden).map((c) => c.key), [meta]);
+  const [hiddenCols, setHiddenCols] = useLocalStorage<string[]>(`gimt.cols.${module}`, defaultHidden);
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [viewId, setViewId] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const debouncedQ = useDebounce(q, 350);
+  useEffect(() => setAppliedQ(debouncedQ), [debouncedQ]);
 
-  useEffect(() => setPage(1), [debouncedQ, filters, perPage]);
+  const filtersKey = JSON.stringify(cleanFilters(filters));
+  const scopeKey = JSON.stringify(scope ?? {});
+
+  // Back to page 1 whenever the search, filters, page size or scope change (not on mount, so ?page= links work).
+  const resetSig = `${appliedQ}\n${filtersKey}\n${perPage}\n${scopeKey}`;
+  const lastResetSig = useRef(resetSig);
+  const lastScopeKey = useRef(scopeKey);
+  useEffect(() => {
+    if (lastResetSig.current === resetSig) return;
+    lastResetSig.current = resetSig;
+    setPage(1);
+    if (lastScopeKey.current !== scopeKey) {
+      lastScopeKey.current = scopeKey;
+      setSelected(new Set()); // another parent record: the old selection no longer applies
+    }
+  }, [resetSig, scopeKey]);
+
+  // Page-controlled filters: merge their new values in when their content changes.
+  const controlledKey = controlledFilters ? JSON.stringify(controlledFilters) : null;
+  const lastControlledKey = useRef(controlledKey);
+  useEffect(() => {
+    if (controlledKey === null || controlledKey === lastControlledKey.current) return;
+    lastControlledKey.current = controlledKey;
+    setFilters((f) => ({ ...f, ...(controlledFilters ?? {}) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlledKey]);
+
+  // Report filter-bar changes to the page.
+  const lastReportedKey = useRef(filtersKey);
+  useEffect(() => {
+    if (!onFiltersChange || lastReportedKey.current === filtersKey) return;
+    lastReportedKey.current = filtersKey;
+    onFiltersChange(cleanFilters(filters));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersKey]);
+
+  // URL -> table: a link, the sidebar or back/forward changed ?q / ?page / ?f.* — adopt them (no remount needed).
+  const lastUrlKey = useRef(urlStateKey(params));
+  useEffect(() => {
+    if (!urlState) return;
+    const key = urlStateKey(params);
+    if (key === lastUrlKey.current) return;
+    lastUrlKey.current = key;
+    const nextFilters = { ...baseFilters(), ...filtersFromUrl(params, meta.filters) };
+    const nextQ = params.get('q') ?? '';
+    const nextPage = Math.max(1, Number(params.get('page') ?? 1) || 1);
+    // the URL also names the page: do not let the filter change reset it
+    lastResetSig.current = `${nextQ}\n${JSON.stringify(cleanFilters(nextFilters))}\n${perPage}\n${scopeKey}`;
+    setQ(nextQ);
+    setAppliedQ(nextQ);
+    setFilters(nextFilters);
+    setPage(nextPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params, urlState]);
+
+  // Table -> URL
   useEffect(() => {
     if (!urlState) return;
     const next = new URLSearchParams(params);
-    ['q', 'page'].forEach((k) => next.delete(k));
-    [...next.keys()].filter((k) => k.startsWith('f.')).forEach((k) => next.delete(k));
-    if (debouncedQ) next.set('q', debouncedQ);
+    [...next.keys()].filter(isTableParam).forEach((k) => next.delete(k));
+    if (appliedQ) next.set('q', appliedQ);
     if (page > 1) next.set('page', String(page));
-    Object.entries(cleanFilters(filters)).forEach(([k, v]) => typeof v !== 'object' && next.set(`f.${k}`, String(v)));
-    if (next.toString() !== params.toString()) setParams(next, { replace: true });
+    writeFiltersToUrl(next, filters);
+    const key = urlStateKey(next);
+    lastUrlKey.current = key;
+    if (key !== urlStateKey(params)) setParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQ, page, filters, urlState]);
+  }, [appliedQ, page, filtersKey, urlState]);
 
   const query: Query = {
     page,
     per_page: perPage,
-    q: debouncedQ || undefined,
+    q: appliedQ || undefined,
     sort: sort?.key,
     dir: sort?.dir,
     f: cleanFilters(filters) as Record<string, unknown>,
@@ -165,6 +290,8 @@ function CrudTableInner({
   };
   const { data, isFetching, isLoading, refetch, error } = useCrudList(module, query);
   const rows = data?.rows ?? [];
+
+  const canAdd = meta.can.create && canCreate !== false;
 
   const openView = (row: Row) => {
     if (onView) return onView(row);
@@ -185,15 +312,17 @@ function CrudTableInner({
     setFormOpen(true);
   };
 
-  // Deep link from the top bar "Quick add" menu: /faculty?add=1 opens the create form once.
+  // Deep link from the top bar "Quick add" menu: /faculty?add=1 opens the create form once. It also reacts when the
+  // param arrives while the page is already open (Quick add used on the same page), then removes it from the URL.
+  const addParam = params.get('add') === '1';
   useEffect(() => {
-    if (scope || params.get('add') !== '1' || !meta.can.create) return;
+    if (scope || !addParam || !canAdd) return;
     const next = new URLSearchParams(params);
     next.delete('add');
     setParams(next, { replace: true });
     openCreate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [addParam]);
 
   const remove = async (row: Row) => {
     const name = String(row.name ?? row.title ?? row.full_name ?? row.code ?? `#${row.id}`);
@@ -202,7 +331,14 @@ function CrudTableInner({
     try {
       const res = await api.del(`crud/${module}/${row.id}`);
       toast.success(res.message || `${meta.singular} deleted.`);
+      setSelected((s) => {
+        if (!s.has(row.id as number)) return s;
+        const n = new Set(s);
+        n.delete(row.id as number);
+        return n;
+      });
       await qc.invalidateQueries({ queryKey: ['crud', module] });
+      onDeleted?.([Number(row.id)]);
     } catch (e) {
       toast.error((e as ApiError).message);
     }
@@ -215,10 +351,13 @@ function CrudTableInner({
     if (!ok) return;
     try {
       const res = await api.post<{ deleted: number; errors: Record<string, string> }>(`crud/${module}/bulk`, { action: 'delete', ids });
-      if (Object.keys(res.data.errors ?? {}).length) toast.warning(res.message);
+      const failed = Object.keys(res.data.errors ?? {}).map(Number);
+      if (failed.length) toast.warning(res.message);
       else toast.success(res.message);
       clearSel();
       await qc.invalidateQueries({ queryKey: ['crud', module] });
+      const deleted = ids.filter((id) => !failed.includes(id));
+      if (deleted.length) onDeleted?.(deleted);
     } catch (e) {
       toast.error((e as ApiError).message);
     }
@@ -235,7 +374,7 @@ function CrudTableInner({
   };
   const exportQuery = (format: string, onlySelected = false): Query => ({
     format,
-    q: debouncedQ || undefined,
+    q: appliedQ || undefined,
     sort: sort?.key,
     dir: sort?.dir,
     f: cleanFilters(filters) as Record<string, unknown>,
@@ -248,7 +387,10 @@ function CrudTableInner({
   };
 
   const filterDefs = meta.filters.filter((f) => !hideFilters.includes(f.key) && !(scope && f.key in scope));
-  const activeFilterCount = Object.keys(cleanFilters(filters)).length;
+  // only filters the user can see count as "active" and are cleared by "Clear": hidden ones belong to the page
+  const visibleFilterKeys = new Set(filterDefs.map((f) => f.key));
+  const activeFilterCount = Object.keys(cleanFilters(filters)).filter((k) => visibleFilterKeys.has(k)).length;
+  const clearFilters = () => setFilters((f) => Object.fromEntries(Object.entries(f).filter(([k]) => !visibleFilterKeys.has(k))));
   const columns: Column<Row>[] = meta.columns
     .filter((c) => !hideColumns.includes(c.key))
     .map((c) => ({
@@ -262,15 +404,19 @@ function CrudTableInner({
     }));
 
   const cardTitle = title === false ? null : title ?? meta.title;
-  const canAdd = meta.can.create;
+  const clearAll = () => {
+    setQ('');
+    setAppliedQ('');
+    clearFilters();
+  };
   const empty = (
     <EmptyState
-      icon={debouncedQ || activeFilterCount ? FilterX : FileText}
-      title={debouncedQ || activeFilterCount ? 'No matching records' : emptyTitle ?? `No ${meta.title.toLowerCase()} yet`}
-      description={debouncedQ || activeFilterCount ? 'Try a different search term or clear the filters.' : emptyText ?? `Get started by adding the first ${meta.singular.toLowerCase()}.`}
+      icon={appliedQ || activeFilterCount ? FilterX : FileText}
+      title={appliedQ || activeFilterCount ? 'No matching records' : emptyTitle ?? `No ${meta.title.toLowerCase()} yet`}
+      description={appliedQ || activeFilterCount ? 'Try a different search term or clear the filters.' : emptyText ?? (canAdd ? `Get started by adding the first ${meta.singular.toLowerCase()}.` : `${meta.title} will appear here once they are recorded.`)}
       action={
-        debouncedQ || activeFilterCount ? (
-          <Button variant="secondary" icon={X} onClick={() => { setQ(''); setFilters({}); }}>
+        appliedQ || activeFilterCount ? (
+          <Button variant="secondary" icon={X} onClick={clearAll}>
             Clear filters
           </Button>
         ) : canAdd ? (
@@ -299,20 +445,16 @@ function CrudTableInner({
           <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
             {toolbar}
             <IconButton icon={RefreshCw} label="Refresh" onClick={() => refetch()} className={clsx(isFetching && '[&_svg]:animate-spin')} />
-            <Dropdown
-              label="Choose columns"
-              trigger={<><Columns3 className="h-4 w-4" /><span className="hidden sm:inline">Columns</span></>}
-              items={meta.columns
-                .filter((c) => !hideColumns.includes(c.key))
-                .map((c) => ({
-                  label: `${hiddenCols.includes(c.key) ? '☐' : '☑'}  ${c.label}`,
-                  onClick: () => setHiddenCols((h) => (h.includes(c.key) ? h.filter((x) => x !== c.key) : [...h, c.key])),
-                }))}
+            <ColumnsMenu
+              columns={meta.columns.filter((c) => !hideColumns.includes(c.key))}
+              hidden={hiddenCols}
+              onToggle={(key) => setHiddenCols((h) => (h.includes(key) ? h.filter((x) => x !== key) : [...h, key]))}
+              onReset={() => setHiddenCols(defaultHidden)}
             />
             {meta.export && (
               <Dropdown
                 label="Export"
-                trigger={<><Download className="h-4 w-4" /><span className="hidden sm:inline">Export</span></>}
+                trigger={<><Download className="h-4 w-4" aria-hidden /><span className="hidden sm:inline">Export</span></>}
                 items={[
                   { label: 'Export as CSV', icon: FileText, onClick: () => doExport('csv') },
                   { label: 'Export as Excel', icon: FileSpreadsheet, onClick: () => doExport('xlsx') },
@@ -321,7 +463,7 @@ function CrudTableInner({
               />
             )}
             {meta.import && (
-              <Button variant="secondary" size="sm" icon={Upload} onClick={() => setImportOpen(true)}>
+              <Button variant="secondary" size="sm" icon={Upload} onClick={() => setImportOpen(true)} aria-label={`Import ${meta.title.toLowerCase()}`}>
                 <span className="hidden sm:inline">Import</span>
               </Button>
             )}
@@ -333,13 +475,13 @@ function CrudTableInner({
           </div>
         </div>
         {filterDefs.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filters">
             {filterDefs.map((f) => (
               <FilterControl key={f.key} def={f} value={filters[f.key]} filters={filters} onChange={(v) => setFilters((s) => ({ ...s, [f.key]: v }))} />
             ))}
             {activeFilterCount > 0 && (
-              <button type="button" onClick={() => setFilters({})} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800">
-                <FilterX className="h-3.5 w-3.5" /> Clear ({activeFilterCount})
+              <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100">
+                <FilterX className="h-3.5 w-3.5" aria-hidden /> Clear ({activeFilterCount})
               </button>
             )}
           </div>
@@ -350,8 +492,8 @@ function CrudTableInner({
 
       {/* Bulk bar */}
       {selected.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 border-b border-brand-100 bg-brand-50/70 px-4 py-2.5 text-sm dark:border-brand-500/20 dark:bg-brand-500/10">
-          <span className="font-semibold text-brand-900 dark:text-brand-100">{selected.size} selected</span>
+        <div className="flex flex-wrap items-center gap-2 border-b border-brand-100 bg-brand-50/70 px-4 py-2.5 text-sm dark:border-brand-500/20 dark:bg-brand-500/10" role="region" aria-label="Bulk actions">
+          <span className="font-semibold text-brand-900 dark:text-brand-100" aria-live="polite">{selected.size} selected</span>
           <button type="button" className="text-xs text-brand-700 underline dark:text-brand-300" onClick={clearSel}>
             Clear
           </button>
@@ -361,7 +503,7 @@ function CrudTableInner({
             )}
             {meta.export && (
               <Dropdown
-                trigger={<><Download className="h-4 w-4" />Export selected</>}
+                trigger={<><Download className="h-4 w-4" aria-hidden />Export selected</>}
                 items={[
                   { label: 'CSV', onClick: () => doExport('csv', true) },
                   { label: 'Excel', onClick: () => doExport('xlsx', true) },
@@ -385,7 +527,7 @@ function CrudTableInner({
 
       {error ? (
         <div className="p-6">
-          <Alert variant="error" title="Unable to load records">
+          <Alert variant="error" title="Unable to load records" action={<Button size="sm" variant="secondary" onClick={() => refetch()}>Retry</Button>}>
             {(error as ApiError).message}
           </Alert>
         </div>
@@ -406,13 +548,15 @@ function CrudTableInner({
               ? undefined
               : (row) => {
                   const extra = rowMenu?.(row)?.filter(Boolean) ?? [];
+                  const editable = meta.can.edit && (canEdit?.(row) ?? true);
+                  const deletable = meta.can.delete && (canDelete?.(row) ?? true);
                   return (
                     <div className="flex items-center justify-end gap-0.5">
                       <IconButton size="sm" icon={Eye} label="View" tone="primary" onClick={() => openView(row)} />
-                      {meta.can.edit && <IconButton size="sm" icon={Pencil} label="Edit" tone="primary" onClick={() => openEdit(row)} />}
-                      {meta.can.delete && <IconButton size="sm" icon={Trash2} label="Delete" tone="danger" onClick={() => remove(row)} />}
+                      {editable && <IconButton size="sm" icon={Pencil} label="Edit" tone="primary" onClick={() => openEdit(row)} />}
+                      {deletable && <IconButton size="sm" icon={Trash2} label="Delete" tone="danger" onClick={() => remove(row)} />}
                       {extra.length > 0 && (
-                        <Dropdown label="More actions" triggerClassName="btn-icon !h-8 !w-8 !rounded-lg" trigger={<MoreHorizontal className="h-4 w-4" />} items={extra} />
+                        <Dropdown label="More actions" triggerClassName="btn-icon !h-8 !w-8 !rounded-lg" trigger={<MoreHorizontal className="h-4 w-4" aria-hidden />} items={extra} />
                       )}
                     </div>
                   );
@@ -450,11 +594,59 @@ function CrudTableInner({
           if (id) openEdit({ id });
         }}
       />
-      {meta.import && <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} module={module} title={meta.title} />}
+      {meta.import && (
+        <ImportDialog
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          module={module}
+          title={meta.title}
+          scope={Object.entries(scope ?? {}).flatMap(([name, value]) => {
+            const f = meta.fields.find((x) => x.name === name);
+            return f ? [{ name, label: f.label, value }] : [];
+          })}
+        />
+      )}
     </>
   );
 
   return bare ? <div className={className}>{body}</div> : <Card className={clsx('overflow-hidden', className)}>{body}</Card>;
+}
+
+/** Column chooser: a popover of checkboxes (stays open while toggling) with a reset to the module's default layout. */
+function ColumnsMenu({ columns, hidden, onToggle, onReset }: { columns: CrudColumn[]; hidden: string[]; onToggle: (key: string) => void; onReset: () => void }) {
+  const shown = columns.filter((c) => !hidden.includes(c.key)).length;
+  return (
+    <Popover className="relative">
+      <PopoverButton className="btn btn-secondary btn-sm" aria-label={`Choose columns (${shown} of ${columns.length} shown)`}>
+        <Columns3 className="h-4 w-4" aria-hidden />
+        <span className="hidden sm:inline">Columns</span>
+      </PopoverButton>
+      <PopoverPanel anchor="bottom end" className="menu-panel z-[60] w-64 p-1.5 [--anchor-gap:6px]">
+        <p className="px-2 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          Columns · {shown}/{columns.length}
+        </p>
+        <div className="max-h-72 overflow-y-auto">
+          {columns.map((c) => {
+            const on = !hidden.includes(c.key);
+            // keep at least one column visible
+            const locked = on && shown === 1;
+            return (
+              <label key={c.key} className={clsx('flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800', locked && 'cursor-not-allowed opacity-60')}>
+                <input type="checkbox" className="form-checkbox" checked={on} disabled={locked} onChange={() => onToggle(c.key)} />
+                <span className="min-w-0 flex-1 truncate">{c.label}</span>
+              </label>
+            );
+          })}
+        </div>
+        <div className="mt-1 border-t border-slate-100 pt-1 dark:border-slate-800">
+          <button type="button" onClick={onReset} className="menu-item w-full hover:bg-slate-100 dark:hover:bg-slate-800">
+            <RotateCcw className="h-4 w-4 shrink-0 opacity-70" aria-hidden />
+            <span className="flex-1 text-left">Reset to default columns</span>
+          </button>
+        </div>
+      </PopoverPanel>
+    </Popover>
+  );
 }
 
 function FilterControl({ def, value, onChange, filters }: { def: CrudFilter; value: unknown; onChange: (v: unknown) => void; filters: Record<string, unknown> }) {
@@ -462,15 +654,17 @@ function FilterControl({ def, value, onChange, filters }: { def: CrudFilter; val
   Object.entries(def.depends ?? {}).forEach(([param, key]) => {
     if (filters[key]) params[param] = String(filters[key]);
   });
-  const cls = 'w-full sm:w-auto sm:min-w-[10rem]';
+  // native selects size to their longest option: cap them so one long program name cannot stretch a filter across the bar
+  const cls = 'w-full sm:w-auto sm:min-w-[10rem] sm:max-w-[16rem]';
   switch (def.type) {
     case 'daterange': {
       const v = (value as { from?: string; to?: string }) ?? {};
       return (
-        <div className="flex items-center gap-1.5" aria-label={def.label}>
-          <Input inputSize="sm" type="date" value={v.from ?? ''} onChange={(e) => onChange({ ...v, from: e.target.value })} aria-label={`${def.label} from`} className="!w-36" />
+        <div className="flex items-center gap-1.5" role="group" aria-label={def.label}>
+          <span className="hidden text-xs font-medium text-slate-500 dark:text-slate-400 sm:inline">{def.label}</span>
+          <Input inputSize="sm" type="date" value={v.from ?? ''} max={v.to || undefined} onChange={(e) => onChange({ ...v, from: e.target.value })} aria-label={`${def.label} from`} className="!w-36" />
           <span className="text-xs text-slate-400">to</span>
-          <Input inputSize="sm" type="date" value={v.to ?? ''} onChange={(e) => onChange({ ...v, to: e.target.value })} aria-label={`${def.label} to`} className="!w-36" />
+          <Input inputSize="sm" type="date" value={v.to ?? ''} min={v.from || undefined} onChange={(e) => onChange({ ...v, to: e.target.value })} aria-label={`${def.label} to`} className="!w-36" />
         </div>
       );
     }
@@ -480,6 +674,14 @@ function FilterControl({ def, value, onChange, filters }: { def: CrudFilter; val
       return <Input inputSize="sm" value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} placeholder={def.placeholder ?? def.label} aria-label={def.label} className="!w-44" />;
     case 'boolean':
       return <Select inputSize="sm" value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} options={[{ value: '1', label: 'Yes' }, { value: '0', label: 'No' }]} placeholder={`${def.label}: Any`} aria-label={def.label} className={cls} />;
+    case 'multiselect': {
+      const list = Array.isArray(value) ? (value as (string | number)[]) : value ? [String(value)] : [];
+      return (
+        <div className={clsx(cls, 'sm:w-64')} aria-label={def.label}>
+          <Combobox multiple size="sm" value={list} onChange={(v) => onChange(v)} options={def.options_url ? undefined : def.options} optionsUrl={def.options_url} params={params} placeholder={`${def.label}: All`} />
+        </div>
+      );
+    }
     default:
       if (def.options_url || (def.options && def.options.length > 12)) {
         return (

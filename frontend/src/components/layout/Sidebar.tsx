@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { ChevronDown, ExternalLink, Globe, GraduationCap, LifeBuoy, UserRound, X } from 'lucide-react';
-import { NAVIGATION, type NavChild, type NavItem } from '@/navigation';
+import { NAVIGATION, permAllowed, type NavChild, type NavItem } from '@/navigation';
 import { useAuth } from '@/lib/auth';
 import { appUrl } from '@/lib/config';
 
@@ -46,8 +46,8 @@ export function Sidebar({ collapsed, mobileOpen, onCloseMobile }: SidebarProps) 
       NAVIGATION.map((g) => ({
         ...g,
         items: g.items
-          .map((it) => (it.children ? { ...it, children: it.children.filter((c) => can(c.perm, c.action ?? 'view')) } : it))
-          .filter((it) => (it.children ? it.children.length > 0 : can(it.perm, it.action ?? 'view'))),
+          .map((it) => (it.children ? { ...it, children: it.children.filter((c) => permAllowed(can, c.perm, c.action ?? 'view')) } : it))
+          .filter((it) => (it.children ? it.children.length > 0 : permAllowed(can, it.perm, it.action ?? 'view'))),
       })).filter((g) => g.items.length > 0),
     [can],
   );
@@ -67,6 +67,30 @@ export function Sidebar({ collapsed, mobileOpen, onCloseMobile }: SidebarProps) 
     onCloseMobile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, location.search]);
+  // Mobile drawer keyboard support: focus moves into the drawer when it opens, Esc closes it, and focus returns to the
+  // top bar's menu button when it closes.
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+  const closeMobile = useRef(onCloseMobile);
+  closeMobile.current = onCloseMobile;
+  useEffect(() => {
+    if (!mobileOpen) {
+      if (wasOpen.current) document.querySelector<HTMLButtonElement>('button[aria-label="Open menu"]')?.focus();
+      wasOpen.current = false;
+      return;
+    }
+    wasOpen.current = true;
+    // after the visibility transition has started (a hidden element cannot take focus)
+    const t = window.setTimeout(() => closeRef.current?.focus(), 60);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeMobile.current();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      window.clearTimeout(t);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [mobileOpen]);
 
   const mini = collapsed && !mobileOpen;
   const logo = session?.app.logo_white ?? appUrl('assets/images/logo-white.svg');
@@ -78,7 +102,8 @@ export function Sidebar({ collapsed, mobileOpen, onCloseMobile }: SidebarProps) 
         className={clsx(
           'fixed inset-y-0 left-0 z-50 flex flex-col bg-gradient-to-b from-[#0B2A5B] via-[#0A2554] to-[#071A3B] text-white shadow-xl transition-all duration-200 lg:z-30',
           mini ? 'lg:w-[76px]' : 'lg:w-[272px]',
-          mobileOpen ? 'w-[284px] translate-x-0' : 'w-[284px] -translate-x-full lg:translate-x-0',
+          // closed on phones/tablets: also invisible, so the off-screen links leave the tab order and the a11y tree
+          mobileOpen ? 'visible w-[284px] translate-x-0' : 'invisible w-[284px] -translate-x-full lg:visible lg:translate-x-0',
         )}
         aria-label="Main navigation"
       >
@@ -93,12 +118,14 @@ export function Sidebar({ collapsed, mobileOpen, onCloseMobile }: SidebarProps) 
               </>
             )}
           </Link>
-          <button type="button" className="ml-auto rounded-lg p-1.5 text-white/70 hover:bg-white/10 lg:hidden" onClick={onCloseMobile} aria-label="Close menu">
+          <button ref={closeRef} type="button" className="ml-auto rounded-lg p-1.5 text-white/70 hover:bg-white/10 lg:hidden" onClick={onCloseMobile} aria-label="Close menu">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 scrollbar-none">
+        {/* bottom fade: a group label cut off by the scroll edge fades out instead of showing as a stray sliver, and hints
+            that the menu scrolls */}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 scrollbar-none [-webkit-mask-image:linear-gradient(to_bottom,#000_calc(100%-1.25rem),transparent)] [mask-image:linear-gradient(to_bottom,#000_calc(100%-1.25rem),transparent)]">
           {groups.map((g) => (
             <div key={g.group} className="mb-3">
               {!mini && <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">{g.group}</p>}
@@ -166,8 +193,8 @@ export function Sidebar({ collapsed, mobileOpen, onCloseMobile }: SidebarProps) 
             <p className="mb-2 text-xs font-semibold text-white">Quick Links</p>
             <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11.5px] text-white/75">
               <a href={appUrl('')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-white"><Globe className="h-3.5 w-3.5" />Visit Website</a>
-              <a href={appUrl('student-portal')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-white"><GraduationCap className="h-3.5 w-3.5" />Student Portal</a>
-              <a href={appUrl('faculty-portal')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-white"><UserRound className="h-3.5 w-3.5" />Faculty Portal</a>
+              <a href={appUrl('portal/student/login')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-white"><GraduationCap className="h-3.5 w-3.5" />Student Portal</a>
+              <a href={appUrl('portal/faculty/login')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-white"><UserRound className="h-3.5 w-3.5" />Faculty Portal</a>
               <a href={appUrl('contact')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-white"><LifeBuoy className="h-3.5 w-3.5" />Help &amp; Support</a>
             </div>
           </div>

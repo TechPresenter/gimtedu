@@ -64,7 +64,7 @@ route('POST', '/hostel/rooms/generate', function () {
 
 route('POST', '/hostel/beds/{id:\d+}/status', function ($p) {
     api_require('hostel', 'edit');
-    $status = (string) api_param('status', '');
+    $status = api_str(api_param('status'));
     $bed = hostel_set_bed_status((int) $p['id'], $status);
     api_ok(['id' => (int) $p['id'], 'status' => $status], 'Bed ' . $bed['bed_no'] . ' of Room ' . $bed['room_no'] . ' marked ' . ($status === 'maintenance' ? 'under maintenance.' : 'available.'));
 });
@@ -141,20 +141,21 @@ route('POST', '/hostel/visitors/{id:\d+}/checkout', function ($p) {
     api_ok($v, $v['visitor_name'] . ' checked out at ' . date('h:i A', strtotime($v['check_out'])) . '.');
 });
 
-/* ---------------------------------------------------------------- print views (HTML) */
+/* ---------------------------------------------------------------- print views (HTML)
+ * ['auth' => false]: hostel_print_guard() signs the visitor in (or redirects to the admin sign-in page) and checks hostel.view. */
 
 route('GET', '/hostel/print/allotment/{id:\d+}', function ($p) {
     hostel_print_allotment((int) $p['id']);
-});
+}, ['auth' => false]);
 
 route('GET', '/hostel/print/register/{id:\d+}', function ($p) {
     hostel_print_register((int) $p['id'], !empty($_GET['block_id']) ? (int) $_GET['block_id'] : null);
-});
+}, ['auth' => false]);
 
 route('GET', '/hostel/print/visitor-pass/{id:\d+}', function ($p) {
     hostel_print_visitor_pass((int) $p['id']);
-});
+}, ['auth' => false]);
 
 route('GET', '/hostel/print/complaint/{id:\d+}', function ($p) {
     hostel_print_complaint((int) $p['id']);
-});
+}, ['auth' => false]);

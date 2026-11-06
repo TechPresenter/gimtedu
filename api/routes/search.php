@@ -2,7 +2,7 @@
 /**
  * Global search (Ctrl/Cmd + K command palette in the admin top bar).
  *   GET /api/search?q=rahul&limit=5
- *     -> { query, groups: [{ key, label, icon, items: [{ id, title, subtitle, url, badge, image, icon }] }] }
+ *     -> { query, groups: [{ key, label, icon, items: [{ id, title, subtitle, url, badge, image, image_kind, icon }] }] }
  *
  * Grouped, permission-aware results: a group is searched only when the user may view its module. People and document
  * numbers use prefix matches (index friendly); short content tables (notices, events, pages, posts …) use contains
@@ -35,9 +35,36 @@ function search_digits(string $q): ?string
     return strlen($d) >= 4 && preg_match('/^[\d\s+\-()]+$/', $q) ? $d : null;
 }
 
-function search_item($id, string $title, ?string $subtitle, string $url, string $icon, ?string $badge = null, ?string $image = null): array
+/**
+ * Phone match that ignores formatting: numbers are stored as "+919955446477", "+91 9955446477" or "+91 120 4567835",
+ * while users type or paste "99554 46477", "+91 99554 46477" or "919955446477". Spaces, dashes, brackets and "+" are
+ * stripped from the column, and a query longer than 10 digits (country code included) matches on its last 10 digits.
+ * Returns [sql, arg] for a WHERE fragment.
+ */
+function search_phone_sql(string $col, string $digits): array
 {
-    return ['id' => $id, 'title' => $title, 'subtitle' => $subtitle ?: null, 'url' => $url, 'icon' => $icon, 'badge' => $badge, 'image' => $image ? upload_url($image) : null];
+    $needle = strlen($digits) > 10 ? substr($digits, -10) : $digits;
+    return ["REPLACE(REPLACE(REPLACE(REPLACE(REPLACE($col, ' ', ''), '-', ''), '+', ''), '(', ''), ')', '') LIKE ?", '%' . $needle . '%'];
+}
+
+/** Readable phone for a result subtitle ("+91 99554 46477"); the stored value when it cannot be parsed. */
+function search_phone_label(?string $phone): ?string
+{
+    if (!$phone) {
+        return null;
+    }
+    require_once APP_ROOT . '/app/services/phone.php';
+    return function_exists('phone_display') ? phone_display($phone) : $phone;
+}
+
+/**
+ * One result row. `image_kind` tells the palette how to draw `image`: 'photo' (round avatar) or 'logo' (organisation
+ * logo in a rounded box, never cropped - CLAUDE.md recruiter-logo rule).
+ */
+function search_item($id, string $title, ?string $subtitle, string $url, string $icon, ?string $badge = null, ?string $image = null, string $imageKind = 'photo'): array
+{
+    return ['id' => $id, 'title' => $title, 'subtitle' => $subtitle ?: null, 'url' => $url, 'icon' => $icon, 'badge' => $badge,
+        'image' => $image ? upload_url($image) : null, 'image_kind' => $image ? $imageKind : null];
 }
 
 /** Display name from first/middle/last columns (single spaces). */
@@ -53,12 +80,14 @@ function search_join(array $parts): string
 }
 
 route('GET', '/search', function () {
-    $q = trim(preg_replace('/\s+/', ' ', (string) ($_GET['q'] ?? '')));
+    // ?q[]=x arrives as an array: treat anything but a string as an empty query (no "Array to string" warnings)
+    $raw = $_GET['q'] ?? '';
+    $q = trim(preg_replace('/\s+/', ' ', is_string($raw) ? $raw : ''));
     $q = mb_substr($q, 0, 80);
     if (mb_strlen($q) < 2) {
         api_ok(['query' => $q, 'groups' => []]);
     }
-    $limit = max(1, min(10, (int) ($_GET['limit'] ?? 5)));
+    $limit = max(1, min(10, is_scalar($_GET['limit'] ?? null) ? (int) $_GET['limit'] : 5));
     $like = search_like($q);
     $tokens = array_values(array_filter(explode(' ', $like), fn ($t) => $t !== ''));
     $contains = '%' . $like . '%';
@@ -83,8 +112,8 @@ route('GET', '/search', function () {
             $where = "$nameSql OR s.student_uid LIKE ? OR s.admission_no LIKE ? OR s.roll_no LIKE ? OR s.enrollment_no LIKE ? OR s.email LIKE ?";
             array_push($args, $prefix, $prefix, $prefix, $prefix, $prefix);
             if ($digits) {
-                $where .= ' OR s.mobile LIKE ?';
-                $args[] = '%' . $digits . '%';
+                [$phoneSql, $args[]] = search_phone_sql('s.mobile', $digits);
+                $where .= ' OR ' . $phoneSql;
             }
             $rows = db_all("SELECT s.id, s.first_name, s.middle_name, s.last_name, s.student_uid, s.photo, s.status, s.current_semester, COALESCE(NULLIF(p.short_name, ''), p.name) AS program
                             FROM students s LEFT JOIN programs p ON p.id = s.program_id WHERE $where
@@ -100,8 +129,8 @@ route('GET', '/search', function () {
             $where = "$nameSql OR f.employee_id LIKE ? OR f.email LIKE ?";
             array_push($args, $prefix, $prefix);
             if ($digits) {
-                $where .= ' OR f.phone LIKE ?';
-                $args[] = '%' . $digits . '%';
+                [$phoneSql, $args[]] = search_phone_sql('f.phone', $digits);
+                $where .= ' OR ' . $phoneSql;
             }
             $rows = db_all("SELECT f.id, f.title, f.first_name, f.last_name, f.employee_id, f.designation, f.photo, f.status, d.code AS dept
                             FROM faculty f LEFT JOIN departments d ON d.id = f.department_id WHERE $where ORDER BY (f.status = 'active') DESC, (CONCAT_WS(' ', f.first_name, f.last_name) LIKE ?) DESC, f.first_name LIMIT $limit", array_merge($args, [$like . '%']));
@@ -113,8 +142,8 @@ route('GET', '/search', function () {
             $where = "$nameSql OR s.employee_id LIKE ? OR s.email LIKE ?";
             array_push($args, $prefix, $prefix);
             if ($digits) {
-                $where .= ' OR s.phone LIKE ?';
-                $args[] = '%' . $digits . '%';
+                [$phoneSql, $args[]] = search_phone_sql('s.phone', $digits);
+                $where .= ' OR ' . $phoneSql;
             }
             $rows = db_all("SELECT s.id, s.first_name, s.last_name, s.employee_id, s.designation, s.photo, s.status FROM staff s WHERE $where ORDER BY (s.status = 'active') DESC, (CONCAT_WS(' ', s.first_name, s.last_name) LIKE ?) DESC, s.first_name LIMIT $limit", array_merge($args, [$like . '%']));
             return array_map(fn ($r) => search_item((int) $r['id'], trim($r['first_name'] . ' ' . $r['last_name']), search_join([$r['employee_id'], $r['designation']]),
@@ -128,8 +157,8 @@ route('GET', '/search', function () {
             $where = "$nameSql OR a.application_no LIKE ? OR a.email LIKE ?";
             array_push($args, $prefix, $prefix);
             if ($digits) {
-                $where .= ' OR a.phone LIKE ?';
-                $args[] = '%' . $digits . '%';
+                [$phoneSql, $args[]] = search_phone_sql('a.phone', $digits);
+                $where .= ' OR ' . $phoneSql;
             }
             $rows = db_all("SELECT a.id, a.first_name, a.middle_name, a.last_name, a.application_no, a.stage, a.photo, COALESCE(NULLIF(p.short_name, ''), p.name) AS program
                             FROM admissions a LEFT JOIN programs p ON p.id = a.program_id WHERE $where ORDER BY (CONCAT_WS(' ', a.first_name, a.last_name) LIKE ?) DESC, a.created_at DESC LIMIT $limit", array_merge($args, [$like . '%']));
@@ -143,12 +172,12 @@ route('GET', '/search', function () {
             $where = 'e.name LIKE ? OR e.name LIKE ? OR e.email LIKE ?';
             $args = [$prefix, '% ' . $prefix, $prefix];
             if ($digits) {
-                $where .= ' OR e.phone LIKE ?';
-                $args[] = '%' . $digits . '%';
+                [$phoneSql, $args[]] = search_phone_sql('e.phone', $digits);
+                $where .= ' OR ' . $phoneSql;
             }
             $rows = db_all("SELECT e.id, e.name, e.phone, e.status, e.created_at, COALESCE(NULLIF(p.short_name, ''), p.name, e.program_interest) AS program
                             FROM enquiries e LEFT JOIN programs p ON p.id = e.program_id WHERE $where ORDER BY e.created_at DESC LIMIT $limit", $args);
-            return array_map(fn ($r) => search_item((int) $r['id'], $r['name'], search_join([$r['phone'], $r['program'], 'Received ' . format_date($r['created_at'])]),
+            return array_map(fn ($r) => search_item((int) $r['id'], $r['name'], search_join([search_phone_label($r['phone']), $r['program'], 'Received ' . format_date($r['created_at'])]),
                 '/enquiries?q=' . rawurlencode($r['phone'] ?: $r['name']), 'message-circle', label_from_key((string) $r['status'])), $rows);
         });
     }
@@ -248,9 +277,10 @@ route('GET', '/search', function () {
 
     if (can('placement')) {
         $add('companies', 'Companies & Recruiters', 'building-2', function () use ($contains, $limit) {
-            $rows = db_all("SELECT id, name, industry, city, status, is_recruiter FROM companies WHERE name LIKE ? ORDER BY name LIMIT $limit", [$contains]);
+            $rows = db_all("SELECT id, name, industry, city, status, is_recruiter, logo FROM companies WHERE name LIKE ? ORDER BY name LIMIT $limit", [$contains]);
+            // official logo (companies.logo) drawn uncropped in a logo box; text wordmark fallback in the palette when NULL
             return array_map(fn ($r) => search_item((int) $r['id'], $r['name'], search_join([$r['industry'], $r['city'], $r['is_recruiter'] ? 'Recruiter' : null]),
-                '/placement/companies?q=' . rawurlencode($r['name']), 'building-2', $r['status'] !== 'active' ? label_from_key((string) $r['status']) : null), $rows);
+                '/placement/companies?q=' . rawurlencode($r['name']), 'building-2', $r['status'] !== 'active' ? label_from_key((string) $r['status']) : null, $r['logo'], 'logo'), $rows);
         });
     }
 

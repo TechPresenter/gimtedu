@@ -12,21 +12,32 @@
  * (matched by slug, updated in place so their ids — and links such as /admin/cms/pages/1/builder — stay stable) plus the
  * seo_settings rows of the routes and pages it seeds. Pages created by other seeders (08_policies) or by editors are
  * never touched.
+ *
+ * Verified content only: legal details GIMT still has to confirm are written as "[To be confirmed by GIMT: ...]" (page.php
+ * highlights them), and the leadership cards are clearly marked placeholders until real names and photos are entered in
+ * CMS > Pages > Leadership. The short /refund-policy summarises the full /refund-and-cancellation-policy (08_policies).
+ *
+ * Option ['pages' => ['refund-policy', ...]] upserts only those pages and stops (menus, home sections and SEO rows are
+ * left alone) - for refreshing their content on a live database without resetting anything else.
  */
 return function (array $opts): void {
     require_once APP_ROOT . '/app/services/cms.php';
     mt_srand(505);
+    $onlyPages = isset($opts['pages']) && is_array($opts['pages']) ? array_map('strval', $opts['pages']) : null;
 
-    db_exec('DELETE FROM menu_items');
-    db_exec('DELETE FROM menus');
-    db_exec('DELETE FROM homepage_sections');
-    db_exec('ALTER TABLE menus AUTO_INCREMENT = 1');
-    db_exec('ALTER TABLE menu_items AUTO_INCREMENT = 1');
+    if ($onlyPages === null) {
+        db_exec('DELETE FROM menu_items');
+        db_exec('DELETE FROM menus');
+        db_exec('DELETE FROM homepage_sections');
+        db_exec('ALTER TABLE menus AUTO_INCREMENT = 1');
+        db_exec('ALTER TABLE menu_items AUTO_INCREMENT = 1');
+    }
 
     $adminId = db_value("SELECT id FROM users WHERE username = 'admin' LIMIT 1") ?: null;
     $now = date('Y-m-d H:i:s');
     $published = date('Y-m-d H:i:s', strtotime('-120 days'));
     $img = fn (string $f) => 'assets/images/site/' . $f;
+    // og-gimt.jpg = 1200×630 share card (logo, name, campus photo) for routes whose own photo is too small for social cards
     $b = function (string $type, array $data, array $settings = []) {
         static $n = 0;
         $n++;
@@ -36,7 +47,11 @@ return function (array $opts): void {
     $phone = setting('phone', '+91 9955446477');
     $email = setting('email', 'info@gimt.ac.in');
     $address = setting('address', 'Plot No. 123, Knowledge Park, Greater Noida, Uttar Pradesh 201310, India');
-    $updated = date('d F Y', strtotime('2026-07-01'));
+    // "Last updated" line of the legal pages: the real date their wording last changed (placeholders, refund schedule
+    // aligned with the full policy). Update it whenever the text below changes.
+    $legalChanged = '2026-10-13';
+    $updated = date('d F Y', strtotime($legalChanged));
+    $legalSlugs = ['privacy-policy', 'terms-and-conditions', 'refund-policy', 'accessibility'];
 
     /* ------------------------------------------------------------------ pages */
     $pages = [];
@@ -44,7 +59,7 @@ return function (array $opts): void {
     $pages[] = ['about', 'About GIMT', 'Empowering Minds. Shaping Futures.',
         'Global Institute of Management & Technology (GIMT) is committed to providing high-quality, industry-oriented education with a focus on innovation, research and holistic development.',
         $img('campus-building.jpg'),
-        '<p>Founded in 2008 in Knowledge Park, Greater Noida, the Global Institute of Management &amp; Technology began with a single management program and a simple belief: that education should prepare students for the world as it is, and the world they will build. Today GIMT offers undergraduate, postgraduate, diploma and certificate programs across management, technology, computer applications, commerce and data science.</p>'
+        '<p>Founded in 2008 in Knowledge Park, Greater Noida, the Global Institute of Management &amp; Technology began with programs in management and commerce and a simple belief: that education should prepare students for the world as it is, and the world they will build. Today GIMT offers undergraduate, postgraduate, diploma and certificate programs across management, technology, computer applications, commerce and data science.</p>'
         . '<p>Our classrooms are deliberately small and our faculty deliberately accessible. Every student is assigned a faculty mentor in the first semester, works on live projects with industry partners and completes at least one internship before graduating. The result is a campus where theory meets practice every single day.</p>'
         . '<p>We measure our success by the success of our graduates — the managers, engineers, analysts and entrepreneurs who carry the GIMT name into leading organisations across India and abroad.</p>',
         [
@@ -81,10 +96,12 @@ return function (array $opts): void {
         '',
         [
             $b('text', ['heading' => 'Leadership that listens', 'html' => '<p>GIMT is guided by a leadership team that combines decades of academic, research and industry experience. Our leaders meet students every semester through open forums and remain closely involved with curriculum design, faculty development and placements.</p>', 'align' => 'center', 'width' => 'narrow']),
-            $b('cards', ['eyebrow' => 'Our leadership', 'heading' => 'Meet the team', 'subheading' => '', 'style' => 'person', 'columns' => '3', 'items' => [
-                ['title' => 'Dr. R.K. Sharma', 'subtitle' => 'Chairman', 'text' => 'Visionary leader with 25+ years in education and research, who founded GIMT in 2008 to bring industry-focused higher education to Greater Noida.', 'image' => $img('leader-1.jpg')],
-                ['title' => 'Prof. Neha Verma', 'subtitle' => 'Director', 'text' => 'Focused on academic excellence and student development; leads curriculum reform, faculty development and international collaborations.', 'image' => $img('leader-2.jpg')],
-                ['title' => 'Dr. Amit Kumar', 'subtitle' => 'Academic Dean', 'text' => 'Expert in curriculum design and industry collaboration; oversees examinations, research and outcome-based education across departments.', 'image' => $img('leader-3.jpg')]]],
+            // PLACEHOLDERS: the mockup's demo names are not verified GIMT office-bearers. Replace name, photo and profile
+            // in CMS > Pages > Leadership (the About page reads these cards too).
+            $b('cards', ['eyebrow' => 'Our leadership', 'heading' => 'Meet the team', 'subheading' => '[To be confirmed by GIMT: names, photographs and profiles of the leadership team. The cards below are placeholders.]', 'style' => 'person', 'columns' => '3', 'items' => [
+                ['title' => 'Dr. R.K. Sharma (placeholder)', 'subtitle' => 'Chairman', 'text' => "[To be confirmed by GIMT: Chairman's name, photograph and profile]", 'image' => $img('leader-1.jpg')],
+                ['title' => 'Prof. Neha Verma (placeholder)', 'subtitle' => 'Director', 'text' => "[To be confirmed by GIMT: Director's name, photograph and profile]", 'image' => $img('leader-2.jpg')],
+                ['title' => 'Dr. Amit Kumar (placeholder)', 'subtitle' => 'Academic Dean', 'text' => "[To be confirmed by GIMT: Academic Dean's name, photograph and profile]", 'image' => $img('leader-3.jpg')]]],
                 ['anchor' => 'team', 'background' => 'light']),
             $b('text', ['heading' => 'Governance', 'html' => '<p>The Governing Body sets the strategic direction of the institute and approves its annual plan and budget. The Academic Council approves programs, curricula and examination regulations, while the Board of Studies of each department reviews syllabi every year with external experts and alumni.</p>'
                 . '<p>Statutory committees — the Internal Complaints Committee, Anti-Ragging Committee, Grievance Redressal Committee and the Equal Opportunity Cell — ensure that every student and employee has a safe, fair and responsive campus.</p>', 'align' => 'left', 'width' => 'normal']),
@@ -122,7 +139,7 @@ return function (array $opts): void {
                 ['image' => $img('facility-sports.jpg'), 'alt' => 'Outdoor sports courts', 'caption' => 'Sports & Recreation'],
                 ['image' => $img('facility-green-campus.jpg'), 'alt' => 'Tree-lined green campus', 'caption' => 'Green & Safe Campus']]],
                 ['background' => 'light']),
-            $b('cards', ['eyebrow' => 'Get involved', 'heading' => 'Clubs & societies', 'subheading' => 'Over twenty student-run clubs organise events, competitions and community projects every semester.', 'style' => 'pastel', 'columns' => '4', 'items' => [
+            $b('cards', ['eyebrow' => 'Get involved', 'heading' => 'Clubs & societies', 'subheading' => 'Student-run clubs organise events, competitions and community projects every semester.', 'style' => 'pastel', 'columns' => '4', 'items' => [
                 ['icon' => 'code-xml', 'title' => 'Coding Club', 'text' => 'Hackathons, open-source sprints and competitive programming.', 'tint' => 'lavender'],
                 ['icon' => 'briefcase-business', 'title' => 'Entrepreneurship Cell', 'text' => 'Start-up talks, pitch days and the annual business plan contest.', 'tint' => 'sky'],
                 ['icon' => 'palette', 'title' => 'Cultural Society', 'text' => 'Music, dance, theatre and the flagship cultural festival.', 'tint' => 'aqua'],
@@ -147,9 +164,9 @@ return function (array $opts): void {
             '2. How we use your information' => '<ul><li>To respond to enquiries and provide admission counselling.</li><li>To process applications, verify documents, communicate decisions and complete enrolment.</li><li>To send updates you have asked for, such as newsletters and event reminders (you can unsubscribe at any time).</li><li>To keep the website secure, prevent abuse and improve our services.</li><li>To meet legal and regulatory obligations.</li></ul>',
             '3. Sharing of information' => '<p>We do not sell personal information. We share it only with affiliating and regulatory bodies where required by law, with service providers that host our systems or send messages on our behalf under confidentiality obligations, and with recruiters only for students who have registered for placement.</p>',
             '4. Cookies' => '<p>We use essential cookies to keep forms secure and remember your session. Analytics cookies, if enabled, help us understand how visitors use the website. You can block cookies in your browser settings; essential features such as forms may then not work correctly.</p>',
-            '5. Data retention & security' => '<p>Enquiry data is kept for up to two years; application and student records are kept for as long as required by academic and legal rules. Information is stored on secured servers with access limited to authorised staff, encrypted connections and regular backups.</p>',
-            '6. Your rights' => '<p>You may request access to, correction of or deletion of your personal information, or withdraw consent for marketing communication, by writing to us. We will respond within 30 days.</p>',
-            '7. Contact & grievance officer' => '<p>For privacy questions or complaints, contact the Grievance Officer, GIMT, ' . e($address) . ' — email <a href="mailto:' . e($email) . '">' . e($email) . '</a>, phone ' . e($phone) . '.</p>',
+            '5. Data retention & security' => '<p>Enquiry data is kept only as long as it is needed to respond to you and for admission follow-up [To be confirmed by GIMT: retention period for enquiry data]; application and student records are kept for as long as required by academic and legal rules. Information is stored on secured servers with access limited to authorised staff, encrypted connections and regular backups.</p>',
+            '6. Your rights' => '<p>You may request access to, correction of or deletion of your personal information, or withdraw consent for marketing communication, by writing to us. We will respond within a reasonable time [To be confirmed by GIMT: response time for privacy requests].</p>',
+            '7. Contact & grievance officer' => '<p>For privacy questions or complaints, contact the Grievance Officer [To be confirmed by GIMT: name and designation of the Grievance Officer], GIMT, ' . e($address) . ' — email <a href="mailto:' . e($email) . '">' . e($email) . '</a>, phone ' . e($phone) . '.</p>',
         ]), [], null, 20];
     $pages[] = ['terms-and-conditions', 'Terms & Conditions', 'Terms of use of the GIMT website', 'The terms that apply when you use the GIMT website, online application and other online services.', null,
         $legal('By accessing this website or using our online services you agree to these terms. If you do not agree, please do not use the website.', [
@@ -159,28 +176,32 @@ return function (array $opts): void {
             '4. Intellectual property' => '<p>The GIMT name, logo, text, photographs and design of this website belong to GIMT or its licensors and may not be reproduced without written permission, except for personal, non-commercial use.</p>',
             '5. Links to other websites' => '<p>Links to external websites are provided for convenience. GIMT is not responsible for their content or privacy practices.</p>',
             '6. Limitation of liability' => '<p>GIMT is not liable for any loss arising from the use of, or inability to use, this website, including interruptions, errors or unauthorised access beyond our reasonable control.</p>',
-            '7. Governing law' => '<p>These terms are governed by the laws of India. Courts at Gautam Buddh Nagar, Uttar Pradesh, have exclusive jurisdiction.</p>',
+            '7. Governing law' => '<p>These terms are governed by the laws of India. Disputes are subject to the exclusive jurisdiction of the competent courts [To be confirmed by GIMT: place of jurisdiction, e.g. Gautam Buddh Nagar, Uttar Pradesh].</p>',
         ]), [], null, 21];
-    $pages[] = ['refund-policy', 'Refund Policy', 'Fee refunds and cancellation of admission', 'The rules for refund of fees when a student withdraws from a program at GIMT.', null,
-        $legal('This policy explains how fees are refunded when an admitted student withdraws from a program. It follows the applicable regulations of the affiliating university and regulators; in case of any conflict, those regulations prevail.', [
-            '1. Application fee' => '<p>The application / registration fee is non-refundable, except when the institute cancels the program applied for.</p>',
+    // Short summary of the full Refund & Cancellation Policy (08_policies, /refund-and-cancellation-policy): same reference
+    // date (the notified last date of admission), same deductions and the same placeholders; the full policy prevails.
+    $full = '<a href="/refund-and-cancellation-policy">Refund &amp; Cancellation Policy</a>';
+    $pages[] = ['refund-policy', 'Refund Policy', 'Fee refunds and cancellation of admission', 'A summary of how fees are refunded when a student withdraws from a program at GIMT. The full Refund & Cancellation Policy prevails.', null,
+        $legal('This page summarises how fees are refunded when an admitted student withdraws from a program. The complete rules, including cancellation by the institute and failed or duplicate online payments, are in our ' . $full . ', which prevails in case of any difference. Both follow the fee-refund guidelines of the regulators and the affiliating university applicable to each program; in case of any conflict, those guidelines prevail.', [
+            '1. Application fee' => '<p>The application / registration fee, where charged, is non-refundable, except when the institute withdraws the program applied for.</p>',
             '2. Withdrawal of admission' => '<table><thead><tr><th>When the written request is received</th><th>Refund of fees paid</th></tr></thead><tbody>'
-                . '<tr><td>15 days or more before the notified start of classes</td><td>100% (less a processing fee of up to ₹1,000)</td></tr>'
-                . '<tr><td>Less than 15 days before the start of classes</td><td>90%</td></tr>'
-                . '<tr><td>Within 15 days after the start of classes</td><td>80%</td></tr>'
-                . '<tr><td>Between 16 and 30 days after the start of classes</td><td>50%</td></tr>'
-                . '<tr><td>More than 30 days after the start of classes</td><td>No refund</td></tr></tbody></table>',
-            '3. Hostel and transport fees' => '<p>Hostel and transport fees are refunded on a pro-rata monthly basis for the unused period, after deducting any dues. Security deposits are refunded within 30 days of clearing all dues.</p>',
-            '4. How to apply for a refund' => '<p>Submit the withdrawal form available at the Accounts Office or write to <a href="mailto:' . e($email) . '">' . e($email) . '</a> with your application number, the reason for withdrawal, a cancelled cheque and the original fee receipts. Original documents deposited with the institute are returned with the refund.</p>',
-            '5. Processing time' => '<p>Approved refunds are credited to the bank account of the student or parent within 15 working days. Cash refunds are not made.</p>',
+                . '<tr><td>15 days or more before the notified last date of admission</td><td>100%, less a processing fee of up to 5% or ₹5,000, whichever is lower</td></tr>'
+                . '<tr><td>Less than 15 days before the notified last date of admission</td><td>90%</td></tr>'
+                . '<tr><td>Up to 15 days after the notified last date of admission</td><td>80%</td></tr>'
+                . '<tr><td>16 to 30 days after the notified last date of admission</td><td>50%</td></tr>'
+                . '<tr><td>More than 30 days after the notified last date of admission</td><td>No refund</td></tr></tbody></table>'
+                . '<p>[To be confirmed by GIMT: confirm the refund schedule adopted for the 2026-27 session as per the applicable UGC / AICTE fee-refund notification and the affiliating university]</p>',
+            '3. Hostel and transport fees' => '<p>Hostel and transport fees are refunded on a pro-rata basis for the unused period, after deducting any dues. Caution money and security deposits are refunded after all dues are cleared [To be confirmed by GIMT: timeline for refund of caution money / security deposits].</p>',
+            '4. How to apply for a refund' => '<p>Submit the withdrawal / refund form at the admissions or accounts office, or write to <a href="mailto:' . e($email) . '">' . e($email) . '</a> with your name, application or enrolment number, the reason for withdrawal, the bank account details of the student or parent (with a cancelled cheque) and the original fee receipts. Original documents deposited with the institute are returned on withdrawal.</p>',
+            '5. Processing time' => '<p>Approved refunds are credited to the bank account of the student or parent; cash refunds are not made [To be confirmed by GIMT: refund processing time, e.g. within 15 working days of approval].</p>',
         ]), [], null, 22];
     $pages[] = ['accessibility', 'Accessibility', 'Our commitment to an accessible website and campus', 'GIMT is committed to making its website and campus accessible to everyone, including people with disabilities.', null,
         $legal('GIMT wants everyone — including people with visual, hearing, motor or cognitive disabilities — to be able to use this website and our campus independently.', [
             'Our standard' => '<p>We aim to conform to the Web Content Accessibility Guidelines (WCAG) 2.1 level AA and the Guidelines for Indian Government Websites wherever they apply.</p>',
             'What we have done' => '<ul><li>Pages work with a keyboard alone and show a visible focus indicator.</li><li>Images carry text alternatives, and headings follow a logical order.</li><li>Colour contrast meets AA levels; text can be enlarged to 200% without loss of content.</li><li>Animations respect the "reduce motion" setting of your device, and carousels can be paused.</li><li>Forms have labels, clear error messages and do not rely on colour alone.</li></ul>',
-            'On campus' => '<p>Our buildings have ramps, lifts and accessible washrooms. Students with disabilities can request reserved seating, scribes and extra time in examinations as per university rules through the Equal Opportunity Cell.</p>',
+            'On campus' => '<p>[To be confirmed by GIMT: accessibility features of the campus buildings, e.g. ramps, lifts and accessible washrooms]. Students with disabilities can request reasonable accommodations, such as reserved seating, scribes and extra time in examinations, as per university rules through the Equal Opportunity Cell.</p>',
             'Known limitations' => '<p>Some older PDF documents may not be fully accessible. Contact us and we will provide the information in an accessible format.</p>',
-            'Feedback' => '<p>If you face any difficulty using this website, please email <a href="mailto:' . e($email) . '">' . e($email) . '</a> or call ' . e($phone) . '. We aim to respond within five working days.</p>',
+            'Feedback' => '<p>If you face any difficulty using this website, please email <a href="mailto:' . e($email) . '">' . e($email) . '</a> or call ' . e($phone) . '. We aim to respond promptly [To be confirmed by GIMT: response time for accessibility feedback].</p>',
         ]), [], null, 23];
 
     // Route pages: hero copy + intro read by the dedicated templates
@@ -204,6 +225,9 @@ return function (array $opts): void {
     $n = 0;
     foreach ($pages as [$slug, $title, $subtitle, $excerpt, $banner, $content, $blocks, $parent, $sort]) {
         $n++;
+        if ($onlyPages !== null && !in_array($slug, $onlyPages, true)) {
+            continue;
+        }
         [$cleanBlocks, $errors] = cms_validate_blocks($blocks);
         if ($errors) {
             throw new RuntimeException("Invalid seed blocks for page $slug: " . json_encode($errors));
@@ -212,7 +236,8 @@ return function (array $opts): void {
             'title' => $title, 'template' => 'default', 'subtitle' => $subtitle, 'banner_image' => $banner, 'excerpt' => $excerpt,
             'content' => $content !== '' ? sanitize_html($content) : null, 'blocks' => $cleanBlocks ? json_encode($cleanBlocks, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
             'parent_id' => null, 'sort_order' => $sort, 'is_system' => 1, 'status' => 'published', 'published_at' => $published, 'created_by' => $adminId, 'updated_by' => $adminId,
-            'created_at' => $published, 'updated_at' => date('Y-m-d H:i:s', strtotime('-' . (40 - $n) . ' days')),
+            'created_at' => $published,
+            'updated_at' => in_array($slug, $legalSlugs, true) ? $legalChanged . ' 10:00:00' : date('Y-m-d H:i:s', strtotime('-' . (40 - $n) . ' days')),
         ];
         $existing = db_value('SELECT id FROM pages WHERE slug = ?', [$slug]);
         if ($existing) {
@@ -221,6 +246,14 @@ return function (array $opts): void {
         } else {
             $ids[$slug] = db_insert('pages', $row + ['slug' => $slug]);
         }
+    }
+    if ($onlyPages !== null) {
+        foreach ($pages as [$slug, , , , , , , $parent]) {
+            if (isset($ids[$slug]) && $parent && ($pid = db_value('SELECT id FROM pages WHERE slug = ?', [$parent]))) {
+                db_exec('UPDATE pages SET parent_id = ?, updated_at = updated_at WHERE id = ?', [$pid, $ids[$slug]]);
+            }
+        }
+        return; // content refresh only: menus, home sections and SEO rows stay as they are
     }
     foreach ($pages as [$slug, , , , , , , $parent]) {
         if ($parent && isset($ids[$parent])) {
@@ -259,8 +292,8 @@ return function (array $opts): void {
         'address' => ['@type' => 'PostalAddress', 'streetAddress' => $address, 'addressLocality' => 'Greater Noida', 'addressRegion' => 'Uttar Pradesh', 'postalCode' => '201310', 'addressCountry' => 'IN']];
     $seo = [
         // route => [title, description, keywords, og image, robots, priority, changefreq, schema]
-        '/' => ['GIMT Greater Noida — Management & Technology Institute', 'Global Institute of Management & Technology (GIMT), Greater Noida: industry-focused BBA, MBA, B.Tech, BCA, MCA and B.Com programs with strong placements.',
-            'GIMT, Global IMT, college in Greater Noida, MBA college, B.Tech college, BBA, BCA, MCA', 'hero-campus-students.jpg', 'index,follow', 1.0, 'daily',
+        '/' => ['GIMT Greater Noida — Management & Technology Institute', 'Global Institute of Management & Technology (GIMT), Greater Noida: industry-focused BBA, MBA, B.Tech, BCA, MCA and B.Com programs with placement support.',
+            'GIMT, Global IMT, college in Greater Noida, MBA college, B.Tech college, BBA, BCA, MCA', 'og-gimt.jpg', 'index,follow', 1.0, 'daily',
             ['@context' => 'https://schema.org', '@type' => 'WebSite', 'name' => institute_name(), 'url' => $site,
              'potentialAction' => ['@type' => 'SearchAction', 'target' => $site . 'search?q={search_term_string}', 'query-input' => 'required name=search_term_string']]],
         '/about' => ['About GIMT — Our Story, Vision & Leadership', 'Since 2008, GIMT has offered industry-focused education in Greater Noida. Discover our story, vision and mission, leadership, campus and approvals.',
@@ -270,23 +303,23 @@ return function (array $opts): void {
         '/admissions' => ['Admissions 2026-27 — Apply Online | GIMT', 'Admissions are open for 2026-27. Check eligibility, admission process, fees, scholarships and documents, then apply online to GIMT in minutes.',
             'GIMT admission 2026, apply online, eligibility, fee structure, scholarships', 'hero-campus-students.jpg', 'index,follow', 0.9, 'weekly', null],
         '/academics' => ['Academics, Departments & Faculty | GIMT', 'Six departments, experienced faculty, outcome-based curriculum, academic calendar and research at Global Institute of Management & Technology.',
-            'GIMT departments, faculty, academic calendar, research', 'facility-classroom.jpg', 'index,follow', 0.8, 'monthly', null],
-        '/campus' => ['Campus Life & Facilities | GIMT Greater Noida', 'Smart classrooms, advanced labs, digital library, hostels, sports and 20+ student clubs on a green, safe campus in Knowledge Park, Greater Noida.',
+            'GIMT departments, faculty, academic calendar, research', 'og-gimt.jpg', 'index,follow', 0.8, 'monthly', null],
+        '/campus' => ['Campus Life & Facilities | GIMT Greater Noida', 'Smart classrooms, advanced labs, digital library, hostels, sports and student clubs on a green, safe campus in Knowledge Park, Greater Noida.',
             'GIMT campus, hostel, library, labs, student clubs', 'students-lawn.jpg', 'index,follow', 0.7, 'monthly', null],
         '/placement' => ['Placements & Recruiters | GIMT', 'Placement statistics, top recruiters, training and internships — see how the GIMT Training & Placement Cell builds careers in consulting, IT, banking and analytics.',
-            'GIMT placements, recruiters, highest package, internships', 'placement-student.jpg', 'index,follow', 0.8, 'monthly', null],
+            'GIMT placements, recruiters, highest package, internships', 'og-gimt.jpg', 'index,follow', 0.8, 'monthly', null],
         '/alumni' => ['Alumni Network & Success Stories | GIMT', 'Connect with GIMT alumni across industries — success stories, mentoring, alumni events and job opportunities for graduates of Global IMT.',
             'GIMT alumni, alumni network, success stories', 'graduation.jpg', 'index,follow', 0.6, 'monthly', null],
         '/faculty' => ['Our Faculty — Experienced Academics | GIMT', 'Meet the qualified and experienced faculty of GIMT across management, computer science, computer applications, commerce and sciences.',
-            'GIMT faculty, professors, teachers', 'facility-classroom.jpg', 'index,follow', 0.6, 'monthly', null],
+            'GIMT faculty, professors, teachers', 'og-gimt.jpg', 'index,follow', 0.6, 'monthly', null],
         '/contact' => ['Contact GIMT — Admissions & Student Support', 'Call +91 99554 46477, email info@gimt.ac.in or visit our campus in Knowledge Park, Greater Noida. Admissions, support and campus visit enquiries.',
             'contact GIMT, GIMT phone number, GIMT address, campus visit', 'campus-building.jpg', 'index,follow', 0.7, 'yearly', ['@context' => 'https://schema.org', '@type' => 'ContactPage', 'name' => 'Contact GIMT', 'url' => $site . 'contact', 'mainEntity' => $org]],
         '/apply' => ['Apply Online for Admission 2026-27 | GIMT', 'Apply online to GIMT in seven simple steps — choose your program, fill in your details, upload documents and track your application.',
             'GIMT application form, apply online', 'students-laptop.jpg', 'index,follow', 0.8, 'monthly', null],
         '/blog' => ['News, Events & Achievements | GIMT Blog', 'The latest news, achievements, events and articles from the students and faculty of Global Institute of Management & Technology.',
-            'GIMT news, GIMT blog, campus events', 'news-campus.jpg', 'index,follow', 0.7, 'daily', null],
+            'GIMT news, GIMT blog, campus events', 'og-gimt.jpg', 'index,follow', 0.7, 'daily', null],
         '/faq' => ['Frequently Asked Questions | GIMT', 'Answers to common questions about admissions, eligibility, fees, scholarships, hostel, transport and placements at GIMT Greater Noida.',
-            'GIMT FAQ, admission questions, fees, hostel', 'students-atrium.jpg', 'index,follow', 0.6, 'monthly', null],
+            'GIMT FAQ, admission questions, fees, hostel', 'og-gimt.jpg', 'index,follow', 0.6, 'monthly', null],
         '/admissions-open' => ['Admissions Open 2026-27 — Free Counselling | GIMT', 'Admissions open for BBA, MBA, B.Tech, BCA, MCA and B.Com at GIMT Greater Noida. Get free career counselling and apply now.',
             'GIMT admissions open, free counselling', 'hero-campus-students.jpg', 'noindex,follow', 0.5, 'weekly', null],
         '/verify-certificate' => ['Verify a GIMT Certificate', 'Verify the authenticity of a certificate issued by Global Institute of Management & Technology using its certificate number or QR code.',

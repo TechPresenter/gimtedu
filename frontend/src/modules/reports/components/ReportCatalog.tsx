@@ -103,7 +103,7 @@ export function ReportCatalog() {
           </Card>
 
           {isLoading ? (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="card p-4">
                   <div className="flex gap-3">
@@ -152,7 +152,7 @@ export function ReportCatalog() {
                     </div>
                     <span className="badge badge-slate ml-auto shrink-0">{g.reports.length} {g.reports.length === 1 ? 'report' : 'reports'}</span>
                   </Reveal>
-                  <Stagger className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" itemClassName="min-w-0" step={50}>
+                  <Stagger className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" itemClassName="min-w-0" step={50}>
                     {g.reports.map((r) => (
                       <ReportCard key={r.key} report={r} />
                     ))}

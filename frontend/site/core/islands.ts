@@ -29,6 +29,8 @@ function collectSlots(host: HTMLElement): Record<string, SlotItem[]> {
 
 async function mount(host: HTMLElement): Promise<void> {
   const name = host.getAttribute('data-island') || '';
+  const state = host.getAttribute('data-island-state');
+  if (state && state !== 'pending') return; // already loading / mounted (mountIslandsNow() raced the observer)
   host.setAttribute('data-island-state', 'loading');
   const load = islandRegistry[name];
   if (!load) {
@@ -49,6 +51,17 @@ async function mount(host: HTMLElement): Promise<void> {
 }
 
 let observer: IntersectionObserver | null = null;
+
+/**
+ * Mount the islands inside `root` that are still waiting to come near the viewport — e.g. the form of a hidden popup,
+ * so it is ready (no fallback → island swap) by the time the popup opens. Safe to call repeatedly.
+ */
+export function mountIslandsNow(root: ParentNode): void {
+  within('[data-island][data-island-state="pending"]', root).forEach((host) => {
+    observer?.unobserve(host);
+    void mount(host);
+  });
+}
 
 export function initIslands(root: ParentNode = document): void {
   const candidates = within('[data-island]', root).filter((el) => !el.hasAttribute('data-island-state'));

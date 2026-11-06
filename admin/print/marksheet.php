@@ -15,7 +15,7 @@ $ids = [];
 $provisional = null;
 if (input_int('id')) {
     $ids = [input_int('id')];
-} elseif (trim((string) input('ids', '')) !== '') {
+} elseif (trim(api_str(input('ids'))) !== '') {
     $ids = array_slice(array_values(array_unique(array_filter(array_map('intval', explode(',', (string) input('ids')))))), 0, 500);
 } elseif (input_int('exam_id')) {
     $ids = array_map('intval', db_column("SELECT m.id FROM marksheets m JOIN results r ON r.id = m.result_id JOIN students s ON s.id = m.student_id
@@ -63,7 +63,8 @@ log_activity('print', 'results', (int) $first['result']['exam_id'], count($sheet
 $scale = grade_scale();
 $controller = (string) setting('exam_controller_name', '');
 $controllerTitle = (string) setting('exam_controller_designation', 'Controller of Examinations');
-$affiliation = (string) setting('affiliation', 'Approved by AICTE · Affiliated to State University · NAAC Accredited');
+// Settings > General > Affiliation / approvals (verified wording entered by the institute; no invented fallback claims)
+$affiliation = (string) setting('affiliation', '');
 $fmt = function ($v, int $d = 2): string {
     if ($v === null || $v === '') {
         return '—';
@@ -108,8 +109,8 @@ print_layout_start(count($sheets) === 1 ? ($first['marksheet'] ? 'Marksheet ' . 
         <img src="<?= e(logo_url()) ?>" alt="GIMT" class="h-16 w-auto">
         <div class="flex-1 text-center">
           <p class="font-display text-[19px] font-extrabold uppercase leading-tight tracking-wide text-brand-900"><?= e(institute_name()) ?></p>
-          <p class="mt-0.5 text-[10px] text-slate-600"><?= e($affiliation) ?></p>
-          <p class="text-[10px] text-slate-500"><?= e(setting('address', 'Knowledge Park, Greater Noida, Uttar Pradesh')) ?></p>
+          <?php if (trim($affiliation) !== ''): ?><p class="mt-0.5 text-[10px] text-slate-600"><?= e($affiliation) ?></p><?php endif; ?>
+          <p class="text-[10px] text-slate-500"><?= e(setting('address', 'Sector 18, Noida, Uttar Pradesh')) ?></p>
         </div>
         <div class="w-16 text-right text-[9px] leading-tight text-slate-500">
           <?php if ($m): ?>Sl. No.<br><span class="font-mono text-[10px] font-semibold text-slate-800"><?= e(str_pad((string) $m['id'], 6, '0', STR_PAD_LEFT)) ?></span><?php endif; ?>
@@ -216,7 +217,7 @@ print_layout_start(count($sheets) === 1 ? ($first['marksheet'] ? 'Marksheet ' . 
               <p>Date of issue: <strong class="text-slate-800"><?= e(format_date($m['issued_at'])) ?></strong></p>
               <?php if (!$revoked): ?>
                 <p>Security code: <strong class="font-mono tracking-wider text-slate-900"><?= e(marksheet_security_code((string) $m['verification_code'])) ?></strong></p>
-                <p class="max-w-[58mm] break-all text-[8px] leading-tight text-slate-500">Scan the QR code to verify online, or open <?= e(preg_replace('#^https?://#', '', absolute_url('api/marksheets/verify/' . $m['marksheet_no']))) ?> and enter the security code.</p>
+                <p class="max-w-[58mm] break-all text-[8px] leading-tight text-slate-500">Scan the QR code to verify online, or open <?= e(preg_replace('#^https?://#', '', absolute_url('verify-marksheet/' . $m['marksheet_no']))) ?> and enter the security code.</p>
               <?php else: ?>
                 <p class="mt-1 max-w-[70mm] font-semibold text-red-700">Revoked on <?= e(format_date($m['revoked_at'])) ?>: <?= e($m['revoked_reason']) ?></p>
               <?php endif; ?>

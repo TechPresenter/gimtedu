@@ -473,6 +473,8 @@ function ReturnDesk({ initialCode }: { initialCode: string }) {
         title="Books on loan"
         description="Every copy currently with a member. Use the Status filter to narrow to overdue or due today."
         defaultFilters={{ state: 'issued' }}
+        // earliest due date first: the most overdue loans head the return desk
+        defaultSort={{ key: 'due_date', dir: 'asc' }}
         actions={loanActions}
         showAccruedNote
       />
@@ -494,9 +496,9 @@ function HistoryTable() {
 }
 
 function LoansTable({
-  title, description, defaultFilters, urlState, actions, showAccruedNote,
+  title, description, defaultFilters, defaultSort, urlState, actions, showAccruedNote,
 }: {
-  title: string; description: string; defaultFilters?: Record<string, unknown>; urlState?: boolean; actions: ReturnType<typeof useLoanActions>; showAccruedNote?: boolean;
+  title: string; description: string; defaultFilters?: Record<string, unknown>; defaultSort?: { key: string; dir: 'asc' | 'desc' }; urlState?: boolean; actions: ReturnType<typeof useLoanActions>; showAccruedNote?: boolean;
 }) {
   const refresh = useLibraryRefresh();
   const toast = useToast();
@@ -592,6 +594,7 @@ function LoansTable({
       title={title}
       description={description}
       defaultFilters={defaultFilters}
+      defaultSort={defaultSort}
       urlState={urlState}
       rowMenu={rowMenu}
       bulkActions={bulk}

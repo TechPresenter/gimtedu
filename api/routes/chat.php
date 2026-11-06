@@ -42,7 +42,7 @@ function chat_rate(string $key, int $max, int $window, string $message): void
 /** The visitor's own conversation from a token, or null. */
 function chat_owned_conversation($token): ?array
 {
-    $conv = chatbot_conversation_get(trim((string) $token));
+    $conv = chatbot_conversation_get(trim(api_str($token)));
     return $conv && chatbot_conversation_owned($conv) ? $conv : null;
 }
 
@@ -54,11 +54,11 @@ function chat_prepare_message(): array
 {
     chat_require_enabled();
     $in = api_input();
-    if (trim((string) ($in['website'] ?? '')) !== '') {
+    if (trim(api_str($in['website'] ?? null)) !== '') {
         log_system('warning', 'Chatbot message blocked (honeypot)', ['ip' => client_ip(), 'ua' => user_agent()]);
         api_error('Your message could not be sent. Please refresh the page and try again.', 422);
     }
-    $text = (string) preg_replace('/[^\P{C}\n\t]/u', '', str_replace("\r\n", "\n", (string) ($in['message'] ?? '')));
+    $text = (string) preg_replace('/[^\P{C}\n\t]/u', '', str_replace("\r\n", "\n", api_str($in['message'] ?? null)));
     $text = trim((string) preg_replace("/\n{3,}/", "\n\n", $text));
     $max = max(100, min(2000, (int) chatbot_cfg('max_input')));
     if ($text === '') {
@@ -86,7 +86,7 @@ function chat_prepare_message(): array
     $intent = $intents[0] ?? (chatbot_detect_programs($text) ? 'program_detail' : 'unknown');
     $userId = chatbot_message_add((int) $conv['id'], 'user', $text, ['intent' => $intent, 'lang' => chatbot_detect_language($text)]);
     $history = chatbot_history_for((int) $conv['id'], $userId);
-    $page = chatbot_safe_url(mb_substr(trim((string) ($in['page'] ?? '')), 0, 300));
+    $page = chatbot_safe_url(mb_substr(trim(api_str($in['page'] ?? null)), 0, 300));
     // release the session lock before the (possibly slow) AI call so the visitor can keep browsing
     if (session_status() === PHP_SESSION_ACTIVE) {
         session_write_close();
@@ -179,7 +179,7 @@ route('POST', '/chat/feedback', function () {
         api_error('This conversation was not found.', 404);
     }
     chat_rate('chat:fb:' . client_ip(), 60, 600, 'Too many ratings. Please wait {wait}.');
-    $value = match ((string) ($in['value'] ?? '')) {
+    $value = match (api_str($in['value'] ?? null)) {
         'up' => 1,
         'down' => -1,
         default => null,

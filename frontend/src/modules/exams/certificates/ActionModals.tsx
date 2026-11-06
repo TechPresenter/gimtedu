@@ -164,7 +164,7 @@ export function ReissueModal({ cert, rawFields, onClose, onDone }: { cert: CertR
         </>
       }
     >
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Field label="Reason for reissue" required error={errors.reason} htmlFor="reissue-reason" className="sm:col-span-2">
           <Input id="reissue-reason" value={reason} maxLength={230} onChange={(e) => setReason(e.target.value)} invalid={!!errors.reason} placeholder="e.g. Name spelling corrected, duplicate copy requested" />
         </Field>
@@ -176,7 +176,7 @@ export function ReissueModal({ cert, rawFields, onClose, onDone }: { cert: CertR
         <div className="mt-5 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
           <Toggle checked={edit} onChange={setEdit} label={`Correct the ${typeDef?.short ?? ''} details`} description="Leave off to reuse the original details." />
           {edit && (
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               {defs.map((f) => (
                 <Field key={f.key} label={f.label} required={typeDef?.required.includes(f.key)} error={errors[`fields.${f.key}`]} htmlFor={`rf-${f.key}`}>
                   {f.type === 'select' ? (
@@ -249,7 +249,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             description="Certificates requested by staff without the approve permission wait in the Pending approval queue." />
           <Toggle checked={form.email_student} onChange={(v) => setForm({ ...form, email_student: v })} label="E-mail the student when a certificate is issued"
             description="Sends the certificate number and the verification link to the student's e-mail address." />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Number prefix" required error={errors.prefix} htmlFor="cs-prefix" hint={`e.g. ${form.prefix || 'GIMT'}-BON-${new Date().getFullYear()}-00001`}>
               <Input id="cs-prefix" value={form.prefix} maxLength={10} onChange={(e) => setForm({ ...form, prefix: e.target.value.toUpperCase() })} invalid={!!errors.prefix} />
             </Field>

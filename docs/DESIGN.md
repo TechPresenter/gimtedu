@@ -17,6 +17,8 @@ helper with the same names).
 
 ---------------------------------------------------------------------------------------------------------------
 ## 1. Admin dashboard (`01-admin-dashboard-left.png`, `01-admin-dashboard-right.png`)
+
+> **Update 2026-10-13:** the client asked to remove the photo background. The dashboard now opens with a code-native hero (navy mesh gradient, original SVG illustration, live greeting/clock, progress rings for attendance / fees / admissions, a "Today at GIMT" strip) and a modern multi-hue KPI style (`frontend/src/modules/dashboard/components/hues.ts`). The photo description below is historical.
 - **Sidebar** (navy, already built): logo + institute name, grouped menu with chevrons, active item = green pill,
   "Quick Links" card at the bottom (Visit Website, Student Portal, Faculty Portal, Help & Support).
 - **Top bar** (built): global search "Search students, applications, fees, etc…" with Ctrl K hint, Academic Session
@@ -186,3 +188,29 @@ eligibility filters), Admission Journey timeline, Campus Explorer (interactive m
 (verified data only), Smart multi-step Enquiry form, Academic Calendar with filters, Faculty Directory (search,
 department filters, profiles), Scholarship Assistant (eligibility questions -> matching scholarships), Student Life
 slider (draggable photos/videos), mobile admission bar (Apply + Call).
+
+### Design v3 addition (client request 2026-10-13): yellow-gold text highlights
+"Kahi kahi pr yellow gold text background" — use a warm yellow-gold MARKER highlight behind selected key words, sparingly,
+to add warmth next to navy + orange-red: e.g. hero/landing key phrase ("Admissions Open 2026-27", "Build Your Legacy",
+the program pill phrase), scholarship amounts ("up to 50% scholarship"), key stat numbers on navy bands, one word per
+section heading at most (alternate with the orange scribble — never both on the same heading), "Most Popular / Featured"
+tags, CTA band key phrase, notice "New/Important" labels. Tokens: gold `#FFC93C` (marker), deep gold `#F5B300` (hover/
+underline), text on gold always navy `#0B2A5B` (contrast ≈ 10:1). Style: a slightly skewed/rounded marker band covering
+the lower ~60% of the text line (box-decoration-break: clone for multi-line), optional draw-in animation left→right on
+reveal (transform/clip only, static under reduced motion), plus a solid gold pill variant for labels. Dark mode: same gold
+with navy text. Never on body paragraphs, never more than ~1–2 highlights per screen.
+
+### Design v3 addition (client request 2026-10-13): attractive enquiry popup (homepage) with a girl + yellow / red / white
+"Modal box enquiry popup form me ek girl add kro aur attractive banao — yellow red white styling — in homepage."
+The enquiry modal (includes/components.php enquiry_modal(), opened by the Enquire Now tab / Request a Callback / any
+data-modal-open="#enquiry-modal") becomes a premium two-panel popup: LEFT/TOP visual panel with a smiling girl (student /
+counsellor) standing over a warm yellow-gold blob/arch (#FFC93C) with orange-red (#D03E16 / #F05A28) accents (dots,
+sparkles, a red ribbon "Admissions Open 2026-27" sticker, a gold "Scholarships up to 50%" marker highlight — values from
+settings), and the RIGHT form panel on white with red primary button + gold accents, trust chips (Free counselling ·
+Quick callback · No spam) and the existing lead form (all its validation/captcha/dedupe stays). Image source: setting
+enquiry_modal_image (admin upload; a transparent-background cut-out photo looks best); default = the sharpest crop of a
+girl from the bundled campus photos if it is crisp at 2× (≥ 600px tall), otherwise an ORIGINAL high-quality vector
+illustration of a smiling female student-counsellor (no stock/copied art). Homepage: also open it automatically ONCE per
+visitor session after ~20 s or 50 % scroll (setting enquiry_popup_auto, enquiry_popup_delay; never on mobile before 30 s,
+never when another modal/chat is open, never on /apply or /contact), with close ✕, Esc, focus trap, backdrop click,
+smooth scale/fade entrance, reduced-motion static. Mobile: the visual becomes a compact top strip so the form stays usable.

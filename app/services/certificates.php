@@ -406,7 +406,13 @@ function cert_build_vars(array $s, array $fields, array $meta = []): array
     $male = $gender === 'male';
     $sem = (int) ($s['current_semester'] ?? 0);
     $admYear = !empty($s['admission_date']) ? (int) date('Y', strtotime($s['admission_date'])) : (!empty($s['batch_start']) ? (int) $s['batch_start'] : null);
-    $passYear = !empty($s['batch_end']) ? (int) $s['batch_end'] : ($admYear ? $admYear + (int) ceil((float) ($s['duration_years'] ?? 0)) : null);
+    $years = (float) ($s['duration_years'] ?? 0);
+    $passYear = !empty($s['batch_end']) ? (int) $s['batch_end'] : ($admYear ? $admYear + (int) ceil($years) : null);
+    // short (certificate) courses: the passing year is the admission date + the course months, not + one whole year
+    if (empty($s['batch_end']) && !empty($s['admission_date']) && $years > 0 && $years < 1) {
+        $months = preg_match('/(\d+)\s*month/i', (string) ($s['duration_label'] ?? ''), $mm) ? (int) $mm[1] : max(1, (int) round($years * 12));
+        $passYear = (int) date('Y', strtotime($s['admission_date'] . ' +' . $months . ' months'));
+    }
     $program = trim((string) ($s['program_name'] ?? ''));
     $short = trim((string) ($s['program_short'] ?? ''));
     $vars = [
@@ -725,7 +731,7 @@ CSS;
 function cert_seal_svg(string $uid): string
 {
     $name = strtoupper(institute_name());
-    $city = strtoupper((string) setting('city', 'Greater Noida'));
+    $city = strtoupper((string) setting('city', 'Noida'));
     $short = strtoupper((string) setting('institute_short_name', 'GIMT'));
     $est = (string) setting('established_year', '');
     $id = 'seal-' . preg_replace('/[^a-z0-9]/i', '', $uid);
@@ -861,7 +867,7 @@ function cert_document(string $sheets, array $opts = []): string
 {
     $embed = !empty($opts['embed']);
     $land = ($opts['orientation'] ?? 'portrait') === 'landscape';
-    $title = (string) ($opts['title'] ?? 'Certificate');
+    $title = api_str($opts['title'] ?? null, 'Certificate');
     // Default page follows the first sheet; landscape sheets in a mixed batch use a named page.
     $page = '@page{size:A4 ' . ($land ? 'landscape' : 'portrait') . ';margin:0}@page certland{size:A4 landscape;margin:0}@page certport{size:A4 portrait;margin:0}'
         . '.cert-sheet{page:certport}.cert-sheet.cert-landscape{page:certland}';
@@ -949,12 +955,12 @@ function cert_validate_issue(array $in, array $opts = []): array
 {
     $errors = [];
     $types = cert_types();
-    $type = (string) ($in['type'] ?? '');
+    $type = api_str($in['type'] ?? null);
     $studentId = (int) ($in['student_id'] ?? 0);
     $templateId = (int) ($in['template_id'] ?? 0) ?: null;
-    $issueDate = trim((string) ($in['issue_date'] ?? '')) ?: date('Y-m-d');
-    $validUntil = trim((string) ($in['valid_until'] ?? '')) ?: null;
-    $remarks = trim((string) ($in['remarks'] ?? '')) ?: null;
+    $issueDate = trim(api_str($in['issue_date'] ?? null)) ?: date('Y-m-d');
+    $validUntil = trim(api_str($in['valid_until'] ?? null)) ?: null;
+    $remarks = trim(api_str($in['remarks'] ?? null)) ?: null;
     $rawFields = is_array($in['fields'] ?? null) ? $in['fields'] : [];
 
     $student = $studentId ? cert_student($studentId) : null;
@@ -1184,7 +1190,7 @@ function cert_issue(array $in, array $opts = []): array
             'reissued_from_id' => !empty($opts['reissued_from']['id']) ? (int) $opts['reissued_from']['id'] : null,
         ]);
         if ($status === 'issued' && !empty($opts['reissued_from'])) {
-            cert_supersede($opts['reissued_from'], $no, (string) ($opts['reissue_reason'] ?? ''), $userId);
+            cert_supersede($opts['reissued_from'], $no, api_str($opts['reissue_reason'] ?? null), $userId);
         }
         return db_row('SELECT * FROM certificates WHERE id = ?', [$id]);
     });
@@ -1198,6 +1204,7 @@ function cert_issue(array $in, array $opts = []): array
     if ($opts['notify'] ?? true) {
         cert_notify_issued($row, $name);
     }
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event($status === 'pending' ? 'GIMT_CERTIFICATE_GENERATED' : 'GIMT_CERTIFICATE_ISSUED', ['certificate_id' => (int) $row['id'], 'student_id' => (int) $row['student_id']], ['dedupe_key' => 'cert:' . $row['id'] . ':' . ($status === 'pending' ? 'generated' : 'issued'), 'source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     if ($status === 'issued' && ($opts['email_student'] ?? false)) {
         cert_email_student($row, $student);
     }
@@ -1297,6 +1304,7 @@ function cert_approve(array $c, ?int $userId): array
     $row = db_row('SELECT * FROM certificates WHERE id = ?', [(int) $c['id']]);
     $name = cert_student_name($student);
     log_activity('approve', 'certificates', $c['id'], 'Approved ' . cert_type_label($c['type']) . ' ' . $c['certificate_no'] . ' for ' . $name);
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event(['GIMT_CERTIFICATE_APPROVED', 'GIMT_CERTIFICATE_ISSUED'], ['certificate_id' => (int) $c['id'], 'student_id' => (int) $c['student_id']], ['dedupe_key' => 'cert:' . $c['id'] . ':issued', 'source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     if (!empty($c['issued_by']) && (int) $c['issued_by'] !== (int) $userId) {
         notify((int) $c['issued_by'], 'certificate', 'Certificate approved', cert_type_label($c['type']) . ' ' . $c['certificate_no'] . ' for ' . $name . ' was approved.', 'admin/certificates?view=' . $c['id'], 'badge-check');
     }
@@ -1336,6 +1344,14 @@ function cert_verify(string $rawNo, string $source = 'web', ?string $signature =
     $state = 'not_found';
     $safe = null;
     $sigOk = null;
+    $marksheetUrl = null;
+    if (!$c) {
+        // Marksheet numbers (GIMT-MS-2026-000123) typed into the certificate form are verified on the marksheet page
+        $isMarksheet = (int) db_value('SELECT COUNT(*) FROM marksheets WHERE marksheet_no = ? OR (previous_numbers IS NOT NULL AND FIND_IN_SET(?, previous_numbers) > 0)', [$no, $no]);
+        if ($isMarksheet) {
+            $marksheetUrl = absolute_url('verify-marksheet/' . rawurlencode($no));
+        }
+    }
     if ($c) {
         $data = json_decode((string) $c['data'], true) ?: [];
         $expired = $c['status'] === 'issued' && !empty($c['valid_until']) && $c['valid_until'] < date('Y-m-d');
@@ -1370,7 +1386,7 @@ function cert_verify(string $rawNo, string $source = 'web', ?string $signature =
     } catch (Throwable $e) {
         error_log('[GIMT] certificate verification log failed: ' . $e->getMessage());
     }
-    return ['state' => $state, 'certificate' => $safe, 'signature_ok' => $sigOk, 'number' => $no];
+    return ['state' => $state, 'certificate' => $safe, 'signature_ok' => $sigOk, 'number' => $no, 'marksheet_url' => $marksheetUrl];
 }
 
 /* ------------------------------------------------------------------
@@ -1422,6 +1438,7 @@ function cert_revoke(array $c, ?string $reason, ?int $userId): array
     db_update('certificates', ['status' => 'revoked', 'revoked_reason' => $reason, 'revoked_by' => $userId, 'revoked_at' => date('Y-m-d H:i:s')], 'id = ?', [(int) $c['id']]);
     $name = cert_student_display_name((int) $c['student_id']);
     log_activity('revoke', 'certificates', $c['id'], 'Revoked ' . cert_type_label($c['type']) . ' ' . $c['certificate_no'] . ' of ' . $name . ': ' . $reason);
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event('GIMT_CERTIFICATE_REJECTED', ['certificate_id' => (int) $c['id'], 'student_id' => (int) $c['student_id'], 'reason' => $reason, 'action' => 'revoked'], ['dedupe_key' => 'cert:' . $c['id'] . ':revoked', 'source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     notify('perm:certificates', 'certificate', 'Certificate revoked', cert_type_label($c['type']) . ' ' . $c['certificate_no'] . ' of ' . $name . ' was revoked.', 'admin/certificates?view=' . $c['id'], 'ban');
     return cert_find((int) $c['id']);
 }
@@ -1436,6 +1453,7 @@ function cert_reject(array $c, ?string $reason, ?int $userId): array
     db_update('certificates', ['status' => 'rejected', 'revoked_reason' => $reason, 'revoked_by' => $userId, 'revoked_at' => date('Y-m-d H:i:s')], 'id = ?', [(int) $c['id']]);
     $name = cert_student_display_name((int) $c['student_id']);
     log_activity('reject', 'certificates', $c['id'], 'Rejected ' . cert_type_label($c['type']) . ' request ' . $c['certificate_no'] . ' for ' . $name . ': ' . $reason);
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event('GIMT_CERTIFICATE_REJECTED', ['certificate_id' => (int) $c['id'], 'student_id' => (int) $c['student_id'], 'reason' => $reason, 'action' => 'rejected'], ['dedupe_key' => 'cert:' . $c['id'] . ':rejected', 'source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     if (!empty($c['issued_by']) && (int) $c['issued_by'] !== (int) $userId) {
         notify((int) $c['issued_by'], 'certificate', 'Certificate request rejected', cert_type_label($c['type']) . ' ' . $c['certificate_no'] . ' for ' . $name . ' was rejected: ' . $reason, 'admin/certificates?view=' . $c['id'], 'file-x');
     }
@@ -1555,23 +1573,23 @@ function cert_detail(int $id): ?array
 function cert_template_draft(array $in): array
 {
     $bool = fn ($v, bool $default) => $v === null ? $default : in_array($v, [true, 1, '1', 'true', 'on', 'yes'], true);
-    $type = isset(cert_types()[$in['type'] ?? '']) ? (string) $in['type'] : 'custom';
+    $type = isset(cert_types()[api_str($in['type'] ?? null)]) ? (string) $in['type'] : 'custom';
     $days = $in['validity_days'] ?? null;
     return [
         'id' => (int) ($in['id'] ?? 0),
-        'name' => mb_substr(trim((string) ($in['name'] ?? '')), 0, 150) ?: 'Untitled template',
+        'name' => mb_substr(trim(api_str($in['name'] ?? null)), 0, 150) ?: 'Untitled template',
         'type' => $type,
-        'title' => mb_substr(trim((string) ($in['title'] ?? '')), 0, 190) ?: cert_type_label($type),
-        'subtitle' => mb_substr(trim((string) ($in['subtitle'] ?? '')), 0, 190),
-        'body_html' => sanitize_html((string) ($in['body_html'] ?? '')),
+        'title' => mb_substr(trim(api_str($in['title'] ?? null)), 0, 190) ?: cert_type_label($type),
+        'subtitle' => mb_substr(trim(api_str($in['subtitle'] ?? null)), 0, 190),
+        'body_html' => sanitize_html(api_str($in['body_html'] ?? null)),
         'orientation' => ($in['orientation'] ?? '') === 'landscape' ? 'landscape' : 'portrait',
-        'border_style' => (string) ($in['border_style'] ?? 'classic'),
-        'accent_color' => cert_safe_color((string) ($in['accent_color'] ?? '')),
-        'font_style' => (string) ($in['font_style'] ?? 'serif'),
-        'signatory_name' => mb_substr((string) ($in['signatory_name'] ?? ''), 0, 150),
-        'signatory_designation' => mb_substr((string) ($in['signatory_designation'] ?? ''), 0, 150),
-        'signatory2_name' => mb_substr((string) ($in['signatory2_name'] ?? ''), 0, 150),
-        'signatory2_designation' => mb_substr((string) ($in['signatory2_designation'] ?? ''), 0, 150),
+        'border_style' => api_str($in['border_style'] ?? null, 'classic'),
+        'accent_color' => cert_safe_color(api_str($in['accent_color'] ?? null)),
+        'font_style' => api_str($in['font_style'] ?? null, 'serif'),
+        'signatory_name' => mb_substr(api_str($in['signatory_name'] ?? null), 0, 150),
+        'signatory_designation' => mb_substr(api_str($in['signatory_designation'] ?? null), 0, 150),
+        'signatory2_name' => mb_substr(api_str($in['signatory2_name'] ?? null), 0, 150),
+        'signatory2_designation' => mb_substr(api_str($in['signatory2_designation'] ?? null), 0, 150),
         'show_photo' => $bool($in['show_photo'] ?? null, false) ? 1 : 0,
         'show_seal' => $bool($in['show_seal'] ?? null, true) ? 1 : 0,
         'show_qr' => $bool($in['show_qr'] ?? null, true) ? 1 : 0,
@@ -1621,13 +1639,13 @@ function cert_student_options(array $params): array
     $where = [];
     $args = [];
     if (!empty($params['ids'])) {
-        $ids = array_values(array_filter(array_map('intval', explode(',', (string) $params['ids']))));
+        $ids = array_values(array_filter(array_map('intval', explode(',', api_str($params['ids'])))));
         if (!$ids) {
             return [];
         }
         $where[] = 's.id IN (' . implode(',', $ids) . ')';
     } else {
-        $q = trim((string) ($params['q'] ?? ''));
+        $q = trim(api_str($params['q'] ?? null));
         if ($q !== '') {
             foreach (preg_split('/\s+/', mb_substr($q, 0, 80)) as $w) {
                 $where[] = '(s.first_name LIKE ? OR s.last_name LIKE ? OR s.student_uid LIKE ? OR s.admission_no LIKE ? OR s.roll_no LIKE ? OR s.enrollment_no LIKE ? OR s.mobile LIKE ?)';
@@ -1678,7 +1696,7 @@ function cert_student_card(int $id): ?array
  */
 function cert_bulk_candidates(array $p): array
 {
-    $type = (string) ($p['type'] ?? '');
+    $type = api_str($p['type'] ?? null);
     $def = cert_types()[$type] ?? null;
     $errors = [];
     if (!$def) {

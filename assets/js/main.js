@@ -212,7 +212,7 @@
   /* Design v3 parity (no-bundle fallback) ------------------------------------------------------------------------- */
   /* text-mask headings and scribbles: just show them */
   $$('[data-text-reveal]').forEach(function (el) { el.classList.add('tm-ready', 'is-revealed', 'tm-done'); });
-  $$('.scribble[data-draw]').forEach(function (el) { el.classList.add('is-drawn', 'is-static'); });
+  $$('.scribble[data-draw], .hl-gold[data-draw]').forEach(function (el) { el.classList.add('is-drawn', 'is-static'); });
 
   /* Programs mega menu filters: <button data-mega-filter="all|level-ug|dept-3"> + <a data-mega-item="all level-ug dept-3"> */
   $$('[data-mega]').forEach(function (mega) {

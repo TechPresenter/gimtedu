@@ -194,7 +194,16 @@ if ($program) {
     }
 }
 $heroImgUrl = site_image($heroImg);
-$programOptions = array_map(fn ($p) => ['value' => (string) $p['id'], 'label' => $p['name']], $programs);
+// Hero photo beside the form (xl+): the admission counsellor (client photo, 2026-10-26) unless Settings › Website ›
+// Campaign landing pages › Hero photo has an upload. The campus / program photo above stays the share (OG) image.
+$heroPhoto = trim((string) setting('landing_hero_image', ''));
+$heroPhotoFile = $heroPhoto === '' || str_contains($heroPhoto, '..') ? '' : APP_ROOT . '/' . ltrim(str_starts_with($heroPhoto, 'assets/') ? $heroPhoto : 'assets/uploads/' . ltrim($heroPhoto, '/'), '/');
+$heroPhotoSize = $heroPhotoFile !== '' && is_file($heroPhotoFile) ? @getimagesize($heroPhotoFile) : false;
+// the built-in photo is a full-length portrait: in the xl arch object-[70%_50%] keeps her face and open hand inside
+// (phones / tablets crop it from the top: object-top)
+[$heroPhotoUrl, $heroPhotoPos] = $heroPhotoSize ? [site_image($heroPhoto), 'xl:object-[50%_30%]'] : [site_image('assets/images/site/lp-hero-counsellor.webp'), 'xl:object-[70%_50%]'];
+$heroPhotoSize = $heroPhotoSize ?: [720, 1080];
+$programOptions = site_program_select_options($programs);
 $leadFields = function (string $variant) use ($programOptions, $program) {
     $half = $variant === 'light' ? 'half' : 'full';
     return [
@@ -220,7 +229,7 @@ $leadForm = fn (string $theme, string $form, ?string $footer = null, ?string $id
     'subtitle' => $theme === 'lead' ? (string) setting('landing_form_subtitle', 'Get a Free Career Counselling Session') : '',
     'submitLabel' => 'Apply Now', 'consent' => $consent, 'footer' => $footer,
     'hidden' => ['source' => $source, 'form' => $form],
-    'successTitle' => 'Thank you!', 'successMessage' => 'Our admission counsellor will call you within one working day.',
+    'successTitle' => 'Thank you!', 'successMessage' => 'Our admission counsellor will call you within 24 hours.',
     'fields' => $leadFields($theme),
 ]);
 
@@ -260,7 +269,7 @@ if ($program) {
     $schema[] = ['@context' => 'https://schema.org', '@type' => 'Course', 'name' => $program['name'], 'courseCode' => $program['code'], 'description' => str_limit(strip_tags((string) ($program['overview'] ?: $desc)), 300),
         'url' => absolute_url('admissions-open/' . $program['slug']), 'educationalCredentialAwarded' => $program['degree'] ?: $program['short_name'],
         'provider' => ['@type' => 'CollegeOrUniversity', 'name' => $name, 'sameAs' => absolute_url('')],
-        'hasCourseInstance' => ['@type' => 'CourseInstance', 'courseMode' => 'onsite', 'location' => (string) setting('city', 'Greater Noida')]];
+        'hasCourseInstance' => ['@type' => 'CourseInstance', 'courseMode' => 'onsite', 'location' => (string) setting('city', 'Noida')]];
 }
 
 site_header([
@@ -268,7 +277,7 @@ site_header([
     'canonical' => absolute_url('admissions-open' . ($program ? '/' . $program['slug'] : '')),
     'image' => $heroImgUrl, 'schema' => $schema, 'header' => 'minimal', 'header_cta' => ['label' => 'Apply Now', 'url' => '#lead'],
     'announce' => $stripItems, 'loader' => false,
-    'preload' => [['href' => $heroImgUrl, 'media' => '(min-width: 1280px)']],
+    'preload' => [['href' => $heroPhotoUrl, 'media' => '(min-width: 1280px)']],
 ]);
 ?>
 
@@ -279,7 +288,7 @@ site_header([
   <?= blob('right-[18%] top-10 hidden h-[520px] w-[520px] xl:block', 'flame') ?>
   <div class="container-site relative grid gap-10 py-10 sm:py-14 lg:grid-cols-12 lg:gap-8 lg:py-16">
     <div class="lg:col-span-7 xl:col-span-5">
-      <p class="hero-eyebrow"><span class="hero-eyebrow-dot"></span><?= e(setting('admissions_open_text', 'Admissions Open for ' . $sessionName)) ?></p>
+      <p class="hero-eyebrow" data-reveal="wipe"><span class="hero-eyebrow-dot"></span><?= e(setting('admissions_open_text', 'Admissions Open for ' . $sessionName)) ?></p>
       <h1 id="lp-title" class="lp-hero-title"><?= e($heroTitle) ?><br><span class="pill-phrase"><?= e($heroPill) ?></span></h1>
       <?php if ($program): ?>
         <ul class="mt-6 flex flex-wrap gap-2" aria-label="Program facts">
@@ -288,21 +297,23 @@ site_header([
           <?php endforeach; ?>
         </ul>
       <?php endif; ?>
-      <?php if ($schText !== ''): ?><p class="lp-scholarship"><?= e($schText) ?> <a href="#scholarships">(Know more)</a></p><?php endif; ?>
+      <?php if ($schText !== ''): /* the real "up to N%" figure (scholarships data / landing_scholarship_text) in yellow-gold */ ?><p class="lp-scholarship"><?= preg_match('/up to\s+\d+(?:\.\d+)?\s*%/i', $schText, $schM) ? gold_text($schText, $schM[0], ['variant' => 'soft']) : e($schText) ?> <a href="#scholarships">(Know more)</a></p><?php endif; ?>
       <?php if ($program && $courses): ?>
         <p class="lp-programs"><span class="text-white/70">Specialisations:</span> <?= e(implode(', ', array_map(fn ($c) => trim((string) preg_replace('/^.*?\s-\s/', '', $c['name'])), $courses))) ?></p>
       <?php elseif (!$program): ?>
         <p class="lp-programs"><?= e(implode(', ', array_map(fn ($p) => $p['short_name'], array_slice($programs, 0, 8)))) ?><?= count($programs) > 8 ? ' and more' : '' ?></p>
       <?php endif; ?>
       <div class="mt-7 flex flex-wrap gap-3">
-        <?= button_link('Download Brochure', $brochure, 'apply', ['icon' => '', 'icon_left' => 'download', 'target' => '_blank', 'magnetic' => true]) ?>
+        <?= button_link('Download Brochure', $brochure, 'apply', ['icon' => '', 'icon_left' => 'download', 'target' => '_blank', 'magnetic' => true, 'gleam' => true]) ?>
         <?= button_link($program ? 'Program details' : 'Explore Courses', $program ? '/programs/' . $program['slug'] : '/programs', 'outline-light', ['icon' => 'arrow-right']) ?>
       </div>
       <?php if ($approvals): ?><div class="mt-8 max-w-xl"><?= approvals_card($approvals) ?></div><?php endif; ?>
     </div>
-    <div class="relative hidden xl:col-span-3 xl:block">
-      <div class="lp-photo clip-in absolute inset-x-0 bottom-6 top-20"><img src="<?= e($heroImgUrl) ?>" alt="<?= e($program ? $program['name'] . ' students at GIMT' : 'Students at GIMT') ?>" fetchpriority="high" decoding="async" width="360" height="520"></div>
-      <span class="absolute left-3 top-24 z-[2]"><?= sticker('Learn · Grow · Lead', ['color' => 'white', 'rotate' => -8, 'size' => 'sm']) ?></span>
+    <!-- counsellor photo: phones / tablets an upper-body crop between the text and the form; 1024–1279 none (two
+         columns); xl+ the full-length arch beside the form -->
+    <div class="relative mx-auto w-full max-w-md lg:hidden xl:col-span-3 xl:mx-0 xl:block xl:max-w-none">
+      <div class="lp-photo clip-in h-[340px] bg-white sm:h-[400px] xl:absolute xl:inset-x-0 xl:bottom-6 xl:top-20 xl:h-auto"><img src="<?= e($heroPhotoUrl) ?>" alt="GIMT admission counsellor ready to help you" class="object-top <?= $heroPhotoPos ?>" fetchpriority="high" decoding="async" width="<?= (int) $heroPhotoSize[0] ?>" height="<?= (int) $heroPhotoSize[1] ?>"></div>
+      <span class="absolute right-3 top-4 z-[2] xl:-right-3 xl:top-24"><?= sticker('Learn · Grow · Lead', ['color' => 'white', 'rotate' => -8, 'size' => 'sm']) ?></span>
     </div>
     <div class="lg:col-span-5 xl:col-span-4" id="lead">
       <?= $leadForm('lead', 'landing-hero', $strip !== '' ? $strip : null) ?>
@@ -466,7 +477,7 @@ site_header([
           ['icon' => 'briefcase-business', 'title' => 'Industry-aligned curriculum', 'text' => 'Programs designed with practical projects, case studies and industry interaction.'],
           ['icon' => 'users', 'title' => 'Experienced faculty & mentors', 'text' => 'Learn from qualified faculty who guide you through academics and career choices.'],
           ['icon' => 'handshake', 'title' => 'Training & placement cell', 'text' => 'Aptitude, soft-skills and interview preparation with campus recruitment drives.'],
-          ['icon' => 'building-2', 'title' => 'Campus in ' . setting('city', 'Greater Noida'), 'text' => 'Classrooms, labs, library, hostel and transport facilities on campus.'],
+          ['icon' => 'building-2', 'title' => 'Campus in ' . setting('city', 'Noida'), 'text' => 'Classrooms, labs, library, hostel and transport facilities on campus.'],
       ];
   }
   ?>
@@ -502,20 +513,25 @@ site_header([
 <!-- 11. Final CTA with the form again -->
 <section class="relative isolate overflow-hidden bg-[#F5F2EE] py-16 sm:py-20" aria-labelledby="lp-final">
   <?= blob('-right-24 -top-24 h-[520px] w-[520px]', 'flame') ?>
-  <div class="container-site grid items-center gap-10 lg:grid-cols-12">
+  <div class="container-site grid items-center gap-12 lg:grid-cols-12 lg:gap-10">
+    <!-- admission counsellor (client photo, 2026-10-26) + call chip: above the heading + form on phones / tablets, left of
+         them from 1024 px -->
+    <div class="relative mx-auto w-full max-w-md lg:col-span-5 lg:mx-0 lg:max-w-none" data-reveal="fade-up">
+      <span class="geo geo-dots -bottom-6 -left-6 hidden h-24 w-24 lg:block" aria-hidden="true"></span>
+      <div class="relative overflow-hidden rounded-[28px] border border-warm-2 bg-white shadow-pop">
+        <img src="<?= e(site_image('assets/images/site/lp-counsellor.webp')) ?>" alt="GIMT admission counsellor ready to help you" loading="lazy" decoding="async" width="880" height="804" class="h-auto w-full">
+      </div>
+      <a href="<?= e(site_tel($phone)) ?>" class="absolute -bottom-5 left-1/2 inline-flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full bg-brand-900 px-5 py-3 text-sm font-bold text-white shadow-pop transition hover:bg-accent-600"><?= icon('phone', 'h-4 w-4') ?><span class="hidden min-[400px]:inline">Talk to a counsellor:</span><span class="min-[400px]:hidden">Call</span> <?= e($phone) ?></a>
+    </div>
     <div class="lg:col-span-7">
       <h2 id="lp-final" class="section-title" data-text-reveal>Advance your <?= scribble('career') ?> with GIMT</h2>
       <p class="section-lead">Fill in your details and our admission team will connect with you shortly.</p>
       <div class="mt-7 rounded-[22px] border border-[#EDE8E2] bg-white p-5 sm:p-7"><?= $leadForm('plain', 'landing-footer') ?></div>
       <?php if ($waCta = whatsapp_cta('Chat with us on WhatsApp', $waText)): ?><p class="mt-5 flex flex-wrap items-center gap-3 text-sm text-body">Prefer chatting? <?= $waCta ?></p><?php endif; ?>
     </div>
-    <div class="relative hidden lg:col-span-5 lg:block">
-      <div class="page-hero-frame" data-reveal="clip"><img src="<?= e(site_image('assets/images/site/placement-student.jpg')) ?>" alt="A GIMT student" loading="lazy" decoding="async" width="560" height="470"></div>
-      <span class="geo geo-dots -bottom-6 -left-6 h-24 w-24" aria-hidden="true"></span>
-    </div>
   </div>
 </section>
 
-<?= enquiry_modal(['id' => 'lead-modal', 'source' => $source, 'program' => $program ? (string) $program['id'] : '']) ?>
+<?= enquiry_modal(['id' => 'lead-modal', 'source' => $source, 'program' => $program ? (string) $program['id'] : '', 'consent' => $consent]) ?>
 
 <?php site_footer(['footer' => 'minimal', 'cta' => false, 'enquiry_tab' => false, 'mobile_cta' => ['call' => $phone, 'apply' => ['label' => 'Apply Now', 'url' => '#lead']]]); ?>

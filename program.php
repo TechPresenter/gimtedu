@@ -7,7 +7,7 @@
  * BreadcrumbList. Unknown slugs get a helpful 404 page.
  */
 require __DIR__ . '/includes/config.php';
-require_once __DIR__ . '/includes/partials/site_academic.php';
+require_once __DIR__ . '/includes/partials/certifications.php';
 
 $slug = strtolower((string) ($_GET['slug'] ?? ''));
 $program = null;
@@ -17,6 +17,17 @@ if (preg_match('/^[a-z0-9-]{1,190}$/', $slug)) {
         WHERE p.slug = ? AND p.status = 'active' AND p.show_on_website = 1", [$slug]));
 }
 $all = sa_programs();
+
+/* Short keys people type or print (/programs/mba, /programs/b-tech-cse): program code or slugified short name → 301 to
+   the canonical slug URL (same resolution as the campaign landings /admissions-open/{key}). */
+if (!$program && $slug !== '') {
+    foreach ($all as $p) {
+        if ($slug === strtolower((string) ($p['code'] ?? '')) || ($p['short_name'] ?? '') !== '' && $slug === slugify((string) $p['short_name'])) {
+            header('Location: ' . site_url('programs/' . $p['slug']), true, 301);
+            exit;
+        }
+    }
+}
 
 /* ------------------------------------------------------------------ 404 */
 if (!$program) {
@@ -30,7 +41,7 @@ if (!$program) {
             [$best, $bestScore] = [$p, $pct];
         }
     }
-    site_header(['title' => 'Program Not Found', 'description' => 'The program you are looking for could not be found. Explore all programs offered at GIMT, Greater Noida.',
+    site_header(['title' => 'Program Not Found', 'description' => 'The program you are looking for could not be found. Explore all programs offered at GIMT, Noida.',
         'active' => 'programs', 'robots' => 'noindex,follow', 'canonical' => absolute_url('programs')]);
     page_hero('Program Not Found', 'Let’s find the right program for you', ['Programs' => '/programs', 'Not Found'], 'assets/images/site/students-laptop.jpg',
         'The program you are looking for may have been renamed or is no longer offered. Browse our current programs or ask a counsellor for guidance.', [],
@@ -82,7 +93,12 @@ $applyPath = 'apply?program=' . rawurlencode($p['slug']);
 $applyUrl = site_url($applyPath);
 $level = program_level_label($p['level']);
 $duration = $p['duration_label'] ?: rtrim(rtrim(number_format($years, 1), '0'), '.') . ' Years';
-$mode = 'Full-Time · On Campus';
+// certificate courses: modules instead of semesters/credits, their own listing page (/certifications), course wording
+$isCert = $p['level'] === 'Certificate' && is_file(__DIR__ . '/certifications.php');
+$certGroup = $isCert ? (site_cert_groups()[site_cert_group_key($p)] ?? null) : null;
+$moduleCount = array_sum(array_map('count', $curriculum));
+$durationMonths = preg_match('/(\d+)\s*month/i', $duration, $dm) ? (int) $dm[1] : 0;
+$mode = $isCert ? 'Classroom · On Campus' : 'Full-Time · On Campus';
 
 // short eligibility for the facts strip
 $elig = trim((string) $p['eligibility']);
@@ -92,50 +108,59 @@ if (preg_match('/(\d{2})\s*%/', $elig, $m)) {
     $eligShort = $base !== '' ? $base . ' with ' . $m[1] . '%' : str_limit($elig, 30);
 } elseif (stripos($elig, '10+2') !== false) {
     $eligShort = stripos($elig, 'graduation') !== false ? '10+2 or Graduation' : '10+2 (any stream)';
+} elseif (preg_match('/^Class (\d+) pass/i', $elig, $m)) {
+    $eligShort = 'Class ' . $m[1] . ' pass';
+} elseif (preg_match('/^Graduates/i', $elig)) {
+    $eligShort = 'Graduates & professionals';
 } else {
     $eligShort = str_limit($elig, 30);
 }
 
 // related programs: same category / department first, then same level
 $related = [];
-foreach ($all as $r) {
-    if ((int) $r['id'] !== $id && ($r['category'] === $p['category'] || (int) $r['department_id'] === (int) $p['department_id'])) {
-        $related[$r['id']] = $r;
+foreach ([
+    fn ($r) => $r['category'] === $p['category'],
+    fn ($r) => (int) $r['department_id'] === (int) $p['department_id'],
+    fn ($r) => $r['level'] === $p['level'],
+    fn ($r) => true,
+] as $test) {
+    foreach ($all as $r) {
+        if (count($related) >= 6) {
+            break 2;
+        }
+        if ((int) $r['id'] !== $id && $test($r)) {
+            $related[$r['id']] = $r;
+        }
     }
 }
-foreach ($all as $r) {
-    if (count($related) >= 6) {
-        break;
-    }
-    if ((int) $r['id'] !== $id && $r['level'] === $p['level']) {
-        $related[$r['id']] = $r;
-    }
-}
-foreach ($all as $r) {
-    if (count($related) >= 6) {
-        break;
-    }
-    if ((int) $r['id'] !== $id) {
-        $related[$r['id']] = $r;
-    }
-}
-$related = array_slice(array_values($related), 0, 6);
+$related = array_values($related);
 
 // FAQs generated from this program's data + CMS admission FAQs
 $faqs = [
-    ['q' => 'What is the duration of the ' . $short . ' program?', 'a' => 'The ' . $name . ' is a ' . strtolower($duration) . ' ' . strtolower($level) . ' program divided into ' . (int) $p['total_semesters'] . ' semester' . ((int) $p['total_semesters'] === 1 ? '' : 's') . ($totalCredits ? ' with ' . rtrim(rtrim(number_format($totalCredits, 1), '0'), '.') . ' credits in total' : '') . '.'],
+    $isCert
+        ? ['q' => 'How long is the ' . $short . ' course?', 'a' => 'The ' . $name . ' runs for ' . strtolower($duration) . ($moduleCount ? ' and is divided into ' . $moduleCount . ' modules' : '') . ', ending with a practical project or assessment.']
+        : ['q' => 'What is the duration of the ' . $short . ' program?', 'a' => 'The ' . $name . ' is a ' . strtolower($duration) . ' ' . strtolower($level) . ' program divided into ' . (int) $p['total_semesters'] . ' semester' . ((int) $p['total_semesters'] === 1 ? '' : 's') . ($totalCredits ? ' with ' . rtrim(rtrim(number_format($totalCredits, 1), '0'), '.') . ' credits in total' : '') . '.'],
 ];
 if ($elig !== '') {
     $faqs[] = ['q' => 'What is the eligibility for ' . $short . '?', 'a' => $elig];
 }
 if ($fee !== '') {
-    $faqs[] = ['q' => 'What is the fee for ' . $short . '?', 'a' => 'The tuition fee for the ' . ($session['name'] ?? 'current') . ' session is ' . $fee . '. Fees can be paid semester-wise; merit and need-based scholarships and education-loan assistance are available. Hostel and transport fees are separate.'];
+    $faqs[] = $isCert
+        ? ['q' => 'What is the fee for ' . $short . '?', 'a' => 'The course fee for the ' . ($session['name'] ?? 'current') . ' session is ' . $fee . '. You can pay online by UPI, card or net banking.']
+        : ['q' => 'What is the fee for ' . $short . '?', 'a' => 'The tuition fee for the ' . ($session['name'] ?? 'current') . ' session is ' . $fee . '. Fees can be paid semester-wise; merit and need-based scholarships and education-loan assistance are available. Hostel and transport fees are separate.'];
+} elseif ($isCert) {
+    $faqs[] = ['q' => 'What is the fee for ' . $short . '?', 'a' => 'Our counsellors share the current course fee when you enquire — request a call back using the form on this page.'];
 }
 if ($p['intake_capacity']) {
     $faqs[] = ['q' => 'How many seats are available?', 'a' => 'The annual intake for ' . $short . ' is ' . (int) $p['intake_capacity'] . ' seats. Admissions are on a first-come, merit-verified basis, so we recommend applying early.'];
 }
-if ($careers) {
+if ($careers && $isCert) {
+    $faqs[] = ['q' => 'Where can I use the skills from ' . $short . '?', 'a' => 'The course is useful for ' . implode(', ', array_slice($careers, 0, -1)) . (count($careers) > 1 ? ' and ' : '') . end($careers) . '. Our career team can help with your resume and interview preparation.'];
+} elseif ($careers) {
     $faqs[] = ['q' => 'What career options are available after ' . $short . '?', 'a' => 'Graduates work as ' . implode(', ', array_slice($careers, 0, -1)) . (count($careers) > 1 ? ' and ' : '') . end($careers) . '. Our placement cell supports every student with training, internships and placement drives.'];
+}
+if ($isCert) {
+    $faqs[] = ['q' => 'Will I get a certificate?', 'a' => 'Yes. When you complete the modules and the final assessment you receive a GIMT course completion certificate with a unique certificate number and QR code' . (is_file(__DIR__ . '/verify-certificate.php') ? ' that anyone can check at ' . absolute_url('verify-certificate') : '') . '.'];
 }
 $faqs[] = ['q' => 'How do I apply for ' . $short . '?', 'a' => 'Apply online at ' . absolute_url('apply?program=' . $p['slug']) . ', upload your documents and pay the registration fee. For guidance, request a free counselling call or call ' . setting('phone', '+91 9955446477') . '.'];
 foreach (sa_faqs(['admissions'], 3) as $f) {
@@ -143,7 +168,7 @@ foreach (sa_faqs(['admissions'], 3) as $f) {
 }
 
 // JSON-LD
-$iso = fmod($years, 1.0) ? 'P' . (int) round($years * 12) . 'M' : 'P' . (int) $years . 'Y';
+$iso = $durationMonths ? 'P' . $durationMonths . 'M' : (fmod($years, 1.0) ? 'P' . (int) round($years * 12) . 'M' : 'P' . (int) $years . 'Y');
 $courseLd = array_filter([
     '@context' => 'https://schema.org', '@type' => 'Course', 'name' => $name, 'courseCode' => $p['code'],
     'description' => str_limit(strip_tags((string) ($p['overview'] ?: $name)), 300), 'url' => absolute_url('programs/' . $p['slug']),
@@ -153,44 +178,51 @@ $courseLd = array_filter([
     'provider' => ['@type' => 'CollegeOrUniversity', 'name' => institute_name(), 'sameAs' => absolute_url('')],
     'offers' => (float) $p['fee_per_year'] > 0 ? [['@type' => 'Offer', 'category' => 'Paid', 'price' => (float) $p['fee_per_year'], 'priceCurrency' => 'INR', 'url' => absolute_url('apply?program=' . $p['slug'])]] : null,
     'hasCourseInstance' => [['@type' => 'CourseInstance', 'courseMode' => 'Onsite', 'courseWorkload' => $iso,
-        'location' => ['@type' => 'Place', 'name' => institute_name(), 'address' => setting('address', 'Knowledge Park, Greater Noida, Uttar Pradesh')]]],
+        'location' => ['@type' => 'Place', 'name' => institute_name(), 'address' => setting('address', 'Sector 18, Noida, Uttar Pradesh')]]],
 ], fn ($v) => $v !== null && $v !== '');
 
 site_header([
-    'title' => $name . ($suffix !== '' ? ' (' . $suffix . ')' : '') . ' — Fees, Eligibility & Syllabus',
-    'description' => str_limit($name . ' at GIMT Greater Noida: ' . $duration . ' ' . strtolower($level) . ' program. ' . ($fee !== '' ? 'Fee ' . $fee . '. ' : '') . ($elig !== '' ? 'Eligibility: ' . $elig . ' ' : '') . (string) $p['overview'], 300),
+    'title' => site_fit_title([
+        $name . ($suffix !== '' ? ' (' . $suffix . ')' : '') . ' — Fees, Eligibility & Syllabus',
+        $name . ($suffix !== '' ? ' (' . $suffix . ')' : '') . ' — Fees & Eligibility',
+        $name . ($suffix !== '' ? ' (' . $suffix . ')' : '') . ' — Fees & Admission',
+        $name . ($suffix !== '' ? ' (' . $suffix . ')' : ''),
+        $name . ' — Fees & Eligibility',
+        $name,
+    ]),
+    'description' => site_meta_description($name . ' at GIMT Noida: ' . $duration . ' ' . strtolower($level) . ' program. ' . ($fee !== '' ? 'Fee ' . $fee . '. ' : '') . ($elig !== '' ? 'Eligibility: ' . $elig . ' ' : '') . (string) $p['overview']),
     'active' => 'programs',
     'seo' => ['program', $id],
     'image' => $image,
     'preload' => [site_image('assets/images/site/campus-building.jpg'), $image],
     'og_type' => 'website',
-    'schema' => array_values(array_filter([sa_breadcrumb_ld([['Home', ''], ['Programs', 'programs'], [$short, null]]), sa_seo_schema_has('Course', 'program', $id, null) ? null : $courseLd])),
+    'schema' => array_values(array_filter([sa_breadcrumb_ld($isCert ? [['Home', ''], ['Certificate Courses', 'certifications'], [$short, null]] : [['Home', ''], ['Programs', 'programs'], [$short, null]]), sa_seo_schema_has('Course', 'program', $id, null) ? null : $courseLd])),
 ]);
 
 sa_program_hero($p, [
     'title' => $name . ($suffix !== '' ? ' (' . $suffix . ')' : ''),
-    'subtitle' => $level . ' Program' . ($p['category'] && !in_array($p['category'], ['Diploma', 'Certificate'], true) ? ' in ' . $p['category'] : ''),
-    'crumbs' => ['Programs' => '/programs', $short],
+    'subtitle' => $isCert ? 'Certificate Course' . ($certGroup ? ' · ' . $certGroup['label'] : '') : $level . ' Program' . ($p['category'] && !in_array($p['category'], ['Diploma', 'Certificate'], true) ? ' in ' . $p['category'] : ''),
+    'crumbs' => $isCert ? ['Programs' => '/programs', 'Certificate Courses' => '/certifications', $short] : ['Programs' => '/programs', $short],
     'text' => (string) $p['overview'],
     'eyebrow' => ($p['department_name'] ?? '') . ($session && (int) ($session['admissions_open'] ?? 0) ? ' · Admissions Open ' . $session['name'] : ''),
-    'actions' => button_link('Apply Now', $applyPath, 'accent', ['shine' => true, 'magnetic' => true, 'size' => 'lg'])
+    'actions' => button_link('Apply Now', $applyPath, 'accent', ['gleam' => true, 'magnetic' => true, 'size' => 'lg'])
         . '<a href="' . e(sa_brochure_url($p)) . '" target="_blank" rel="noopener" class="btn btn-outline-light btn-lg">' . icon('download', 'h-4 w-4') . 'Download Brochure<span class="sr-only"> (opens in a new tab)</span></a>',
-    'chips' => [['clock', $duration . ' · ' . (int) $p['total_semesters'] . ' Semester' . ((int) $p['total_semesters'] === 1 ? '' : 's')], ['users', $p['intake_capacity'] ? (int) $p['intake_capacity'] . ' seats · ' . ($session['name'] ?? '') : $level]],
+    'chips' => [['clock', $duration . ' · ' . ($isCert && $moduleCount ? $moduleCount . ' Modules' : (int) $p['total_semesters'] . ' Semester' . ((int) $p['total_semesters'] === 1 ? '' : 's'))], ['users', $p['intake_capacity'] ? (int) $p['intake_capacity'] . ' seats · ' . ($session['name'] ?? '') : $level]],
     'image_alt' => $name . ' students at GIMT',
 ]);
 
 $facts = [
     ['clock', 'Duration', $duration],
     ['graduation-cap', 'Level', $level],
-    ['layers', 'Semesters', (string) (int) $p['total_semesters']],
-    ['users', 'Intake', $p['intake_capacity'] ? (int) $p['intake_capacity'] . ' Seats' : 'Limited seats'],
+    $isCert ? ['layers', 'Modules', $moduleCount ? (string) $moduleCount : '—'] : ['layers', 'Semesters', (string) (int) $p['total_semesters']],
+    $isCert ? ['award', 'Certificate', 'GIMT · QR verified'] : ['users', 'Intake', $p['intake_capacity'] ? (int) $p['intake_capacity'] . ' Seats' : 'Limited seats'],
     ['wallet', 'Fee ' . trim((string) ($p['fee_label'] ?: '/ Year')), $fee !== '' ? money($p['fee_per_year']) : 'On request'],
     ['clipboard-check', 'Eligibility', $eligShort ?: 'See below'],
     ['building-2', 'Mode', $mode],
 ];
 $nav = array_filter([
     'overview' => 'Overview',
-    'curriculum' => $curriculum ? 'Curriculum' : null,
+    'curriculum' => $curriculum ? ($isCert ? 'Modules' : 'Curriculum') : null,
     'fees' => 'Fees',
     'careers' => $careers ? 'Careers' : null,
     'faculty' => $faculty ? 'Faculty' : null,
@@ -205,7 +237,7 @@ $nav = array_filter([
       <?php foreach ($facts as $i => [$ic, $label, $val]): ?>
         <div class="flex items-center gap-3 bg-white p-4 <?= $label === 'Eligibility' ? 'col-span-2 lg:col-span-1' : '' ?>">
           <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl tint-navy"><?= icon($ic, 'h-5 w-5') ?></span>
-          <div class="min-w-0"><dt class="text-[11px] font-bold uppercase tracking-wider text-slate-400"><?= e($label) ?></dt><dd class="text-sm font-bold leading-snug text-brand-900"><?= e($val) ?></dd></div>
+          <div class="min-w-0"><dt class="text-[11px] font-bold uppercase tracking-wider text-slate-500"><?= e($label) ?></dt><dd class="text-sm font-bold leading-snug text-brand-900"><?= e($val) ?></dd></div>
         </div>
       <?php endforeach; ?>
     </dl>
@@ -235,7 +267,7 @@ $nav = array_filter([
           </div>
         <?php endif; ?>
         <?php if ($courses): ?>
-          <div class="mt-6">
+          <div id="specializations" class="mt-6 scroll-mt-28">
             <h3 class="font-display font-bold text-brand-900">Specializations offered</h3>
             <ul class="mt-3 flex flex-wrap gap-2">
               <?php foreach ($courses as $c): ?><li class="inline-flex items-center gap-1.5 rounded-full border border-brand-100 bg-brand-50 px-3.5 py-1.5 text-sm font-semibold text-brand-800"><?= icon('sparkles', 'h-3.5 w-3.5 text-accent-600') ?><?= e(preg_replace('/^.*?\s[-–]\s/', '', $c['name'])) ?></li><?php endforeach; ?>
@@ -259,7 +291,26 @@ $nav = array_filter([
         </section>
       <?php endif; ?>
 
-      <?php if ($curriculum): ?>
+      <?php if ($curriculum && $isCert): $mods = array_merge(...array_values($curriculum)); ?>
+        <!-- Course modules (certificate courses: a numbered list, no semesters / credits) -->
+        <section id="curriculum" class="mt-14 scroll-mt-28" aria-labelledby="curriculum-title">
+          <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 id="curriculum-title" class="font-display text-2xl font-extrabold text-brand-900">Course Modules</h2>
+              <p class="mt-1 text-sm text-slate-500"><?= count($mods) ?> modules · <?= e($duration) ?></p>
+            </div>
+            <a href="<?= e(sa_brochure_url($p)) ?>" target="_blank" rel="noopener" class="link-arrow text-sm"><?= icon('printer', 'h-4 w-4') ?>Printable syllabus<span class="sr-only"> (opens in a new tab)</span></a>
+          </div>
+          <ol class="grid gap-3 sm:grid-cols-2" data-stagger="50">
+            <?php foreach ($mods as $i => $s): $final = $s['type'] === 'project'; ?>
+              <li class="flex items-start gap-3.5 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-display text-sm font-extrabold <?= $final ? 'bg-accent-600 text-white' : 'tint-navy' ?>"><?= $final ? icon('award', 'h-4 w-4') : $i + 1 ?></span>
+                <span class="min-w-0 pt-1.5"><span class="block text-[15px] font-semibold leading-snug text-brand-900"><?= e($s['name']) ?></span><?php if ($final): ?><span class="mt-0.5 block text-xs text-slate-500">Final project / assessment</span><?php endif; ?></span>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        </section>
+      <?php elseif ($curriculum): ?>
         <!-- Curriculum -->
         <section id="curriculum" class="mt-14 scroll-mt-28" aria-labelledby="curriculum-title">
           <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
@@ -294,8 +345,8 @@ $nav = array_filter([
           <?php $oneYear = abs($fsum['first_year'] - $fsum['total']) < 0.01; ?>
           <div class="mt-5 grid gap-3 <?= $oneYear ? 'sm:grid-cols-2' : 'sm:grid-cols-3' ?>">
             <?php if (!$oneYear): ?><div class="rounded-2xl bg-brand-900 p-4 text-white"><p class="text-[11px] font-bold uppercase tracking-wider text-white/60">First-year fee</p><p class="mt-1 font-display text-2xl font-extrabold"><?= e(money($fsum['first_year'])) ?></p></div><?php endif; ?>
-            <div class="rounded-2xl p-4 <?= $oneYear ? 'bg-brand-900 text-white' : 'border border-slate-200 bg-white' ?>"><p class="text-[11px] font-bold uppercase tracking-wider <?= $oneYear ? 'text-white/60' : 'text-slate-400' ?>">Total program fee</p><p class="mt-1 font-display text-2xl font-extrabold <?= $oneYear ? '' : 'text-brand-900' ?>"><?= e(money($fsum['total'])) ?></p></div>
-            <div class="rounded-2xl border border-slate-200 bg-white p-4"><p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Payment</p><p class="mt-1 text-sm font-semibold text-brand-900"><?= $maxInst > 1 ? 'Up to ' . (int) $maxInst . ' instalments per term' : 'Per term, before the due date' ?></p></div>
+            <div class="rounded-2xl p-4 <?= $oneYear ? 'bg-brand-900 text-white' : 'border border-slate-200 bg-white' ?>"><p class="text-[11px] font-bold uppercase tracking-wider <?= $oneYear ? 'text-white/75' : 'text-slate-500' ?>">Total program fee</p><p class="mt-1 font-display text-2xl font-extrabold <?= $oneYear ? '' : 'text-brand-900' ?>"><?= e(money($fsum['total'])) ?></p></div>
+            <div class="rounded-2xl border border-slate-200 bg-white p-4"><p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Payment</p><p class="mt-1 text-sm font-semibold text-brand-900"><?= $maxInst > 1 ? 'Up to ' . (int) $maxInst . ' instalments per term' : 'Per term, before the due date' ?></p></div>
           </div>
           <div class="relative mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
             <table class="data-table min-w-[600px]">
@@ -332,19 +383,26 @@ $nav = array_filter([
         <?php else: ?>
           <p class="mt-4 text-slate-600">Fee details for this program are shared during counselling. Request a call back and our team will send you the complete fee structure.</p>
         <?php endif; ?>
+        <?php if ($isCert): ?>
+        <ul class="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+          <li class="flex gap-2"><?= icon('award', 'mt-0.5 h-4 w-4 shrink-0 text-accent-600') ?>GIMT course completion certificate included</li>
+          <li class="flex gap-2"><?= icon('indian-rupee', 'mt-0.5 h-4 w-4 shrink-0 text-accent-600') ?>Pay online by UPI, card or net banking</li>
+        </ul>
+        <?php else: ?>
         <ul class="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
           <li class="flex gap-2"><?= icon('award', 'mt-0.5 h-4 w-4 shrink-0 text-accent-600') ?>Merit, sports and need-based scholarships available</li>
           <li class="flex gap-2"><?= icon('calendar-check', 'mt-0.5 h-4 w-4 shrink-0 text-accent-600') ?>Semester-wise payment and education-loan assistance</li>
           <li class="flex gap-2"><?= icon('bed-double', 'mt-0.5 h-4 w-4 shrink-0 text-accent-600') ?>Hostel and transport fees are charged separately</li>
           <li class="flex gap-2"><?= icon('indian-rupee', 'mt-0.5 h-4 w-4 shrink-0 text-accent-600') ?>Pay online by UPI, card or net banking</li>
         </ul>
+        <?php endif; ?>
       </section>
 
       <?php if ($careers): ?>
         <!-- Careers -->
         <section id="careers" class="mt-14 scroll-mt-28" aria-labelledby="careers-title">
-          <h2 id="careers-title" class="font-display text-2xl font-extrabold text-brand-900">Career Opportunities</h2>
-          <p class="mt-1 text-slate-600">Roles our <?= e($short) ?> graduates step into.</p>
+          <h2 id="careers-title" class="font-display text-2xl font-extrabold text-brand-900"><?= $isCert ? 'Where These Skills Help' : 'Career Opportunities' ?></h2>
+          <p class="mt-1 text-slate-600"><?= $isCert ? 'Roles and goals this course prepares you for.' : 'Roles our ' . e($short) . ' graduates step into.' ?></p>
           <ul class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3" data-stagger="60">
             <?php foreach ($careers as $i => $c): ?>
               <li class="group flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-card">
@@ -430,14 +488,19 @@ $nav = array_filter([
 
 <?php if ($related): ?>
 <?= section_open(['id' => 'related', 'bg' => 'light']) ?>
-  <?= section_heading('Related Programs', 'Explore other programs students interested in ' . $short . ' also consider.', 'You may also like', 'left', '<a href="' . e(site_url('programs')) . '" class="link-arrow">All programs' . icon('arrow-right', 'h-4 w-4') . '</a>') ?>
-  <?= carousel(array_map(fn ($r) => sa_program_card($r), $related), ['ariaLabel' => 'Related programs', 'perView' => ['base' => 1.1, 'sm' => 2, 'lg' => 3], 'gap' => 24]) ?>
+  <?php if ($isCert): ?>
+    <?= section_heading('Related Courses', 'Other certificate courses learners interested in ' . $short . ' also take.', 'You may also like', 'left', '<a href="' . e(site_url('certifications')) . '" class="link-arrow">All certificate courses' . icon('arrow-right', 'h-4 w-4') . '</a>') ?>
+    <?= carousel(array_map(fn ($r) => $r['level'] === 'Certificate' ? cert_card($r) : sa_program_card($r), $related), ['ariaLabel' => 'Related courses', 'perView' => ['base' => 1.1, 'sm' => 2, 'lg' => 3], 'gap' => 24]) ?>
+  <?php else: ?>
+    <?= section_heading('Related Programs', 'Explore other programs students interested in ' . $short . ' also consider.', 'You may also like', 'left', '<a href="' . e(site_url('programs')) . '" class="link-arrow">All programs' . icon('arrow-right', 'h-4 w-4') . '</a>') ?>
+    <?= carousel(array_map(fn ($r) => sa_program_card($r), $related), ['ariaLabel' => 'Related programs', 'perView' => ['base' => 1.1, 'sm' => 2, 'lg' => 3], 'gap' => 24]) ?>
+  <?php endif; ?>
 <?= section_close() ?>
 <?php endif; ?>
 
 <?php site_footer([
     'cta_title' => 'Ready to Join ' . $short . ' at GIMT?',
-    'cta_text' => 'Applications for the ' . ($session['name'] ?? 'new') . ' session are open. Seats are limited — apply today.',
+    'cta_text' => $isCert ? 'Learn practical skills in ' . strtolower($duration) . ' and earn a GIMT course completion certificate.' : 'Applications for the ' . ($session['name'] ?? 'new') . ' session are open. Seats are limited — apply today.',
     'cta_primary' => ['label' => 'Apply for ' . $short, 'url' => $applyPath],
     'cta_secondary' => ['label' => 'Download Brochure', 'url' => sa_brochure_path($p), 'icon' => 'download'],
 ]);

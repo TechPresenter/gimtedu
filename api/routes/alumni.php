@@ -102,13 +102,13 @@ route('POST', '/alumni/events/{id:\d+}/registrations', function ($p) {
 
 route('POST', '/alumni/events/{id:\d+}/status', function ($p) {
     api_require('alumni', 'edit');
-    $res = alumni_event_set_status((int) $p['id'], (string) api_param('status', ''));
+    $res = alumni_event_set_status((int) $p['id'], api_str(api_param('status')));
     api_ok($res, $res['message']);
 });
 
 route('POST', '/alumni/registrations/{id:\d+}', function ($p) {
     api_require('alumni', 'edit');
-    $res = alumni_registration_set_status((int) $p['id'], (string) api_param('status', ''));
+    $res = alumni_registration_set_status((int) $p['id'], api_str(api_param('status')));
     api_ok($res, 'Registration updated.');
 });
 
@@ -133,7 +133,7 @@ route('POST', '/alumni/jobs/close-expired', function () {
 
 route('POST', '/alumni/jobs/{id:\d+}/{action:approve|reject|close|reopen}', function ($p) {
     api_require('alumni', in_array($p['action'], ['approve', 'reject'], true) ? 'approve' : 'edit');
-    $res = alumni_job_action((int) $p['id'], $p['action'], (string) api_param('reason', ''));
+    $res = alumni_job_action((int) $p['id'], $p['action'], api_str(api_param('reason')));
     api_ok($res, $res['message']);
 });
 
@@ -167,6 +167,6 @@ route('GET', '/alumni/donations/stats', function () {
 
 route('POST', '/alumni/donations/{id:\d+}/status', function ($p) {
     api_require('alumni', 'edit');
-    $res = alumni_donation_set_status((int) $p['id'], (string) api_param('status', ''), api_input());
+    $res = alumni_donation_set_status((int) $p['id'], api_str(api_param('status')), api_input());
     api_ok($res, $res['message']);
 });

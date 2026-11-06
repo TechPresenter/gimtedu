@@ -62,6 +62,7 @@ route('POST', '/marksheets/generate', function () {
         api_ok($res, $res['skipped_withheld'] ? 'No marksheets generated — the remaining results are withheld.' : 'Marksheets are already generated for every published result of this exam.');
     }
     log_activity('create', 'results', (int) $in['exam_id'], sprintf('Generated %d marksheet%s for "%s"', $res['generated'], $res['generated'] === 1 ? '' : 's', $e['name'] ?? ''));
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_fanout('GIMT_MARKSHEET_GENERATED', ['exam_id' => (int) $in['exam_id']], db_column("SELECT m.student_id FROM marksheets m JOIN results r ON r.id = m.result_id WHERE r.exam_id = ? AND m.status <> 'revoked' AND m.issued_at >= NOW() - INTERVAL 10 MINUTE", [(int) $in['exam_id']]), 'ms:' . (int) $in['exam_id'], ['source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     notify(exam_users_with('results', 'publish'), 'marksheets_generated', $res['generated'] . ' marksheets generated', ($e['name'] ?? '') . ' — ready to print.', '/marksheets?exam=' . (int) $in['exam_id'], 'file-badge');
     api_ok($res, sprintf('%d marksheet%s generated%s.', $res['generated'], $res['generated'] === 1 ? '' : 's', $res['skipped_withheld'] ? ' (' . $res['skipped_withheld'] . ' withheld results skipped)' : ''));
 });
@@ -95,7 +96,7 @@ route('POST', '/marksheets/{id:\d+}/reissue', function ($p) {
 
 route('GET', '/marksheets/verify/{no}', function ($p) {
     $no = strtoupper(trim((string) preg_replace('/[^A-Za-z0-9\-]/', '', (string) $p['no'])));
-    $code = isset($_GET['code']) ? (string) $_GET['code'] : null;
+    $code = isset($_GET['code']) ? api_str($_GET['code']) : null;
     $html = marksheets_verify_wants_html();
     if (!rate_limit('ms-verify:' . client_ip(), 30, 60)) {
         $html ? marksheets_verify_page($no, null, true) : api_error('Too many verification attempts. Please wait a minute and try again.', 429);
@@ -114,7 +115,7 @@ route('GET', '/marksheets/verify/{no}', function ($p) {
 /** Browsers (QR scans) get the verification page; API clients (Accept: application/json or ?format=json) get JSON. */
 function marksheets_verify_wants_html(): bool
 {
-    $format = (string) ($_GET['format'] ?? '');
+    $format = api_str($_GET['format'] ?? null);
     if ($format !== '') {
         return $format === 'html';
     }
@@ -130,7 +131,7 @@ function marksheets_verify_page(string $no, ?array $m, bool $limited = false): v
     header('X-Robots-Tag: noindex, nofollow');
     http_response_code($limited ? 429 : ($m || $no === '' ? 200 : 404));
     $institute = institute_name();
-    $self = base_url('api/marksheets/verify/' . rawurlencode($no));
+    $self = base_url('verify-marksheet/' . rawurlencode($no));
     $fmt = fn (?string $d) => $d ? e(date('d M Y', strtotime($d))) : '—';
     $detail = fn (string $label, string $value, string $extra = '') => '<div class="rounded-xl bg-slate-50 px-4 py-3 ' . $extra . '"><dt class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">'
         . e($label) . '</dt><dd class="mt-1 break-words text-sm font-semibold text-slate-900">' . $value . '</dd></div>';

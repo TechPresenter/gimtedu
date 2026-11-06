@@ -218,7 +218,7 @@ function RaiseInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose: 
         <Field htmlFor="inv-student" label="Student" required error={errors.student_id}>
           <Combobox id="inv-student" source="students" value={studentId} onChange={(v) => setStudentId(v ? Number(v) : null)} placeholder="Search by name, student ID, roll no or mobile…" invalid={!!errors.student_id} />
         </Field>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field htmlFor="inv-invoice-title" label="Invoice title" required error={errors.title} className="sm:col-span-2">
             <Input id="inv-invoice-title" value={title} maxLength={190} placeholder="e.g. Re-examination fee — Data Structures" invalid={!!errors.title} onChange={(e) => setTitle(e.target.value)} />
           </Field>

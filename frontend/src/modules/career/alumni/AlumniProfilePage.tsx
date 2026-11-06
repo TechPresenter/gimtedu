@@ -14,7 +14,7 @@ import { api, ApiError } from '@/lib/api';
 import { useApi, useCrudMeta } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
 import { printUrl } from '@/lib/config';
-import { formatDate, formatDateTime, formatMoney, formatMoneyShort, formatNumber } from '@/lib/format';
+import { formatDate, formatDateTime, formatMoney, formatMoneyShort, formatNumber, formatPhone, telHref } from '@/lib/format';
 import type { Row } from '@/lib/types';
 import { donationRenderers, jobRenderers, mentorshipRenderers, receiptLabel, storyRenderers } from './renderers';
 import { EMPLOYMENT_COLORS, EVENT_MODE_LABELS, EVENT_TYPE_COLORS, EVENT_TYPE_LABELS, FixedCrudFormModal, REG_STATUS_COLORS, REG_STATUS_LABELS, statsKey, useRefreshModules } from './shared';
@@ -175,7 +175,7 @@ export default function AlumniProfilePage() {
               </div>
               <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-100 px-5 py-3 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-300">
                 {a.email && <a href={`mailto:${a.email}`} className="inline-flex items-center gap-1.5 hover:text-brand-700"><Mail className="h-4 w-4 text-slate-400" />{String(a.email)}</a>}
-                {a.phone && <a href={`tel:${String(a.phone).replace(/\s/g, '')}`} className="inline-flex items-center gap-1.5 hover:text-brand-700"><Phone className="h-4 w-4 text-slate-400" />{String(a.phone)}</a>}
+                {a.phone && <a href={telHref(String(a.phone))} className="inline-flex items-center gap-1.5 hover:text-brand-700"><Phone className="h-4 w-4 text-slate-400" />{formatPhone(a.phone)}</a>}
                 {(a.city || a.country) && <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4 text-slate-400" />{[a.city, a.country].filter(Boolean).join(', ')}</span>}
                 {a.linkedin_url && <a href={String(a.linkedin_url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 hover:text-brand-700"><ExternalLink className="h-4 w-4 text-slate-400" />LinkedIn profile</a>}
                 {a.student_id && can('students') && <Link to={`/students/${a.student_id}`} className="inline-flex items-center gap-1.5 hover:text-brand-700"><GraduationCap className="h-4 w-4 text-slate-400" />Student record {String(a.student_uid ?? '')}</Link>}

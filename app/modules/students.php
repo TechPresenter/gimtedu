@@ -433,6 +433,7 @@ return [
             $ids = array_values(array_filter(array_map('intval', $ids)));
             $n = db_exec('UPDATE students SET status = ?, status_reason = ? WHERE id IN (' . implode(',', $ids) . ')', [$status, $reason]);
             log_activity('status', 'students', implode(',', array_slice($ids, 0, 20)), 'Marked ' . count($ids) . ' student(s) ' . $status . ' — ' . $reason);
+            try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_fanout('GIMT_STUDENT_STATUS_CHANGED', ['new_status' => $status, 'status_label' => students_status_options()[$status] ?? $status, 'reason' => $reason], $ids, 'bulk:' . $status . ':' . date('YmdHi'), ['source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
             return ['updated' => $n, 'message' => $n . ' student' . ($n === 1 ? '' : 's') . ' marked ' . (students_status_options()[$status] ?? $status) . '.'];
         },
     ],

@@ -6,7 +6,7 @@ import { Avatar, Button, Field, Modal, PageHeader, PersonCell, Select, toneClass
 import { CrudTable } from '@/components/crud';
 import { useAcademicSession, useAuth } from '@/lib/auth';
 import { printUrl } from '@/lib/config';
-import { formatDate, formatNumber } from '@/lib/format';
+import { formatDate, formatNumber, formatPhone } from '@/lib/format';
 import type { Row } from '@/lib/types';
 import { ALL_STAGES, FollowupModal, STAGE_TONE, StageBadge, StageMoveModal, sourceLabel, useExternalNavKey, type FollowupTarget, type MoveRequest } from './shared';
 
@@ -71,7 +71,7 @@ export default function ApplicationsPage() {
           ),
           full_name: (r) => (
             <div className="min-w-[11rem] whitespace-nowrap">
-              <PersonCell name={String(r.full_name)} sub={<span className="font-mono">{String(r.phone ?? '')}</span>} src={r.photo as string | null} to={`/admissions/${r.id}`} />
+              <PersonCell name={String(r.full_name)} sub={<span className="whitespace-nowrap tabular-nums">{formatPhone(r.phone)}</span>} src={r.photo as string | null} to={`/admissions/${r.id}`} />
             </div>
           ),
           program_name: (r) => (

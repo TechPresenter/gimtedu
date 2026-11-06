@@ -44,7 +44,7 @@ if ($slug !== '') {
     $nV = count($videos);
     $countLabel = $nP . ' photo' . ($nP === 1 ? '' : 's') . ($nV ? ' · ' . $nV . ' video' . ($nV === 1 ? '' : 's') : '');
     $desc = trim((string) $album['description']);
-    $metaDesc = ($desc !== '' ? $desc . ' ' : '') . $countLabel . ' from ' . $title . ' at GIMT, ' . setting('city', 'Greater Noida') . ($dateLabel ? ' (' . $dateLabel . ')' : '') . '.';
+    $metaDesc = ($desc !== '' ? $desc . ' ' : '') . $countLabel . ' from ' . $title . ' at GIMT, ' . setting('city', 'Noida') . ($dateLabel ? ' (' . $dateLabel . ')' : '') . '.';
     $canonical = ng_gallery_abs($album['slug']);
     // related: same category first, then the admin order
     $others = ng_albums(null, 24, 0, [(int) $album['id']]);
@@ -175,7 +175,7 @@ $pageUrl = fn (int $n) => ng_gallery_url(null, $params + ['page' => $n]);
 $pageAbs = fn (int $n) => ng_gallery_abs(null, $params + ['page' => $n]);
 $canonical = $pageAbs($pg['page']);
 $titleText = 'Photo Gallery' . ($category ? ' — ' . $category['label'] : '') . ($pg['page'] > 1 ? ' — Page ' . $pg['page'] : '');
-$description = 'Photo albums from Global Institute of Management & Technology (GIMT), ' . setting('city', 'Greater Noida') . ' — campus, labs, events, sports, cultural fests and convocation'
+$description = 'Photo albums from Global Institute of Management & Technology (GIMT), ' . setting('city', 'Noida') . ' — campus, labs, events, sports, cultural fests and convocation'
     . ($category ? ' (' . $category['label'] . ')' : '') . '.' . ($pg['page'] > 1 ? ' Page ' . $pg['page'] . ' of ' . $pg['pages'] . '.' : '');
 $schema = [ng_breadcrumb_ld($category ? [['Home', ''], ['Gallery', 'gallery'], [$category['label'], null]] : [['Home', ''], ['Gallery', null]], $canonical)];
 if ($isBase && $albums) {

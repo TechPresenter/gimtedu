@@ -137,11 +137,11 @@ $urlWith = fn (array $over = []) => ne_query_url('notices', array_merge($state, 
 $pageUrl = fn (int $p) => $urlWith(['page' => $p]) . '#board';
 
 /* ------------------------------------------------------------------ SEO */
-$title = ($catInfo ? $catInfo['label'] . ' Notices' : ($archived ? 'Notice Archive' : 'Notice Board')) . ($catInfo && $archived ? ' — Archive' : '') . ($pg['page'] > 1 ? ' — Page ' . $pg['page'] : '');
+$title = ($catInfo ? $catInfo['label'] . ' Notices' : ($archived ? 'Notice Archive' : 'Notice Board — Admissions, Exams & Holidays')) . ($catInfo && $archived ? ' — Archive' : '') . ($pg['page'] > 1 ? ' — Page ' . $pg['page'] : '');
 $descr = $catInfo
     ? 'Latest ' . strtolower($catInfo['label']) . ' notices and announcements from ' . institute_name() . ' — publication dates, validity and downloadable circulars.'
     : ($archived ? 'Archive of expired notices and circulars from ' . institute_name() . ' — past admission, examination, holiday and event announcements.'
-        : 'Official notice board of ' . institute_name() . ': admission notices, examination schedules, results, holidays, events, scholarships and important deadlines with downloadable circulars.');
+        : site_meta_description('Official notice board of ' . setting('institute_short_name', 'GIMT') . ', ' . setting('city', 'Noida') . ': admission notices, exam schedules, results, holidays, events, scholarships and deadlines with PDF circulars.'));
 $noindex = $filtered || $archived || $outOfRange || ($total === 0);
 $canonical = ne_abs_url('notices', ['category' => $category ?: null, 'archived' => $archived ? '1' : null, 'page' => $outOfRange ? null : $pg['page']]);
 $schema = [
@@ -152,8 +152,7 @@ $schema = [
      'mainEntity' => ['@type' => 'ItemList', 'numberOfItems' => $total, 'itemListElement' => array_map(fn ($n, $i) => ['@type' => 'ListItem', 'position' => $pg['offset'] + $i + 1,
          'url' => absolute_url('notices/' . $n['slug']), 'name' => (string) $n['title']], $notices, array_keys($notices))]],
 ];
-// <head> extras (the shared header has no slot yet): rel prev/next of this listing + the RSS feed
-ne_site_header([
+site_header([
     'title' => $title,
     'description' => $descr,
     'active' => 'notices',
@@ -161,11 +160,13 @@ ne_site_header([
     'canonical' => $canonical,
     'robots' => $noindex ? 'noindex,follow' : 'index,follow',
     'schema' => $schema,
-], [
-    ['rel' => 'prev', 'href' => !$outOfRange && $pg['page'] > 1 ? ne_abs_url('notices', array_merge($state, ['page' => $pg['page'] - 1])) : null],
-    ['rel' => 'next', 'href' => !$outOfRange && $pg['page'] < $pg['pages'] ? ne_abs_url('notices', array_merge($state, ['page' => $pg['page'] + 1])) : null],
-    ['rel' => 'alternate', 'type' => 'application/rss+xml', 'title' => setting('institute_short_name', 'GIMT') . ($catInfo ? ' ' . $catInfo['label'] : '') . ' Notices',
-     'href' => ne_abs_url('notices', ['feed' => 'rss', 'category' => $category ?: null])],
+    // <head> extras: rel prev/next of this listing + the RSS feed (empty hrefs are skipped by the header)
+    'head' => [
+        ['rel' => 'prev', 'href' => !$outOfRange && $pg['page'] > 1 ? ne_abs_url('notices', array_merge($state, ['page' => $pg['page'] - 1])) : null],
+        ['rel' => 'next', 'href' => !$outOfRange && $pg['page'] < $pg['pages'] ? ne_abs_url('notices', array_merge($state, ['page' => $pg['page'] + 1])) : null],
+        ['rel' => 'alternate', 'type' => 'application/rss+xml', 'title' => setting('institute_short_name', 'GIMT') . ($catInfo ? ' ' . $catInfo['label'] : '') . ' Notices',
+         'href' => ne_abs_url('notices', ['feed' => 'rss', 'category' => $category ?: null])],
+    ],
 ]);
 
 $crumbs = $catInfo ? ['Notice Board' => '/notices', $catInfo['label']] : ($archived ? ['Notice Board' => '/notices', 'Archive'] : ['Notice Board']);
@@ -237,7 +238,7 @@ $scopeTotal = array_sum(array_map('intval', $catCounts));
           <a href="<?= e(ne_query_url('notices', array_merge($state, ['archived' => null])) . '#board') ?>" class="inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-[13px] font-semibold transition <?= !$archived ? 'bg-brand-900 text-white' : 'text-slate-600 hover:text-brand-900' ?>"<?= !$archived ? ' aria-current="page"' : '' ?>><?= icon('megaphone', 'h-4 w-4') ?>Current<span class="opacity-75">(<?= $scopeTotals['current'] ?>)</span></a>
           <a href="<?= e(ne_query_url('notices', array_merge($state, ['archived' => '1'])) . '#board') ?>" class="inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-[13px] font-semibold transition <?= $archived ? 'bg-brand-900 text-white' : 'text-slate-600 hover:text-brand-900' ?>"<?= $archived ? ' aria-current="page"' : '' ?>><?= icon('archive', 'h-4 w-4') ?>Show archived<span class="opacity-75">(<?= $scopeTotals['archive'] ?>)</span></a>
         </nav>
-        <div class="hidden [.js_&]:block"><?= view_mode_toggle('notices', ['grid', 'list', 'compact', 'detailed'], $viewDefault) ?></div>
+        <div class="hidden [.js_&]:block"><?= view_mode_toggle('notices', ['grid', 'list', 'compact', 'detailed'], $viewDefault) ?><?= function_exists('site_view_sync_script') ? site_view_sync_script('notices') : '' ?></div>
       </div>
 
       <div class="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-600" aria-live="polite">

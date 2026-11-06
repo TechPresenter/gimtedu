@@ -74,20 +74,24 @@ function Sidebar({ area, groups }: { area: Area; groups: { group: string | null;
           <p className="truncate text-xs text-slate-500 dark:text-slate-400">{identity.sub}</p>
         </div>
       </div>
-      <nav className="flex-1 space-y-5 overflow-y-auto px-4 pb-4 pt-1">
-        {groups.map((g) => (
-          <div key={g.group ?? 'main'}>
-            {g.group && <p className="mb-1.5 px-3 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">{g.group}</p>}
-            <div className="space-y-1">
-              {g.items.map((e) => (
-                <SideLink key={e.to} area={area} entry={e} />
-              ))}
+      {/* One scroll area for the menu AND the help card: the card sits at the bottom when there is room and scrolls
+          after the last menu item on shorter screens, so it can never cover menu entries. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-4 pb-4 pt-1">
+        <nav className="space-y-5" aria-label="Portal sections">
+          {groups.map((g) => (
+            <div key={g.group ?? 'main'}>
+              {g.group && <p className="mb-1.5 px-3 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">{g.group}</p>}
+              <div className="space-y-1">
+                {g.items.map((e) => (
+                  <SideLink key={e.to} area={area} entry={e} />
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </nav>
-      <div className="space-y-3 p-4 pt-0">
-        <SupportCard />
+          ))}
+        </nav>
+        <div className="mt-auto pt-5">
+          <SupportCard />
+        </div>
       </div>
     </aside>
   );

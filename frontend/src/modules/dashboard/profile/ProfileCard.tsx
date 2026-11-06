@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { Bell, Building2, Camera, CalendarDays, Clock3, Mail, Phone, ShieldCheck, Trash2, UserRound } from 'lucide-react';
 import { Avatar, Badge, Card, ProgressBar, Spinner, useConfirm, useToast } from '@/components/ui';
 import { api, ApiError, toFormData } from '@/lib/api';
-import { formatDate, formatDateTime, formatNumber, humanFileSize } from '@/lib/format';
+import { formatDate, formatDateTime, formatNumber, formatPhone, humanFileSize } from '@/lib/format';
 import type { ProfileData, ProfileUser } from './types';
 
 const MAX_PHOTO = 5 * 1024 * 1024;
@@ -103,7 +103,7 @@ export function ProfileCard({ data, onUpdated }: { data: ProfileData; onUpdated:
         <dl className="mt-5 space-y-2.5 text-sm">
           {[
             { icon: Mail, label: 'Email', value: u.email },
-            { icon: Phone, label: 'Phone', value: u.phone || 'Not added' },
+            { icon: Phone, label: 'Phone', value: u.phone ? formatPhone(u.phone) : 'Not added' },
             ...(u.department ? [{ icon: Building2, label: 'Department', value: u.department }] : []),
             { icon: CalendarDays, label: 'Member since', value: formatDate(u.created_at) },
             { icon: Clock3, label: 'Last sign-in', value: data.security.previous_login?.at ? `${formatDateTime(data.security.previous_login.at)}${data.security.previous_login.ip ? ` · ${data.security.previous_login.ip}` : ''}` : 'First sign-in' },

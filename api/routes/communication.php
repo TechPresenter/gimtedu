@@ -37,7 +37,7 @@ route('POST', '/communication/templates/preview', function () {
     $in = api_input();
     $channel = in_array($in['channel'] ?? 'email', ['email', 'sms', 'whatsapp'], true) ? $in['channel'] : 'email';
     $vars = is_array($in['vars'] ?? null) ? array_map(fn ($v) => is_scalar($v) ? (string) $v : '', $in['vars']) : [];
-    api_ok(comm_template_preview($channel, (string) ($in['subject'] ?? ''), (string) ($in['body_html'] ?? ''), $vars));
+    api_ok(comm_template_preview($channel, api_str($in['subject'] ?? null), api_str($in['body_html'] ?? null), $vars));
 });
 
 route('POST', '/communication/templates/{id:\d+}/test', function ($p) {

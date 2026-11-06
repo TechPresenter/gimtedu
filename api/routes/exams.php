@@ -202,6 +202,7 @@ route('POST', '/exams/{id:\d+}/students/allocate', function ($p) {
         api_ok($res, 'Everyone selected is already allocated to the exam.');
     }
     log_activity('update', 'examination', $e['id'], sprintf('Allocated %d student%s to "%s" (%d eligible, %d not eligible)', $res['added'], $res['added'] === 1 ? '' : 's', $e['name'], $res['eligible'], $res['ineligible']));
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_fanout('GIMT_ADMIT_CARD_GENERATED', ['exam_id' => (int) $e['id']], db_column("SELECT student_id FROM exam_students WHERE exam_id = ? AND is_eligible = 1 AND hall_ticket_no IS NOT NULL AND hall_ticket_no <> ''", [(int) $e['id']]), 'admit:' . $e['id'], ['source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     if ($res['ineligible']) {
         notify(exam_users_with('examination', 'approve'), 'exam_eligibility', 'Eligibility check: ' . $res['ineligible'] . ' student' . ($res['ineligible'] === 1 ? '' : 's') . ' not eligible',
             $e['name'] . ' — attendance below the minimum or overdue fees. Review overrides before admit cards are issued.', '/examination/' . $e['id'] . '?tab=students', 'user-x');
@@ -285,6 +286,7 @@ route('POST', '/exams/{id:\d+}/remind', function ($p) {
             ['related_type' => 'exam', 'related_id' => $e['id']]) ? 1 : 0;
     }
     log_activity('send', 'examination', $e['id'], "Sent exam reminders for \"{$e['name']}\" to $sent students");
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_fanout('GIMT_EXAM_REMINDER', ['exam_id' => (int) $e['id'], 'manual' => true], db_column('SELECT student_id FROM exam_students WHERE exam_id = ? AND is_eligible = 1', [(int) $e['id']]), 'exam:' . $e['id'] . ':manual:' . date('Y-m-d'), ['source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     api_ok(['sent' => $sent, 'total' => count($students)], "Reminder emailed to $sent student" . ($sent === 1 ? '' : 's') . '.');
 });
 
@@ -412,6 +414,7 @@ route('POST', '/exams/{id:\d+}/verify', function ($p) {
     $e = exams_api_exam($p);
     $counts = exam_verify($e);
     log_activity('approve', 'results', $e['id'], 'Verified and locked the marks of "' . $e['name'] . '" — ' . $counts['total'] . ' results computed');
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_fanout('GIMT_MARKS_UPDATED', ['exam_id' => (int) $e['id'], 'portal_link' => absolute_url('portal/student')], db_column('SELECT student_id FROM results WHERE exam_id = ?', [(int) $e['id']]), 'marks:' . $e['id'] . ':' . date('YmdHi'), ['source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     notify(exam_users_with('results', 'publish'), 'marks_verified', 'Marks verified: ' . $e['name'], $counts['total'] . ' results computed (' . ($counts['pass_percent'] ?? 0) . '% pass). Ready to publish.', '/results?exam=' . $e['id'], 'shield-check');
     api_ok($counts, 'Marks verified and locked. Results computed for ' . $counts['total'] . ' students.');
 });
@@ -452,6 +455,7 @@ route('POST', '/exams/{id:\d+}/publish', function ($p) {
     notify('perm:results', 'result_published', 'Results published: ' . $e['name'], sprintf('%d students · %s%% pass · %d withheld', $counts['total'], $counts['pass_percent'] ?? 0, $counts['withheld']), '/results?exam=' . $e['id'], 'trophy');
     $mailed = 0;
     if ($notifyStudents) {
+        try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_fanout('GIMT_RESULT_PUBLISHED', ['exam_id' => (int) $e['id'], 'portal_link' => absolute_url('portal/student')], db_column("SELECT student_id FROM results WHERE exam_id = ? AND result_status <> 'WITHHELD'", [(int) $e['id']]), 'result:' . $e['id'], ['source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
         $studentUsers = array_map('intval', db_column('SELECT s.user_id FROM results r JOIN students s ON s.id = r.student_id WHERE r.exam_id = ? AND r.result_status <> \'WITHHELD\' AND s.user_id IS NOT NULL', [$e['id']]));
         if ($studentUsers) {
             notify($studentUsers, 'result_published', 'Your result is published', $e['name'], null, 'trophy');

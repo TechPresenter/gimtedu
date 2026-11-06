@@ -130,7 +130,7 @@ function msg_thread_action(array $tids, string $action): int
 route('GET', '/messages', function () {
     $uid = (int) user_id();
     [$page, $perPage] = api_pagination(20);
-    $folder = in_array($_GET['folder'] ?? 'inbox', ['inbox', 'sent', 'starred'], true) ? (string) ($_GET['folder'] ?? 'inbox') : 'inbox';
+    $folder = in_array($_GET['folder'] ?? 'inbox', ['inbox', 'sent', 'starred'], true) ? api_str($_GET['folder'] ?? null, 'inbox') : 'inbox';
     if ($folder === 'sent') {
         $where = 'm.sender_id = ? AND m.deleted_by_sender = 0';
         $args = [$uid];
@@ -144,7 +144,7 @@ route('GET', '/messages', function () {
             $where .= ' AND m.is_read = 0';
         }
     }
-    $q = trim((string) ($_GET['q'] ?? ''));
+    $q = trim(api_str($_GET['q'] ?? null));
     if ($q !== '') {
         $like = '%' . addcslashes(mb_substr($q, 0, 80), '\\%_') . '%';
         $where .= ' AND (m.subject LIKE ? OR m.body LIKE ? OR su.name LIKE ? OR ru.name LIKE ?)';
@@ -218,10 +218,10 @@ route('GET', '/messages/recipients', function () {
     $where = "u.status = 'active' AND u.id <> ?";
     $args = [user_id()];
     if (!empty($_GET['ids'])) {
-        $ids = array_values(array_filter(array_map('intval', explode(',', (string) $_GET['ids']))));
+        $ids = array_values(array_filter(array_map('intval', explode(',', api_str($_GET['ids'])))));
         $where = $ids ? 'u.id IN (' . implode(',', $ids) . ')' : '1 = 0';
         $args = [];
-    } elseif (($q = trim((string) ($_GET['q'] ?? ''))) !== '') {
+    } elseif (($q = trim(api_str($_GET['q'] ?? null))) !== '') {
         $like = '%' . addcslashes(mb_substr($q, 0, 60), '\\%_') . '%';
         $where .= ' AND (u.name LIKE ? OR u.email LIKE ? OR u.username LIKE ? OR u.designation LIKE ?)';
         array_push($args, $like, $like, $like, $like);
@@ -298,8 +298,8 @@ route('POST', '/messages', function () {
     $uid = (int) user_id();
     $in = api_input();
     $ids = array_values(array_unique(array_filter(array_map('intval', (array) ($in['recipient_ids'] ?? [])), fn ($i) => $i > 0 && $i !== $uid)));
-    $subject = trim((string) ($in['subject'] ?? ''));
-    $body = trim(str_replace("\r\n", "\n", (string) ($in['body'] ?? '')));
+    $subject = trim(api_str($in['subject'] ?? null));
+    $body = trim(str_replace("\r\n", "\n", api_str($in['body'] ?? null)));
     $parent = null;
     if (!empty($in['reply_to'])) {
         $tid = msg_thread_id((int) $in['reply_to']);
@@ -403,7 +403,7 @@ route('DELETE', '/messages/{id:\d+}', function ($p) {
 
 route('POST', '/messages/bulk', function () {
     $in = api_input();
-    $action = (string) ($in['action'] ?? '');
+    $action = api_str($in['action'] ?? null);
     if (!in_array($action, ['read', 'unread', 'star', 'unstar', 'delete'], true)) {
         api_error('Choose a valid action.', 422);
     }

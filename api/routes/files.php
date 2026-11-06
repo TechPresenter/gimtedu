@@ -21,7 +21,7 @@ function private_file_owners(): array
 }
 
 route('GET', '/files/download', function () {
-    $path = (string) ($_GET['path'] ?? '');
+    $path = api_str($_GET['path'] ?? null);
     if (!str_starts_with($path, 'storage/private/') || str_contains($path, '..') || str_contains($path, "\0")) {
         api_error('Invalid file path.', 400);
     }
@@ -50,7 +50,11 @@ route('GET', '/files/download', function () {
     }
     $finfo = new finfo(FILEINFO_MIME_TYPE);
     $mime = $finfo->file($abs) ?: 'application/octet-stream';
-    $name = preg_replace('/[^A-Za-z0-9._\- ]/', '_', (string) ($_GET['name'] ?? basename($abs)));
+    // download name: caller's label, but always with the stored file's real extension (never "x.html" for a PDF)
+    $ext = strtolower(pathinfo($abs, PATHINFO_EXTENSION));
+    $name = trim((string) preg_replace('/[^A-Za-z0-9._\- ]/', '_', api_query('name') ?: basename($abs)), '. ');
+    $name = preg_replace('/\.[A-Za-z0-9]{1,8}$/', '', $name) ?: 'file';
+    $name .= $ext !== '' ? '.' . $ext : '';
     $inline = in_array($mime, ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif'], true) && empty($_GET['download']);
     header('Content-Type: ' . $mime);
     header('Content-Length: ' . filesize($abs));

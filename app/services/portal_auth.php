@@ -133,11 +133,31 @@ function portal_is_background_request(): bool
     return ($_SERVER['HTTP_X_BACKGROUND'] ?? '') === '1';
 }
 
-/** JSON 403 that tells the SPA to send the user to the change-password screen. */
-function portal_password_change_required(): void
+/**
+ * JSON 403 that tells the SPA to send the user to the change-password screen.
+ * $reason: 'temporary' (issued by the institute / first sign-in), 'expired' (Settings > Security > password expiry) or
+ * 'required' (an administrator asked for a new password).
+ */
+function portal_password_change_required(string $reason = 'temporary'): void
 {
-    json_response(['ok' => false, 'code' => 'password_change_required', 'message' => 'Please set a new password to continue. Your current password is a temporary one.',
-        'errors' => (object) [], 'data' => ['code' => 'password_change_required']], 403);
+    $messages = [
+        'expired' => 'Your password has expired. Please set a new password to continue.',
+        'temporary' => 'Please set a new password to continue. Your current password is a temporary one.',
+        'required' => 'Please set a new password to continue.',
+    ];
+    $reason = isset($messages[$reason]) ? $reason : 'required';
+    json_response(['ok' => false, 'code' => 'password_change_required', 'message' => $messages[$reason],
+        'errors' => (object) [], 'data' => ['code' => 'password_change_required', 'reason' => $reason]], 403);
+}
+
+/**
+ * Why a faculty (users-table) account must change its password: 'expired' (Settings > Security > password expiry) or
+ * 'required' (a temporary password issued by the institute, or an administrator's "force change at next sign-in" -
+ * the users table cannot tell these two apart, so the wording stays neutral).
+ */
+function portal_faculty_password_reason(array $user): string
+{
+    return password_change_reason() === 'expired' || password_is_expired($user) ? 'expired' : 'required';
 }
 
 /* ------------------------------------------------------------------
@@ -236,9 +256,11 @@ function portal_student_session(bool $refresh = false): ?array
     if (!portal_is_background_request()) {
         $_SESSION[PORTAL_STUDENT_KEY]['last_activity'] = time();
     }
-    if (time() - (int) ($s['regenerated_at'] ?? 0) > 900) {
-        session_regenerate_id(true);
+    if (time() - (int) ($s['regenerated_at'] ?? 0) > SESSION_ROTATE_EVERY) {
+        // grace-period rotation (app/auth.php session_rotate_id): the SPA's parallel requests that still carry the
+        // previous cookie are forwarded to the new session instead of being signed out
         $_SESSION[PORTAL_STUDENT_KEY]['regenerated_at'] = time();
+        session_rotate_id();
     }
     return $GLOBALS['__portal_student_ctx'] = [
         'account_id' => (int) $row['id'],
@@ -294,7 +316,8 @@ function portal_student_require(bool $allowMustChange = false): array
         api_error('Your session has expired. Please sign in again.', 401);
     }
     if (!$allowMustChange && $ctx['must_change_password']) {
-        portal_password_change_required();
+        // student accounts only get must_change_password with an institute-issued temporary password
+        portal_password_change_required('temporary');
     }
     if (!isset($ctx['student'])) {
         $ctx['student'] = portal_student_profile_row($ctx['student_id']);
@@ -339,7 +362,8 @@ function portal_student_payload(): array
             'batch' => $s['batch_name'], 'roll_no' => $s['roll_no'], 'status' => $s['status'],
         ],
         'account' => [
-            'username' => $acc['username'], 'must_change_password' => (bool) $acc['must_change_password'], 'theme' => $acc['theme'] ?: null,
+            'username' => $acc['username'], 'must_change_password' => (bool) $acc['must_change_password'],
+            'password_change_reason' => (int) $acc['must_change_password'] ? 'temporary' : null, 'theme' => $acc['theme'] ?: null,
             'activated_at' => $acc['activated_at'], 'password_changed_at' => $acc['password_changed_at'],
             'last_login_at' => $prev['at'], 'last_login_ip' => $prev['ip'],
         ],
@@ -436,12 +460,25 @@ function portal_student_attempt(string $identifier, string $password, bool $reme
         return $fail(429, "Too many sign-in attempts from your network. Please try again in $window minutes.");
     }
     $generic = 'Invalid Student ID / email or password.';
+    $max = max(1, (int) setting('max_login_attempts', 5));
     $student = portal_find_student($identifier);
     $acc = $student ? portal_student_account((int) $student['id']) : null;
     if (!$acc || empty($acc['password_hash'])) {
         password_verify($password, '$2y$10$usesomesillystringfore7hnbRJHxXVLeakoG8K30oukPsA.ztMG'); // equalise timing
-        portal_student_log($student ? (int) $student['id'] : null, $identifier, 'failed', !$student ? 'Unknown student' : (!$acc ? 'No portal account' : 'Account not activated'));
-        return $fail(422, $generic);
+        // Same answers as a real account (attempts-remaining hint, lockout after max failures), so the sign-in form
+        // never reveals which Student IDs / emails exist or have an activated portal account.
+        $reason = !$student ? 'Unknown student' : (!$acc ? 'No portal account' : 'Account not activated');
+        $sim = login_unknown_failures('student_login_logs', $identifier, $window);
+        if ($sim['count'] >= $max) {
+            portal_student_log($student ? (int) $student['id'] : null, $identifier, 'failed', $reason . ' (lockout simulated)');
+            return $fail(423, "Your account is temporarily locked after repeated failed attempts. Try again in {$sim['minutes']} minute(s) or reset your password.");
+        }
+        portal_student_log($student ? (int) $student['id'] : null, $identifier, 'failed', $reason);
+        if ($sim['count'] + 1 >= $max) {
+            return $fail(423, "Too many failed attempts. Your account is locked for $window minutes. You can reset your password to unlock it.");
+        }
+        $left = $max - $sim['count'] - 1;
+        return $fail(422, $generic . ($left <= 2 ? " $left attempt(s) remaining before your account is locked." : ''));
     }
     if (!empty($acc['locked_until']) && strtotime($acc['locked_until']) > time()) {
         portal_student_log((int) $student['id'], $identifier, 'locked', 'Account locked');
@@ -450,7 +487,6 @@ function portal_student_attempt(string $identifier, string $password, bool $reme
     }
     if (!password_verify($password, $acc['password_hash'])) {
         $attempts = (int) $acc['failed_attempts'] + 1;
-        $max = max(1, (int) setting('max_login_attempts', 5));
         $lock = $attempts >= $max ? date('Y-m-d H:i:s', time() + $window * 60) : null;
         db_update('student_accounts', ['failed_attempts' => $lock ? 0 : $attempts, 'locked_until' => $lock, 'last_failed_login_at' => date('Y-m-d H:i:s')], 'id = ?', [$acc['id']]);
         portal_student_log((int) $student['id'], $identifier, 'failed', $lock ? 'Wrong password - account locked' : 'Wrong password');
@@ -632,7 +668,7 @@ function portal_student_forgot(string $identifier): void
         . '<p><a href="' . e($link) . '" style="display:inline-block;background:#D03E16;color:#fff;padding:11px 20px;border-radius:999px;text-decoration:none;font-weight:600">Reset my password</a></p>'
         . '<p style="font-size:13px;color:#64748b">Button not working? Copy this link into your browser:<br>' . e($link) . '</p>'
         . '<p style="font-size:13px;color:#64748b">If you did not request this, you can ignore this email - your password will not change. The institute never asks for your password by phone, SMS or email.</p>';
-    send_mail($student['email'], 'Reset your ' . setting('institute_short_name', 'GIMT') . ' student portal password', $html, ['related_type' => 'student', 'related_id' => $student['id']]);
+    send_mail($student['email'], 'Reset your ' . setting('institute_short_name', 'GIMT') . ' student portal password', $html, ['related_type' => 'student', 'related_id' => $student['id'], 'sensitive' => true]);
     portal_student_log((int) $student['id'], $identifier, 'reset', 'Reset link emailed');
 }
 
@@ -675,7 +711,7 @@ function portal_student_credentials_mail(array $student, string $username, strin
         . '<table cellpadding="7" style="border:1px solid #EDE8E2;border-radius:10px;margin:12px 0;border-collapse:separate"><tr><td style="color:#64748b">Portal</td><td><a href="' . e($url) . '">' . e($url) . '</a></td></tr>'
         . '<tr><td style="color:#64748b">Student ID</td><td><strong>' . e($username) . '</strong></td></tr><tr><td style="color:#64748b">Temporary password</td><td><strong>' . e($password) . '</strong></td></tr></table>'
         . '<p style="font-size:13px;color:#64748b">Keep these details private. The institute never asks for your password by phone, SMS or email.</p>';
-    return send_mail($student['email'], 'Your ' . setting('institute_short_name', 'GIMT') . ' student portal login', $html, ['related_type' => 'student', 'related_id' => $student['id']]);
+    return send_mail($student['email'], 'Your ' . setting('institute_short_name', 'GIMT') . ' student portal login', $html, ['related_type' => 'student', 'related_id' => $student['id'], 'sensitive' => true]);
 }
 
 /**
@@ -782,7 +818,7 @@ function portal_faculty_require(bool $allowMustChange = false): array
         api_error('Your session has expired. Please sign in again.', 401);
     }
     if (!$allowMustChange && $ctx['must_change_password']) {
-        portal_password_change_required();
+        portal_password_change_required(portal_faculty_password_reason($ctx['user']));
     }
     return $ctx;
 }
@@ -829,7 +865,8 @@ function portal_faculty_payload(): array
             'department' => $f['department_name'], 'email' => $f['email'], 'phone' => $f['phone'], 'status' => $f['status'],
         ],
         'account' => [
-            'username' => $u['username'], 'email' => $u['email'], 'must_change_password' => (bool) $u['must_change_password'], 'theme' => $u['theme'],
+            'username' => $u['username'], 'email' => $u['email'], 'must_change_password' => (bool) $u['must_change_password'],
+            'password_change_reason' => (int) $u['must_change_password'] ? portal_faculty_password_reason($u) : null, 'theme' => $u['theme'],
             'last_login_at' => $_SESSION['previous_login']['at'] ?? null, 'last_login_ip' => $_SESSION['previous_login']['ip'] ?? null,
             'password_changed_at' => $u['password_changed_at'], 'roles' => $u['role_names'],
         ],
@@ -855,10 +892,10 @@ function portal_faculty_attempt(string $identifier, string $password, bool $reme
         $status = 422;
         if (str_starts_with($result['message'], 'Too many login attempts')) {
             $status = 429;
+        } elseif (!empty($result['locked'])) {
+            $status = 423; // real or simulated lockout (unknown identifiers get the same answers)
         } elseif (str_contains($result['message'], 'blocked')) {
             $status = 403;
-        } elseif ($u && ($row = db_row('SELECT locked_until FROM users WHERE id = ?', [$u['id']])) && $row['locked_until'] && strtotime($row['locked_until']) > time()) {
-            $status = 423;
         }
         return ['ok' => false, 'status' => $status, 'message' => $result['message']];
     }
@@ -886,7 +923,7 @@ function portal_faculty_forgot(string $email): void
         . '<p><a href="' . e($link) . '" style="display:inline-block;background:#0B2A5B;color:#fff;padding:11px 20px;border-radius:999px;text-decoration:none;font-weight:600">Reset my password</a></p>'
         . '<p style="font-size:13px;color:#64748b">Button not working? Copy this link into your browser:<br>' . e($link) . '</p>'
         . '<p style="font-size:13px;color:#64748b">If you did not request this, you can ignore this email - your password will not change.</p>';
-    send_mail($user['email'], 'Reset your ' . setting('institute_short_name', 'GIMT') . ' faculty portal password', $html, ['related_type' => 'user', 'related_id' => $user['id']]);
+    send_mail($user['email'], 'Reset your ' . setting('institute_short_name', 'GIMT') . ' faculty portal password', $html, ['related_type' => 'user', 'related_id' => $user['id'], 'sensitive' => true]);
     log_activity('password_reset_requested', 'auth', $user['id'], 'Faculty portal password reset requested for ' . $user['email']);
 }
 
@@ -901,7 +938,7 @@ function portal_faculty_credentials_mail(array $faculty, string $email, string $
         . '<table cellpadding="7" style="border:1px solid #EDE8E2;border-radius:10px;margin:12px 0;border-collapse:separate"><tr><td style="color:#64748b">Faculty portal</td><td><a href="' . e($url) . '">' . e($url) . '</a></td></tr>'
         . '<tr><td style="color:#64748b">Username</td><td><strong>' . e($username) . '</strong> (or ' . e($email) . ')</td></tr><tr><td style="color:#64748b">Temporary password</td><td><strong>' . e($password) . '</strong></td></tr></table>'
         . '<p style="font-size:13px;color:#64748b">Keep these details private.</p>';
-    return send_mail($email, 'Your ' . setting('institute_short_name', 'GIMT') . ' faculty portal login', $html, ['related_type' => 'faculty', 'related_id' => $faculty['id']]);
+    return send_mail($email, 'Your ' . setting('institute_short_name', 'GIMT') . ' faculty portal login', $html, ['related_type' => 'faculty', 'related_id' => $faculty['id'], 'sensitive' => true]);
 }
 
 /** Creates a users row with the Faculty role, linked to the faculty profile, with a temporary password. */

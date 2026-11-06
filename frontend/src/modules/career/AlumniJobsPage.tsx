@@ -105,9 +105,9 @@ export default function AlumniJobsPage() {
               actions={<Link to="/alumni/jobs?f.job_status=pending" className="link text-xs">View all pending</Link>} />
             <div className="card-body !pt-0">
               {isLoading || !data ? (
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-40" />)}</div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-40" />)}</div>
               ) : (
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {data.pending.map((j) => (
                     <div key={String(j.id)} className="flex flex-col rounded-xl border border-amber-200/70 bg-amber-50/40 p-4 dark:border-amber-500/20 dark:bg-amber-500/5">
                       <div className="flex items-start justify-between gap-2">

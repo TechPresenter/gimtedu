@@ -12,7 +12,7 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { useApi } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
-import { formatDate, formatMoney, isoDate, labelize, toNumber } from '@/lib/format';
+import { formatDate, formatMoney, formatPhone, isoDate, labelize, toNumber } from '@/lib/format';
 import { AmountTile, INVOICE_STATUS, MODE_LABELS, ModeBadge, openPrint, useFeesRefresh } from './shared';
 import type { CollectResult, StudentProfile } from './types';
 
@@ -190,7 +190,7 @@ function CollectionDesk({ studentId, onDone }: { studentId: number; onDone: (r: 
   }
   if (isLoading || !profile) {
     return (
-      <div className="grid gap-6 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         <div className="space-y-4 lg:col-span-8"><Skeleton className="h-40 rounded-2xl" /><Skeleton className="h-56 rounded-2xl" /></div>
         <Skeleton className="h-96 rounded-2xl lg:col-span-4" />
       </div>
@@ -202,7 +202,7 @@ function CollectionDesk({ studentId, onDone }: { studentId: number; onDone: (r: 
   const modes = profile.enabled_modes.length ? profile.enabled_modes : Object.keys(MODE_LABELS);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-12">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
       <div className="space-y-6 lg:col-span-8">
         <Reveal>
           <Card>
@@ -216,7 +216,7 @@ function CollectionDesk({ studentId, onDone }: { studentId: number; onDone: (r: 
                   {!!Number(s.uses_transport) && <Badge color="blue">Transport</Badge>}
                 </div>
                 <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-300">{s.student_uid}{s.roll_no ? ` · Roll ${s.roll_no}` : ''} · {s.program_short} · Semester {s.current_semester}{s.section_name ? ` · Section ${s.section_name}` : ''}</p>
-                <p className="mt-0.5 text-xs text-slate-500">{s.father_name ? `Father: ${s.father_name} · ` : ''}{s.mobile ?? s.guardian_phone ?? 'No mobile'}{s.email ? ` · ${s.email}` : ''}</p>
+                <p className="mt-0.5 text-xs text-slate-500">{s.father_name ? `Father: ${s.father_name} · ` : ''}{s.mobile || s.guardian_phone ? formatPhone(s.mobile ?? s.guardian_phone) : 'No mobile'}{s.email ? ` · ${s.email}` : ''}</p>
                 {profile.concessions.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {profile.concessions.map((c, i) => <Badge key={i} color={c.type === 'scholarship' ? 'navy' : 'amber'}><BadgePercent className="h-3 w-3" />{c.name ?? labelize(c.type)} {formatMoney(c.amount)}</Badge>)}

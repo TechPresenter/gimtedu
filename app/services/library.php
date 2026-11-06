@@ -238,7 +238,7 @@ function lib_default_valid_until(): string
  */
 function lib_enroll_candidates(array $in): array
 {
-    $target = (string) ($in['target'] ?? '');
+    $target = api_str($in['target'] ?? null);
     switch ($target) {
         case 'section':
             return db_column("SELECT s.id FROM students s WHERE s.status = 'active' AND s.section_id = ? AND NOT EXISTS (SELECT 1 FROM library_members lm WHERE lm.student_id = s.id) ORDER BY s.first_name, s.last_name", [(int) ($in['section_id'] ?? 0)]);
@@ -262,7 +262,7 @@ function lib_enroll_candidates(array $in): array
 
 function lib_enroll_target_total(array $in): int
 {
-    switch ((string) ($in['target'] ?? '')) {
+    switch (api_str($in['target'] ?? null)) {
         case 'section':
             return (int) db_value("SELECT COUNT(*) FROM students WHERE status = 'active' AND section_id = ?", [(int) ($in['section_id'] ?? 0)]);
         case 'program':
@@ -285,7 +285,7 @@ function lib_enroll_target_total(array $in): int
 
 function lib_enroll(array $in): array
 {
-    $target = (string) ($in['target'] ?? '');
+    $target = api_str($in['target'] ?? null);
     $type = in_array($target, ['faculty', 'staff'], true) ? $target : 'student';
     $rules = lib_rules()['types'][$type];
     $maxBooks = !empty($in['max_books']) ? (int) $in['max_books'] : $rules['max_books'];
@@ -417,7 +417,7 @@ function lib_recount_book(int $bookId): void
 function lib_issue(array $in): array
 {
     $memberId = (int) ($in['member_id'] ?? 0);
-    $code = trim((string) ($in['accession_no'] ?? ''));
+    $code = trim(api_str($in['accession_no'] ?? null));
     $copyId = (int) ($in['copy_id'] ?? 0);
     $errors = [];
     if (!$memberId) {
@@ -460,7 +460,7 @@ function lib_issue(array $in): array
         if ($dup) {
             throw new CrudValidationException(['accession_no' => $m['name'] . ' already has a copy of "' . $copy['title'] . '".']);
         }
-        $due = trim((string) ($in['due_date'] ?? ''));
+        $due = trim(api_str($in['due_date'] ?? null));
         if ($due === '') {
             $due = date('Y-m-d', strtotime("+{$m['loan_days']} days"));
         } else {
@@ -475,7 +475,7 @@ function lib_issue(array $in): array
                 throw new CrudValidationException(['due_date' => 'Due date cannot be more than a year away.']);
             }
         }
-        $remarks = mb_substr(trim((string) ($in['remarks'] ?? '')), 0, 255) ?: null;
+        $remarks = mb_substr(trim(api_str($in['remarks'] ?? null)), 0, 255) ?: null;
         $txnId = db_insert('library_transactions', [
             'book_copy_id' => (int) $copy['id'], 'book_id' => (int) $copy['book_id'], 'member_id' => $memberId, 'issue_date' => $today, 'due_date' => $due,
             'status' => 'issued', 'issued_by' => user_id(), 'remarks' => $remarks,
@@ -502,12 +502,12 @@ function lib_open_loan(int $txnId): array
 /** Validate the settle options shared by return / lost. Returns [action, mode, waiveReason]. */
 function lib_settle_options(array $in, float $amount): array
 {
-    $action = (string) ($in['fine_action'] ?? 'collect');
+    $action = api_str($in['fine_action'] ?? null, 'collect');
     if (!in_array($action, ['collect', 'waive', 'pending'], true)) {
         throw new CrudValidationException(['fine_action' => 'Choose how to settle the fine.']);
     }
-    $mode = (string) ($in['payment_mode'] ?? 'cash');
-    $reason = trim((string) ($in['waive_reason'] ?? ''));
+    $mode = api_str($in['payment_mode'] ?? null, 'cash');
+    $reason = trim(api_str($in['waive_reason'] ?? null));
     if ($amount > 0 && $action === 'collect' && !array_key_exists($mode, lib_payment_modes())) {
         throw new CrudValidationException(['payment_mode' => 'Select a valid payment mode.']);
     }
@@ -556,7 +556,7 @@ function lib_return(int $txnId, array $in): array
     $rules = lib_rules();
     return db_transaction(function () use ($txnId, $in, $today, $rules) {
         $t = lib_open_loan($txnId);
-        $returnDate = trim((string) ($in['return_date'] ?? '')) ?: $today;
+        $returnDate = trim(api_str($in['return_date'] ?? null)) ?: $today;
         $d = DateTime::createFromFormat('Y-m-d', $returnDate);
         if (!$d || $d->format('Y-m-d') !== $returnDate) {
             throw new CrudValidationException(['return_date' => 'Return date must be a valid date.']);
@@ -567,7 +567,7 @@ function lib_return(int $txnId, array $in): array
         if ($returnDate < $t['issue_date']) {
             throw new CrudValidationException(['return_date' => 'Return date cannot be before the issue date (' . format_date($t['issue_date']) . ').']);
         }
-        $condition = (string) ($in['condition'] ?? 'good');
+        $condition = api_str($in['condition'] ?? null, 'good');
         if (!in_array($condition, ['good', 'damaged'], true)) {
             throw new CrudValidationException(['condition' => 'Select the condition of the returned copy.']);
         }
@@ -586,7 +586,7 @@ function lib_return(int $txnId, array $in): array
         $total = $fine['amount'] + $damage;
         [$action, $mode, $waiveReason] = lib_settle_options($in, $total);
         $receipt = ($total > 0 && $action === 'collect') ? lib_next_receipt_no() : null;
-        $remarks = mb_substr(trim((string) ($in['remarks'] ?? '')), 0, 255) ?: null;
+        $remarks = mb_substr(trim(api_str($in['remarks'] ?? null)), 0, 255) ?: null;
         $fineIds = [];
         if ($fine['amount'] > 0) {
             $fineIds[] = lib_create_fine((int) $t['member_id'], $txnId, $fine['amount'], 'late_return', $fine['days_late'], $action, $mode, $waiveReason, $receipt,
@@ -663,7 +663,7 @@ function lib_mark_lost(int $txnId, array $in): array
         $total = $amount + $late['amount'];
         [$action, $mode, $waiveReason] = lib_settle_options($in, $total);
         $receipt = ($total > 0 && $action === 'collect') ? lib_next_receipt_no() : null;
-        $remarks = mb_substr(trim((string) ($in['remarks'] ?? '')), 0, 255) ?: null;
+        $remarks = mb_substr(trim(api_str($in['remarks'] ?? null)), 0, 255) ?: null;
         if ($amount > 0) {
             lib_create_fine((int) $t['member_id'], $txnId, $amount, 'lost', null, $action, $mode, $waiveReason, $receipt, $remarks ?: 'Book reported lost (replacement cost)');
         }
@@ -908,11 +908,11 @@ function lib_add_copies(int $bookId, int $count, array $opts = []): array
     if ($count < 1 || $count > 100) {
         throw new CrudValidationException(['count' => 'Enter between 1 and 100 copies.']);
     }
-    $condition = (string) ($opts['condition'] ?? 'new');
+    $condition = api_str($opts['condition'] ?? null, 'new');
     if (!in_array($condition, ['new', 'good', 'fair', 'poor'], true)) {
         throw new CrudValidationException(['condition' => 'Select a valid condition.']);
     }
-    $acquired = trim((string) ($opts['acquired_date'] ?? '')) ?: date('Y-m-d');
+    $acquired = trim(api_str($opts['acquired_date'] ?? null)) ?: date('Y-m-d');
     $d = DateTime::createFromFormat('Y-m-d', $acquired);
     if (!$d || $d->format('Y-m-d') !== $acquired || $acquired > date('Y-m-d')) {
         throw new CrudValidationException(['acquired_date' => 'Acquired date must be a valid date, not in the future.']);
@@ -922,8 +922,8 @@ function lib_add_copies(int $bookId, int $count, array $opts = []): array
         throw new CrudValidationException(['price' => 'Price must be zero or more.']);
     }
     $price = ($price === null || $price === '') ? ($book['price'] !== null ? (float) $book['price'] : null) : round((float) $price, 2);
-    $rack = trim((string) ($opts['rack_no'] ?? '')) ?: $book['rack_no'];
-    $remarks = mb_substr(trim((string) ($opts['remarks'] ?? '')), 0, 255) ?: null;
+    $rack = trim(api_str($opts['rack_no'] ?? null)) ?: $book['rack_no'];
+    $remarks = mb_substr(trim(api_str($opts['remarks'] ?? null)), 0, 255) ?: null;
     $created = db_transaction(function () use ($bookId, $count, $condition, $acquired, $price, $rack, $remarks) {
         $out = [];
         for ($i = 0; $i < $count; $i++) {
@@ -1271,7 +1271,7 @@ function lib_print_overdue_report(array $filters = []): void
     $rules = lib_rules();
     $where = "t.status = 'issued' AND t.due_date < CURDATE()";
     $args = [];
-    if (!empty($filters['member_type']) && isset(lib_member_types()[$filters['member_type']])) {
+    if (!empty($filters['member_type']) && is_string($filters['member_type']) && isset(lib_member_types()[$filters['member_type']])) {
         $where .= ' AND lm.member_type = ?';
         $args[] = $filters['member_type'];
     }

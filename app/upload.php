@@ -146,7 +146,10 @@ function reencode_image(string $src, string $dest, string $ext): bool
         imagealphablending($resized, false);
         imagesavealpha($resized, true);
         imagecopyresampled($resized, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
-        imagedestroy($img);
+        if (PHP_VERSION_ID < 80000) {
+            // PHP 8+ frees GdImage objects when they go out of scope; imagedestroy() is a deprecated no-op on 8.5
+            imagedestroy($img);
+        }
         $img = $resized;
     }
     $ok = match ($ext) {
@@ -154,7 +157,9 @@ function reencode_image(string $src, string $dest, string $ext): bool
         'webp' => imagewebp($img, $dest, 85),
         default => imagejpeg($img, $dest, 86),
     };
-    imagedestroy($img);
+    if (PHP_VERSION_ID < 80000) {
+        imagedestroy($img);
+    }
     return (bool) $ok;
 }
 

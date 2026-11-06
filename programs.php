@@ -1,21 +1,22 @@
 <?php
 /**
  * Academic Programs (/programs) — hero, "Find Your Program" (ProgramExplorer island: category tiles + search over
- * every active program, ?category= deep links), sticky counselling sidebar (EnquiryForm → /api/public/enquiry,
+ * every active program, ?category= deep links; Grid / List / Compact / Detailed view modes for the cards — view_mode_toggle(
+ * 'programs'), remembered per visitor, SSR default view_mode_programs → view_mode_default), sticky counselling sidebar (EnquiryForm → /api/public/enquiry,
  * WhatsApp, brochure), programs at a glance (Tabs), Why Study at GIMT, recruiters (LogoMarquee), FAQs, CTA.
  *
  * /programs?brochure=1[&program=slug] renders the printable brochure (all programs, or one with its curriculum).
  */
 require __DIR__ . '/includes/config.php';
-require_once __DIR__ . '/includes/partials/site_academic.php';
+require_once __DIR__ . '/includes/partials/certifications.php';
 
-$programs = sa_programs();
+$all = sa_programs();
 
 if (isset($_GET['brochure'])) {
     $slug = (string) ($_GET['program'] ?? '');
     $single = null;
     if ($slug !== '') {
-        foreach ($programs as $p) {
+        foreach ($all as $p) {
             if ($p['slug'] === $slug) {
                 $single = $p;
             }
@@ -24,17 +25,28 @@ if (isset($_GET['brochure'])) {
             http_response_code(404);
         }
     }
-    sa_render_brochure($programs, $single);
+    sa_render_brochure($all, $single);
     exit;
 }
 
 $category = sa_category_key($_GET['category'] ?? null);
-$counts = sa_counts();
-$byLevel = ['UG' => [], 'PG' => [], 'Other' => []];
-foreach ($programs as $p) {
-    $byLevel[$p['level'] === 'UG' ? 'UG' : (in_array($p['level'], ['PG', 'PhD'], true) ? 'PG' : 'Other')][] = $p;
+// certificate courses have their own page (/certifications): the old ?category=certificate links go there
+if ($category === 'certificate' && site_cert_programs()) {
+    header('Location: ' . site_url('certifications') . '#courses', true, 301);
+    exit;
 }
-$fees = array_filter(array_map(fn ($p) => (float) $p['fee_per_year'], $programs));
+$certs = array_values(array_filter($all, fn ($p) => $p['level'] === 'Certificate'));
+// the explorer lists degree + diploma programs and only the featured certificate courses
+$programs = array_values(array_filter($all, fn ($p) => $p['level'] !== 'Certificate' || !empty($p['is_featured'])));
+$counts = sa_counts();
+$byLevel = ['UG' => [], 'PG' => [], 'Diploma' => []];
+foreach ($all as $p) {
+    if ($p['level'] !== 'Certificate') {
+        $byLevel[$p['level'] === 'UG' ? 'UG' : (in_array($p['level'], ['PG', 'PhD'], true) ? 'PG' : 'Diploma')][] = $p;
+    }
+}
+$degreeCount = count($all) - count($certs);
+$fees = array_filter(array_map(fn ($p) => (float) $p['fee_per_year'], array_merge(...array_values($byLevel))));
 $session = sa_session();
 $recruiters = sa_recruiters(12);
 
@@ -44,7 +56,8 @@ if (!$faqs) {
     $ugElig = $byLevel['UG'][0]['eligibility'] ?? '';
     $pgElig = $byLevel['PG'][0]['eligibility'] ?? '';
     $faqs = [
-        ['q' => 'Which programs does GIMT offer?', 'a' => 'GIMT offers ' . count($programs) . ' programs: ' . count($byLevel['UG']) . ' undergraduate, ' . count($byLevel['PG']) . ' postgraduate and ' . count($byLevel['Other']) . ' diploma and certificate programs across management, technology, commerce, computer applications and data science.'],
+        ['q' => 'Which programs does GIMT offer?', 'a' => 'GIMT offers ' . $degreeCount . ' programs — ' . count($byLevel['UG']) . ' undergraduate, ' . count($byLevel['PG']) . ' postgraduate and ' . count($byLevel['Diploma']) . ' diploma — across management, technology, commerce, computer applications and data science'
+            . ($certs ? ', plus ' . count($certs) . ' short certificate courses in management, computers, communication, AI and career skills (see ' . absolute_url('certifications') . ').' : '.')],
         ['q' => 'What is the eligibility for undergraduate programs?', 'a' => $ugElig ?: 'Candidates need 10+2 or equivalent from a recognised board. Program-specific requirements are listed on each program page.'],
         ['q' => 'What is the eligibility for postgraduate programs?', 'a' => $pgElig ?: 'A bachelor’s degree from a recognised university. Program-specific requirements are listed on each program page.'],
         ['q' => 'How much are the program fees?', 'a' => $fees ? 'Fees for the ' . ($session['name'] ?? 'current') . ' session range from ' . money(min($fees)) . ' to ' . money(max($fees)) . ' per year (certificate programs are charged per course). Merit, sports and need-based scholarships and education-loan assistance are available.' : 'Fees are listed on each program page. Merit and need-based scholarships are available.'],
@@ -71,7 +84,7 @@ $table = function (array $rows): string {
 $heroImg = 'assets/images/site/students-laptop.jpg';
 site_header([
     'title' => 'Academic Programs — UG, PG, Diploma & Certificate Courses',
-    'description' => 'Explore ' . count($programs) . ' industry-focused programs at GIMT Greater Noida — BBA, MBA, B.Tech, BCA, MCA, B.Com, M.Com, diploma and certificate courses with fees, eligibility and curriculum.',
+    'description' => 'Explore ' . $degreeCount . ' industry-focused programs at GIMT Noida — BBA, MBA, B.Tech, BCA, MCA, B.Com, M.Com and diploma' . ($certs ? ', plus ' . count($certs) . ' certificate courses' : ' and certificate courses') . ' with fees, eligibility and curriculum.',
     'active' => 'programs',
     'seo' => ['route', '/programs'],
     'image' => $heroImg,
@@ -99,16 +112,20 @@ page_hero('Academic Programs', 'Future-Ready Programs for a Brighter Tomorrow', 
 <?= section_open(['id' => 'find', 'bg' => 'brand-soft', 'class' => 'scroll-mt-20 !pt-12 sm:!pt-14']) ?>
   <?= section_heading('Find Your Program', 'Choose from our diverse range of programs across multiple disciplines.', '', 'left', '<a href="#compare" class="link-arrow">Compare All Programs' . icon('arrow-right', 'h-4 w-4') . '</a>') ?>
   <?php if ($programs): ?>
-    <div class="flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_auto_auto_1fr] lg:gap-x-8 xl:grid-cols-[minmax(0,1fr)_340px]
+    <div class="program-views flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_auto_auto_1fr] lg:gap-x-8 xl:grid-cols-[minmax(0,1fr)_340px]
                 [&>[data-island]]:contents [&_.program-explorer]:contents
                 [&_.program-explorer>div:first-child]:order-1 lg:[&_.program-explorer>div:first-child]:col-span-2 lg:[&_.program-explorer>div:first-child]:row-start-1
                 [&_.program-explorer>div.grid]:order-3 lg:[&_.program-explorer>div.grid]:col-start-1 lg:[&_.program-explorer>div.grid]:row-start-3
                 [&_.program-explorer>.empty-state]:order-4 lg:[&_.program-explorer>.empty-state]:col-start-1 lg:[&_.program-explorer>.empty-state]:row-start-4 lg:[&_.program-explorer>.empty-state]:self-start
-                lg:[&_[role=toolbar]]:grid-cols-4 xl:[&_[role=toolbar]]:grid-cols-8 xl:[&_.filter-tile]:flex-col xl:[&_.filter-tile]:gap-2 xl:[&_.filter-tile]:px-2">
-      <?= sa_program_explorer($programs, ['initial' => $category]) ?>
-      <div class="order-2 mb-6 lg:col-start-1 lg:row-start-2">
-        <h2 class="font-display text-2xl font-extrabold tracking-tight text-brand-900 sm:text-3xl">Featured Programs</h2>
-        <p class="mt-1 text-slate-600">Our most popular programs designed for industry success — filter by category or search to find yours.</p>
+                lg:[&_[role=toolbar]]:grid-cols-4 xl:[&_[role=toolbar]]:grid-cols-8 xl:[&_.filter-tile]:flex-col xl:[&_.filter-tile]:gap-2 xl:[&_.filter-tile]:px-2"<?= sa_view_scope_attrs('programs') ?>>
+      <?= sa_view_scope_script('programs') ?>
+      <?= sa_program_explorer($programs, ['initial' => $category, 'categories' => array_map(fn ($c) => $c['key'] === 'certificate' && $certs ? $c + ['href' => site_url('certifications') . '#courses'] : $c, sa_program_categories())]) ?>
+      <div class="order-2 mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between lg:col-start-1 lg:row-start-2">
+        <div>
+          <h2 class="font-display text-2xl font-extrabold tracking-tight text-brand-900 sm:text-3xl">Featured Programs</h2>
+          <p class="mt-1 text-slate-600">Our most popular programs designed for industry success — filter by category or search to find yours.</p>
+        </div>
+        <div class="hidden shrink-0 [.js_&]:block"><?= view_mode_toggle('programs', ['grid', 'list', 'compact', 'detailed'], view_mode_default('programs')) ?><?= function_exists('site_view_sync_script') ? site_view_sync_script('programs') : '' ?></div>
       </div>
       <aside class="order-5 mt-12 lg:col-start-2 lg:row-span-3 lg:row-start-2 lg:mt-0" aria-label="Admission counselling">
         <div class="space-y-4 lg:sticky lg:top-28">
@@ -130,6 +147,14 @@ page_hero('Academic Programs', 'Future-Ready Programs for a Brighter Tomorrow', 
   <?php endif; ?>
 <?= section_close() ?>
 
+<?php if ($certs): ?>
+<!-- Certificate courses: one card per group → /certifications -->
+<?= section_open(['id' => 'certificates', 'class' => 'scroll-mt-20']) ?>
+  <?= section_heading('Short Certificate Courses', count($certs) . ' practical courses of a few months each, with a GIMT certificate — for students, graduates and working professionals.', 'Upskill', 'left', '<a href="' . e(site_url('certifications')) . '" class="link-arrow">All certificate courses' . icon('arrow-right', 'h-4 w-4') . '</a>') ?>
+  <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-stagger="60"><?= cert_group_cards($certs) ?></div>
+<?= section_close() ?>
+<?php endif; ?>
+
 <!-- Programs at a glance -->
 <?php if ($programs): ?>
 <?= section_open(['id' => 'compare', 'class' => 'scroll-mt-20']) ?>
@@ -138,9 +163,11 @@ page_hero('Academic Programs', 'Future-Ready Programs for a Brighter Tomorrow', 
       array_values(array_filter([
           $byLevel['UG'] ? ['key' => 'ug', 'label' => 'Undergraduate (' . count($byLevel['UG']) . ')', 'icon' => 'graduation-cap'] : null,
           $byLevel['PG'] ? ['key' => 'pg', 'label' => 'Postgraduate (' . count($byLevel['PG']) . ')', 'icon' => 'school'] : null,
-          $byLevel['Other'] ? ['key' => 'other', 'label' => 'Diploma & Certificate (' . count($byLevel['Other']) . ')', 'icon' => 'award'] : null,
+          $byLevel['Diploma'] ? ['key' => 'diploma', 'label' => 'Diploma (' . count($byLevel['Diploma']) . ')', 'icon' => 'file-text'] : null,
+          $certs ? ['key' => 'certificate', 'label' => 'Certificate Courses (' . count($certs) . ')', 'icon' => 'award'] : null,
       ])),
-      array_values(array_filter([$byLevel['UG'] ? $table($byLevel['UG']) : null, $byLevel['PG'] ? $table($byLevel['PG']) : null, $byLevel['Other'] ? $table($byLevel['Other']) : null])),
+      array_values(array_filter([$byLevel['UG'] ? $table($byLevel['UG']) : null, $byLevel['PG'] ? $table($byLevel['PG']) : null, $byLevel['Diploma'] ? $table($byLevel['Diploma']) : null,
+          $certs ? $table($certs) . '<p class="mt-3 text-sm"><a href="' . e(site_url('certifications')) . '" class="link-arrow">Browse certificate courses by group' . icon('arrow-right', 'h-4 w-4') . '</a></p>' : null])),
       ['variant' => 'pills']
   ) ?>
   <p class="mt-4 flex items-start gap-2 text-sm text-slate-500"><?= icon('info', 'mt-0.5 h-4 w-4 shrink-0 text-brand-500') ?>Tuition fees<?= $session ? ' for ' . e($session['name']) : '' ?> are per year (certificate programs per course); hostel, transport and examination fees are charged separately. Scholarships are available on merit and need.</p>
@@ -150,7 +177,7 @@ page_hero('Academic Programs', 'Future-Ready Programs for a Brighter Tomorrow', 
 <!-- Why study at GIMT -->
 <?= section_open(['id' => 'why', 'bg' => 'light', 'pattern' => 'dots']) ?>
   <?= section_heading('Why Study at GIMT?', 'Discover the advantages that make our programs unique and career-focused.') ?>
-  <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8" data-stagger="60">
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8" data-stagger="60">
     <?php foreach ([
         ['graduation-cap', 'Industry-Aligned Curriculum', 'blue'], ['users', 'Expert Faculty & Mentorship', 'green'], ['presentation', 'Practical Learning', 'cyan'],
         ['briefcase-business', 'Internship Opportunities', 'violet'], ['handshake', 'Placement Support', 'blue'], ['globe', 'Global Exposure', 'violet'],

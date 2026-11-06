@@ -10,7 +10,7 @@ import { api, ApiError } from '@/lib/api';
 import { useApi, useCrudMeta } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
 import { appUrl } from '@/lib/config';
-import { formatMoney, formatNumber } from '@/lib/format';
+import { formatMoney, formatNumber, formatPhone } from '@/lib/format';
 import type { BadgeColor } from '@/lib/status';
 import { AllocateModal, useHostelRefresh, type AllocateDefaults } from './hostel/AllocationDialogs';
 import { AllocationDrawer } from './hostel/AllocationDrawer';
@@ -267,7 +267,7 @@ export default function HostelRoomsPage() {
                       <OccupancyBar occupied={h.occupied} available={h.available} maintenance={h.maintenance} />
                     </div>
                     <dl className="space-y-1.5 text-sm text-slate-600 dark:text-slate-300">
-                      {h.warden_name && <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" /><span className="truncate">Warden {h.warden_name}{h.warden_phone ? ` · ${h.warden_phone}` : ''}</span></div>}
+                      {h.warden_name && <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" /><span className="truncate">Warden {h.warden_name}{h.warden_phone ? ` · ${formatPhone(h.warden_phone)}` : ''}</span></div>}
                       {h.address && <div className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" /><span className="truncate" title={h.address}>{h.address}</span></div>}
                       <div className="flex items-center gap-2"><BedDouble className="h-3.5 w-3.5 shrink-0 text-slate-400" /><span>Rent {h.annual_fee ? formatMoney(h.annual_fee) : '—'} · Mess {h.mess_fee ? formatMoney(h.mess_fee) : '—'} / year</span></div>
                     </dl>

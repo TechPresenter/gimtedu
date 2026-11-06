@@ -68,6 +68,7 @@ route('POST', '/enquiries/{id:\d+}/followups', function ($p) {
     }
     $fid = followup_log(['enquiry_id' => (int) $e['id']] + $in);
     log_activity('create', 'enquiries', $e['id'], sprintf('Logged %s with %s (%s)', strtolower(admission_followup_types()[$in['type']] ?? 'follow-up'), $e['name'], $e['phone']));
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_followup((int) $fid, ['enquiry_id' => (int) $e['id'], 'counsellor_id' => $e['assigned_to'] ? (int) $e['assigned_to'] : null], $in); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     api_ok(['id' => $fid], 'Follow-up logged.' . (!empty($in['next_followup_date']) ? ' Next follow-up on ' . format_date($in['next_followup_date']) . '.' : ''));
 });
 
@@ -81,6 +82,7 @@ route('POST', '/enquiries/{id:\d+}/assign', function ($p) {
     db_update('enquiries', ['assigned_to' => $uid ?: null], 'id = ?', [(int) $e['id']]);
     $who = $uid ? (string) db_value('SELECT name FROM users WHERE id = ?', [$uid]) : 'nobody';
     log_activity('update', 'enquiries', $e['id'], sprintf('Assigned enquiry of %s (%s) to %s', $e['name'], $e['phone'], $who));
+    try { if ($uid && $uid !== (int) $e['assigned_to']) { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event(['GIMT_ENQUIRY_ASSIGNED', 'GIMT_LEAD_TRANSFERRED'], ['enquiry_id' => (int) $e['id'], 'counsellor_id' => $uid, 'assigned_by' => (string) db_value('SELECT name FROM users WHERE id = ?', [(int) user_id()])], ['dedupe_key' => 'enq:' . $e['id'] . ':u' . $uid . ':' . date('YmdHi'), 'source' => 'admin']); } } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     if ($uid && $uid !== (int) user_id()) {
         notify($uid, 'enquiry', 'Enquiry assigned to you', $e['name'] . ' (' . $e['phone'] . ')', 'admin/enquiries?q=' . rawurlencode((string) $e['phone']), 'message-circle');
     }

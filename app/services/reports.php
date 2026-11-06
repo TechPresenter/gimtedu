@@ -309,7 +309,7 @@ function reports_filters(array $def, array $q): array
         }
     }
     if ($def['search']) {
-        $f['q'] = mb_substr(trim((string) ($q['q'] ?? '')), 0, 100);
+        $f['q'] = mb_substr(trim(api_str($q['q'] ?? null)), 0, 100);
     }
     return $f;
 }

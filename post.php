@@ -82,10 +82,9 @@ $head = '<meta property="article:published_time" content="' . e(date('c', $pubTs
 foreach ($tags as $t) {
     $head .= '<meta property="article:tag" content="' . e($t) . '">';
 }
-$head .= '<meta name="twitter:image:alt" content="' . e($imgAlt) . '">';
-ng_site_header([
+site_header([
     'title' => $post['title'],
-    'description' => $excerpt !== '' ? $excerpt : 'News and stories from Global Institute of Management & Technology (GIMT), Greater Noida.',
+    'description' => $excerpt !== '' ? $excerpt : 'News and stories from Global Institute of Management & Technology (GIMT), Noida.',
     'active' => 'blog',
     'seo' => $preview ? null : ['post', $id],
     'canonical' => $url,
@@ -94,7 +93,9 @@ ng_site_header([
     'image' => $imgPath,
     'preload' => [$img],
     'schema' => $schema,
-], $head);
+    'image_alt' => $imgAlt,           // og:image:alt + twitter:image:alt
+    'head' => [$head],                // article:published_time / modified_time / section / tag
+]);
 
 $metaDate = '<time datetime="' . e(date('c', $pubTs)) . '">' . e(date('d M Y', $pubTs)) . '</time>';
 ?>
@@ -202,7 +203,7 @@ $metaDate = '<time datetime="' . e(date('c', $pubTs)) . '">' . e(date('d M Y', $
             <p class="text-[11.5px] font-bold uppercase tracking-[0.14em] text-accent-700"><?= $author['org'] ? 'Published by' : 'Written by' ?></p>
             <h2 id="author-name" class="mt-1 font-display text-lg font-extrabold text-brand-900"><?= e($author['org'] ? institute_name() : $author['name']) ?></h2>
             <?php if ($author['org']): ?>
-              <p class="mt-1 text-sm leading-relaxed text-slate-600">Official news and updates from <?= e(institute_name()) ?>, <?= e((string) setting('city', 'Greater Noida')) ?>.</p>
+              <p class="mt-1 text-sm leading-relaxed text-slate-600">Official news and updates from <?= e(institute_name()) ?>, <?= e((string) setting('city', 'Noida')) ?>.</p>
             <?php else: ?>
               <p class="mt-0.5 text-sm text-slate-600"><?= e(trim(($author['role'] !== '' ? $author['role'] . ' · ' : '') . setting('institute_short_name', 'GIMT'))) ?></p>
               <?php if ($authorPosts > 1): ?><p class="mt-2 text-sm text-slate-600"><?= (int) $authorPosts ?> articles published on GIMT News &amp; Blog.</p><?php endif; ?>

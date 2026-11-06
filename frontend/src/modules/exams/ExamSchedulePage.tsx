@@ -206,7 +206,7 @@ function PaperList({ list }: { list: DatesheetRow[] }) {
   return (
     <ul className="divide-y divide-slate-100 dark:divide-slate-800">
       {list.map((r) => (
-        <li key={r.id} className="grid gap-2 px-5 py-3 sm:grid-cols-[9.5rem_minmax(0,1fr)_minmax(0,14rem)] sm:items-center">
+        <li key={r.id} className="grid grid-cols-1 gap-2 px-5 py-3 sm:grid-cols-[9.5rem_minmax(0,1fr)_minmax(0,14rem)] sm:items-center">
           <div className="text-sm font-medium tabular-nums text-slate-700 dark:text-slate-200">{timeRange(r.start_time, r.end_time)}</div>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">

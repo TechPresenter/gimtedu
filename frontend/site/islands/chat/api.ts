@@ -162,7 +162,21 @@ export function clearChat(): void {
   }
 }
 
+/* ---------------------------------------------------------------- greeting bubble memory */
+
+const GREET_DISMISSED_KEY = 'gimt-chat:greet-dismissed'; // localStorage: time of the last dismissal (kept 7 days)
+const GREET_SHOWN_KEY = 'gimt-chat:greet-shown'; // sessionStorage: the bubble already appeared during this visit
+export const GREETING_DISMISS_DAYS = 7;
+
+/** True while a dismissal (close button, Esc, or opening the chat) is less than 7 days old. */
 export function greetingDismissed(): boolean {
+  try {
+    const at = Number(window.localStorage.getItem(GREET_DISMISSED_KEY) || 0);
+    if (at && Date.now() - at < GREETING_DISMISS_DAYS * 86400000) return true;
+    if (at) window.localStorage.removeItem(GREET_DISMISSED_KEY);
+  } catch {
+    /* storage blocked: fall through to the per-tab flag */
+  }
   try {
     return window.sessionStorage.getItem(GREET_KEY) === '1';
   } catch {
@@ -172,7 +186,29 @@ export function greetingDismissed(): boolean {
 
 export function dismissGreeting(): void {
   try {
+    window.localStorage.setItem(GREET_DISMISSED_KEY, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+  try {
     window.sessionStorage.setItem(GREET_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+/** The bubble shows at most once per visit (tab session), even when it was not dismissed. */
+export function greetingShown(): boolean {
+  try {
+    return window.sessionStorage.getItem(GREET_SHOWN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function markGreetingShown(): void {
+  try {
+    window.sessionStorage.setItem(GREET_SHOWN_KEY, '1');
   } catch {
     /* ignore */
   }

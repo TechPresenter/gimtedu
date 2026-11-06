@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Lock, Menu, Phone, Search, User, UserRound }
 import { appUrl } from '@/lib/config';
 import { CmsIcon } from './icons';
 import type { MenuItemNode, PreviewData } from './types';
+import { formatPhone } from '@/lib/format';
 
 const active = (n: MenuItemNode) => n.status !== 'inactive';
 
@@ -120,7 +121,7 @@ export function TopbarPreview({ items, settings }: { items: MenuItemNode[]; sett
   const icons = [User, UserRound, Lock];
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0B2A5B] px-5 py-2.5 text-xs text-white/80">
-      <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#D03E16]" />{settings?.admissions_open_text ?? 'Admissions Open'}<span className="hidden items-center gap-1 sm:inline-flex"><Phone className="ml-3 h-3 w-3" />{settings?.phone}</span></span>
+      <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#D03E16]" />{settings?.admissions_open_text ?? 'Admissions Open'}<span className="hidden items-center gap-1 sm:inline-flex"><Phone className="ml-3 h-3 w-3" />{formatPhone(settings?.phone)}</span></span>
       <span className="flex flex-wrap items-center gap-4">
         {items.filter(active).map((n, i) => {
           const I = icons[i % icons.length];

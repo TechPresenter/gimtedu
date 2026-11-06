@@ -7,6 +7,7 @@ import { bindOnce, finePointer, rafThrottle, reducedMotion, staticMode, within }
  *  - initSpotlight:  restrained cursor-following light on [data-spotlight] elements (desktop fine pointers)
  *  - initDismiss:    dismissible bars ([data-dismiss="key"] + [data-dismiss-close]), remembered in localStorage
  *  - viewTransition: run a DOM update inside document.startViewTransition where supported (no-op elsewhere)
+ *  - initAttention / initGleam: idle CTA glow / light streak, paused off-screen
  */
 
 /* ------------------------------------------------------------------ Text-mask heading reveal */
@@ -38,6 +39,9 @@ function splitLines(el: HTMLElement): void {
   tokens.forEach((t) => el.appendChild(t));
   const lines: Node[][] = [];
   let lastTop = Number.NaN;
+  // a new rendered line moves down by about a line-height; inline-block words (.scribble) sit a few px off the text
+  // words of the same line at display sizes, which a fixed 4 px tolerance mistook for line breaks ("B.Tech (" / "CSE" / ")")
+  const tolerance = Math.max(4, (parseFloat(getComputedStyle(el).fontSize) || 16) * 0.5);
   tokens.forEach((t) => {
     if (!(t instanceof HTMLElement)) {
       if (lines.length) lines[lines.length - 1].push(t);
@@ -45,7 +49,7 @@ function splitLines(el: HTMLElement): void {
     }
     const block = getComputedStyle(t).display === 'block';
     const top = t.offsetTop;
-    if (block || !lines.length || Math.abs(top - lastTop) > 4) lines.push([]);
+    if (block || !lines.length || Math.abs(top - lastTop) > tolerance) lines.push([]);
     lines[lines.length - 1].push(t);
     lastTop = block ? Number.NaN : top;
   });
@@ -183,14 +187,37 @@ export function initDismiss(root: ParentNode = document): void {
 
 /* ------------------------------------------------------------------ View Transitions API */
 
-type DocWithVT = Document & { startViewTransition?: (cb: () => void) => unknown };
+interface VTHandle {
+  ready?: Promise<unknown>;
+  finished?: Promise<unknown>;
+  updateCallbackDone?: Promise<unknown>;
+}
+type DocWithVT = Document & { startViewTransition?: (cb: () => void) => VTHandle | undefined };
 
-/** Run a DOM update inside a same-document view transition where supported (and not in static mode); else directly. */
+let lastResize = -Infinity;
+let resizeWatched = false;
+const swallow = (): void => undefined;
+
+/**
+ * Run a DOM update inside a same-document view transition where supported (and not in static mode); else directly.
+ * The browser aborts a transition when the viewport changes size, the tab is hidden or another transition starts
+ * ("InvalidStateError: Transition was aborted because of invalid state" / AbortError) — the DOM update still runs, so
+ * the rejected ready / finished / updateCallbackDone promises are handled here (never an uncaught error in the console),
+ * and no transition is started while the window is being resized or the tab is in the background.
+ */
 export function viewTransition(update: () => void): void {
+  if (!resizeWatched) {
+    resizeWatched = true;
+    window.addEventListener('resize', () => { lastResize = performance.now(); }, { passive: true });
+  }
   const doc = document as DocWithVT;
-  if (typeof doc.startViewTransition === 'function' && !staticMode()) {
+  const resizing = performance.now() - lastResize < 500;
+  if (typeof doc.startViewTransition === 'function' && !staticMode() && !resizing && doc.visibilityState === 'visible') {
     try {
-      doc.startViewTransition(update);
+      const t = doc.startViewTransition(update);
+      t?.ready?.catch(swallow);
+      t?.finished?.catch(swallow);
+      t?.updateCallbackDone?.catch(swallow);
       return;
     } catch {
       /* fall through */
@@ -207,4 +234,54 @@ export function initAttention(root: ParentNode = document): void {
   if (!els.length || !('IntersectionObserver' in window)) return;
   const io = new IntersectionObserver((entries) => entries.forEach((en) => en.target.classList.toggle('is-offscreen', !en.isIntersecting)));
   els.forEach((el) => io.observe(el));
+}
+
+/* ------------------------------------------------------------------ Idle CTA gleam (a few primary CTAs) */
+
+/* turns for buttons entering the view together (ms); with the 2.4 s × 2 CSS cycle a screen's last sweep ends within 5 s */
+const GLEAM_SLOTS = [500, 1300, 2100];
+let gleamObserver: IntersectionObserver | null = null;
+
+/** Site chrome CTAs (sticky header, drawer, mobile bar) gleam once per page view, not after every scroll-up. */
+const gleamOnce = (el: Element): boolean => el.closest('#site-header, #mobile-menu, .mobile-cta') !== null;
+
+/**
+ * .btn-gleam (button_link 'gleam' => true): when the button comes into view it gets .is-live and the CSS lets the
+ * .btn-shine streak cross it on its own twice. .is-live is dropped once the two sweeps end, on hover / focus (the hover
+ * streak takes over, and leaving never restarts the gleam) and when the button leaves the view; the next entry re-arms it
+ * (chrome CTAs only once per page). Only buttons entering the view together share the turns (--gleam-delay), hidden
+ * ones take none. Never in static mode or without JS.
+ */
+export function initGleam(root: ParentNode = document): void {
+  if (staticMode()) return;
+  const els = within('.btn-gleam', root).filter((el) => bindOnce(el, 'gleam'));
+  if (!els.length) return;
+  els.forEach((el) => {
+    el.addEventListener('animationend', (e) => {
+      if (e.animationName === 'btn-gleam') el.classList.remove('is-live');
+    });
+    el.addEventListener('pointerenter', () => el.classList.remove('is-live'));
+    el.addEventListener('focusin', () => el.classList.remove('is-live'));
+  });
+  if (!('IntersectionObserver' in window)) {
+    els.forEach((el, i) => {
+      el.style.setProperty('--gleam-delay', `${GLEAM_SLOTS[Math.min(i, GLEAM_SLOTS.length - 1)]}ms`);
+      el.classList.add('is-live');
+    });
+    return;
+  }
+  gleamObserver ??= new IntersectionObserver((entries) => {
+    let slot = 0;
+    entries.forEach((en) => {
+      const el = en.target as HTMLElement;
+      if (!en.isIntersecting) {
+        el.classList.remove('is-live');
+        return;
+      }
+      el.style.setProperty('--gleam-delay', `${GLEAM_SLOTS[Math.min(slot++, GLEAM_SLOTS.length - 1)]}ms`);
+      el.classList.add('is-live');
+      if (gleamOnce(el)) gleamObserver?.unobserve(el);
+    });
+  });
+  els.forEach((el) => gleamObserver?.observe(el));
 }

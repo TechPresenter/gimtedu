@@ -81,7 +81,7 @@ route('GET', '/profile', function () {
             'detail' => (int) $stats['failed'] ? $stats['failed'] . ' failed attempt' . ((int) $stats['failed'] === 1 ? '' : 's') . ($lastFailed ? ', last from ' . $lastFailed['ip_address'] : '') : 'All recent sign-ins succeeded'],
         ['key' => 'devices', 'label' => 'Few remembered devices', 'ok' => count($sessions) <= 3, 'detail' => count($sessions) . ' device' . (count($sessions) === 1 ? '' : 's') . ' stay signed in with "Remember me"'],
         ['key' => 'phone', 'label' => 'Recovery phone number on file', 'ok' => !empty($u['phone']), 'detail' => $u['phone'] ? 'Used by administrators to verify you' : 'Add a phone number on the Account tab'],
-        ['key' => 'two_factor', 'label' => 'Two-factor authentication', 'ok' => (bool) $u['two_factor_enabled'], 'info' => !$u['two_factor_enabled'], 'detail' => $u['two_factor_enabled'] ? 'Enabled' : 'Available once your institute turns it on in Settings › Security'],
+        ['key' => 'two_factor', 'label' => 'Two-factor authentication', 'ok' => false, 'info' => true, 'detail' => 'Coming soon: authenticator-app sign-in is not available in this release'],
     ];
     $scored = array_filter($checks, fn ($c) => empty($c['info']));
     $score = (int) round(count(array_filter($scored, fn ($c) => $c['ok'])) * 100 / max(1, count($scored)));
@@ -126,7 +126,7 @@ route('POST', '/profile', function () {
     }
     $emailChanged = $data['email'] !== strtolower((string) $u['email']);
     if ($emailChanged && !isset($errors['email'])) {
-        if (!password_verify((string) ($in['current_password'] ?? ''), $u['password_hash'])) {
+        if (!password_verify(api_str($in['current_password'] ?? null), $u['password_hash'])) {
             $errors['current_password'] = 'Enter your current password to change your email address.';
         }
     }
@@ -176,7 +176,7 @@ route('GET', '/profile/logins', function () {
     [$page, $perPage] = api_pagination(15);
     $where = 'user_id = ?';
     $args = [user_id()];
-    $status = (string) ($_GET['status'] ?? '');
+    $status = api_str($_GET['status'] ?? null);
     if ($status === 'success') {
         $where .= " AND status = 'success'";
     } elseif ($status === 'failed') {

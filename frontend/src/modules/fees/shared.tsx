@@ -5,7 +5,7 @@ import {
   AlarmClock, BadgePercent, Ban, BellRing, CalendarClock, FileText, HandCoins, Mail, Printer, ReceiptText, ScrollText, Undo2, type LucideIcon,
 } from 'lucide-react';
 import {
-  Alert, Badge, Button, Combobox, DescriptionList, Drawer, Field, Input, Modal, PersonCell, Select, Skeleton, StatusBadge, Textarea, useToast,
+  Alert, Badge, Button, Combobox, DescriptionList, Drawer, Field, Input, Modal, PersonCell, PhoneLink, Select, Skeleton, StatusBadge, Textarea, useToast,
 } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useApi, useInvalidate } from '@/lib/queries';
@@ -196,7 +196,7 @@ export function ConcessionModal({ invoice, open, onClose, onDone }: { invoice: P
         </>
       }
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field htmlFor="fees-type" label="Type" required error={errors.type}>
           <Select id="fees-type" value={values.type} onChange={(e) => setValues((v) => ({ ...v, type: e.target.value }))} options={{ discount: 'Discount', waiver: 'Fee waiver' }} />
         </Field>
@@ -456,7 +456,7 @@ export function InvoiceDrawer({ id, onClose }: { id: number | null; onClose: () 
           <SectionTitle icon={Mail}>Contact &amp; reminders</SectionTitle>
           <DescriptionList
             items={[
-              { label: 'Mobile', value: inv.mobile },
+              { label: 'Mobile', value: inv.mobile ? <PhoneLink value={inv.mobile} className="link !font-medium" /> : null },
               { label: 'Email', value: inv.email },
               { label: 'Reminders sent', value: inv.reminder_count ? `${inv.reminder_count} · last ${formatDateTime(inv.last_reminder_at)}` : 'None' },
               { label: 'Late fee rule', value: inv.late_fee_rate.per_day > 0 ? `${formatMoney(inv.late_fee_rate.per_day)}/day${inv.late_fee_rate.max ? `, max ${formatMoney(inv.late_fee_rate.max)}` : ''}` : 'No late fee' },

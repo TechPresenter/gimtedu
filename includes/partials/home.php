@@ -139,6 +139,25 @@ function hm_kicker(string $text, bool $dark = false): string
     return '<p class="eyebrow' . ($dark ? ' !text-accent-300' : '') . '"><span class="accent-line !w-7"' . reveal_attr('fade-in') . ' aria-hidden="true"></span>' . e($text) . '</p>';
 }
 
+/**
+ * Yellow-gold highlight phrase for a CMS heading: content key `gold` ('' = none), else the last word of 3+ letters
+ * (client request 2026-10-13 — one gold phrase per heading, never together with a scribble).
+ */
+function hm_gold(string $title, array $c, int $words = 1): string
+{
+    if (array_key_exists('gold', $c)) {
+        return trim((string) $c['gold']);
+    }
+    if (!preg_match('/([\p{L}][\p{L}\'’&-]{2,})[^\p{L}]*$/u', $title, $m)) {
+        return '';
+    }
+    // optionally include the word before it ("Brighter Future") when that is a real word too
+    if ($words > 1 && preg_match('/([\p{L}][\p{L}\'’&-]{2,})\s+' . preg_quote($m[1], '/') . '[^\p{L}]*$/u', $title, $m2)) {
+        return $m2[1] . ' ' . $m[1];
+    }
+    return $m[1];
+}
+
 /* =====================================================================================================================
  * Sections (CMS order + toggles)
  * ===================================================================================================================*/
@@ -225,8 +244,30 @@ function hm_stat_source(string $source): ?float
         $v = setting('student_satisfaction');
         return $v !== null && is_numeric($v) && (float) $v > 0 ? (float) $v : null;
     }
+    // placement figures: the same season and formula as the Placements page (latest completed season: students placed ÷
+    // students eligible for its drives), so the homepage never shows a different "placement rate" from /placement
+    if (in_array($source, ['placement_rate', 'highest_package', 'average_package'], true)) {
+        $ps = hm_placement_season();
+        $v = $ps[['placement_rate' => 'percent', 'highest_package' => 'highest', 'average_package' => 'average'][$source]] ?? null;
+        return $v !== null && is_numeric($v) ? (float) $v : null;
+    }
     $v = cms_stat_value($source, null);
     return $v === null || !is_numeric($v) ? null : (float) $v;
+}
+
+/** Placement statistics of the season the Placements page shows by default (+ 'season' name), or [] without data. */
+function hm_placement_season(): array
+{
+    static $res = null;
+    if ($res === null) {
+        $res = [];
+        require_once __DIR__ . '/public_career.php';
+        $season = pc_default_season(pc_placement_seasons());
+        if ($season) {
+            $res = pc_placement_stats($season) + ['season' => (string) $season['name'], 'completed' => !empty($season['completed'])];
+        }
+    }
+    return $res;
 }
 
 /**
@@ -781,6 +822,9 @@ function hm_faqs(array $c): array
 function hm_preload(array $sections): array
 {
     $hero = $sections['hero']['content'] ?? null;
+    if ($hero && ($hero['layout'] ?? 'layered') === 'split') {   // the split hero shows its photo from 1280 px only
+        return [['href' => site_image($hero['person_image'] ?? null, 'assets/images/site/hero-counsellor.webp'), 'media' => '(min-width: 1280px)']];
+    }
     return $hero ? [site_image($hero['image'] ?? null, 'assets/images/site/hero-campus-students.jpg')] : [];
 }
 
@@ -812,7 +856,7 @@ function hm_schema(array $sections): array
                 'eventStatus' => 'https://schema.org/EventScheduled',
                 'eventAttendanceMode' => $online ? 'https://schema.org/OnlineEventAttendanceMode' : 'https://schema.org/OfflineEventAttendanceMode',
                 'location' => $online ? ['@type' => 'VirtualLocation', 'url' => absolute_url('')] : ['@type' => 'Place', 'name' => trim((string) $ev['venue']) ?: institute_name(),
-                    'address' => ['@type' => 'PostalAddress', 'streetAddress' => setting('address'), 'addressLocality' => setting('city', 'Greater Noida'), 'addressRegion' => setting('state', 'Uttar Pradesh'), 'addressCountry' => 'IN']],
+                    'address' => ['@type' => 'PostalAddress', 'streetAddress' => setting('address'), 'addressLocality' => setting('city', 'Noida'), 'addressRegion' => setting('state', 'Uttar Pradesh'), 'addressCountry' => 'IN']],
                 'image' => $ev['image'] ? $abs(site_image($ev['image'])) : null, 'description' => hm_text($ev['excerpt'] ?? '', 240) ?: null,
                 'organizer' => $org, 'url' => hm_url_ok('/events/' . $ev['slug']) ? absolute_url('events/' . $ev['slug']) : null,
             ]);
@@ -834,6 +878,9 @@ function hm_schema(array $sections): array
 function hm_render_hero(array $s): string
 {
     $c = $s['content'];
+    if (($c['layout'] ?? 'layered') === 'split') {
+        return hm_render_hero_split($s);
+    }
     $title = trim($s['title']);
     $highlight = trim((string) ($c['highlight'] ?? ''));
     $eyebrow = trim((string) ($c['eyebrow'] ?? ''));
@@ -894,8 +941,8 @@ function hm_render_hero(array $s): string
             . '<span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-900 text-white">' . icon('sparkles', 'h-3.5 w-3.5') . '</span>' . e($eyebrow) . '</p>';
     }
     $h .= '<h1 id="hm-hero-title" class="mt-6 font-display text-[clamp(2.35rem,0.85rem+3.9vw,4.25rem)] font-extrabold leading-[1.04] tracking-[-0.035em] text-brand-900">'
-        . '<span class="block overflow-hidden pb-[0.1em] -mb-[0.1em]"><span class="block ' . $rise . '">' . e($title) . '</span></span>'
-        . ($highlight !== '' ? '<span class="block overflow-hidden pb-[0.12em] -mb-[0.12em]"><span class="block bg-gradient-to-r from-accent-600 via-accent-500 to-[#F37A52] bg-clip-text text-transparent [-webkit-text-fill-color:transparent] ' . $rise2 . '">' . e($highlight) . '</span></span>' : '')
+        . '<span class="block overflow-hidden pb-[0.1em] -mb-[0.1em]"><span class="block ' . $rise . '">' . gold_text($title, hm_gold($title, $c)) . '</span></span>'
+        . ($highlight !== '' ? '<span class="block overflow-hidden pb-[0.12em] -mb-[0.12em]"><span class="block bg-gradient-to-r from-accent-600 via-accent-500 to-accent-400 bg-clip-text text-transparent [-webkit-text-fill-color:transparent] ' . $rise2 . '">' . e($highlight) . '</span></span>' : '')
         . '</h1>';
     if ($lead !== '') {
         $h .= '<p class="mt-6 max-w-xl text-[17px] leading-relaxed text-slate-600 sm:text-lg animate-fade-up delay-2">' . e($lead) . '</p>';
@@ -909,7 +956,7 @@ function hm_render_hero(array $s): string
         $h .= $badgeUrl ? '<a href="' . e($badgeUrl) . '" class="' . $cls . '">' . $inner . '</a>' : '<p class="' . $cls . '">' . $inner . '</p>';
     }
     $h .= '<div class="mt-8 flex flex-wrap items-center gap-3 animate-fade-up delay-3">'
-        . hm_button($primary, 'apply', ['size' => 'lg', 'shine' => true, 'magnetic' => true])
+        . hm_button($primary, 'apply', ['size' => 'lg', 'gleam' => true, 'magnetic' => true])
         . hm_button($secondary, 'explore', ['size' => 'lg', 'icon' => $secondary && str_starts_with($secondary['url'], '#') ? 'arrow-down-right' : 'arrow-right'])
         . ($video !== '' ? video_lightbox(['url' => $video, 'label' => trim((string) ($c['video_label'] ?? '')) ?: 'Watch Our Campus Tour', 'variant' => 'button', 'title' => 'GIMT campus tour']) : '')
         . '</div>';
@@ -934,8 +981,8 @@ function hm_render_hero(array $s): string
     // ---- layered visual
     $h .= '<div class="relative z-0 mx-auto w-full max-w-[560px] lg:col-span-5 lg:max-w-none">';
     $h .= '<div class="relative aspect-[10/9.4]">';
-    $h .= '<span class="animate-blob pointer-events-none absolute -right-[4%] top-[6%] -z-10 h-[80%] w-[80%] bg-gradient-to-br from-accent-200/80 via-[#FDEDE7] to-brand-100/80" aria-hidden="true"></span>';
-    $h .= '<span class="pointer-events-none absolute -left-[3%] -top-[2%] -z-10 aspect-square w-[34%] rounded-full border-[1.5px] border-transparent [background:linear-gradient(#FAF8F5,#FAF8F5)_padding-box,linear-gradient(135deg,#F05A28,rgba(240,90,40,0)_55%,#0B2A5B)_border-box]" aria-hidden="true"></span>';
+    $h .= '<span class="animate-blob pointer-events-none absolute -right-[4%] top-[6%] -z-10 h-[80%] w-[80%] bg-gradient-to-br from-accent-200/80 via-flame-tint to-brand-100/80" aria-hidden="true"></span>';
+    $h .= '<span class="pointer-events-none absolute -left-[3%] -top-[2%] -z-10 aspect-square w-[34%] rounded-full border-[1.5px] border-transparent [background:linear-gradient(var(--c-warm-50),var(--c-warm-50))_padding-box,linear-gradient(135deg,#F05A28,rgba(240,90,40,0)_55%,#0B2A5B)_border-box]" aria-hidden="true"></span>';
     $h .= '<div class="clip-in absolute right-0 top-0 h-[86%] w-[84%] overflow-hidden rounded-[120px_28px_28px_28px] bg-warm-2 shadow-[0_44px_80px_-40px_rgba(7,26,59,.6)] sm:rounded-[180px_32px_32px_32px]">'
         . '<img src="' . e($main) . '" alt="' . e($alt) . '" class="absolute inset-0 h-full w-full object-cover object-[50%_50%]" fetchpriority="high" decoding="async" width="1485" height="575">'
         . '<span class="absolute inset-0 bg-[linear-gradient(200deg,rgba(240,90,40,.18)_0%,rgba(7,26,59,0)_38%,rgba(7,26,59,.5)_100%)]" aria-hidden="true"></span></div>';
@@ -950,7 +997,7 @@ function hm_render_hero(array $s): string
     // floating geometric shapes (decorative)
     $h .= '<span class="float-slow pointer-events-none absolute -right-[2%] top-[44%] z-[3] h-12 w-12 rounded-full border-[9px] border-brand-900 sm:h-14 sm:w-14" aria-hidden="true"></span>'
         . '<span class="float-rotate pointer-events-none absolute bottom-[3%] right-[20%] z-[1] h-12 w-12 rounded-tl-full bg-accent-500 sm:h-14 sm:w-14" aria-hidden="true"></span>'
-        . '<span class="pointer-events-none absolute -top-[4%] left-[38%] -z-10 h-20 w-28 opacity-40 [background-image:radial-gradient(#0B2A5B_1.5px,transparent_1.7px)] [background-size:13px_13px]" aria-hidden="true"></span>'
+        . '<span class="pointer-events-none absolute -top-[4%] left-[38%] -z-10 h-20 w-28 opacity-40 dark:opacity-20 [background-image:radial-gradient(var(--c-heading)_1.5px,transparent_1.7px)] [background-size:13px_13px]" aria-hidden="true"></span>'
         . '<span class="spin-slow pointer-events-none absolute bottom-[34%] left-[-4%] z-[3] text-accent-600" aria-hidden="true"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor"><path d="M10 2h4v8h8v4h-8v8h-4v-8H2v-4h8z"/></svg></span>';
     foreach ($chips as $i => $ch) {
         $pos = $i === 0 ? 'right-[5%] top-[7%]' : 'left-[30%] top-[50%] hidden xl:flex';
@@ -980,12 +1027,122 @@ function hm_render_hero(array $s): string
     return $h;
 }
 
+/**
+ * Split hero (layout 'split', client request 2026-10-26, same building blocks as the campaign landing hero in
+ * admissions-open.php): navy mesh + grid; LEFT admission eyebrow, headline + highlighted line, institute name pill,
+ * "fees starting at" (lowest per-year program fee), program short names, Download Brochure + secondary CTA, approvals
+ * card; CENTRE (xl) the CMS person photo in the arch frame; RIGHT the navy lead card with the real deadline countdown /
+ * seats strip (no figures are shown when the data is missing).
+ */
+function hm_render_hero_split(array $s): string
+{
+    $c = $s['content'];
+    $title = trim($s['title']);
+    $highlight = trim((string) ($c['highlight'] ?? ''));
+    $session = hm_session();
+    $eyebrow = trim((string) ($c['badge'] ?? ''));
+    if ($eyebrow === '' && $session && (int) $session['admissions_open'] === 1) {
+        $eyebrow = (string) setting('admissions_open_text', 'Admissions Open for ' . $session['name']);
+    }
+    $secondary = hm_link($c['secondary_cta'] ?? null, ['label' => 'Explore Programs', 'url' => '/programs']);
+    $photoPath = (string) ($c['person_image'] ?? '') ?: 'assets/images/site/hero-counsellor.webp';
+    $photo = site_image($photoPath);
+    [$pw, $ph] = (@getimagesize(APP_ROOT . '/' . ltrim($photoPath, '/')) ?: [900, 750]);
+    $alt = trim((string) ($c['image_alt'] ?? '')) ?: 'GIMT admission counsellor';
+    $words = array_slice(array_values(array_filter(array_map('trim', (array) ($c['tagline_words'] ?? [])))), 0, 3);
+
+    $programs = site_programs();
+    $degrees = array_values(array_filter($programs, fn ($p) => in_array($p['level'], ['UG', 'PG'], true))) ?: $programs;
+    $names = array_map(fn ($p) => $p['short_name'], array_slice($degrees, 0, 7));
+    // lowest yearly tuition among the published programs (per-course certificate fees are not quoted as a yearly fee)
+    $fees = array_map(fn ($p) => (float) $p['fee_per_year'], array_filter($programs, fn ($p) => (float) $p['fee_per_year'] > 0 && !str_contains(strtolower((string) $p['fee_label']), 'course')));
+    $feeFrom = $fees ? money(min($fees)) : '';
+
+    $deadline = site_admissions_deadline();
+    $seats = site_seats_filled();
+    $strip = '';
+    if ($cd = countdown($deadline, ['label' => 'Application closes in'])) {
+        $strip .= '<span class="inline-flex items-center gap-2">' . icon('calendar-clock', 'h-5 w-5 shrink-0') . $cd . '</span>';
+    }
+    if ($seats !== null) {
+        $strip .= '<span class="inline-flex items-baseline gap-1.5"><b class="enquiry-strip-big">' . $seats . '%</b><span class="font-semibold">seats filled</span></span>';
+    }
+    $form = enquiry_form([
+        'endpoint' => base_url('api/public/enquiry'), 'theme' => 'lead', 'compact' => true, 'captureUtm' => true,
+        'title' => (string) setting('landing_form_title', 'Talk to an Admission Expert'),
+        'titleHighlight' => (string) setting('landing_form_highlight', 'Admission Expert'),
+        'tags' => array_values(array_filter([['icon' => 'wallet', 'label' => 'Semester-wise fee payment'], site_max_scholarship() ? ['icon' => 'award', 'label' => 'Merit scholarships'] : null])),
+        'subtitle' => (string) setting('landing_form_subtitle', 'Get a Free Career Counselling Session'),
+        'submitLabel' => 'Apply Now', 'footer' => $strip !== '' ? $strip : null,
+        'consent' => 'I authorise GIMT and its admission team to contact me about admissions by phone, SMS, email or WhatsApp. This consent overrides any DND/NDNC registration.',
+        'hidden' => ['source' => 'home', 'form' => 'home-hero'],
+        'successTitle' => 'Thank you!', 'successMessage' => 'Our admission counsellor will call you within 24 hours.',
+        'fields' => [
+            ['name' => 'name', 'label' => 'Full Name', 'required' => true, 'maxLength' => 150, 'autocomplete' => 'name', 'col' => 'full', 'placeholder' => 'Enter your full name'],
+            ['name' => 'email', 'label' => 'Email Address', 'type' => 'email', 'required' => true, 'autocomplete' => 'email', 'col' => 'full', 'placeholder' => 'Enter your email'],
+            ['name' => 'phone', 'label' => 'Mobile Number', 'type' => 'tel', 'required' => true, 'prefix' => '+91', 'pattern' => '^[6-9][0-9]{9}$', 'patternMessage' => 'Enter a valid 10-digit mobile number.', 'maxLength' => 10, 'autocomplete' => 'tel-national', 'col' => 'full', 'placeholder' => 'Enter your mobile number'],
+            ['name' => 'program_id', 'label' => 'Program', 'type' => 'select', 'required' => true, 'options' => site_program_select_options($programs), 'placeholder' => 'Select course', 'col' => 'full'],
+        ],
+    ]);
+
+    $h = '<section id="top" class="lp-hero" aria-labelledby="hm-hero-title">'
+        . geo_shapes('band', 'hidden lg:block')
+        . '<span class="lp-swirl -left-40 -top-40 hidden h-[760px] w-[760px] md:block" aria-hidden="true">' . doodle('rings', 'h-full w-full') . '</span>'
+        . blob('right-[18%] top-10 hidden h-[520px] w-[520px] xl:block', 'flame')
+        . '<div class="container-site relative grid gap-10 pb-28 pt-10 sm:pb-32 sm:pt-14 lg:grid-cols-12 lg:gap-8 lg:pb-36 lg:pt-16">';
+
+    // ---- copy
+    $h .= '<div class="lg:col-span-7 xl:col-span-5">';
+    if ($eyebrow !== '') {
+        $h .= '<p class="hero-eyebrow" data-reveal="wipe"><span class="hero-eyebrow-dot"></span>' . e($eyebrow) . '</p>';
+    }
+    $h .= '<h1 id="hm-hero-title" class="lp-hero-title">' . e($title)
+        . ($highlight !== '' ? ' <span class="bg-gradient-to-r from-accent-400 via-accent-500 to-accent-300 bg-clip-text text-transparent [-webkit-text-fill-color:transparent]">' . e($highlight) . '</span>' : '')
+        . '<br><span class="pill-phrase">' . e(institute_name()) . '</span></h1>';
+    if ($feeFrom !== '') {
+        $h .= '<p class="lp-scholarship">' . gold_text('Fees starting at just ' . $feeFrom . ' / year', $feeFrom, ['variant' => 'soft']) . ' <a href="' . e(site_url('programs')) . '">(View fees)</a></p>';
+    }
+    if ($names) {
+        $h .= '<p class="mt-4 max-w-xl font-display text-[19px] font-extrabold leading-relaxed tracking-tight text-white">' . implode(' <span class="text-white/40" aria-hidden="true">|</span> ', array_map(fn ($n) => '<span class="whitespace-nowrap">' . e($n) . '</span>', $names)) . '</p>';
+    }
+    $h .= '<div class="mt-7 flex flex-wrap gap-3">'
+        . button_link('Download Brochure', site_url('programs?brochure=1'), 'apply', ['icon' => '', 'icon_left' => 'download', 'target' => '_blank', 'magnetic' => true, 'gleam' => true])
+        . hm_button($secondary, 'outline-light', ['icon' => 'arrow-right'])
+        . '</div>';
+    if ($approvals = site_approvals()) {
+        $h .= '<div class="mt-8 max-w-xl">' . approvals_card($approvals) . '</div>';
+    }
+    $h .= '</div>';
+
+    // ---- person photo (large screens; phones and tablets go straight from the copy to the form)
+    $h .= '<div class="relative hidden xl:col-span-3 xl:block">'
+        . '<div class="lp-photo clip-in absolute inset-x-0 bottom-6 top-20 bg-white"><img src="' . e($photo) . '" alt="' . e($alt) . '" class="object-[42%_50%]" fetchpriority="high" decoding="async" width="' . (int) $pw . '" height="' . (int) $ph . '"></div>'
+        . ($words ? '<span class="absolute left-3 top-24 z-[2]">' . sticker(implode(' · ', $words), ['color' => 'white', 'rotate' => -8, 'size' => 'sm']) . '</span>' : '')
+        . '</div>';
+
+    // ---- lead card
+    $h .= '<div class="lg:col-span-5 xl:col-span-4" id="hero-enquiry">' . $form . '</div>';
+    $h .= '</div></section>';
+    return $h;
+}
+
 /* ------------------------------------------------------------------------------------------------ 2. Stats */
 
 function hm_render_stats(array $s, ?string $prev = null): string
 {
     $c = $s['content'];
     $items = array_values(array_filter(array_map('hm_stat', (array) ($c['items'] ?? []))));
+    // live figures without data are hidden by hm_stat(); top the card up with other live figures so it never shows a
+    // lone number (e.g. a new install with programs but no students / faculty yet)
+    $used = array_column($items, 'source');
+    foreach ([['programs', 'Programs', 'graduation-cap', '+'], ['departments', 'Departments', 'school', ''], ['specialisations', 'Specialisations', 'layers', ''], ['years', 'Years of Excellence', 'award', '+']] as [$src, $label, $icon, $suffix]) {
+        if (count($items) >= 4) {
+            break;
+        }
+        if (!in_array($src, $used, true) && ($st = hm_stat(['source' => $src, 'label' => $label, 'icon' => $icon, 'suffix' => $suffix]))) {
+            $items[] = $st;
+        }
+    }
     if (!$items) {
         return '';
     }
@@ -1065,7 +1222,7 @@ function hm_program_card(array $p, bool $lazy = true): string
     $h .= '<a href="' . e($url) . '" class="relative block aspect-[16/10] overflow-hidden bg-warm" tabindex="-1" aria-hidden="true">'
         . '<img src="' . e(site_image($p['image'] ?? null)) . '" alt="" class="h-full w-full object-cover transition duration-700 group-hover:scale-[1.05]"' . ($lazy ? ' loading="lazy"' : '') . ' decoding="async" width="640" height="400">'
         . '<span class="absolute inset-0 bg-gradient-to-t from-brand-950/60 via-brand-950/0 to-brand-950/10"></span>'
-        . '<span class="absolute inset-x-3 top-3 flex items-start justify-between gap-2">' . ($ribbon !== '' ? '<span class="rounded-full bg-sun px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-brand-900">' . e($ribbon) . '</span>' : '<span></span>')
+        . '<span class="absolute inset-x-3 top-3 flex items-start justify-between gap-2">' . ($ribbon !== '' ? '<span class="pill-gold !px-2.5 !py-1 !text-[11px] uppercase tracking-wide shadow-sm">' . e($ribbon) . '</span>' : '<span></span>')
         . '<span class="rounded-full bg-white/90 px-2.5 py-1 text-[11.5px] font-bold text-brand-900">' . e(program_level_label($p['level'] ?? '')) . '</span></span>'
         . (($p['short_name'] ?? '') !== '' ? '<span class="absolute bottom-3 left-3.5 font-display text-[15px] font-extrabold tracking-tight text-white drop-shadow">' . e($p['short_name']) . '</span>' : '')
         . '</a>';
@@ -1346,7 +1503,7 @@ function hm_render_academic_excellence(array $s): string
         . ($video !== '' ? '<span class="absolute left-5 top-5">' . video_lightbox(['url' => $video, 'label' => trim((string) ($c['video_label'] ?? '')) ?: 'Virtual Campus Tour', 'variant' => 'chip', 'title' => 'GIMT virtual campus tour']) . '</span>' : '')
         . '</figure>'
         . '<span class="float-slow pointer-events-none absolute -right-4 -top-5 h-16 w-16 rounded-[20px] bg-accent-500/90 [clip-path:polygon(0_0,100%_0,100%_100%)]" aria-hidden="true"></span>'
-        . '<span class="pointer-events-none absolute -bottom-6 -left-6 -z-10 h-36 w-36 opacity-50 [background-image:radial-gradient(#0B2A5B_1.5px,transparent_1.7px)] [background-size:14px_14px]" aria-hidden="true"></span></div>';
+        . '<span class="pointer-events-none absolute -bottom-6 -left-6 -z-10 h-36 w-36 opacity-50 dark:opacity-20 [background-image:radial-gradient(var(--c-heading)_1.5px,transparent_1.7px)] [background-size:14px_14px]" aria-hidden="true"></span></div>';
     if ($cards) {
         $h .= '<div class="relative z-[2] -mt-16 grid gap-4 px-3 sm:-mt-20 sm:grid-cols-2 sm:px-6" data-stagger="110">';
         foreach ($cards as $i => $cd) {
@@ -1441,7 +1598,7 @@ function hm_render_faculty(): string
         $avatar = $f['photo'] ? '<img src="' . e(site_image($f['photo'])) . '" alt="" class="h-16 w-16 rounded-2xl object-cover" loading="lazy" decoding="async" width="64" height="64">'
             : '<span class="inline-flex h-16 w-16 items-center justify-center rounded-2xl font-display text-lg font-extrabold ' . $tints[$i % 4] . '" aria-hidden="true">' . e(initials($f['first_name'] . ' ' . $f['last_name'])) . '</span>';
         $h .= '<li class="group relative flex w-[78%] shrink-0 snap-start flex-col rounded-[22px] border border-warm-2 bg-white p-5 transition duration-300 hover:-translate-y-0.5 sm:h-full sm:w-auto hover:shadow-[0_22px_44px_-30px_rgba(7,26,59,.5)]">'
-            . '<div class="flex items-center gap-4">' . $avatar . (!empty($f['is_hod']) ? '<span class="rounded-full bg-sun px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-wide text-brand-900">Head of Dept.</span>' : '') . '</div>'
+            . '<div class="flex items-center gap-4">' . $avatar . (!empty($f['is_hod']) ? '<span class="pill-gold !px-2.5 !py-1 !text-[10.5px] uppercase tracking-wide">Head of Dept.</span>' : '') . '</div>'
             . '<h3 class="mt-4 font-display text-[16px] font-bold leading-snug text-brand-900">' . ($url ? '<a href="' . e($url) . '" class="stretched-link hover:text-accent-700 focus:outline-none">' . e($name) . '</a>' : e($name)) . '</h3>'
             . '<p class="mt-0.5 text-[13.5px] font-semibold text-accent-700">' . e((string) $f['designation']) . '</p>'
             . '<p class="mt-1 text-[13px] text-slate-500">' . e(site_department_label((string) $f['department'])) . '</p>'
@@ -1485,7 +1642,7 @@ function hm_render_admission_process(array $s): string
     $session = hm_session();
     $h = '<section id="' . e(hm_anchor('admission_process', $c)) . '" class="section relative isolate overflow-hidden bg-[#F5F2EE]">'
         . '<div class="pointer-events-none absolute -left-32 bottom-0 -z-10 h-96 w-96 rounded-full bg-white/70 blur-3xl" aria-hidden="true"></div><div class="container-site">';
-    $h .= section_heading($s['title'], $s['subtitle'], (string) ($c['eyebrow'] ?? ''), 'left', $cta ? button_link($cta['label'], $cta['url'], 'apply', ['shine' => true]) : '', ['highlight' => 'Journey']);
+    $h .= section_heading($s['title'], $s['subtitle'], (string) ($c['eyebrow'] ?? ''), 'left', $cta ? button_link($cta['label'], $cta['url'], 'apply', ['shine' => true]) : '', ['gold' => hm_gold($s['title'], $c)]);
     if ($steps) {
         $h .= '<div class="rounded-[30px] border border-warm-2 bg-white p-6 shadow-[0_24px_60px_-44px_rgba(7,26,59,.5)] sm:p-10">'
             . progress_steps(array_map(fn ($st) => ['title' => (string) $st['title'], 'text' => (string) ($st['text'] ?? ''), 'icon' => (string) ($st['icon'] ?? '')], $steps), ['orientation' => 'auto'])
@@ -1515,7 +1672,7 @@ function hm_render_admission_process(array $s): string
         . (hm_url_ok('/admissions') ? '<a href="' . e(site_url('admissions')) . '#dates" class="link-arrow mt-auto pt-5 text-[14px]">All admission dates' . icon('arrow-right', 'h-4 w-4') . '</a>' : '') . '</div>';
     // fees
     $h .= '<div class="' . $panel . '">' . $title('wallet', 'Fee overview')
-        . ($fees ? '<p class="mt-4 text-[14px] text-slate-500">Annual tuition fee</p><p class="mt-1 font-display text-[1.6rem] font-extrabold leading-tight tracking-tight text-brand-900">' . e(money(min($fees))) . ' <span class="text-base font-bold text-slate-400">–</span> ' . e(money(max($fees))) . '</p>'
+        . ($fees ? '<p class="mt-4 text-[14px] text-slate-500">Annual tuition fee</p><p class="mt-1 font-display text-[1.6rem] font-extrabold leading-tight tracking-tight text-brand-900">' . e(money(min($fees))) . ' <span class="text-base font-bold text-slate-500" aria-hidden="true">–</span><span class="sr-only">to</span> ' . e(money(max($fees))) . '</p>'
             . ($courseFees ? '<p class="mt-2 text-[13.5px] text-slate-600">Certificate programs from <strong class="font-semibold text-brand-900">' . e(money(min($courseFees))) . '</strong> per course.</p>' : '')
             . '<p class="mt-2 text-[13.5px] leading-relaxed text-slate-600">Scholarships and semester-wise payment can lower what you pay upfront.</p>' : '<p class="mt-4 text-[14px] text-slate-600">Program-wise fees are published on the admissions page.</p>')
         . (hm_url_ok('/admissions') ? '<a href="' . e(site_url('admissions')) . '#fees" class="link-arrow mt-auto pt-5 text-[14px]">Program-wise fees' . icon('arrow-right', 'h-4 w-4') . '</a>' : '') . '</div>';
@@ -1614,7 +1771,7 @@ function hm_render_scholarship_assistant(): string
         . '<div class="relative isolate overflow-hidden bg-brand-900 p-7 text-white sm:p-9 lg:col-span-5">'
         . '<p class="eyebrow !text-accent-300">Scholarship Assistant</p><h3 class="mt-3 font-display text-[1.7rem] font-extrabold leading-tight text-white">Find the scholarships you may qualify for</h3>'
         . '<p class="mt-3 text-[15px] leading-relaxed text-white/75">Answer four quick questions — your course, last exam score, family income and any special category — to see matching schemes.</p>'
-        . ($props['maxPercent'] ? '<p class="mt-6 font-display text-[2.6rem] font-extrabold leading-none text-white">' . (int) $props['maxPercent'] . '%</p><p class="text-[14px] text-white/70">highest merit scholarship on tuition</p>' : '')
+        . ($props['maxPercent'] ? '<p class="mt-6 font-display text-[2.6rem] font-extrabold leading-none text-white">' . gold_highlight((int) $props['maxPercent'] . '%', ['tall' => true]) . '</p><p class="text-[14px] text-white/70">highest merit scholarship on tuition</p>' : '')
         . '<p class="mt-6 text-[12.5px] leading-relaxed text-white/60">Indicative only — eligibility and the final concession are confirmed by the admissions office after document verification.</p></div>'
         . '<div class="min-h-[460px] p-6 sm:p-8 lg:col-span-7"><h4 class="font-display text-lg font-bold text-brand-900">Active scholarship schemes</h4><ul class="mt-4 grid gap-x-6 sm:grid-cols-2">';
     foreach ($schemes as $sc) {
@@ -1647,7 +1804,7 @@ function hm_render_campus_life(array $s): string
                 . ($sl['video'] ? '<span class="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-accent-600 text-white shadow-lg">' . icon('play', 'h-4 w-4 translate-x-px') . '</span>' : '')
                 . '<figcaption class="absolute inset-x-5 bottom-5 font-display text-[16px] font-bold leading-snug text-white">' . e($sl['caption']) . '</figcaption></figure>';
         }
-        $fb .= '</div><div class="mt-5 flex h-11 items-center justify-between gap-4"><p class="font-display text-[15px] font-extrabold text-brand-900">01<span class="font-semibold text-slate-400"> / ' . sprintf('%02d', count($slides)) . '</span></p>'
+        $fb .= '</div><div class="mt-5 flex h-11 items-center justify-between gap-4"><p class="font-display text-[15px] font-extrabold text-brand-900">01<span class="font-semibold text-slate-500"> / ' . sprintf('%02d', count($slides)) . '</span></p>'
             . '<p class="text-[13px] text-slate-500">Swipe to explore</p></div></div>';
         $h .= '<div class="mt-2">' . island('StudentLifeSlider', ['items' => $slides, 'ariaLabel' => 'Student life at GIMT', 'interval' => 5500], $fb, ['class' => 'block']) . '</div>';
     }
@@ -1746,8 +1903,23 @@ function hm_render_placements(array $s): string
                 . '<span class="mt-2 block text-[13.5px] font-medium text-white/65">' . e($st['label']) . '</span></li>';
         }
         $h .= '</ul>';
+        $ps = array_intersect(array_column($stats, 'source'), ['placement_rate', 'highest_package', 'average_package']) ? hm_placement_season() : [];
+        if (!empty($ps['season'])) {
+            $h .= '<p class="mt-3 text-center text-[12.5px] text-white/65">Placement season ' . e($ps['season']) . ($ps['completed'] ? '' : ' (in progress)')
+                . (hm_url_ok('/placement') ? ' · <a href="' . e(site_url('placement')) . '#record" class="underline decoration-white/30 underline-offset-4 hover:text-white">how these figures are calculated</a>' : '') . '</p>';
+        }
     }
-    if ($offers || $text !== '' || $img !== '') {
+    // without placement records yet, the space beside the text shows how the Training & Placement Cell prepares students
+    // (services only — no company names, packages or rates are invented)
+    $support = $offers ? [] : [
+        ['lightbulb', 'Aptitude & soft-skills training', 'Quantitative, reasoning and communication sessions from the first year.'],
+        ['messages-square', 'Mock interviews & GDs', 'Practice rounds with faculty and industry panels, with feedback.'],
+        ['file-user', 'Resume & profile building', 'CV, LinkedIn and portfolio reviews before every drive.'],
+        ['briefcase-business', 'Internships & live projects', 'Summer internships and projects with partner organisations.'],
+        ['presentation', 'Industry mentoring', 'Guest lectures, workshops and mentoring by practitioners.'],
+        ['building-2', 'Campus recruitment drives', 'Pre-placement talks and on-campus and virtual drives.'],
+    ];
+    if ($offers || $support || $text !== '' || $img !== '') {
         $h .= '<div class="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-12">';
         if ($text !== '' || $img !== '') {
             $h .= '<div class="lg:col-span-4">' . ($img !== '' ? '<figure class="relative mx-auto max-w-md overflow-hidden rounded-[28px] bg-brand-900 lg:max-w-none" data-reveal="clip"><img src="' . e(site_image($img)) . '" alt="' . e(trim((string) ($c['image_alt'] ?? ''))) . '" class="aspect-[16/11] h-full w-full object-cover" loading="lazy" decoding="async" width="420" height="289">'
@@ -1762,6 +1934,17 @@ function hm_render_placements(array $s): string
                     . '<span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white font-display text-[15px] font-extrabold text-brand-900" aria-hidden="true">' . e(mb_strtoupper(mb_substr(preg_replace('/[^\p{L}]/u', '', $o['company']), 0, 2))) . '</span>'
                     . '<span class="min-w-0 flex-1"><span class="block truncate font-semibold text-white">' . e($o['company']) . '</span><span class="block truncate text-[13px] text-white/60">' . e($o['name'] . ($o['program'] !== '' ? ' · ' . $o['program'] : '')) . '</span></span>'
                     . '<span class="shrink-0 text-right"><span class="block font-display text-[17px] font-extrabold text-accent-300">₹' . e(rtrim(rtrim(number_format($o['package'], 2), '0'), '.')) . '</span><span class="block text-[11px] font-semibold uppercase tracking-wider text-white/50">LPA</span></span></li>';
+            }
+            $h .= '</ul></div>';
+        }
+        if ($support) {
+            $h .= '<div class="' . ($text !== '' || $img !== '' ? 'lg:col-span-8' : 'lg:col-span-12') . '"><h3 class="font-display text-lg font-bold text-white">How we prepare you for placements</h3>'
+                . '<ul class="mt-4 grid gap-3 sm:grid-cols-2" data-stagger="70">';
+            foreach ($support as [$ic, $t, $d]) {
+                $h .= '<li class="flex items-start gap-4 rounded-[20px] border border-white/10 bg-white/[.05] p-4 transition hover:-translate-y-0.5 hover:border-white/25 sm:p-5">'
+                    . '<span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-500/15 text-accent-300 ring-1 ring-accent-300/25">' . icon($ic, 'h-5 w-5') . '</span>'
+                    . '<span class="min-w-0"><span class="block font-display text-[15.5px] font-bold text-white">' . e($t) . '</span>'
+                    . '<span class="mt-1 block text-[13.5px] leading-relaxed text-white/65">' . e($d) . '</span></span></li>';
             }
             $h .= '</ul></div>';
         }
@@ -1916,7 +2099,7 @@ function hm_render_events_news(array $s): string
         foreach ($notices as $nt) {
             $url = hm_url_ok('/notices/' . $nt['slug']) ? site_url('notices/' . $nt['slug']) : null;
             $h .= '<li class="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:gap-4"><span class="w-24 shrink-0 text-[12.5px] font-semibold text-slate-500">' . ($nt['publish_date'] ? e(date('j M Y', strtotime((string) $nt['publish_date']))) : '') . '</span>'
-                . '<span class="min-w-0 flex-1 text-[14.5px] font-semibold text-brand-900">' . (!empty($nt['is_pinned']) ? '<span class="mr-2 inline-flex rounded-full bg-sun px-2 py-0.5 align-middle text-[10.5px] font-extrabold uppercase text-brand-900">Important</span>' : '')
+                . '<span class="min-w-0 flex-1 text-[14.5px] font-semibold text-brand-900">' . (!empty($nt['is_pinned']) ? '<span class="pill-gold mr-2 align-middle !text-[10.5px] uppercase">Important</span>' : '')
                 . ($url ? '<a href="' . e($url) . '" class="hover:text-accent-700">' . e($nt['title']) . '</a>' : e($nt['title'])) . '</span>'
                 . '<span class="shrink-0 text-[12px] font-bold uppercase tracking-[0.1em] text-accent-700">' . e(ucfirst((string) $nt['category'])) . '</span></li>';
         }
@@ -1952,7 +2135,7 @@ function hm_render_calendar(array $items): string
     }
     $fb .= '</div></div><div class="grid grid-cols-1 lg:grid-cols-12"><div class="border-b border-warm-2 p-5 sm:p-6 lg:col-span-7 lg:border-b-0 lg:border-r">'
         . '<div class="flex items-center justify-between"><p class="font-display text-lg font-extrabold text-brand-900">' . e(date('F Y', $first)) . '</p></div>'
-        . '<div class="mt-4 grid grid-cols-7 text-center text-[11.5px] font-bold uppercase tracking-wider text-slate-400">';
+        . '<div class="mt-4 grid grid-cols-7 text-center text-[11.5px] font-bold uppercase tracking-wider text-slate-500">';
     foreach (['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as $d) {
         $fb .= '<span class="py-1">' . $d . '</span>';
     }
@@ -1978,7 +2161,7 @@ function hm_render_calendar(array $items): string
     $fb .= '</div></div><div class="p-5 sm:p-6 lg:col-span-5"><p class="font-display text-[15px] font-extrabold text-brand-900">This month</p><ul class="mt-3 space-y-2.5">';
     foreach (array_slice($inMonth, 0, 7) as $it) {
         $fb .= '<li class="flex items-start gap-3 rounded-2xl border border-warm-2 p-3"><span class="w-11 shrink-0 text-center"><span class="block font-display text-lg font-extrabold leading-none text-brand-900">' . date('d', strtotime($it['start'])) . '</span>'
-            . '<span class="text-[10.5px] font-bold uppercase text-slate-400">' . date('M', strtotime($it['start'])) . '</span></span><span class="min-w-0"><span class="block text-[14px] font-semibold leading-snug text-brand-900">' . e($it['title']) . '</span>'
+            . '<span class="text-[10.5px] font-bold uppercase text-slate-500">' . date('M', strtotime($it['start'])) . '</span></span><span class="min-w-0"><span class="block text-[14px] font-semibold leading-snug text-brand-900">' . e($it['title']) . '</span>'
             . '<span class="mt-0.5 inline-flex items-center gap-1.5 text-[12px] text-slate-500"><span class="h-1.5 w-1.5 rounded-full ' . $dot[$it['type']] . '"></span>' . e($types[$it['type']]) . ($it['end'] ? ' · until ' . e(date('j M', strtotime($it['end']))) : '') . '</span></span></li>';
     }
     if (!$inMonth) {
@@ -2038,7 +2221,7 @@ function hm_render_cta(array $s): string
         $quick[] = ['mail', 'Email', $email, 'mailto:' . $email, false];
     }
     if (hm_url_ok('/contact')) {
-        $quick[] = ['map-pin', 'Visit campus', (string) setting('city', 'Greater Noida'), site_url('contact') . '#locations', false];
+        $quick[] = ['map-pin', 'Visit campus', (string) setting('city', 'Noida'), site_url('contact') . '#locations', false];
     }
     $h = '<section id="' . e(hm_anchor('cta', $c)) . '" class="relative isolate overflow-hidden py-16 sm:py-20 lg:py-24 ' . $bg . '">';
     if ($dark) {
@@ -2050,9 +2233,9 @@ function hm_render_cta(array $s): string
     }
     $h .= '<div class="container-site grid grid-cols-1 items-center gap-12 lg:grid-cols-12 lg:gap-14">';
     $h .= '<div class="' . ($form ? 'lg:col-span-6' : 'lg:col-span-7') . '">' . (trim((string) ($c['eyebrow'] ?? '')) !== '' ? hm_kicker((string) $c['eyebrow'], $dark) : '')
-        . '<h2 class="mt-4 font-display text-[clamp(2rem,1.25rem+2.8vw,3.1rem)] font-extrabold leading-[1.08] tracking-display ' . ($dark ? 'text-white' : 'text-brand-900') . '">' . e($s['title']) . '</h2>'
+        . '<h2 class="mt-4 font-display text-[clamp(2rem,1.25rem+2.8vw,3.1rem)] font-extrabold leading-[1.08] tracking-display ' . ($dark ? 'text-white' : 'text-brand-900') . '">' . gold_text($s['title'], hm_gold($s['title'], $c, 2), ['tall' => $dark]) . '</h2>'
         . ($s['subtitle'] !== '' ? '<p class="mt-4 max-w-xl text-base leading-relaxed sm:text-[17px] ' . ($dark ? 'text-white/75' : 'text-slate-600') . '">' . e($s['subtitle']) . '</p>' : '')
-        . '<div class="mt-8 flex flex-wrap gap-3">' . hm_button($primary, $theme === 'orange' ? 'white' : 'apply', ['size' => 'lg', 'shine' => true, 'magnetic' => true])
+        . '<div class="mt-8 flex flex-wrap gap-3">' . hm_button($primary, $theme === 'orange' ? 'white' : 'apply', ['size' => 'lg', 'shine' => true, 'gleam' => $theme !== 'orange', 'magnetic' => true])
         . ($secondary ? button_link($secondary['label'], $secondary['url'], $dark ? 'outline-light' : 'brochure', ['size' => 'lg', 'icon' => '', 'icon_left' => preg_match('/brochure|download/i', $secondary['label']) ? 'download' : null]) : '') . '</div>';
     if ($quick) {
         $h .= '<ul class="mt-10 grid gap-3 sm:grid-cols-2" aria-label="Contact admissions">';
@@ -2097,20 +2280,41 @@ function hm_render_smart_enquiry(): string
         'phone' => (string) setting('phone', ''),
     ];
     $field = 'h-12 w-full rounded-xl border border-warm-2 bg-white px-4 text-[14.5px] text-brand-900 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-accent-500/10';
+    // no-JS fallback = a first-class forms-platform form: one-time token (timing check + duplicate protection), and
+    // "_fid" + "_back" so a plain post returns here (#enquiry) with the result shown inline and the typed values refilled
+    require_once APP_ROOT . '/app/services/public_forms.php';
+    $fid = 'home-smart-enquiry';
+    $flash = pf_take_flash('enquiry', $fid);
+    $old = $flash && !$flash['ok'] ? (array) ($flash['old'] ?? []) : [];
+    $errs = $flash && !$flash['ok'] ? (array) ($flash['errors'] ?? []) : [];
+    $val = fn (string $k): string => isset($old[$k]) ? ' value="' . e((string) $old[$k]) . '"' : '';
+    $err = function (string $k) use ($errs): string {
+        return isset($errs[$k]) ? '<span class="form-error mt-1 block" id="hse-' . e($k) . '-err">' . e((string) $errs[$k]) . '</span>' : '';
+    };
+    $inv = fn (string $k): string => isset($errs[$k]) ? ' aria-invalid="true" aria-describedby="hse-' . e($k) . '-err"' : '';
     $opts = '<option value="">Not sure yet</option>';
     foreach ($programs as $p) {
-        $opts .= '<option value="' . e($p['slug']) . '">' . e($p['name']) . '</option>';
+        $opts .= '<option value="' . e($p['slug']) . '"' . (($old['program'] ?? '') === $p['slug'] ? ' selected' : '') . '>' . e($p['name']) . '</option>';
+    }
+    $notice = '';
+    if ($flash) {
+        $other = array_diff_key($errs, array_flip(['program', 'name', 'phone', 'email', 'city', 'consent']));
+        $notice = '<div class="form-message sm:col-span-2 ' . ($flash['ok'] ? 'form-message-success' : 'form-message-error') . '" role="' . ($flash['ok'] ? 'status' : 'alert') . '">'
+            . '<p class="flex items-start gap-2">' . icon($flash['ok'] ? 'circle-check' : 'circle-alert', 'mt-0.5 h-4 w-4 shrink-0') . e((string) $flash['message']) . '</p>'
+            . ($other ? '<ul class="mt-1.5 list-disc pl-6 text-[13px]">' . implode('', array_map(fn ($m) => '<li>' . e((string) $m) . '</li>', $other)) . '</ul>' : '') . '</div>';
     }
     $fb = '<div class="smart-enquiry rounded-[30px] bg-white p-6 text-slate-600 shadow-[0_40px_80px_-40px_rgba(0,0,0,.55)] sm:p-8">'
         . '<p class="text-[12px] font-bold uppercase tracking-[0.14em] text-accent-700">Free counselling</p><h3 class="mt-1 font-display text-[1.45rem] font-extrabold leading-tight text-brand-900">Get a call from an admission counsellor</h3>'
         . '<form action="' . e($props['endpoint']) . '" method="post" class="mt-6 grid gap-3.5 sm:grid-cols-2">' . csrf_field()
+        . '<input type="hidden" name="_ft" value="' . e(pf_form_token()) . '"><input type="hidden" name="_fid" value="' . $fid . '"><input type="hidden" name="_back" value="/">'
         . '<input type="hidden" name="source" value="home"><input type="hidden" name="form" value="smart-enquiry"><input type="text" name="website" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">'
-        . '<label class="sm:col-span-2"><span class="form-label">Program of interest</span><select name="program" class="' . $field . '">' . $opts . '</select></label>'
-        . '<label><span class="form-label">Full name <span class="form-required">*</span></span><input name="name" required maxlength="150" autocomplete="name" class="' . $field . '"></label>'
-        . '<label><span class="form-label">Mobile number <span class="form-required">*</span></span><input name="phone" type="tel" required inputmode="tel" autocomplete="tel" placeholder="+91" class="' . $field . '"></label>'
-        . '<label><span class="form-label">Email</span><input name="email" type="email" autocomplete="email" class="' . $field . '"></label>'
-        . '<label><span class="form-label">City</span><input name="city" maxlength="80" autocomplete="address-level2" class="' . $field . '"></label>'
-        . '<label class="flex items-start gap-2.5 text-[13px] sm:col-span-2"><input type="checkbox" name="consent" value="1" required class="form-check mt-0.5">' . e($consent) . '</label>'
+        . $notice
+        . '<label class="sm:col-span-2"><span class="form-label">Program of interest</span><select name="program" class="' . $field . '"' . $inv('program') . '>' . $opts . '</select>' . $err('program') . '</label>'
+        . '<label><span class="form-label">Full name <span class="form-required">*</span></span><input name="name" required maxlength="150" autocomplete="name" class="' . $field . '"' . $val('name') . $inv('name') . '>' . $err('name') . '</label>'
+        . '<label><span class="form-label">Mobile number <span class="form-required">*</span></span><input name="phone" type="tel" required inputmode="tel" autocomplete="tel" placeholder="+91" class="' . $field . '"' . $val('phone') . $inv('phone') . '>' . $err('phone') . '</label>'
+        . '<label><span class="form-label">Email</span><input name="email" type="email" autocomplete="email" class="' . $field . '"' . $val('email') . $inv('email') . '>' . $err('email') . '</label>'
+        . '<label><span class="form-label">City</span><input name="city" maxlength="80" autocomplete="address-level2" class="' . $field . '"' . $val('city') . $inv('city') . '>' . $err('city') . '</label>'
+        . '<div class="sm:col-span-2"><label class="flex items-start gap-2.5 text-[13px]"><input type="checkbox" name="consent" value="1" required class="form-check mt-0.5"' . (!empty($old['consent']) ? ' checked' : '') . $inv('consent') . '>' . e($consent) . '<span class="form-required"> *</span></label>' . $err('consent') . '</div>'
         . '<button type="submit" class="btn btn-apply sm:col-span-2">Request a Callback' . icon('arrow-right', 'h-4 w-4') . '</button></form></div>';
     return island('SmartEnquiry', $props, $fb, ['class' => 'block']);
 }

@@ -180,7 +180,10 @@ export default function StudentDashboardPage() {
                   aside={
                     <div className="hidden sm:block">
                       <Ring value={att.percent ?? 0} size={56} stroke={6} tone={attTone} label={`Attendance ${att.percent ?? 0}%`}>
-                        <span className="text-[10px] font-bold text-slate-500">{att.threshold}%</span>
+                        <span className="flex flex-col items-center text-[9px] font-semibold leading-tight text-slate-500 dark:text-slate-400" title={`Minimum required: ${att.threshold}%`}>
+                          <span className="uppercase tracking-wide text-slate-400">min</span>
+                          <span className="font-bold">{att.threshold}%</span>
+                        </span>
                       </Ring>
                     </div>
                   }

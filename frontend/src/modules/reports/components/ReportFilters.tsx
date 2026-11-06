@@ -41,7 +41,7 @@ export function ReportFilters({ meta, params, search, onSearch, onChange, onRese
 
   return (
     <Card className="mb-5 p-4">
-      <div id={panelId} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div id={panelId} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {meta.search && (
           <div className="min-w-0">
             <span className="form-label">Search</span>

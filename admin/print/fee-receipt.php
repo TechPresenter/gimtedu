@@ -27,11 +27,20 @@ $total = (float) $p['amount'] + (float) $p['fine_amount'];
 $void = $p['status'] === 'cancelled';
 $balance = $p['student_id'] ? (float) (fees_student_totals((int) $p['student_id'])['balance'] ?? 0) : 0.0;
 $relation = ($p['gender'] ?? '') === 'female' ? 'D/o' : 'S/o';
-$verify = absolute_url('admin/fees/payments?q=' . rawurlencode($p['receipt_no']));
+$verify = fees_receipt_verify_url((string) $p['receipt_no']); // public, signed "is this receipt genuine?" page
+// How the remaining balance can be paid (Settings > Payment > Bank & UPI; only when filled in and the mode is accepted)
+$modes = array_filter(array_map('trim', explode(',', (string) setting('enabled_payment_modes', 'cash'))));
+$payTo = [];
+if (in_array('bank_transfer', $modes, true) && trim((string) setting('bank_account_no', '')) !== '' && trim((string) setting('bank_ifsc', '')) !== '') {
+    $payTo[] = 'bank transfer to A/c ' . trim((string) setting('bank_account_no')) . ', IFSC ' . trim((string) setting('bank_ifsc')) . (trim((string) setting('bank_name', '')) !== '' ? ' (' . trim((string) setting('bank_name')) . ')' : '');
+}
+if (in_array('upi', $modes, true) && trim((string) setting('upi_id', '')) !== '') {
+    $payTo[] = 'UPI ' . trim((string) setting('upi_id'));
+}
 
 print_layout_start('Fee Receipt ' . $p['receipt_no'], false);
 
-$copy = function (string $label) use ($p, $total, $void, $balance, $relation, $verify) {
+$copy = function (string $label) use ($p, $total, $void, $balance, $relation, $verify, $payTo) {
     ?>
   <section class="relative overflow-hidden rounded-xl border border-slate-300 p-5">
     <?php if ($void): ?>
@@ -91,6 +100,7 @@ $copy = function (string $label) use ($p, $total, $void, $balance, $relation, $v
     <?php endforeach; ?>
     <div class="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-[10px] text-slate-500">
       <span>Current outstanding balance (all invoices): <strong class="text-slate-800"><?= e(money($balance, 2)) ?></strong></span>
+      <?php if ($balance > 0 && $payTo && !$void): ?><span>Pay the balance by <?= e(implode(' or ', $payTo)) ?> — quote Student ID <?= e($p['student_uid'] ?? '') ?>.</span><?php endif; ?>
       <?php if ($p['remarks']): ?><span>Remarks: <?= e($p['remarks']) ?></span><?php endif; ?>
       <?php if ($void): ?><span class="font-semibold text-red-600">Voided <?= e(format_datetime($p['cancelled_at'])) ?> — <?= e($p['cancelled_reason']) ?></span><?php endif; ?>
     </div>

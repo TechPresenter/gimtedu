@@ -79,6 +79,28 @@ function pfac_earliest_date(): string
     return date('Y-m-d', strtotime('-' . pfac_edit_days() . ' days'));
 }
 
+/** Lookup key of a class register (slot 0 = register without a period, i.e. an extra class). */
+function pfac_sheet_key(string $date, int $sectionId, int $subjectId, int $slotId): string
+{
+    return $date . '|' . $sectionId . '|' . $subjectId . '|' . $slotId;
+}
+
+/**
+ * Register that covers a timetable period: the register of that exact period, else a register of the same class on that
+ * day that has no period (extra class). A register of another period (e.g. the 1st half of a double lab) never counts.
+ * @return array{0: ?array, 1: ?int} [register row or null, its time_slot_id (null = no period)]
+ */
+function pfac_period_sheet(array $sheets, string $date, int $sectionId, int $subjectId, int $slotId): array
+{
+    if (isset($sheets[$k = pfac_sheet_key($date, $sectionId, $subjectId, $slotId)])) {
+        return [$sheets[$k], $slotId];
+    }
+    if (isset($sheets[$k = pfac_sheet_key($date, $sectionId, $subjectId, 0)])) {
+        return [$sheets[$k], null];
+    }
+    return [null, null];
+}
+
 /* ------------------------------------------------------------------
  * Classes (section + subject pairs)
  * ------------------------------------------------------------------ */
@@ -365,15 +387,14 @@ function pfac_timetable(int $fid, ?string $weekOf = null): array
     foreach ($days as $d) {
         $dayByDow[$d['dow']] = $d;
     }
-    // registers of the week for the periods already held
+    // registers of the week for the periods already held (a register without a period - extra class - stands in for
+    // the class's periods of that day; a register of another period never does, e.g. the 2nd half of a double lab period)
     $sheets = [];
     $secIds = array_unique(array_map(fn ($p) => (int) $p['section_id'], $periods));
     if ($secIds && $monday <= $today) {
         foreach (db_all("SELECT attendance_date, section_id, subject_id, time_slot_id, total_count, present_count, late_count, half_day_count, absent_count, leave_count
                          FROM attendance WHERE type = 'student' AND attendance_date BETWEEN ? AND ? AND section_id IN (" . pfac_in($secIds) . ')', [$monday, min($sunday, $today)]) as $a) {
-            $k = $a['attendance_date'] . '|' . (int) $a['section_id'] . '|' . (int) $a['subject_id'];
-            $sheets[$k . '|' . (int) $a['time_slot_id']] = $a;
-            $sheets[$k . '|0'] = $sheets[$k . '|0'] ?? $a;
+            $sheets[pfac_sheet_key($a['attendance_date'], (int) $a['section_id'], (int) $a['subject_id'], (int) $a['time_slot_id'])] = $a;
         }
     }
     $now = date('H:i:s');
@@ -389,6 +410,7 @@ function pfac_timetable(int $fid, ?string $weekOf = null): array
         $perDay[$p['day_of_week']] = ($perDay[$p['day_of_week']] ?? 0) + 1;
         $day = $dayByDow[$p['day_of_week']] ?? null;
         $p['date'] = $day['date'] ?? null;
+        $p['register_slot_id'] = $p['time_slot_id']; // period of the register that opens from this cell (null = extra-class register)
         $state = 'upcoming';
         $counts = null;
         if (!$day) {
@@ -396,11 +418,11 @@ function pfac_timetable(int $fid, ?string $weekOf = null): array
         } elseif ($day['holiday']) {
             $state = 'holiday';
         } elseif ($day['date'] <= $today) {
-            $k = $day['date'] . '|' . $p['section_id'] . '|' . $p['subject_id'];
-            $sheet = $sheets[$k . '|' . $p['time_slot_id']] ?? ($sheets[$k . '|0'] ?? null);
+            [$sheet, $registerSlot] = pfac_period_sheet($sheets, $day['date'], $p['section_id'], $p['subject_id'], $p['time_slot_id']);
             if ($sheet) {
                 $state = 'marked';
                 $counts = att_counts_from_row($sheet);
+                $p['register_slot_id'] = $registerSlot;
             } elseif ($day['date'] < $today || $p['end_time'] <= $now) {
                 $state = 'pending';
             } elseif ($p['start_time'] <= $now) {
@@ -505,6 +527,68 @@ function pfac_attendance_day(int $fid, string $date): array
     ];
 }
 
+/**
+ * Register status of the faculty's timetable periods for the dashboard: periods already held in the last $days days
+ * (working days only) without a register, and today's periods with their register. A register of another period
+ * (e.g. the first half of a double lab) does not cover a period; a register without a period (extra class) does.
+ */
+function pfac_register_status(int $fid, int $days = 7): array
+{
+    $days = max(1, min(14, $days));
+    $today = date('Y-m-d');
+    $from = date('Y-m-d', strtotime('-' . ($days - 1) . ' days'));
+    $periods = db_all("SELECT t.id, t.section_id, t.subject_id, t.time_slot_id, t.day_of_week, t.semester_no, ts.name AS slot, ts.start_time, ts.end_time,
+                              sb.code AS subject_code, sb.name AS subject, p.short_name AS program, sc.name AS section, cr.code AS room_code
+                       FROM timetables t JOIN time_slots ts ON ts.id = t.time_slot_id JOIN subjects sb ON sb.id = t.subject_id JOIN programs p ON p.id = t.program_id
+                       JOIN sections sc ON sc.id = t.section_id LEFT JOIN classrooms cr ON cr.id = t.classroom_id
+                       WHERE t.faculty_id = ? AND t.academic_session_id = ? AND t.status = 'published' AND ts.is_break = 0
+                       ORDER BY t.day_of_week, ts.sort_order, ts.start_time", [$fid, pfac_session_id()]);
+    $out = ['days' => $days, 'from' => $from, 'count' => 0, 'items' => [], 'today' => (object) []];
+    if (!$periods) {
+        return $out;
+    }
+    $sheets = [];
+    foreach (db_all("SELECT attendance_date, section_id, subject_id, time_slot_id, total_count, present_count, late_count, half_day_count, absent_count, leave_count
+                     FROM attendance WHERE type = 'student' AND attendance_date BETWEEN ? AND ? AND section_id IN (" . pfac_in(array_column($periods, 'section_id')) . ')', [$from, $today]) as $a) {
+        $sheets[pfac_sheet_key($a['attendance_date'], (int) $a['section_id'], (int) $a['subject_id'], (int) $a['time_slot_id'])] = $a;
+    }
+    $byDay = [];
+    foreach ($periods as $p) {
+        $byDay[(int) $p['day_of_week']][] = $p;
+    }
+    $holidays = att_holiday_map($from, $today);
+    $offs = att_weekly_off();
+    $now = date('H:i:s');
+    $pending = [];
+    $todayMap = [];
+    for ($d = $from; $d <= $today; $d = date('Y-m-d', strtotime($d . ' +1 day'))) {
+        $dow = (int) date('N', strtotime($d));
+        $h = $holidays[$d] ?? null;
+        if (in_array($dow, $offs, true) || ($h && in_array($h['type'], ['holiday', 'vacation'], true))) {
+            continue;
+        }
+        foreach ($byDay[$dow] ?? [] as $p) {
+            [$sheet, $registerSlot] = pfac_period_sheet($sheets, $d, (int) $p['section_id'], (int) $p['subject_id'], (int) $p['time_slot_id']);
+            if ($d === $today) {
+                $c = $sheet ? att_counts_from_row($sheet) : null;
+                $todayMap[(int) $p['id']] = ['marked' => (bool) $sheet, 'present' => $c ? $c['present'] + $c['late'] : null, 'total' => $c['total'] ?? null,
+                    'time_slot_id' => $sheet ? $registerSlot : (int) $p['time_slot_id']];
+            }
+            if ($sheet || ($d === $today && $p['end_time'] > $now)) {
+                continue;
+            }
+            $pending[] = ['date' => $d, 'slot' => $p['slot'], 'start_time' => $p['start_time'], 'end_time' => $p['end_time'], 'time_slot_id' => (int) $p['time_slot_id'],
+                'subject_code' => $p['subject_code'], 'subject' => $p['subject'], 'program' => $p['program'], 'semester_no' => (int) $p['semester_no'], 'section' => $p['section'],
+                'section_id' => (int) $p['section_id'], 'subject_id' => (int) $p['subject_id'], 'room_code' => $p['room_code']];
+        }
+    }
+    usort($pending, fn ($a, $b) => strcmp($b['date'] . $b['start_time'], $a['date'] . $a['start_time']));
+    $out['count'] = count($pending);
+    $out['items'] = $pending;
+    $out['today'] = (object) $todayMap;
+    return $out;
+}
+
 /** Why a register cannot be saved from the portal: null = it can, else [message, HTTP status]. */
 function pfac_sheet_block(string $date, ?array $sheet, array $day): ?array
 {
@@ -522,7 +606,7 @@ function pfac_sheet_block(string $date, ?array $sheet, array $day): ?array
     if ($sheet && !empty($sheet['is_locked'])) {
         return ['This register has been locked by the attendance office.', 423];
     }
-    if ($sheet ? !can('attendance', 'edit') : !can('attendance', 'create')) {
+    if (!can('faculty_portal', 'create')) {
         return [$sheet ? 'Your account role does not allow changing attendance registers. Contact the administrator.' : 'Your account role does not allow marking attendance. Contact the administrator.', 403];
     }
     return null;
@@ -561,7 +645,7 @@ function pfac_attendance_sheet(int $fid, string $date, int $sectionId, int $subj
 /** Create / update a register for one of the faculty's classes. */
 function pfac_save_attendance(int $fid, array $in): array
 {
-    $date = (string) ($in['date'] ?? '');
+    $date = api_str($in['date'] ?? null);
     $sectionId = (int) ($in['section_id'] ?? 0);
     $subjectId = (int) ($in['subject_id'] ?? 0);
     $slotId = !empty($in['time_slot_id']) ? (int) $in['time_slot_id'] : null;
@@ -593,10 +677,10 @@ function pfac_save_attendance(int $fid, array $in): array
         }
         $records[] = ['student_id' => (int) ($r['student_id'] ?? 0), 'status' => (string) ($r['status'] ?? ''), 'remarks' => isset($r['remarks']) ? (string) $r['remarks'] : null];
     }
-    $remarks = mb_substr(trim((string) ($in['remarks'] ?? '')), 0, 255);
+    $remarks = mb_substr(trim(api_str($in['remarks'] ?? null)), 0, 255);
     try {
         $res = att_save_student_sheet(['date' => $date, 'section_id' => $sectionId, 'subject_id' => $subjectId, 'time_slot_id' => $slotId, 'faculty_id' => $fid,
-            'remarks' => $remarks, 'records' => $records]);
+            'remarks' => $remarks, 'records' => $records], true); // portal rules enforced above (pfac_class_context + pfac_sheet_block)
     } catch (AttendanceAccessException $e) {
         throw new PortalFacultyException($e->getMessage(), 403);
     }
@@ -735,7 +819,7 @@ function pfac_marks_exams(int $fid): array
             'state' => $state, 'open' => $open, 'locked' => $locked,
         ];
     }
-    return ['exams' => array_values($exams), 'kpis' => $kpi, 'can_enter' => can('results', 'create') || can('results', 'edit')];
+    return ['exams' => array_values($exams), 'kpis' => $kpi, 'can_enter' => can('faculty_portal', 'edit')];
 }
 
 /** Lock message for faculty (exam_lock_reason() talks to exam administrators). */
@@ -822,7 +906,7 @@ function pfac_marks_sheet(int $fid, int $examId, int $subjectId, ?int $sectionId
         $lock = 'The paper is scheduled on ' . format_date($schedule['exam_date']) . '. Marks can be entered after the examination.';
         $lockKind = 'upcoming';
     }
-    $rbac = can('results', 'create') || can('results', 'edit');
+    $rbac = can('faculty_portal', 'edit');
     if (!$lock && !$rbac) {
         $lock = 'Your account role does not allow marks entry. Contact the examination office.';
         $lockKind = 'role';
@@ -854,7 +938,7 @@ function pfac_save_marks(int $fid, int $examId, int $subjectId, array $in): arra
     if ($lock = pfac_lock_reason($e)) {
         throw new PortalFacultyException($lock, 423);
     }
-    if (!can('results', 'create') && !can('results', 'edit')) {
+    if (!can('faculty_portal', 'edit')) {
         throw new PortalFacultyException('Your account role does not allow marks entry. Contact the examination office.', 403);
     }
     $mine = array_map('intval', db_column('SELECT x.student_id FROM exam_students x JOIN students s ON s.id = x.student_id WHERE x.exam_id = ? AND x.is_eligible = 1' . pfac_section_filter($allowed), [$examId]));
@@ -941,7 +1025,7 @@ function pfac_leave_overview(int $fid, array $q = []): array
     $balance = array_map(fn ($b) => $b + ['special' => isset($special[$b['code']])], hr_leave_balance('faculty', $fid));
     $where = "l.employee_type = 'faculty' AND l.employee_id = ?";
     $args = [$fid];
-    $status = (string) ($q['status'] ?? '');
+    $status = api_str($q['status'] ?? null); // ?status[]=x must not raise "Array to string conversion"
     if (in_array($status, ['pending', 'approved', 'rejected', 'cancelled'], true)) {
         $where .= ' AND l.status = ?';
         $args[] = $status;
@@ -980,11 +1064,11 @@ function pfac_leave_validate(int $fid, array $in): array
 {
     $data = [
         'employee_type' => 'faculty', 'employee_id' => $fid,
-        'leave_type' => trim((string) ($in['leave_type'] ?? '')),
-        'from_date' => trim((string) ($in['from_date'] ?? '')),
-        'to_date' => trim((string) ($in['to_date'] ?? '')),
+        'leave_type' => trim(api_str($in['leave_type'] ?? null)),
+        'from_date' => trim(api_str($in['from_date'] ?? null)),
+        'to_date' => trim(api_str($in['to_date'] ?? null)),
         'is_half_day' => in_array($in['is_half_day'] ?? false, [true, 1, '1', 'true', 'on', 'yes'], true) ? 1 : 0,
-        'reason' => trim((string) ($in['reason'] ?? '')),
+        'reason' => trim(api_str($in['reason'] ?? null)),
     ];
     if ($data['to_date'] === '' && $data['from_date'] !== '') {
         $data['to_date'] = $data['from_date'];
@@ -1148,9 +1232,9 @@ function pfac_document_upload(int $fid, int $userId, array $in, ?array $file): a
 {
     $types = pfac_document_types();
     $errors = [];
-    $type = trim((string) ($in['doc_type'] ?? ''));
-    $title = trim((string) ($in['title'] ?? ''));
-    $expiry = trim((string) ($in['expiry_date'] ?? ''));
+    $type = trim(api_str($in['doc_type'] ?? null));
+    $title = trim(api_str($in['title'] ?? null));
+    $expiry = trim(api_str($in['expiry_date'] ?? null));
     if (!isset($types[$type])) {
         $errors['doc_type'] = 'Choose the document type.';
     }
@@ -1254,9 +1338,9 @@ function pfac_redact(string $text, bool $strict = false): string
 function pfac_correction_request(int $fid, int $userId, array $in): array
 {
     $fields = pfac_correction_fields();
-    $field = trim((string) ($in['field'] ?? ''));
-    $requested = trim((string) ($in['requested'] ?? ''));
-    $note = trim((string) ($in['note'] ?? ''));
+    $field = trim(api_str($in['field'] ?? null));
+    $requested = trim(api_str($in['requested'] ?? null));
+    $note = trim(api_str($in['note'] ?? null));
     $errors = [];
     if (!isset($fields[$field])) {
         $errors['field'] = 'Choose what needs to be corrected.';

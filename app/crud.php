@@ -246,6 +246,9 @@ function crud_apply_filters(array $m, array $req, array &$where, array &$args): 
         }
         $col = $def['column'] ?? ($m['alias'] . '.' . $key);
         $type = $def['type'] ?? 'select';
+        if (is_array($value) && !in_array($type, ['daterange', 'multiselect'], true)) {
+            continue; // ?f[status][]=x on a single-value filter: ignore it (no "Illegal offset" / "Array to string")
+        }
         if (isset($def['sql_map'])) {
             if (isset($def['sql_map'][$value])) {
                 $where[] = '(' . $def['sql_map'][$value] . ')';
@@ -299,7 +302,7 @@ function crud_apply_filters(array $m, array $req, array &$where, array &$args): 
                 $args[] = $value;
         }
     }
-    $q = trim((string) ($req['q'] ?? ''));
+    $q = trim(api_str($req['q'] ?? null));
     if ($q !== '' && $m['search']) {
         foreach (preg_split('/\s+/', mb_substr($q, 0, 100)) as $word) {
             $or = [];
@@ -323,8 +326,8 @@ function crud_apply_filters(array $m, array $req, array &$where, array &$args): 
 
 function crud_order_sql(array $m, array $req): string
 {
-    $sort = (string) ($req['sort'] ?? '');
-    $dir = strtolower((string) ($req['dir'] ?? 'asc')) === 'desc' ? 'DESC' : 'ASC';
+    $sort = api_str($req['sort'] ?? null);
+    $dir = strtolower(api_str($req['dir'] ?? null, 'asc')) === 'desc' ? 'DESC' : 'ASC';
     foreach ($m['columns'] as $c) {
         if ($c['key'] === $sort && !empty($c['sortable'])) {
             $expr = is_string($c['sortable']) ? $c['sortable'] : (in_array($c['key'], db_table_columns($m['table']), true) ? $m['alias'] . '.' . $c['key'] : db_quote_ident($c['key']));
@@ -483,8 +486,10 @@ function crud_validate(array $m, array $input, ?int $id = null, ?array $old = nu
             case 'boolean':
             case 'toggle':
             case 'checkbox':
-                if (!$present && !$isCreate && !$importing) {
-                    // unchecked checkboxes are not posted by HTML forms; the SPA always sends booleans.
+                if (!$present && !$isCreate) {
+                    // unchecked checkboxes are not posted by HTML forms; the SPA always sends booleans. An import that
+                    // updates a record (upsert) leaves flags whose column is not in the file unchanged - a CSV export
+                    // without "is_hosteller" must not switch every imported student's hostel flag off.
                     continue 2;
                 }
                 $value = in_array($value, [true, 1, '1', 'on', 'yes', 'true', 'Yes', 'YES'], true) ? 1 : 0;
@@ -563,8 +568,20 @@ function crud_validate(array $m, array $input, ?int $id = null, ?array $old = nu
                 $value = password_hash((string) $value, PASSWORD_DEFAULT);
                 break;
             case 'email':
+                // trim, lowercase, IDN domain -> ASCII (validated by the 'email' rule below)
                 if ($value !== null && $value !== '') {
-                    $value = strtolower((string) $value);
+                    require_once APP_ROOT . '/app/services/phone.php';
+                    $value = email_normalize(is_array($value) ? '' : (string) $value);
+                }
+                break;
+            case 'tel':
+                // international numbers -> E.164 (+919876543210); numbers without a country code use the field's
+                // 'country' (ISO2) or setting phone_default_country (IN). Invalid input is kept as typed so the 'phone'
+                // rule below reports it. A leading apostrophe (spreadsheet text marker from CSV exports) is ignored.
+                if ($value !== null && $value !== '' && !is_array($value)) {
+                    require_once APP_ROOT . '/app/services/phone.php';
+                    $raw = ltrim(trim((string) $value), "'");
+                    $value = phone_normalize($raw, !empty($f['country']) ? (string) $f['country'] : null) ?? $raw;
                 }
                 break;
             default:
@@ -603,15 +620,10 @@ function crud_validate(array $m, array $input, ?int $id = null, ?array $old = nu
                     $value = $match;
                 }
             } elseif (isset($f['source'])) {
-                if (!lookup_options($f['source'], ['ids' => (string) $value])) {
-                    $found = null;
-                    if ($importing) {
-                        foreach (lookup_options($f['source'], ['q' => (string) $value, 'limit' => 5]) as $o) {
-                            if (strcasecmp(trim(preg_replace('/\s*\(.*\)$/', '', $o['label'])), (string) $value) === 0 || strcasecmp($o['label'], (string) $value) === 0) {
-                                $found = $o['value'];
-                            }
-                        }
-                    }
+                // imports carry names ("MBA", "A"): only digit strings are tried as ids there (MySQL would cast "3 A" to 3)
+                $byId = !$importing || ctype_digit((string) $value) ? lookup_options($f['source'], ['ids' => (string) $value]) : [];
+                if (!$byId) {
+                    $found = $importing ? crud_import_resolve_source($f, (string) $value, $clean + $input) : null;
                     if ($found === null) {
                         $errors[$name] = "Selected $label is invalid.";
                         continue;
@@ -629,7 +641,7 @@ function crud_validate(array $m, array $input, ?int $id = null, ?array $old = nu
             $rules[] = 'email';
         }
         if ($type === 'tel') {
-            $rules[] = 'phone';
+            $rules[] = !empty($f['country']) ? 'phone:' . strtoupper((string) $f['country']) : 'phone';
         }
         if ($type === 'url') {
             $rules[] = 'url';
@@ -662,6 +674,58 @@ function crud_validate(array $m, array $input, ?int $id = null, ?array $old = nu
         }
     }
     return [$clean, $errors];
+}
+
+/**
+ * Import helper: the option of a lookup source whose name matches a spreadsheet value - the full label, the label
+ * without a trailing "(...)", or one part of a composite label ("MBA" in "MBA — Master of ...", "A" in
+ * "BBA · Sem 1 · Sec A"). Dependent sources are narrowed by the row's already-resolved values (a section by its
+ * program + semester). Returns the option value, or null when nothing (or more than one option) matches.
+ */
+function crud_import_resolve_source(array $f, string $value, array $row)
+{
+    $want = mb_strtolower(trim(preg_replace('/\s+/u', ' ', $value)));
+    if ($want === '') {
+        return null;
+    }
+    $params = [];
+    foreach ((array) ($f['depends'] ?? []) as $param => $field) {
+        $v = $row[$field] ?? null;
+        if (is_scalar($v) && (string) $v !== '') {
+            $params[$param] = (string) $v;
+        }
+    }
+    $norm = fn ($s) => mb_strtolower(trim(preg_replace('/\s+/u', ' ', (string) $s)));
+    // 1) options found by the source's search columns, 2) every option in scope (labels such as "Sec A" are not searchable)
+    foreach ([$params + ['q' => $value], $params] as $p) {
+        try {
+            $options = lookup_options($f['source'], $p + ['limit' => 300], 300);
+        } catch (Throwable $e) {
+            return null;
+        }
+        $hits = [];
+        foreach ($options as $o) {
+            $label = (string) $o['label'];
+            $candidates = [$label, preg_replace('/\s*\(.*\)$/u', '', $label)];
+            foreach (preg_split('/\s+(?:—|–|·|\|)\s+/u', $label) ?: [] as $part) {
+                $candidates[] = $part;
+                $candidates[] = preg_replace('/^(?:Sec|Section|Sem|Semester)\s+/iu', '', $part);
+            }
+            foreach ($candidates as $c) {
+                if ($norm($c) === $want) {
+                    $hits[(string) $o['value']] = $o['value'];
+                    break;
+                }
+            }
+        }
+        if (count($hits) === 1) {
+            return reset($hits);
+        }
+        if (count($hits) > 1) {
+            return null; // ambiguous: ask for the id or the full name
+        }
+    }
+    return null;
 }
 
 /**
@@ -749,19 +813,56 @@ function crud_save(array $m, array $input, array $files = [], ?int $id = null, b
         }
         throw $e;
     }
-    // Remove replaced files
+    // Remove replaced files (unless another record still points at the same stored file)
     if ($old) {
         foreach ($m['fields'] as $f) {
             if (in_array($f['type'] ?? '', ['image', 'file'], true) && array_key_exists($f['name'], $data) && $old[$f['name']] && $old[$f['name']] !== $data[$f['name']]) {
-                delete_upload($old[$f['name']]);
+                crud_delete_upload_if_unused($m, $f['name'], (string) $old[$f['name']]);
             }
         }
+    }
+    if ($m['table'] === 'users' && !empty($data['password_hash']) && (int) $savedId === user_id() && function_exists('session_refresh_password_fp')) {
+        // an administrator who changed their own password on the Users screen stays signed in here (other devices are not)
+        session_refresh_password_fp();
     }
     if (!$importing) {
         $row = db_row('SELECT * FROM ' . db_quote_ident($m['table']) . ' WHERE ' . db_quote_ident($m['primary']) . ' = ?', [$savedId]) ?? [];
         log_activity($id === null ? 'create' : 'update', $m['permission'], $savedId, ($id === null ? 'Created ' : 'Updated ') . strtolower($m['singular']) . ' ' . crud_describe($m, $row));
+        try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_crud((string) ($m['key'] ?? ''), (int) $savedId, $old, $row); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     }
     return ['id' => (int) $savedId, 'created' => $id === null];
+}
+
+/**
+ * Deletes a stored upload only when no other row of the module's table still references it (records duplicated
+ * from each other, or a media path chosen twice, share one file - deleting one record must not break the other).
+ */
+function crud_delete_upload_if_unused(array $m, string $column, string $path): void
+{
+    if ($path === '' || preg_match('#^(https?:)?//#i', $path)) {
+        return;
+    }
+    try {
+        if ((int) db_value('SELECT COUNT(*) FROM ' . db_quote_ident($m['table']) . ' WHERE ' . db_quote_ident($column) . ' = ?', [$path]) > 0) {
+            return;
+        }
+    } catch (Throwable $e) {
+        return; // virtual / non-column field: keep the file rather than risk deleting a shared one
+    }
+    delete_upload($path);
+}
+
+/**
+ * Toast text after a save / delete. A module may set 'messages' => ['created' => 'Document uploaded.', 'updated' => ...,
+ * 'deleted' => ...]; otherwise "{Singular} created successfully." etc.
+ */
+function crud_message(array $m, string $event): string
+{
+    $custom = $m['messages'][$event] ?? null;
+    if (is_string($custom) && trim($custom) !== '') {
+        return $custom;
+    }
+    return ($m['singular'] ?? 'Record') . ' ' . ['created' => 'created', 'updated' => 'updated', 'deleted' => 'deleted'][$event] . ' successfully.';
 }
 
 /** Human description of a record for logs/toasts. */
@@ -814,7 +915,7 @@ function crud_delete(array $m, array $ids): array
         }
         foreach ($m['fields'] as $f) {
             if (in_array($f['type'] ?? '', ['image', 'file'], true) && !empty($row[$f['name']])) {
-                delete_upload($row[$f['name']]);
+                crud_delete_upload_if_unused($m, $f['name'], (string) $row[$f['name']]);
             }
         }
         log_activity('delete', $m['permission'], $id, 'Deleted ' . strtolower($m['singular']) . ' ' . crud_describe($m, $row));
@@ -940,28 +1041,177 @@ function crud_import_fields(array $m): array
         && !in_array($f['type'], ['section', 'image', 'file', 'password', 'richtext', 'json', 'repeater'], true)));
 }
 
+/**
+ * Example rows for the import template. A module can give its own with 'import_example' => [field => value] (or a
+ * list of such rows); every other column gets a value that passes validation: the field default, the first option,
+ * the first real record of a lookup (narrowed by the fields it depends on), a past date for birth dates, ...
+ */
+function crud_import_example_rows(array $m, array $fields): array
+{
+    $custom = $m['import_example'] ?? [];
+    $custom = $custom && array_is_list($custom) ? $custom : [$custom];
+    $rows = [];
+    foreach ($custom as $over) {
+        $over = is_array($over) ? $over : [];
+        $ids = [];
+        $row = [];
+        foreach ($fields as $f) {
+            $name = $f['name'];
+            if (array_key_exists($name, $over)) {
+                $row[] = (string) $over[$name];
+                $ids[$name] = (string) $over[$name];
+                continue;
+            }
+            $v = '';
+            if (isset($f['options'])) {
+                $opts = crud_static_options($f['options']);
+                $v = array_key_exists('default', $f) ? (string) $f['default'] : (string) ($opts[0]['value'] ?? '');
+                $ids[$name] = $v;
+            } elseif (isset($f['source'])) {
+                $params = ['limit' => 1];
+                foreach ((array) ($f['depends'] ?? []) as $param => $field) {
+                    if (($ids[$field] ?? '') !== '') {
+                        $params[$param] = $ids[$field];
+                    }
+                }
+                if ($f['source'] === 'sessions' && ($current = current_session_id())) {
+                    $params['ids'] = (string) $current; // the current academic session, not the newest one in the list
+                }
+                try {
+                    $o = lookup_options($f['source'], $params, 1)[0] ?? null;
+                } catch (Throwable $e) {
+                    $o = null;
+                }
+                if ($o) {
+                    $ids[$name] = (string) $o['value'];
+                    $v = (string) $o['label']; // the exact name is accepted on import (and reads better than an id)
+                } elseif (!empty($f['required'])) {
+                    $v = '(id or exact name)';
+                }
+            } else {
+                $v = match ($f['type']) {
+                    'date' => preg_match('/(^|_)(dob|birth|date_of_birth)/', $name) ? date('Y-m-d', strtotime('-19 years')) : date('Y-m-d'),
+                    'email' => !empty($f['unique']) ? 'example.' . date('His') . '@example.com' : 'name@example.com',
+                    'number', 'decimal', 'money' => (string) ($f['default'] ?? (str_contains($name, 'year') && ($f['min'] ?? 0) <= (int) date('Y') && ($f['max'] ?? 9999) >= (int) date('Y')
+                        ? date('Y') : ($f['min'] ?? '0'))),
+                    'boolean', 'toggle', 'checkbox' => (string) (int) !empty($f['default']),
+                    'tel' => '+91 9876543210',
+                    default => array_key_exists('default', $f) ? (string) $f['default']
+                        : (['first_name' => 'Aarav', 'last_name' => 'Sharma'][$name]
+                            ?? (!empty($f['required']) ? 'Sample ' . strtolower($f['label'] ?? label_from_key($name)) : '')),
+                };
+                $ids[$name] = $v;
+            }
+            $row[] = $v;
+        }
+        $rows[] = $row;
+    }
+    return $rows;
+}
+
 function crud_import_template(array $m): void
 {
     $fields = crud_import_fields($m);
     $headers = array_map(fn ($f) => $f['name'], $fields);
-    $example = array_map(function ($f) {
-        if (isset($f['options'])) {
-            return (string) (crud_static_options($f['options'])[0]['value'] ?? '');
+    csv_download($m['key'] . '-import-template.csv', $headers, crud_import_example_rows($m, $fields));
+}
+
+/**
+ * Column index => field name for an import header row. Accepted headers, in priority order: field names (the import
+ * template), field labels, and the column labels of the module's own export - so a CSV / Excel export can be edited and
+ * imported back. Export columns that hold a display name map to their id field ("program_name" -> program_id,
+ * "session_name" -> academic_session_id) and "full_name" is split into first / middle / last name.
+ */
+function crud_import_header_map(array $m, array $header, array $fields): array
+{
+    $norm = fn ($s) => strtolower(trim((string) preg_replace('/[^a-z0-9]+/i', '_', (string) $s), '_'));
+    $names = array_column($fields, 'name');
+    $byName = [];
+    $byLabel = [];
+    foreach ($fields as $f) {
+        $byName[$norm($f['name'])] = $f['name'];
+        $byLabel[$norm($f['label'] ?? '')] ??= $f['name'];
+    }
+    $byExport = [];
+    foreach (crud_export_columns($m) as $c) {
+        $key = (string) ($c['key'] ?? '');
+        $target = null;
+        if (in_array($key, $names, true)) {
+            $target = $key;
+        } elseif ($key === 'full_name' && in_array('first_name', $names, true)) {
+            $target = '__full_name';
+        } elseif (preg_match('/^(.+)_name$/', $key, $mm)) {
+            if (in_array($mm[1] . '_id', $names, true)) {
+                $target = $mm[1] . '_id';
+            } else {
+                foreach ($names as $n) {
+                    if (str_ends_with($n, '_' . $mm[1] . '_id')) {
+                        $target = $n;
+                        break;
+                    }
+                }
+            }
         }
-        return match ($f['type']) {
-            'date' => date('Y-m-d'), 'email' => 'name@example.com', 'number', 'decimal', 'money' => '0', 'boolean', 'toggle', 'checkbox' => '1', 'tel' => '+91 9876543210',
-            default => isset($f['source']) ? '(id or exact name)' : '',
-        };
-    }, $fields);
-    csv_download($m['key'] . '-import-template.csv', $headers, [$example]);
+        if ($target !== null) {
+            $byExport[$norm($c['label'] ?? $key)] ??= $target;
+        }
+    }
+    $map = [];
+    foreach ([$byName, $byLabel, $byExport] as $aliases) {
+        foreach ($header as $i => $h) {
+            $k = $norm($h);
+            if ($k === '' || isset($map[$i]) || !isset($aliases[$k]) || in_array($aliases[$k], $map, true)) {
+                continue;
+            }
+            $map[$i] = $aliases[$k];
+        }
+    }
+    ksort($map);
+    return $map;
+}
+
+/** Splits an exported "Name" column into first / middle / last name (unless the row already has a first name). */
+function crud_import_split_name(array $input, array $names, ?array $existing): array
+{
+    $full = trim((string) preg_replace('/\s+/u', ' ', api_str($input['__full_name'] ?? null)));
+    unset($input['__full_name']);
+    if ($full === '' || trim(api_str($input['first_name'] ?? null)) !== '') {
+        return $input;
+    }
+    if ($existing) {
+        // unchanged name on an update: keep the stored split ("Mohd. Arif" + "Khan" stays as it is)
+        $current = trim((string) preg_replace('/\s+/u', ' ', implode(' ', array_filter([$existing['first_name'] ?? '', $existing['middle_name'] ?? '', $existing['last_name'] ?? ''], fn ($v) => trim((string) $v) !== ''))));
+        if (mb_strtolower($current) === mb_strtolower($full)) {
+            return $input;
+        }
+    }
+    $parts = explode(' ', $full);
+    $input['first_name'] = array_shift($parts);
+    if ($parts && in_array('last_name', $names, true)) {
+        $input['last_name'] = array_pop($parts);
+    }
+    if ($parts) {
+        if (in_array('middle_name', $names, true)) {
+            $input['middle_name'] = implode(' ', $parts);
+        } elseif (in_array('last_name', $names, true)) {
+            $input['last_name'] = trim(implode(' ', $parts) . ' ' . ($input['last_name'] ?? ''));
+        } else {
+            $input['first_name'] .= ' ' . implode(' ', $parts);
+        }
+    } elseif (in_array('middle_name', $names, true)) {
+        $input['middle_name'] = '';
+    }
+    return $input;
 }
 
 /**
  * Import rows from an uploaded CSV/XLSX. Header row must contain field names or labels.
  * $mode: insert (skip rows that duplicate a unique field) | upsert (update matching record by first unique field)
+ * $scope: the embedded table's scope (e.g. ['event_id' => 12]) - new rows are created inside it, like the add form does
  */
-function crud_import(array $m, array $file, string $mode = 'insert'): array
+function crud_import(array $m, array $file, string $mode = 'insert', array $scope = []): array
 {
+    $scope = array_filter($scope, fn ($v, $k) => isset($m['scopes'][$k]) && is_scalar($v) && (string) $v !== '', ARRAY_FILTER_USE_BOTH);
     $res = upload_file($file, 'spreadsheet', 'imports', true);
     if (!$res['ok']) {
         throw new CrudException($res['error']);
@@ -969,6 +1219,10 @@ function crud_import(array $m, array $file, string $mode = 'insert'): array
     $path = APP_ROOT . '/' . $res['path'];
     try {
         $rows = spreadsheet_read($path, $res['extension']);
+    } catch (CrudException $e) {
+        throw $e;
+    } catch (RuntimeException $e) {
+        throw new CrudException($e->getMessage()); // damaged / oversized workbook: a 422 with the reason, not a 500
     } finally {
         @unlink($path);
     }
@@ -976,16 +1230,9 @@ function crud_import(array $m, array $file, string $mode = 'insert'): array
         throw new CrudException('The file has no data rows. Download the template to see the expected columns.');
     }
     $fields = crud_import_fields($m);
-    $map = [];
+    $fieldNames = array_column($fields, 'name');
     $header = array_shift($rows);
-    foreach ($header as $i => $h) {
-        $norm = strtolower(trim(preg_replace('/[^a-z0-9]+/i', '_', (string) $h), '_'));
-        foreach ($fields as $f) {
-            if ($norm === strtolower($f['name']) || $norm === strtolower(trim(preg_replace('/[^a-z0-9]+/i', '_', $f['label'] ?? ''), '_'))) {
-                $map[$i] = $f['name'];
-            }
-        }
-    }
+    $map = crud_import_header_map($m, $header, $fields);
     if (!$map) {
         throw new CrudException('No matching columns found. Use the column names from the import template.');
     }
@@ -1006,6 +1253,14 @@ function crud_import(array $m, array $file, string $mode = 'insert'): array
         foreach ($map as $i => $name) {
             $input[$name] = $line[$i] ?? '';
         }
+        if ($scope) {
+            $input['__scope'] = $scope;
+            foreach ($scope as $k => $v) {
+                if (($input[$k] ?? '') === '' && in_array($k, $fieldNames, true)) {
+                    $input[$k] = (string) $v; // a scope column that is also a form field (event_id ...) is filled in
+                }
+            }
+        }
         $existingId = null;
         if ($uniqueField && ($input[$uniqueField] ?? '') !== '') {
             $existingId = db_value('SELECT ' . db_quote_ident($m['primary']) . ' FROM ' . db_quote_ident($m['table']) . ' WHERE ' . db_quote_ident($uniqueField) . ' = ?', [$input[$uniqueField]]);
@@ -1014,6 +1269,10 @@ function crud_import(array $m, array $file, string $mode = 'insert'): array
                 $summary['errors'][] = ['row' => $n + 2, 'message' => "Skipped: $uniqueField \"{$input[$uniqueField]}\" already exists."];
                 continue;
             }
+        }
+        if (array_key_exists('__full_name', $input)) {
+            $existing = $existingId ? db_row('SELECT * FROM ' . db_quote_ident($m['table']) . ' WHERE ' . db_quote_ident($m['primary']) . ' = ?', [(int) $existingId]) : null;
+            $input = crud_import_split_name($input, $fieldNames, $existing);
         }
         try {
             crud_save($m, $input, [], $existingId ? (int) $existingId : null, true);

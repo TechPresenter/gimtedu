@@ -59,7 +59,7 @@ export function ProvidersCard({ providers, chain, form, set, keys, setKey, clear
     <Card>
       <CardHeader title="AI providers" subtitle="The primary provider answers first; on an error or timeout the next one in the fallback order is tried, and the rule-based assistant always answers last." icon={Cpu} />
       <div className="card-body space-y-5">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="Primary provider" htmlFor="cb-provider" error={errors.provider}>
             <Select id="cb-provider" value={form.provider} onChange={(e) => set('provider', e.target.value as ChatbotValues['provider'])} options={PRIMARY_OPTIONS} />
           </Field>
@@ -105,7 +105,7 @@ export function ProvidersCard({ providers, chain, form, set, keys, setKey, clear
                     <Badge color="slate" dot>{removing ? 'Will be removed' : 'Not configured'}</Badge>
                   )}
                 </div>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
                   <Field label="Model" htmlFor={`cb-${p.key}-model`} error={errors[modelKey]} hint={`Default: ${p.default_model}`}>
                     <Input id={`cb-${p.key}-model`} list={`cb-${p.key}-models`} value={String(form[modelKey] ?? '')} onChange={(e) => set(modelKey, e.target.value as never)} inputSize="sm" />
                     <datalist id={`cb-${p.key}-models`}>

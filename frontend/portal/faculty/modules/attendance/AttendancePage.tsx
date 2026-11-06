@@ -83,7 +83,7 @@ function OtherClassPicker({ data, onOpen }: { data: AttendanceDayData; onOpen: (
     <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
       <button type="button" className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-200" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span className="inline-flex items-center gap-2">
-          <Plus className="h-4 w-4 text-flame-600" aria-hidden /> Extra or substitute class
+          <Plus className="h-4 w-4 text-flame-600" aria-hidden /> Extra class outside the timetable
         </span>
         <ChevronDown className={clsx('h-4 w-4 transition-transform', open && 'rotate-180')} aria-hidden />
       </button>
@@ -255,7 +255,7 @@ export default function AttendancePage() {
                 </div>
                 {data.periods.length === 0 ? (
                   <div className="card">
-                    <EmptyBlock compact icon={data.day.blocked ? CalendarOff : ClipboardList} title={data.day.blocked ? 'No classes' : `No periods on ${data.day.day_name}`} text="Use “Extra or substitute class” for a class outside your timetable." />
+                    <EmptyBlock compact icon={data.day.blocked ? CalendarOff : ClipboardList} title={data.day.blocked ? 'No classes' : `No periods on ${data.day.day_name}`} text="Use “Extra class” below to mark one of your classes held outside the timetable." />
                   </div>
                 ) : (
                   <div className="space-y-2.5">

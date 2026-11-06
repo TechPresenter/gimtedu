@@ -420,7 +420,7 @@ route('GET', '/cms/media', function () {
     if (!can('cms', 'view') && !can('media', 'view')) {
         api_error('You do not have permission to browse media.', 403);
     }
-    $q = trim((string) ($_GET['q'] ?? ''));
+    $q = trim(api_str($_GET['q'] ?? null));
     if (($_GET['source'] ?? 'library') === 'stock') {
         $items = cms_stock_images();
         if ($q !== '') {
@@ -461,7 +461,7 @@ route('POST', '/cms/upload', function () {
     if (!$res['ok']) {
         api_error($res['error'], 422, ['file' => $res['error']]);
     }
-    $alt = trim((string) api_param('alt', ''));
+    $alt = trim(api_str(api_param('alt')));
     $id = 0;
     try {
         $id = cms_register_media($res, 'page-builder', $alt !== '' ? $alt : null);

@@ -165,13 +165,13 @@ function hr_validate_person(array $data, ?array $old, array $input, string $type
     }
     // Login account requested on create: the email/username must be free in users.
     if (!$old && !empty($input['create_login']) && in_array($input['create_login'], [true, 1, '1', 'true', 'on'], true)) {
-        $email = strtolower(trim((string) ($data['email'] ?? '')));
+        $email = strtolower(trim(api_str($data['email'] ?? null)));
         if ($email === '') {
             $errors['email'] = 'Email is required to create a login account.';
         } elseif ((int) db_value('SELECT COUNT(*) FROM users WHERE email = ?', [$email])) {
             $errors['email'] = 'A user account with this email already exists.';
         }
-        $username = trim((string) ($input['login_username'] ?? ''));
+        $username = trim(api_str($input['login_username'] ?? null));
         if ($username !== '' && !preg_match('/^[a-zA-Z0-9._\-]{3,60}$/', $username)) {
             $errors['login_username'] = 'Username may contain letters, numbers, dots, dashes and underscores (3-60).';
         } elseif ($username !== '' && (int) db_value('SELECT COUNT(*) FROM users WHERE username = ?', [$username])) {
@@ -226,7 +226,7 @@ function hr_sync_user(string $type, int $id, ?array $old = null): void
         return;
     }
     $update = ['name' => mb_substr($p['full_name'], 0, 150), 'phone' => $p['phone'], 'designation' => $p['designation'], 'department_id' => $p['department_id']];
-    $newEmail = strtolower(trim((string) ($p['email'] ?? '')));
+    $newEmail = strtolower(trim(api_str($p['email'] ?? null)));
     if ($old && $newEmail !== '' && strtolower((string) ($old['email'] ?? '')) === strtolower((string) $user['email']) && $newEmail !== strtolower((string) $user['email'])
         && !(int) db_value('SELECT COUNT(*) FROM users WHERE email = ? AND id <> ?', [$newEmail, (int) $user['id']])) {
         $update['email'] = $newEmail;
@@ -314,14 +314,14 @@ function hr_create_account(string $type, int $id, array $opts = []): array
     if (!empty($p['user_id']) && db_value('SELECT id FROM users WHERE id = ?', [(int) $p['user_id']])) {
         throw new CrudException($p['full_name'] . ' already has a login account.');
     }
-    $email = strtolower(trim((string) ($p['email'] ?? '')));
+    $email = strtolower(trim(api_str($p['email'] ?? null)));
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         throw new CrudValidationException(['email' => 'A valid email address is required to create a login account.'], 'Add an email address to this profile first.');
     }
     if ((int) db_value('SELECT COUNT(*) FROM users WHERE email = ?', [$email])) {
         throw new CrudValidationException(['email' => 'A user account with this email already exists.'], 'A user account with this email already exists.');
     }
-    $username = trim((string) ($opts['username'] ?? ''));
+    $username = trim(api_str($opts['username'] ?? null));
     if ($username === '') {
         $username = hr_suggest_username($p);
     } elseif (!preg_match('/^[a-zA-Z0-9._\-]{3,60}$/', $username)) {
@@ -357,7 +357,7 @@ function hr_create_account(string $type, int $id, array $opts = []): array
     $loginUrl = absolute_url('admin/');
     $vars = ['name' => $p['full_name'], 'username' => $username, 'password' => $password, 'email' => $email, 'login_url' => $loginUrl, 'role' => $role['name']];
     $tpl = db_value("SELECT code FROM email_templates WHERE code IN ('account_created', 'user_credentials', 'welcome_user') AND status = 'active' ORDER BY FIELD(code, 'account_created', 'user_credentials', 'welcome_user') LIMIT 1");
-    $opts2 = ['related_type' => $type, 'related_id' => $id];
+    $opts2 = ['related_type' => $type, 'related_id' => $id, 'sensitive' => true]; // temporary password: never kept in message_logs
     if ($tpl) {
         $emailed = send_template_mail((string) $tpl, $email, $vars, $opts2);
     } else {
@@ -967,7 +967,7 @@ function hr_register_employee_routes(string $type): void
             api_error('Cannot create a login for a ' . $person['status'] . ' employee.', 422);
         }
         $in = api_input();
-        $account = hr_create_account($type, (int) $p['id'], ['username' => trim((string) ($in['username'] ?? '')), 'role_id' => $in['role_id'] ?? null]);
+        $account = hr_create_account($type, (int) $p['id'], ['username' => trim(api_str($in['username'] ?? null)), 'role_id' => $in['role_id'] ?? null]);
         api_ok($account, 'Login account created' . ($account['emailed'] ? ' and credentials emailed to ' . $account['email'] . '.' : '. Email could not be sent — share the credentials securely.'));
     });
 

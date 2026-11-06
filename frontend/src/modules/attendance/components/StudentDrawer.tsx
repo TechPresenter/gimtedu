@@ -4,7 +4,7 @@ import { Alert, Avatar, Button, Drawer, Skeleton } from '@/components/ui';
 import { CrudTable } from '@/components/crud';
 import { useApi } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatPhone, telHref } from '@/lib/format';
 import type { ApiError, Query } from '@/lib/api';
 import type { StudentDetailPayload } from '../types';
 import { MiniStat, PercentBar, PercentRing } from './shared';
@@ -33,7 +33,7 @@ export function StudentDrawer({ studentId, query, onClose, onAlert }: { studentI
               <p className="font-display text-lg font-bold text-slate-900 dark:text-white">{d.student.name}</p>
               <p className="text-sm text-slate-500 dark:text-slate-400">{d.student.student_uid} · Roll {d.student.roll_no ?? '—'} · {d.student.class_label ?? '—'}</p>
               <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-                {d.student.mobile && <a href={`tel:${d.student.mobile.replace(/\s/g, '')}`} className="inline-flex items-center gap-1 hover:text-brand-700"><Phone className="h-3.5 w-3.5" />{d.student.mobile}</a>}
+                {d.student.mobile && <a href={telHref(d.student.mobile)} className="inline-flex items-center gap-1 hover:text-brand-700"><Phone className="h-3.5 w-3.5" />{formatPhone(d.student.mobile)}</a>}
                 {d.student.email && <a href={`mailto:${d.student.email}`} className="inline-flex items-center gap-1 hover:text-brand-700"><Mail className="h-3.5 w-3.5" />{d.student.email}</a>}
               </div>
             </div>

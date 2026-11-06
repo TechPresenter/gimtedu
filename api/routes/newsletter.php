@@ -79,7 +79,7 @@ route('GET', '/newsletter/summary', function () {
 
 /* Scheduled task for a server cron job (no session; the token is derived from the application key). */
 $commCron = function () {
-    $token = (string) ($_GET['token'] ?? '');
+    $token = api_str($_GET['token'] ?? null);
     if ($token === '' || !hash_equals(comm_cron_token(), $token)) {
         api_error('Invalid token.', 403);
     }
@@ -94,13 +94,13 @@ route('POST', '/newsletter/cron', $commCron, ['auth' => false, 'csrf' => false])
 
 route('GET', '/newsletter/audience-preview', function () {
     api_require('communication', 'view');
-    $aud = (string) ($_GET['audience'] ?? 'subscribers');
+    $aud = api_str($_GET['audience'] ?? null, 'subscribers');
     if (!isset(comm_campaign_audiences()[$aud])) {
         api_error('Unknown audience.', 422, ['audience' => 'Select a valid audience.']);
     }
     $ids = $_GET['program_ids'] ?? [];
     $ids = is_array($ids) ? $ids : explode(',', (string) $ids);
-    api_ok(comm_audience_summary($aud, ['program_ids' => $ids, 'semester_no' => $_GET['semester_no'] ?? null, 'emails' => (string) ($_GET['emails'] ?? '')]));
+    api_ok(comm_audience_summary($aud, ['program_ids' => $ids, 'semester_no' => $_GET['semester_no'] ?? null, 'emails' => api_str($_GET['emails'] ?? null)]));
 });
 
 route('GET', '/newsletter/campaigns/{id:\d+}', function ($p) {
@@ -238,7 +238,7 @@ function nl_public_page(string $title, string $html, int $status = 200): void
 }
 
 route('GET', '/newsletter/unsubscribe', function () {
-    $token = preg_replace('/[^a-f0-9]/i', '', (string) ($_GET['token'] ?? ''));
+    $token = preg_replace('/[^a-f0-9]/i', '', api_str($_GET['token'] ?? null));
     $s = $token !== '' ? db_row('SELECT id, email, status FROM newsletter_subscribers WHERE token = ?', [$token]) : null;
     if (!$s) {
         nl_public_page('Link not valid', '<h1 class="mt-6 font-display text-xl font-bold text-brand-900">This link is not valid</h1>'
@@ -258,7 +258,7 @@ route('GET', '/newsletter/unsubscribe', function () {
 }, ['auth' => false]);
 
 route('POST', '/newsletter/unsubscribe', function () {
-    $token = preg_replace('/[^a-f0-9]/i', '', (string) (api_input()['token'] ?? ''));
+    $token = preg_replace('/[^a-f0-9]/i', '', api_str(api_input()['token'] ?? null));
     if (!rate_limit('unsub:' . client_ip(), 30, 3600)) {
         nl_public_page('Too many requests', '<h1 class="mt-6 font-display text-xl font-bold text-brand-900">Please try again later</h1>', 429);
     }

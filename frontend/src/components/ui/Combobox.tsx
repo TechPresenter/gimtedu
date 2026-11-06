@@ -56,9 +56,13 @@ export function Combobox(props: SingleProps | MultiProps) {
     staleTime: 30_000,
   });
   const [known, setKnown] = useState<Option[]>(initialOptions);
+  // Compare by content, not identity: callers often pass a new array on every render (e.g. initialOptions={[{...}]}),
+  // which must not re-run the merge (and re-render) forever.
+  const initialKey = JSON.stringify(initialOptions.map((o) => [o.value, o.label]));
   useEffect(() => {
     if (initialOptions.length) setKnown((k) => mergeOptions(k, initialOptions));
-  }, [initialOptions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialKey]);
 
   const list = useMemo(() => {
     if (remotePath) return remote;
@@ -68,6 +72,21 @@ export function Combobox(props: SingleProps | MultiProps) {
   }, [remotePath, remote, options, query]);
 
   const lookup = (v: string | number) => [...(options ?? []), ...known, ...remote].find((o) => String(o.value) === String(v));
+
+  // A preset value (form defaults, deep links such as /placement/drives?add=1&company=5) that is not among the first
+  // remote results has no label yet: ask the lookup endpoint for exactly those ids (GET /api/lookup/{source}?ids=).
+  const selectedValues: (string | number)[] = props.multiple ? props.value : props.value === null || props.value === undefined || props.value === '' ? [] : [props.value];
+  const unknownIds = remotePath?.startsWith('lookup/') && !isFetching ? selectedValues.filter((v) => !lookup(v)).map(String) : [];
+  const idsKey = unknownIds.join(',');
+  const { data: resolved } = useQuery({
+    queryKey: ['combobox-ids', remotePath, params, idsKey],
+    queryFn: ({ signal }) => api.get<Option[]>(remotePath as string, { ...(params ?? {}), ids: idsKey }, { signal }),
+    enabled: idsKey !== '' && !disabled,
+    staleTime: 300_000,
+  });
+  useEffect(() => {
+    if (resolved?.length) setKnown((k) => mergeOptions(k, resolved));
+  }, [resolved]);
 
   if (props.multiple) {
     const selected = props.value.map((v) => lookup(v) ?? { value: v, label: String(v) });

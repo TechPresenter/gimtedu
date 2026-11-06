@@ -76,8 +76,8 @@ $active = in_array($st['phase'], ['upcoming', 'ongoing'], true);
 
 /* ------------------------------------------------------------------ SEO */
 $org = ne_org_ld();
-$address = ['@type' => 'PostalAddress', 'streetAddress' => (string) setting('address', ''), 'addressLocality' => (string) setting('city', 'Greater Noida'),
-    'addressRegion' => (string) setting('state', 'Uttar Pradesh'), 'postalCode' => (string) setting('pincode', '201310'), 'addressCountry' => 'IN'];
+$address = ['@type' => 'PostalAddress', 'streetAddress' => (string) setting('address', ''), 'addressLocality' => (string) setting('city', 'Noida'),
+    'addressRegion' => (string) setting('state', 'Uttar Pradesh'), 'postalCode' => (string) setting('pincode', '201301'), 'addressCountry' => 'IN'];
 $offCampus = $map && !str_starts_with($map['label'], 'Directions');
 $eventLd = array_filter([
     '@context' => 'https://schema.org', '@type' => 'Event',
@@ -103,8 +103,8 @@ $eventLd = array_filter([
     'inLanguage' => 'en-IN',
 ], fn ($v) => $v !== null && $v !== '');
 site_header([
-    'title' => $event['title'] . ' · ' . $when['date'],
-    'description' => $excerpt !== '' ? str_limit($excerpt . ' ' . $when['date'] . ($venue !== '' ? ', ' . $venue : '') . '.', 300) : $cat['label'] . ' event at ' . institute_name() . ' on ' . $when['date'] . '.',
+    'title' => site_fit_title([$event['title'] . ' · ' . $when['date'], (string) $event['title']]),
+    'description' => site_meta_description($excerpt !== '' ? $when['date'] . ($venue !== '' ? ', ' . $venue : '') . ' — ' . $excerpt : $cat['label'] . ' event at ' . institute_name() . ' on ' . $when['date'] . ($venue !== '' ? ', ' . $venue : '') . '.'),
     'active' => 'events',
     'seo' => ['event', (int) $event['id']],
     'canonical' => $url,
@@ -235,7 +235,7 @@ $crumbs = $st['phase'] === 'past' ? ['Events' => '/events', 'Past Events' => '/e
             <div class="flex gap-3"><dt class="shrink-0"><span class="inline-flex h-9 w-9 items-center justify-center rounded-xl tint-orange"><?= icon($online ? 'video' : 'map-pin', 'h-4 w-4') ?></span><span class="sr-only"><?= $online ? 'Where (online)' : 'Venue' ?></span></dt>
               <dd class="min-w-0"><span class="block font-semibold text-brand-900"><?= e($venue) ?></span>
                 <?php if ($online): ?><span class="text-slate-600">Online event — joining details are shared with registered participants.</span>
-                <?php elseif ($map): ?><span class="block text-slate-600"><?= e($offCampus ? '' : institute_name() . ', ' . setting('city', 'Greater Noida')) ?></span><a href="<?= e($map['url']) ?>" target="_blank" rel="noopener" class="link-arrow mt-1 text-[13px]"><?= e($map['label']) ?><?= icon('arrow-up-right', 'h-3.5 w-3.5') ?><span class="sr-only"> (opens Google Maps)</span></a><?php endif; ?>
+                <?php elseif ($map): ?><span class="block text-slate-600"><?= e($offCampus ? '' : institute_name() . ', ' . setting('city', 'Noida')) ?></span><a href="<?= e($map['url']) ?>" target="_blank" rel="noopener" class="link-arrow mt-1 text-[13px]"><?= e($map['label']) ?><?= icon('arrow-up-right', 'h-3.5 w-3.5') ?><span class="sr-only"> (opens Google Maps)</span></a><?php endif; ?>
               </dd></div>
           <?php endif; ?>
           <div class="flex gap-3"><dt class="shrink-0"><span class="inline-flex h-9 w-9 items-center justify-center rounded-xl tint-orange"><?= icon($cat['icon'], 'h-4 w-4') ?></span><span class="sr-only">Category</span></dt>

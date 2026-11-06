@@ -85,7 +85,7 @@ export default function FeesDashboardPage() {
             ]}
           </Stagger>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-12">
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
             <Reveal className="lg:col-span-8">
               <Card className="h-full">
                 <CardHeader title="Monthly collection vs target" subtitle="Receipts against installments falling due each month" icon={ChartColumn} />
@@ -125,7 +125,7 @@ export default function FeesDashboardPage() {
             </Reveal>
           </div>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-12">
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
             <Reveal className="lg:col-span-7">
               <Card className="h-full">
                 <CardHeader title="Program-wise dues" subtitle="Outstanding and overdue balance by program" icon={Landmark}
@@ -144,7 +144,7 @@ export default function FeesDashboardPage() {
             </Reveal>
           </div>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-12">
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
             <Reveal className="lg:col-span-5">
               <Card className="h-full">
                 <CardHeader title="Recent payments" subtitle="Latest receipts issued" icon={ReceiptText} actions={<Button size="sm" variant="ghost" to="/fees/payments" iconRight={ArrowRight}>All payments</Button>} />

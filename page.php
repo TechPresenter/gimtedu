@@ -303,7 +303,7 @@ $related = !$isPolicy && !$isHub && $template !== 'landing' ? cp_related_pages($
 </style>
 <?php endif; ?>
 <?php if ($showToc || $isPolicy): ?>
-<script>
+<script<?= site_nonce_attr() ?>>
 (function () {
   document.addEventListener('click', function (e) {
     var b = e.target.closest ? e.target.closest('[data-print]') : null;

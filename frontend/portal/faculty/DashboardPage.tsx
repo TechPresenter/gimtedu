@@ -16,8 +16,8 @@ import { hasRoute } from '../lib/routing';
 import { useFacultySession } from '../lib/session';
 import { dateParts, greeting, hhmm, longDate } from '../lib/time';
 import { facultyRoutes } from './routes';
-import type { MarksListData } from './shared/types';
-import type { FacultyClass, FacultyDashboard, PendingMarks } from './types';
+import type { MarksListData, RegisterStatusData } from './shared/types';
+import type { FacultyClass, FacultyDashboard, PendingAttendance, PendingMarks } from './types';
 
 const linkIf = (path: string) => (hasRoute(facultyRoutes, path) ? areaPath('faculty', path) : undefined);
 
@@ -149,6 +149,17 @@ export default function FacultyDashboardPage() {
       )
     : null;
   const pendingMarks = myPapers ?? data?.pending_marks ?? [];
+  // Register status per period (a register of one half of a double lab period does not cover the other half).
+  const regQ = usePortalQuery<RegisterStatusData>('faculty', ['attendance', 'pending'], 'attendance/pending', undefined, { enabled: hasRoute(facultyRoutes, 'attendance') });
+  const reg = regQ.data;
+  const todayClasses: FacultyClass[] = (data?.today.classes ?? []).map((c) => {
+    const s = reg?.today[String(c.id)];
+    return s ? { ...c, marked: s.marked, present: s.present, total: s.total } : c;
+  });
+  // today's periods without an attendance register (the hero must not call them "taught" while registers are missing)
+  const unmarkedToday = todayClasses.filter((c) => c.marked === false).length;
+  const pendingAtt: (PendingAttendance & { time_slot_id?: number })[] = reg ? reg.items.slice(0, 6) : (data?.pending_attendance ?? []);
+  const attKpi = reg ? { count: reg.count, days: reg.days } : data?.kpis.pending_attendance;
   const marksKpi = myPapers ? { count: myPapers.length, students: myPapers.reduce((n, m) => n + Math.max(0, m.students - m.entered), 0) } : data?.kpis.pending_marks;
   const [noticeId, setNoticeId] = useState<number | null>(null);
   const k = data?.kpis;
@@ -183,7 +194,13 @@ export default function FacultyDashboardPage() {
       ) : (
         <div className="mt-2">
           <p className="font-display text-base font-bold text-white">{data.today.classes.length ? 'All classes done for today' : 'No classes today'}</p>
-          <p className="text-xs text-white/70">{data.today.classes.length ? `${data.today.classes.length} periods taught.` : 'Your timetable has no periods today.'}</p>
+          <p className="text-xs text-white/70">
+            {data.today.classes.length
+              ? `${data.today.classes.length} ${data.today.classes.length === 1 ? 'period' : 'periods'} held · ${
+                  unmarkedToday ? `${unmarkedToday} ${unmarkedToday === 1 ? 'register' : 'registers'} still to mark.` : 'all registers marked.'
+                }`
+              : 'Your timetable has no periods today.'}
+          </p>
         </div>
       )}
     </div>
@@ -240,12 +257,12 @@ export default function FacultyDashboardPage() {
                   key="att"
                   label="Pending attendance"
                   icon={ClipboardCheck}
-                  tone={k.pending_attendance.count ? 'red' : 'green'}
-                  value={k.pending_attendance.count}
-                  unit={k.pending_attendance.count === 1 ? 'class' : 'classes'}
+                  tone={attKpi?.count ? 'red' : 'green'}
+                  value={attKpi?.count ?? 0}
+                  unit={attKpi?.count === 1 ? 'class' : 'classes'}
                   to={linkIf('attendance')}
-                  badge={k.pending_attendance.count ? <span className="badge badge-red">Needs marking</span> : <span className="badge badge-green">All registers up to date</span>}
-                  foot={`Taught periods in the last ${k.pending_attendance.days} days without an attendance register.`}
+                  badge={attKpi?.count ? <span className="badge badge-red">Needs marking</span> : <span className="badge badge-green">All registers up to date</span>}
+                  foot={`Taught periods in the last ${attKpi?.days ?? 7} days without an attendance register.`}
                 />,
                 <KpiCard
                   key="marks"
@@ -273,7 +290,7 @@ export default function FacultyDashboardPage() {
             </Stagger>
           )}
 
-          {k && <QuickActions pendingAtt={k.pending_attendance.count} pendingMarks={marksKpi?.count ?? 0} />}
+          {k && <QuickActions pendingAtt={attKpi?.count ?? 0} pendingMarks={marksKpi?.count ?? 0} />}
 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
             <Section
@@ -297,33 +314,33 @@ export default function FacultyDashboardPage() {
                 </div>
               ) : !data.today.working ? (
                 <EmptyBlock icon={CalendarOff} title={data.today.holiday ?? 'Weekly off'} text="No classes are scheduled today." />
-              ) : data.today.classes.length === 0 ? (
+              ) : todayClasses.length === 0 ? (
                 <EmptyBlock icon={CalendarClock} title="No classes today" text="Your published timetable has no periods for today." />
               ) : (
                 <ul className="space-y-2.5">
-                  {data.today.classes.map((c) => (
+                  {todayClasses.map((c) => (
                     <ScheduleRow key={c.id} c={c} />
                   ))}
                 </ul>
               )}
             </Section>
 
-            <Section title="Attendance to mark" subtitle={k ? `Last ${k.pending_attendance.days} days` : undefined} icon={ClipboardList} className="lg:col-span-2" bodyClassName="p-2 sm:p-3">
+            <Section title="Attendance to mark" subtitle={attKpi ? `Last ${attKpi.days} days` : undefined} icon={ClipboardList} className="lg:col-span-2" bodyClassName="p-2 sm:p-3">
               {isLoading || !data ? (
                 <div className="space-y-2 p-2">
                   {[0, 1, 2].map((i) => (
                     <div key={i} className="skeleton h-14 rounded-xl" />
                   ))}
                 </div>
-              ) : data.pending_attendance.length === 0 ? (
+              ) : pendingAtt.length === 0 ? (
                 <EmptyBlock compact icon={ClipboardCheck} title="All caught up" text="Every class you taught this week has an attendance register." />
               ) : (
                 <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {data.pending_attendance.map((p, i) => {
+                  {pendingAtt.map((p, i) => {
                     const d = dateParts(p.date);
                     return (
                       <li key={`${p.date}-${p.section_id}-${p.subject_id}-${i}`}>
-                        <PendingLink to={markLink ? `${markLink}?date=${p.date}&section_id=${p.section_id}&subject_id=${p.subject_id}&start=${p.start_time}` : undefined}>
+                        <PendingLink to={markLink ? `${markLink}?date=${p.date}&section_id=${p.section_id}&subject_id=${p.subject_id}${p.time_slot_id ? `&slot=${p.time_slot_id}` : `&start=${p.start_time}`}` : undefined}>
                         <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300">
                           <span className="font-display text-sm font-extrabold leading-none">{d.day}</span>
                           <span className="text-[10px] font-semibold uppercase">{d.month}</span>
@@ -341,8 +358,15 @@ export default function FacultyDashboardPage() {
                   })}
                 </ul>
               )}
-              {k && k.pending_attendance.count > (data?.pending_attendance.length ?? 0) && (
-                <p className="px-3 pb-2 pt-1 text-xs text-slate-500">+ {k.pending_attendance.count - (data?.pending_attendance.length ?? 0)} more</p>
+              {attKpi && attKpi.count > pendingAtt.length && (
+                <p className="px-3 pb-2 pt-1 text-xs text-slate-500">
+                  + {attKpi.count - pendingAtt.length} more ·{' '}
+                  {markLink ? (
+                    <Link to={markLink} className="link">
+                      open Attendance
+                    </Link>
+                  ) : null}
+                </p>
               )}
             </Section>
           </div>
@@ -377,7 +401,7 @@ export default function FacultyDashboardPage() {
                             <div className="h-full rounded-full bg-flame-500" style={{ width: `${pct}%` }} />
                           </div>
                           <span className="text-[11px] font-semibold tabular-nums text-slate-500">
-                            {done}/{m.students} {myPapers ? 'entered' : 'submitted'}
+                            {myPapers && m.students > 0 && m.entered >= m.students ? 'All entered · submit pending' : `${done}/${m.students} ${myPapers ? 'entered' : 'submitted'}`}
                           </span>
                         </div>
                         </Link>

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { Activity, ArrowRightLeft, ArrowUpRight, BellRing, CalendarDays, CalendarRange, Info, Mail, MessageCircle, Moon, Sun, Sunrise, Sunset, type LucideIcon } from 'lucide-react';
 import { appUrl } from '@/lib/config';
-import { formatDate, formatMoneyShort, formatNumber, formatPercent, formatTime } from '@/lib/format';
+import { formatDate, formatMoneyShort, formatNumber, formatPercent, formatTime, isoDate } from '@/lib/format';
 import type { DashboardData } from '../types';
 import { HeroArt } from './HeroArt';
 import { useMinuteClock, useOffscreenPause } from './hooks';
@@ -24,6 +24,15 @@ function timeOfDay(d: Date): TimeOfDay {
   if (h >= 12 && h < 17) return { greeting: 'Good Afternoon', icon: Sun, anim: 'dh-spin-slow', tone: 'from-yellow-300 via-amber-400 to-orange-500' };
   if (h >= 17 && h < 20) return { greeting: 'Good Evening', icon: Sunset, anim: 'dh-rise', tone: 'from-orange-400 via-rose-400 to-fuchsia-500' };
   return { greeting: 'Good Evening', icon: Moon, anim: 'dh-sway', tone: 'from-indigo-400 via-sky-500 to-blue-600' };
+}
+
+const HONORIFIC = /^(dr|prof|mr|mrs|ms|miss|shri|smt|sri|er|adv|ca)\.?$/i;
+
+/** First name for the greeting; an honorific stays with it ("Dr. Sakshi Garg" -> "Dr. Sakshi"). */
+function greetingName(full: string): string {
+  const parts = full.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return 'there';
+  return parts.length > 1 && HONORIFIC.test(parts[0]) ? `${parts[0]} ${parts[1]}` : parts[0];
 }
 
 interface Counts {
@@ -69,7 +78,7 @@ export function HeroBanner({ name, data, loading, counts, sessionName, onSwitchS
   const [switching, setSwitching] = useState(false);
   const tod = timeOfDay(now);
   const TodIcon = tod.icon;
-  const firstName = name.trim().split(/\s+/)[0] || 'there';
+  const firstName = greetingName(name);
   const dateLabel = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const timeLabel = now.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase();
 
@@ -128,7 +137,7 @@ export function HeroBanner({ name, data, loading, counts, sessionName, onSwitchS
         <div className="dh-blob dh-blob-c dh-drift-c -bottom-48 left-[30%] h-[24rem] w-[30rem]" />
         <div className="dh-dots absolute inset-0" />
         <div className="dh-shine absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r from-transparent via-white/[.07] to-transparent" />
-        <HeroArt paused={paused} className="absolute -right-16 -top-4 w-[22rem] opacity-[.35] sm:-right-6 sm:w-[26rem] sm:opacity-50 xl:hidden" />
+        <HeroArt paused={paused} className="absolute -right-16 -top-4 w-[22rem] opacity-[.35] sm:-right-6 sm:w-[26rem] sm:opacity-50 min-[1400px]:hidden" />
       </div>
 
       <div className="relative px-5 pb-5 pt-5 sm:px-7 sm:pb-6 sm:pt-6 xl:px-8">
@@ -137,7 +146,7 @@ export function HeroBanner({ name, data, loading, counts, sessionName, onSwitchS
           <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-sky-50">
             <span className="dh-glass inline-flex items-center gap-1.5 rounded-full px-3 py-1.5">
               <CalendarDays className="h-3.5 w-3.5 text-sky-200" aria-hidden />
-              <time dateTime={now.toISOString().slice(0, 10)}>{dateLabel}</time>
+              <time dateTime={isoDate(now)}>{dateLabel}</time>
             </span>
             <span className="dh-glass inline-flex items-center gap-2 rounded-full px-3 py-1.5 tabular-nums">
               <span className="relative inline-flex h-2 w-2" aria-hidden>
@@ -154,10 +163,10 @@ export function HeroBanner({ name, data, loading, counts, sessionName, onSwitchS
               <span>
                 Session <strong className="font-semibold text-white">{(ses?.name ?? sessionName) || '—'}</strong>
               </span>
-              <span className="h-3 w-px bg-white/25" aria-hidden />
+              <span className="hidden h-3 w-px bg-white/25 sm:block" aria-hidden />
               <span className="inline-flex items-center gap-1.5">
                 <span className={clsx('h-1.5 w-1.5 rounded-full', admissionsOpen ? 'bg-emerald-400' : 'bg-slate-400')} aria-hidden />
-                {data ? (admissionsOpen ? 'Admissions Open' : 'Admissions Closed') : 'Loading…'}
+                <span className="sr-only sm:not-sr-only">{data ? (admissionsOpen ? 'Admissions Open' : 'Admissions Closed') : 'Loading…'}</span>
               </span>
             </span>
             <a
@@ -172,7 +181,7 @@ export function HeroBanner({ name, data, loading, counts, sessionName, onSwitchS
           </div>
         </div>
 
-        <div className="mt-5 grid items-center gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] 2xl:grid-cols-[minmax(0,1fr)_minmax(0,27rem)]">
+        <div className="mt-5 grid items-center gap-6 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] min-[1600px]:grid-cols-[minmax(0,1fr)_minmax(0,27rem)]">
           <div className="min-w-0">
             {/* Greeting */}
             <div className="flex items-center gap-4">
@@ -181,7 +190,7 @@ export function HeroBanner({ name, data, loading, counts, sessionName, onSwitchS
                 <TodIcon className={clsx('h-7 w-7 text-white drop-shadow', tod.anim)} strokeWidth={2.2} />
               </span>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-sky-100">{tod.greeting},</p>
+                <p className="text-sm font-medium text-sky-100" aria-hidden>{tod.greeting},</p>
                 <h1 id="dash-hero-title" className="truncate font-display text-[28px] font-extrabold leading-tight tracking-tight sm:text-4xl">
                   <span className="sr-only">{tod.greeting}, </span>
                   <span className="dh-name">{firstName}</span>
@@ -218,7 +227,7 @@ export function HeroBanner({ name, data, loading, counts, sessionName, onSwitchS
             </div>
 
             {/* Rings or the "switch to the live session" hint */}
-            <div className="mt-6">
+            <div className="mt-5 max-w-3xl">
               {showHint && ses ? (
                 <div className="dh-glass flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center" role="status">
                   <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-orange-500/30">
@@ -249,7 +258,7 @@ export function HeroBanner({ name, data, loading, counts, sessionName, onSwitchS
           </div>
 
           {/* Illustration (wide screens) */}
-          <div className="relative hidden xl:block" aria-hidden>
+          <div className="relative hidden min-[1400px]:block" aria-hidden>
             <HeroArt paused={paused} className="mx-auto w-full max-w-[27rem] drop-shadow-[0_20px_40px_rgba(2,8,23,.35)]" />
           </div>
         </div>

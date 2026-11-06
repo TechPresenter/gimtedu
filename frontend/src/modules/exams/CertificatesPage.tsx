@@ -289,7 +289,7 @@ export default function CertificatesPage() {
         ]}
       />
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
         <Reveal className="xl:col-span-2">
           <Card className="h-full">
             <CardHeader title="Certificates & verifications" subtitle="Issued per month vs public verification lookups (last 6 months)" icon={TrendingUp} />

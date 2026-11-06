@@ -184,7 +184,7 @@ route('GET', '/admissions/board', function () {
             $args[] = $_GET[$param];
         }
     }
-    $q = trim((string) ($_GET['q'] ?? ''));
+    $q = trim(api_str($_GET['q'] ?? null));
     if ($q !== '') {
         $where[] = "(a.application_no LIKE ? OR a.first_name LIKE ? OR a.last_name LIKE ? OR a.phone LIKE ? OR CONCAT(a.first_name, ' ', a.last_name) LIKE ?)";
         array_push($args, ...array_fill(0, 5, '%' . mb_substr($q, 0, 80) . '%'));
@@ -193,7 +193,7 @@ route('GET', '/admissions/board', function () {
     $base = 'SELECT ' . adm_card_select() . ' FROM admissions a JOIN programs p ON p.id = a.program_id LEFT JOIN users u ON u.id = a.assigned_to WHERE ' . implode(' AND ', $where);
     $orderSql = ' ORDER BY a.stage_changed_at DESC, a.id DESC';
     if (!empty($_GET['stage'])) {
-        $stage = (string) $_GET['stage'];
+        $stage = api_str($_GET['stage']);
         if (!isset(admission_all_stages()[$stage])) {
             api_error('Unknown stage.', 422);
         }
@@ -221,7 +221,8 @@ route('GET', '/admissions/followups', function () {
         api_error('You do not have permission to view follow-ups.', 403);
     }
     [$page, $perPage] = api_pagination(10);
-    $scope = in_array($_GET['scope'] ?? 'due', ['overdue', 'today', 'due', 'upcoming'], true) ? $_GET['scope'] : 'due';
+    $scope = api_query('scope', 'due');
+    $scope = in_array($scope, ['overdue', 'today', 'due', 'upcoming'], true) ? $scope : 'due';
     $res = followups_due($scope, $perPage, adm_api_session_id(), ($page - 1) * $perPage);
     $p = paginate($res['total'], $page, $perPage);
     api_ok(['rows' => $res['rows'], 'total' => $p['total'], 'page' => $p['page'], 'pages' => $p['pages'], 'per_page' => $p['per_page']]);
@@ -252,8 +253,8 @@ route('GET', '/admissions/duplicates', function () {
     if (!can('admissions', 'view') && !can('enquiries', 'view')) {
         api_error('You do not have permission to search applicants.', 403);
     }
-    $phone = trim((string) ($_GET['phone'] ?? ''));
-    $email = trim((string) ($_GET['email'] ?? ''));
+    $phone = trim(api_str($_GET['phone'] ?? null));
+    $email = trim(api_str($_GET['email'] ?? null));
     $email = filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : '';
     api_ok(admission_duplicates($phone, $email, (int) ($_GET['exclude'] ?? 0) ?: null, (int) ($_GET['exclude_enquiry'] ?? 0) ?: null));
 });
@@ -263,7 +264,7 @@ route('POST', '/admissions/bulk-stage', function () {
     api_require('admissions', 'edit');
     $in = api_input();
     $ids = array_values(array_unique(array_filter(array_map('intval', (array) ($in['ids'] ?? [])))));
-    $to = (string) ($in['to_stage'] ?? '');
+    $to = api_str($in['to_stage'] ?? null);
     $errors = [];
     if (!$ids) {
         $errors['ids'] = 'Select at least one application.';
@@ -271,7 +272,7 @@ route('POST', '/admissions/bulk-stage', function () {
     if (!isset(admission_all_stages()[$to])) {
         $errors['to_stage'] = 'Select the stage to move to.';
     }
-    if ($to === 'rejected' && trim((string) ($in['remarks'] ?? '')) === '') {
+    if ($to === 'rejected' && trim(api_str($in['remarks'] ?? null)) === '') {
         $errors['remarks'] = 'Enter the reason for rejecting these applications.';
     }
     if (count($ids) > 200) {
@@ -301,7 +302,7 @@ route('POST', '/admissions/bulk-stage', function () {
 route('POST', '/admissions/{id:\d+}/move', function ($p) {
     api_require('admissions', 'edit');
     $in = api_input();
-    $to = (string) ($in['to_stage'] ?? '');
+    $to = api_str($in['to_stage'] ?? null);
     if (!isset(admission_all_stages()[$to])) {
         api_error('Select a valid stage.', 422, ['to_stage' => 'Select a valid stage.']);
     }
@@ -415,6 +416,7 @@ route('POST', '/admissions/{id:\d+}/assign', function ($p) {
     db_update('admissions', ['assigned_to' => $uid ?: null], 'id = ?', [(int) $a['id']]);
     $who = $uid ? (string) db_value('SELECT name FROM users WHERE id = ?', [$uid]) : 'nobody';
     log_activity('update', 'admissions', $a['id'], sprintf('Assigned %s (%s) to %s', admission_full_name($a), $a['application_no'], $who));
+    try { if ($uid && $uid !== (int) $a['assigned_to']) { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event(['GIMT_APPLICATION_ASSIGNED', 'GIMT_LEAD_TRANSFERRED'], ['admission_id' => (int) $a['id'], 'counsellor_id' => $uid, 'assigned_by' => (string) db_value('SELECT name FROM users WHERE id = ?', [(int) user_id()])], ['dedupe_key' => 'adm:' . $a['id'] . ':u' . $uid . ':' . date('YmdHi'), 'source' => 'admin']); } } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     if ($uid && $uid !== (int) user_id()) {
         notify($uid, 'application', 'Application assigned to you', admission_full_name($a) . ' (' . $a['application_no'] . ')', 'admin/admissions/' . $a['id'], 'user-plus');
     }
@@ -447,6 +449,7 @@ route('POST', '/admissions/{id:\d+}/assessment', function ($p) {
     db_update('admissions', $data, 'id = ?', [(int) $a['id']]);
     log_activity('update', 'admissions', $a['id'], sprintf('Saved assessment for %s (%s): entrance %s, interview %s', admission_full_name($a), $a['application_no'],
         $data['entrance_score'] ?? '—', $data['interview_score'] ?? '—'));
+    try { if ($data['interview_date'] && $data['interview_date'] !== $a['interview_date'] && strtotime($data['interview_date']) > time()) { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event('GIMT_INTERVIEW_SCHEDULED', ['admission_id' => (int) $a['id'], 'interview_date' => date('d M Y', strtotime($data['interview_date'])), 'interview_time' => date('h:i A', strtotime($data['interview_date'])), 'entrance_exam' => (string) ($data['entrance_exam'] ?? $a['entrance_exam'])], ['dedupe_key' => 'adm:' . $a['id'] . ':int:' . $data['interview_date'], 'source' => 'admin']); } } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     api_ok(null, 'Assessment saved.');
 });
 
@@ -471,7 +474,7 @@ route('POST', '/admissions/{id:\d+}/documents', function ($p) {
     if ($a['student_id']) {
         api_error('Documents of enrolled students are managed from the student profile.', 422);
     }
-    $type = (string) (api_input()['doc_type'] ?? '');
+    $type = api_str(api_input()['doc_type'] ?? null);
     $errors = [];
     if (!isset(admission_doc_types()[$type])) {
         $errors['doc_type'] = 'Select the document type.';
@@ -491,7 +494,7 @@ route('POST', '/admissions/{id:\d+}/documents', function ($p) {
         api_error($res['error'], 422, ['file' => $res['error']]);
     }
     $row = ['admission_id' => (int) $a['id'], 'doc_type' => $type, 'file_path' => $res['path'], 'original_name' => $res['original_name'], 'mime' => $res['mime'],
-        'size_bytes' => $res['size'], 'status' => 'pending', 'remarks' => mb_substr(trim((string) (api_input()['remarks'] ?? '')), 0, 255) ?: null, 'verified_by' => null, 'verified_at' => null];
+        'size_bytes' => $res['size'], 'status' => 'pending', 'remarks' => mb_substr(trim(api_str(api_input()['remarks'] ?? null)), 0, 255) ?: null, 'verified_by' => null, 'verified_at' => null];
     if ($existing) {
         db_update('admission_documents', $row, 'id = ?', [(int) $existing['id']]);
         delete_upload($existing['file_path']);
@@ -519,8 +522,8 @@ route('POST', '/admissions/documents/{doc:\d+}/verify', function ($p) {
         api_error('Document not found.', 404);
     }
     $in = api_input();
-    $status = (string) ($in['status'] ?? '');
-    $remarks = trim((string) ($in['remarks'] ?? ''));
+    $status = api_str($in['status'] ?? null);
+    $remarks = trim(api_str($in['remarks'] ?? null));
     if (!in_array($status, ['verified', 'rejected', 'pending'], true)) {
         api_error('Select verified or rejected.', 422, ['status' => 'Select verified or rejected.']);
     }
@@ -538,6 +541,7 @@ route('POST', '/admissions/documents/{doc:\d+}/verify', function ($p) {
     $label = admission_doc_types()[$d['doc_type']] ?? 'Document';
     log_activity($status === 'verified' ? 'approve' : 'update', 'admissions', $d['admission_id'], sprintf('%s %s of %s (%s)%s', ucfirst($status === 'pending' ? 'reset' : $status), strtolower($label),
         admission_full_name($d), $d['application_no'], $remarks ? ' — ' . $remarks : ''));
+    try { if ($status !== 'pending') { require_once APP_ROOT . '/app/whatsapp_hook.php'; $waAllOk = $status === 'verified' && !db_value("SELECT COUNT(*) FROM admission_documents WHERE admission_id = ? AND status <> 'verified'", [(int) $d['admission_id']]); gimt_wa_event($status === 'rejected' ? ['GIMT_DOCUMENT_REJECTED'] : ($waAllOk ? ['GIMT_DOCUMENT_VERIFIED', 'GIMT_DOCUMENTS_VERIFIED'] : ['GIMT_DOCUMENT_VERIFIED']), ['admission_id' => (int) $d['admission_id'], 'document' => $label, 'document_status' => $status, 'remarks' => $remarks, 'all_verified' => $waAllOk], ['dedupe_key' => 'doc:' . $d['id'] . ':' . $status . ':' . date('YmdHi'), 'source' => 'admin']); } } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     api_ok(['status' => $status], $label . ' ' . ($status === 'pending' ? 'reset to pending.' : $status . '.'));
 });
 
@@ -593,6 +597,7 @@ route('POST', '/admissions/{id:\d+}/followups', function ($p) {
     $fid = followup_log(['admission_id' => (int) $a['id']] + api_input());
     $type = admission_followup_types()[api_input()['type']] ?? 'Follow-up';
     log_activity('create', 'admissions', $a['id'], sprintf('Logged %s with %s (%s)', strtolower($type), admission_full_name($a), $a['application_no']));
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_followup((int) $fid, ['admission_id' => (int) $a['id'], 'counsellor_id' => $a['assigned_to'] ? (int) $a['assigned_to'] : null], api_input()); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     $next = api_input()['next_followup_date'] ?? null;
     api_ok(['id' => $fid], 'Follow-up logged.' . ($next ? ' Next follow-up on ' . format_date($next) . '.' : ''));
 });

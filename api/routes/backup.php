@@ -97,7 +97,7 @@ route('POST', '/backup/run-scheduled', function () {
 });
 
 $cron = function () {
-    $token = (string) ($_GET['token'] ?? '');
+    $token = api_str($_GET['token'] ?? null);
     if ($token === '' || !hash_equals(backup_cron_token(), $token)) {
         api_error('Invalid token.', 403);
     }
@@ -159,7 +159,7 @@ route('POST', '/backup/{id:\d+}/verify', function ($p) {
 route('POST', '/backup/{id:\d+}/restore', function ($p) {
     api_require('backup', 'manage');
     $in = api_input();
-    if (trim((string) ($in['confirm'] ?? '')) !== 'RESTORE') {
+    if (trim(api_str($in['confirm'] ?? null)) !== 'RESTORE') {
         api_error('Type RESTORE to confirm.', 422, ['confirm' => 'Type RESTORE (in capitals) to confirm.']);
     }
     $b = backup_target((int) $p['id']);

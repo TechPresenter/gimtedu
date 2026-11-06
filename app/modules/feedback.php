@@ -123,6 +123,7 @@ return [
             }
             $who = $uid ? (string) db_value('SELECT name FROM users WHERE id = ?', [$uid]) : 'nobody';
             log_activity('update', 'feedback', implode(',', array_slice($ids, 0, 20)), sprintf('Assigned %d tickets to %s', count($ids), $who));
+            try { if ($uid) { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_fanout(['GIMT_TICKET_ASSIGNED', 'GIMT_TICKET_ASSIGNED_STAFF'], ['counsellor_id' => $uid, 'assignee_name' => $who], db_column('SELECT id FROM feedback WHERE is_anonymous = 0 AND id IN (' . $in . ')'), 'fb:{id}:u' . $uid, ['source' => 'admin', 'id_key' => 'ticket_id']); } } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
             if ($uid && $uid !== (int) user_id()) {
                 notify($uid, 'feedback', count($ids) . ' tickets assigned to you', 'Open Feedback & Complaints to respond.', 'admin/feedback', 'message-square');
             }

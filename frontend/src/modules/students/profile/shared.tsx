@@ -15,7 +15,7 @@ export interface TabProps {
 
 export function TabLoading({ cards = 2 }: { cards?: number }) {
   return (
-    <div className="grid gap-5 lg:grid-cols-2 [&>*]:min-w-0">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 [&>*]:min-w-0">
       {Array.from({ length: cards }).map((_, i) => (
         <CardSkeleton key={i} lines={5} />
       ))}

@@ -26,7 +26,7 @@ export function Panel({ title, subtitle, icon: Icon, hue = 'navy', action, child
       <span className={clsx('absolute inset-x-0 top-0 h-1 bg-gradient-to-r', h.edge)} aria-hidden />
       {/* On narrow cards (phones, the 4-up chart row) the header control wraps under the title instead of squeezing it into several lines. */}
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 px-5 pb-1 pt-5 sm:px-6">
-        <div className="flex min-w-0 flex-1 basis-52 items-start gap-3">
+        <div className="flex min-w-0 flex-1 basis-56 items-start gap-3">
           {Icon && (
             <span className={clsx('inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', h.chip)}>
               <Icon className="h-[18px] w-[18px]" aria-hidden />

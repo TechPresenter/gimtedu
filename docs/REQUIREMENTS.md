@@ -336,3 +336,23 @@ website auditor. Audit, enhance and finalize the GIMT website WITHOUT breaking e
 13. **Deliverables**: production-ready, secure, accessible, responsive, high-performance site + a concise report of
    completed features, resolved errors, remaining limitations, required credentials, SEO setup requirements and
    deployment instructions (docs/REPORT.md, docs/DEPLOYMENT.md).
+
+---------------------------------------------------------------------------------------------------------------
+## Status at handover (2026-10-18)
+All parts of this brief are implemented against the real backend: the admin ERP (§1–53, every sidebar module of §7),
+the Website CMS and SEO (§24–25), the Design v3 public website with React islands and CSS3 motion, the campaign landing
+pages, the Student and Faculty portals, and the audit & finalization items 1–13 above (policy pages, notice board and
+announcements, route audit with custom 404 / 410 / 500 pages and a redirect manager, sitemaps / robots / canonical
+URLs, SEO and structured data, consent-aware GA4 / GTM / Pixel with Consent Mode v2, integrations via settings and
+`GIMT_*` environment variables, Light / Dark / System theme, Grid / List / Compact / Detailed views, international
+phone / country / E.164 forms with CAPTCHA, duplicate and consent checks, admin RBAC and audit logs). The deliverables
+of item 13 are `docs/REPORT.md` (completed features, fixes, limitations, required credentials and SEO setup) and
+`docs/DEPLOYMENT.md` (installation and go-live).
+
+Open at handover — needs GIMT input, not development: verified affiliation / approvals wording and address, leadership
+names and photos, every highlighted "[To be confirmed by GIMT: …]" policy detail, a real enquiry-popup photo, the real
+recruiter list, production URL and application key, SMTP (with SPF / DKIM / DMARC), CAPTCHA, analytics and verification
+IDs, optional AI chatbot keys, Maps key and Sentry DSN (checklist: `docs/REPORT.md` §6). Not in this release:
+two-factor authentication (setting shown as "coming soon"), online fee payment from the portal, an enforcing
+Content-Security-Policy on the public website (it is report-only; admin and portals enforce one) — see
+`docs/REPORT.md` §5. Demo passwords (`Admin@12345`, `Demo@12345`) must be changed or removed before go-live.

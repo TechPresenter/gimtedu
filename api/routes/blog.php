@@ -94,7 +94,7 @@ route('GET', '/blog/posts/{id:\d+}/seo', function ($p) {
 
 route('GET', '/blog/slug-check', function () {
     api_require('blog', 'view');
-    $slug = slugify((string) ($_GET['slug'] ?? ''));
+    $slug = slugify(api_str($_GET['slug'] ?? null));
     $id = (int) ($_GET['id'] ?? 0) ?: null;
     $taken = (int) db_value('SELECT COUNT(*) FROM blog_posts WHERE slug = ?' . ($id ? ' AND id <> ?' : ''), $id ? [$slug, $id] : [$slug]) > 0;
     api_ok(['slug' => $slug, 'available' => !$taken, 'suggestion' => $taken ? blog_unique_slug($slug, $id) : $slug]);

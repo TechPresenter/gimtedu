@@ -3,7 +3,7 @@ import {
   Activity, BookOpen, Briefcase, Bus, CalendarCheck, FileCheck2, GraduationCap, Hotel, Phone, ReceiptIndianRupee, ShieldAlert, Trophy, UserRound, type LucideIcon,
 } from 'lucide-react';
 import { Card, CardBody, CardHeader, DescriptionList, ProgressBar, Reveal, Stagger, Timeline, toneClasses, type Tone } from '@/components/ui';
-import { formatDate, formatMoney, formatMoneyShort, labelize, timeAgo } from '@/lib/format';
+import { formatDate, formatMoney, formatMoneyShort, formatPhone, labelize, telHref, timeAgo } from '@/lib/format';
 import { useAuth } from '@/lib/auth';
 import { ADMISSION_TYPES } from '../constants';
 import type { TabProps } from './shared';
@@ -51,7 +51,7 @@ export default function OverviewTab({ profile, onTab }: TabProps) {
 
   const admissionType = ADMISSION_TYPES.find((a) => a.value === s.admission_type)?.label ?? labelize(s.admission_type);
   return (
-    <div className="grid gap-5 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
       <div className="min-w-0 space-y-5 xl:col-span-2">
         <Stagger className="grid grid-cols-2 gap-3 lg:grid-cols-4" itemClassName="h-full" step={50}>
           {cards.map((c) => (
@@ -129,7 +129,7 @@ export default function OverviewTab({ profile, onTab }: TabProps) {
                     <p className="text-xs capitalize text-slate-500">{p.relation === 'guardian' && s.guardian_relation ? s.guardian_relation : p.relation}{p.occupation ? ` · ${p.occupation}` : ''}{p.is_emergency_contact && <span className="ml-1.5 rounded bg-red-50 px-1.5 py-px text-[10px] font-semibold normal-case text-red-600 dark:bg-red-500/10 dark:text-red-300">Emergency</span>}</p>
                   </div>
                   {p.phone && (
-                    <a href={`tel:${p.phone.replace(/\s/g, '')}`} className="btn-icon shrink-0" aria-label={`Call ${p.name}`} title={p.phone}>
+                    <a href={telHref(p.phone)} className="btn-icon shrink-0" aria-label={`Call ${p.name}`} title={formatPhone(p.phone)}>
                       <Phone className="h-4 w-4" />
                     </a>
                   )}
@@ -137,7 +137,7 @@ export default function OverviewTab({ profile, onTab }: TabProps) {
               ))}
               {s.emergency_contact_phone && !parents.some((p) => p.is_emergency_contact && p.phone === s.emergency_contact_phone) && (
                 <div className="rounded-xl bg-red-50/70 px-3 py-2 text-xs text-red-700 dark:bg-red-500/10 dark:text-red-300">
-                  Emergency: <strong>{s.emergency_contact_name}</strong> · {s.emergency_contact_phone}
+                  Emergency: <strong>{s.emergency_contact_name}</strong> · <a href={telHref(s.emergency_contact_phone)} className="underline-offset-2 hover:underline">{formatPhone(s.emergency_contact_phone)}</a>
                 </div>
               )}
             </CardBody>

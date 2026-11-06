@@ -5,7 +5,7 @@ import { PageHeader, StatTile, Stagger, StatusBadge, Tabs } from '@/components/u
 import { CrudFormModal, CrudTable } from '@/components/crud';
 import { useApi, useCrudList, useCrudMeta } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
-import { formatDate, formatMoney, formatMoneyShort, formatNumber, isoDate, labelize, timeAgo } from '@/lib/format';
+import { formatDate, formatMoney, formatMoneyShort, formatNumber, formatPhone, isoDate, labelize, timeAgo } from '@/lib/format';
 import type { Row } from '@/lib/types';
 import { COMPLAINT_CATEGORIES, COMPLAINT_COLORS, ExpiryCell, PRIORITY_COLORS, SummaryStrip, useTransportRefresh } from './transport/shared';
 import { FuelLogPanel } from './transport/components/FuelLogPanel';
@@ -213,7 +213,7 @@ export default function MaintenancePage() {
             complainant_name: (r) => (
               <div className="leading-tight">
                 <span className="block max-w-[10rem] truncate font-medium text-slate-800 dark:text-slate-100" title={String(r.complainant_name)}>{r.complainant_name}</span>
-                <span className="whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">{r.student_uid ?? r.phone ?? ''}</span>
+                <span className="whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">{r.student_uid ?? (r.phone ? formatPhone(r.phone) : '')}</span>
               </div>
             ),
             priority: (r) => <StatusBadge status={r.priority} colors={PRIORITY_COLORS} />,

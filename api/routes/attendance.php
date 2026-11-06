@@ -46,7 +46,7 @@ function att_route(string $method, string $pattern, callable $handler, array $op
 
 function att_req_date(string $key = 'date'): string
 {
-    $v = (string) ($_GET[$key] ?? api_param($key, ''));
+    $v = api_str($_GET[$key] ?? api_param($key, ''));
     if ($v === '') {
         return date('Y-m-d');
     }
@@ -65,7 +65,7 @@ function att_req_int(string $key, bool $required = false, string $label = ''): ?
         }
         return null;
     }
-    if (!ctype_digit((string) $v)) {
+    if (!is_scalar($v) || !ctype_digit((string) $v)) {
         api_error('Invalid ' . ($label ?: label_from_key($key)) . '.', 422, [$key => 'Invalid value.']);
     }
     return (int) $v;
@@ -73,7 +73,7 @@ function att_req_int(string $key, bool $required = false, string $label = ''): ?
 
 function att_req_month(): string
 {
-    $m = (string) ($_GET['month'] ?? '');
+    $m = api_str($_GET['month'] ?? null);
     if ($m === '') {
         return date('Y-m');
     }
@@ -155,7 +155,7 @@ att_route('GET', '/attendance/calendar', function () {
 att_route('GET', '/attendance/employees/sheet', function () {
     api_require('attendance', 'view');
     $type = in_array($_GET['type'] ?? 'all', ['all', 'faculty', 'staff'], true) ? ($_GET['type'] ?? 'all') : 'all';
-    api_ok(att_employee_sheet(att_req_date(), $type, att_req_int('department_id'), trim((string) ($_GET['q'] ?? ''))));
+    api_ok(att_employee_sheet(att_req_date(), $type, att_req_int('department_id'), trim(api_str($_GET['q'] ?? null))));
 });
 
 att_route('POST', '/attendance/employees/sheet', function () {
@@ -169,7 +169,7 @@ att_route('POST', '/attendance/employees/sheet', function () {
 att_route('GET', '/attendance/employees/register', function () {
     api_require('attendance', 'view');
     $type = in_array($_GET['type'] ?? 'all', ['all', 'faculty', 'staff'], true) ? ($_GET['type'] ?? 'all') : 'all';
-    $data = att_employee_register(att_req_month(), $type, att_req_int('department_id'), trim((string) ($_GET['q'] ?? '')));
+    $data = att_employee_register(att_req_month(), $type, att_req_int('department_id'), trim(api_str($_GET['q'] ?? null)));
     [$page, $perPage] = api_pagination(25);
     $p = paginate(count($data['people']), $page, $perPage);
     $data['total'] = $p['total'];
@@ -193,7 +193,7 @@ att_route('GET', '/attendance/employees/register', function () {
 
 att_route('GET', '/attendance/reports/export', function () {
     api_require('attendance', 'export');
-    $report = (string) ($_GET['report'] ?? 'students');
+    $report = api_str($_GET['report'] ?? null, 'students');
     if (!in_array($report, ['students', 'defaulters', 'department', 'subject', 'monthly', 'employees'], true)) {
         api_error('Unknown report.', 400);
     }

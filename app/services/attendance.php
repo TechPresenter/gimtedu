@@ -521,7 +521,13 @@ function att_student_sheet(int $sectionId, int $subjectId, ?int $slotId, string 
  * Create or update the attendance sheet for a class period.
  * $in: date, section_id, subject_id, time_slot_id?, faculty_id?, remarks?, records: [{student_id, status, remarks?}]
  */
-function att_save_student_sheet(array $in): array
+/**
+ * Create / update a student register. $viaFacultyPortal = true only for app/services/portal_faculty.php, which has
+ * already enforced the Faculty Portal rules (faculty_portal.create, the faculty's own class, the edit window and the
+ * lock): the Faculty role holds no admin "attendance" permission, so the admin RBAC checks below are skipped for it.
+ * It is a PHP argument, never a request field, so an API caller cannot switch it on.
+ */
+function att_save_student_sheet(array $in, bool $viaFacultyPortal = false): array
 {
     $errors = validate($in, [
         'date' => 'required|date', 'section_id' => 'required|integer', 'subject_id' => 'required|integer',
@@ -601,7 +607,11 @@ function att_save_student_sheet(array $in): array
         throw new CrudValidationException($recErrors);
     }
 
-    if ($existing) {
+    if ($viaFacultyPortal) {
+        if ($existing && $existing['is_locked']) {
+            throw new AttendanceAccessException('This register has been locked by the attendance office.');
+        }
+    } elseif ($existing) {
         if (!can('attendance', 'edit')) {
             throw new AttendanceAccessException('You do not have permission to update attendance that was already marked.');
         }
@@ -617,7 +627,7 @@ function att_save_student_sheet(array $in): array
 
     $timetableId = $slotId ? db_value('SELECT id FROM timetables WHERE section_id = ? AND subject_id = ? AND time_slot_id = ? AND day_of_week = ? AND academic_session_id = ? LIMIT 1',
         [$sectionId, $subjectId, $slotId, (int) date('N', strtotime($date)), $sec['academic_session_id'] ?: current_session_id()]) : null;
-    $remarks = trim((string) ($in['remarks'] ?? '')) ?: null;
+    $remarks = trim(api_str($in['remarks'] ?? null)) ?: null;
 
     $result = db_transaction(function () use ($existing, $key, $date, $sec, $subjectId, $slotId, $facultyId, $timetableId, $remarks, $marks) {
         if ($existing) {
@@ -803,7 +813,7 @@ function att_employee_sheet(string $date, string $type = 'all', ?int $department
 /** $in: date, records: [{person_type, person_id, status, in_time?, out_time?, remarks?}] (partial lists allowed) */
 function att_save_employee_sheet(array $in): array
 {
-    $date = (string) ($in['date'] ?? '');
+    $date = api_str($in['date'] ?? null);
     if (!att_valid_date($date)) {
         throw new CrudValidationException(['date' => 'Choose a valid date.']);
     }
@@ -1209,7 +1219,7 @@ function att_report_scope(array $q): array
     }
     $threshold = isset($q['threshold']) && is_numeric($q['threshold']) && $q['threshold'] > 0 && $q['threshold'] <= 100 ? (float) $q['threshold'] : att_min_percent();
     $f['threshold'] = $threshold;
-    $f['q'] = trim((string) ($q['q'] ?? ''));
+    $f['q'] = trim(api_str($q['q'] ?? null));
     return [implode(' AND ', $where), $args, $f];
 }
 
@@ -1304,7 +1314,7 @@ function att_report_students(array $q, array $opts = []): array
         'percent' => 'x.percent %s', 'held' => 'x.held %s', 'absent' => 'x.absent %s', 'late' => 'x.late %s', 'present' => 'x.present %s',
     ];
     $sort = $opts['sort'] ?? ($defaulters ? 'percent' : 'class');
-    $dir = strtolower((string) ($opts['dir'] ?? 'asc')) === 'desc' ? 'DESC' : 'ASC';
+    $dir = strtolower(api_str($opts['dir'] ?? null, 'asc')) === 'desc' ? 'DESC' : 'ASC';
     $order = sprintf($sortMap[$sort] ?? $sortMap['class'], $dir, $dir, $dir) . ', s.roll_no ASC, s.id ASC';
     $perPage = (int) ($opts['per_page'] ?? 25);
     $total = (int) $agg['students'];
@@ -1449,7 +1459,7 @@ function att_report_subjects(array $q, array $opts = []): array
         $out = array_values(array_filter($out, fn ($r) => str_contains(mb_strtolower($r['code'] . ' ' . $r['name'] . ' ' . $r['section_label'] . ' ' . $r['faculty_name']), $needle)));
     }
     $sort = $opts['sort'] ?? 'section';
-    $dir = strtolower((string) ($opts['dir'] ?? 'asc')) === 'desc' ? -1 : 1;
+    $dir = strtolower(api_str($opts['dir'] ?? null, 'asc')) === 'desc' ? -1 : 1;
     usort($out, function ($a, $b) use ($sort, $dir) {
         $cmp = match ($sort) {
             'percent' => $a['percent'] <=> $b['percent'], 'sessions' => $a['sessions'] <=> $b['sessions'], 'absent' => $a['absent'] <=> $b['absent'],
@@ -1502,7 +1512,7 @@ function att_report_monthly(array $q): array
         throw new CrudValidationException(['section_id' => 'Select a section to view the monthly register.']);
     }
     $month = att_valid_month($q['month'] ?? null) ? $q['month'] : date('Y-m');
-    $subjectId = !empty($q['subject_id']) && ctype_digit((string) $q['subject_id']) ? (int) $q['subject_id'] : null;
+    $subjectId = !empty($q['subject_id']) && is_scalar($q['subject_id']) && ctype_digit((string) $q['subject_id']) ? (int) $q['subject_id'] : null;
     $from = $month . '-01';
     $to = date('Y-m-t', strtotime($from));
     $sw = $subjectId ? ' AND a.subject_id = ?' : '';
@@ -1773,8 +1783,8 @@ function att_process_punch(array $in, string $ip): array
     }
     $device = (string) $in['device_id'];
     $identifier = trim((string) $in['identifier']);
-    $method = (string) ($in['method'] ?? 'biometric') ?: 'biometric';
-    $direction = (string) ($in['direction'] ?? 'auto') ?: 'auto';
+    $method = api_str($in['method'] ?? null, 'biometric') ?: 'biometric';
+    $direction = api_str($in['direction'] ?? null, 'auto') ?: 'auto';
     $ts = !empty($in['punched_at']) ? strtotime(str_replace('T', ' ', (string) $in['punched_at'])) : time();
     if (!$ts) {
         return ['status' => 422, 'data' => ['errors' => ['punched_at' => 'punched_at must be a valid date-time (Y-m-d H:i:s).']], 'message' => 'Invalid punch payload.'];
@@ -1786,7 +1796,7 @@ function att_process_punch(array $in, string $ip): array
         return ['status' => 422, 'data' => ['errors' => ['punched_at' => 'Punches older than 7 days are not accepted. Mark attendance manually.']], 'message' => 'Punch too old.'];
     }
     $punchedAt = date('Y-m-d H:i:s', $ts);
-    $punchKey = trim((string) ($in['punch_id'] ?? '')) ?: substr(hash('sha256', $device . '|' . $identifier . '|' . $punchedAt), 0, 40);
+    $punchKey = trim(api_str($in['punch_id'] ?? null)) ?: substr(hash('sha256', $device . '|' . $identifier . '|' . $punchedAt), 0, 40);
 
     $existing = db_row('SELECT * FROM attendance_punches WHERE device_id = ? AND punch_key = ?', [$device, $punchKey]);
     if ($existing) {
@@ -1991,7 +2001,7 @@ function att_report_table(string $report, array $q): array
         case 'employees':
             $month = att_valid_month($q['month'] ?? null) ? $q['month'] : date('Y-m');
             $type = in_array($q['type'] ?? 'all', ['all', 'faculty', 'staff'], true) ? ($q['type'] ?? 'all') : 'all';
-            $data = att_employee_register($month, $type, !empty($q['department_id']) ? (int) $q['department_id'] : null, trim((string) ($q['q'] ?? '')));
+            $data = att_employee_register($month, $type, !empty($q['department_id']) ? (int) $q['department_id'] : null, trim(api_str($q['q'] ?? null)));
             $headers = ['Emp ID', 'Name', 'Type'];
             foreach ($data['days'] as $day) {
                 $headers[] = (string) $day['day'];

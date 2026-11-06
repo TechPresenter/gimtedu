@@ -60,6 +60,11 @@ function db_query(string $sql, array $params = []): PDOStatement
             $stmt->bindValue($param, $value ? 1 : 0, PDO::PARAM_INT);
         } elseif ($value === null) {
             $stmt->bindValue($param, null, PDO::PARAM_NULL);
+        } elseif (is_array($value)) {
+            // a request array (?type[]=x) reached a scalar placeholder: match nothing instead of printing an
+            // "Array to string conversion" warning into the page / JSON (logged so the caller can be fixed)
+            error_log('[GIMT] db_query: array bound to parameter ' . $param . ' in: ' . mb_substr(preg_replace('/\s+/', ' ', $sql), 0, 160));
+            $stmt->bindValue($param, '', PDO::PARAM_STR);
         } else {
             $stmt->bindValue($param, (string) $value, PDO::PARAM_STR);
         }

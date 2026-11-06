@@ -4,8 +4,11 @@
  * abuse (no AI call needed), and as the safe answer after a provider refusal. Same knowledge base and retrieval as
  * the AI path, answers in English, Hindi or Hinglish templates, never invents facts (only DB / settings values).
  *
- *   chatbot_detect_intents($text)                         ordered topic list (fees, scholarship, hostel …)
+ *   chatbot_detect_intents($text)                         ordered topic list (fees, scholarship, hostel … ; 'about' = an
+ *                                                         overview of the institute, chatbot_is_about_question())
  *   chatbot_offline_answer($question, $ctx)               ['reply', 'sources', 'lead_prompt', 'intent']
+ *   chatbot_about_answer($lang)                           overview from settings (name, established, affiliation, address)
+ *                                                         + program count per level (chatbot_program_levels())
  *   chatbot_suggestions($intents, $programs, $lang)       follow-up chips
  */
 
@@ -102,10 +105,146 @@ function chatbot_detect_intents(string $text): array
     if (isset($t['program']) || $has('/\b(what|which)\b.{0,24}\b(offer|available|study)\b|\bkaun\s?(se|sa|si)\b|कौन\sसे|\b(after\s12th|after\sgraduation|best\scourse|options)\b/')) {
         $add('programs');
     }
+    if (!$intents && chatbot_is_about_question($n)) {
+        // "Tell me about GIMT", "What is GIMT?", "GIMT ke baare mein batao": the institute overview — only when nothing
+        // more specific is asked ("Tell me about GIMT hostels" stays a hostel question)
+        return ['about'];
+    }
     if (!$intents && $has('/\b(weather|cricket|movie|songs?|jokes?|recipe|bitcoin|crypto|stocks?|politics|election|girlfriend|boyfriend|write\s(me\s)?(a|an)\s(code|program|essay|poem|story)|python\scode|javascript|homework|solve\s(this|the))\b/')) {
         return ['offtopic'];
     }
     return $intents;
+}
+
+/**
+ * Does the (chatbot_normalize'd) text ask for an overview of the institute itself — "Tell me about GIMT", "What is
+ * GIMT?", "About the institute", "When was GIMT established?", "GIMT ke baare mein batao", "कॉलेज के बारे में बताइए"?
+ * Every other word must be filler, so "Tell me about GIMT hostels" or "… the GIMT cricket team" are not.
+ */
+function chatbot_is_about_question(string $n): bool
+{
+    static $res = null, $allowed = null;
+    if ($res === null) {
+        $f = chatbot_facts();
+        $names = ['gimt', 'college', 'colleges', 'institute', 'institutes', 'institution', 'university', 'sansthan', 'sanstha', 'vidyalaya', 'mahavidyalaya',
+            'जीआईएमटी', 'कॉलेज', 'कालेज', 'संस्थान', 'संस्था', 'इंस्टीट्यूट', 'इंस्टिट्यूट', 'विश्वविद्यालय', 'महाविद्यालय'];
+        foreach (['short', 'name'] as $k) {
+            $raw = chatbot_normalize((string) ($f[$k] ?? ''));
+            foreach ([str_replace('&', ' and ', $raw), $raw] as $v) {
+                $v = trim((string) preg_replace('/[^\p{L}\p{M}\p{N}]+/u', ' ', $v));
+                if (mb_strlen($v) >= 2) {
+                    $names[] = $v;
+                }
+            }
+        }
+        $names = array_values(array_unique($names));
+        usort($names, fn ($a, $b) => mb_strlen($b) <=> mb_strlen($a)); // longest first ("global institute of …" before "institute")
+        $subj = '(?<![\p{L}\p{M}\p{N}])(?:' . implode('|', array_map(fn ($s) => str_replace(' ', '\s+', preg_quote($s, '/')), $names)) . ')(?![\p{L}\p{M}\p{N}])';
+        $pre = '(?:(?:the|your|ur|this|our|aapke|apke|aapka|apka|apne|apna|aap\s+ka|aap\s+ke)\s+)?';
+        $about = '(?:tell\s+(?:me|us)\s+(?:something\s+|more\s+|a\s+bit\s+|a\s+little\s+|briefly\s+|all\s+)?about|(?:know|learn|hear|read)\s+(?:more\s+|something\s+|a\s+bit\s+)?about'
+            . '|(?:some\s+|more\s+|brief\s+|basic\s+|general\s+|full\s+)?(?:info|information|details?|overview|introduction|intro|profile|summary|background)\s+(?:about|on|of|regarding)'
+            . '|describe|introduce|explain|about)';
+        $res = [
+            '/(?:^|\s)' . $about . '\s+' . $pre . $subj . '/u',                                                   // tell me about GIMT, about the institute
+            '/^(?:what|who)\s+(?:is|are)\s+' . $pre . $subj . '(?:\s+all\s+about)?$/u',                            // what is GIMT
+            '/^(?:when|in\s+which\s+year|which\s+year)\s+(?:was|is|did)\s+' . $pre . $subj . '\s+(?:established|founded|started|set\s+up|establish|found)\b/u',
+            '/' . $subj . '\s+(?:ke|ki|k|ka)\s+(?:baare|bare|baarey|barey|bary|baray|vishay|vishey|bareme|baremein|baaremein)(?![\p{L}\p{M}])/u', // GIMT ke baare mein
+            '/' . $subj . '\s+(?:kya|kia|kyaa)\s+(?:hai|h|he|hain|hy)(?![\p{L}\p{M}])/u',                          // GIMT kya hai
+            '/' . $subj . '\s+(?:kab|kb)\s+(?:bana|bani|bna|bni|shuru|start|established|sthapit)(?![\p{L}\p{M}])/u',
+            '/' . $subj . '\s*(?:के|की)\s*(?:बारे|विषय)/u',                                                       // कॉलेज के बारे में
+            '/' . $subj . '\s*(?:क्या|कया)\s*(?:है|हैं)/u',                                                        // जीआईएमटी क्या है
+            '/' . $subj . '\s*(?:की\s*)?स्थापना/u',
+        ];
+        $words = 'about overview introduction intro introduce describe explain something little bit brief briefly short quick general overall all everything learn hear read '
+            . 'basic basics background profile summary us ur share lot full complete established establish establishment founded found founding started start set up year when which '
+            . 'baare bare baarey barey bary baray vishay vishey bareme baremein baaremein jankari jaankari jaankaari janna jaanna chahta chahti chahte chahunga chahenge dijiye dijie '
+            . 'dena dein de do kuch thoda thodi zara pls plz apne apna apni hamein humein hume hamko humko sab sabhi puri poori mai main mei btao bta batana batado batayein bataen '
+            . 'sthapit sthapna bana bani bna bni shuru hua hui kab kb '
+            . 'बारे विषय जानकारी दीजिए दीजिये दें दो कुछ थोड़ा थोड़ी संक्षेप अपने अपना अपनी हमें बताएँ बताएं बताये बताइये बताना जानना चाहता चाहती चाहते कृपया सर जी पूरी सारी स्थापना स्थापित कब हुई हुआ साल';
+        $allowed = array_flip(array_merge(explode(' ', $words), chatbot_tokens($words . ' ' . implode(' ', $names) . ' ' . ($f['city'] ?? ''))));
+    }
+    $s = trim((string) preg_replace('/[^\p{L}\p{M}\p{N}]+/u', ' ', $n));
+    if ($s === '' || mb_strlen($s) > 160) {
+        return false;
+    }
+    $hit = false;
+    foreach ($res as $re) {
+        if (preg_match($re, $s)) {
+            $hit = true;
+            break;
+        }
+    }
+    if (!$hit) {
+        return false;
+    }
+    foreach (chatbot_tokens($s) as $tok) {
+        if (!isset($allowed[$tok])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/** Programs a question names once the institute's own name is taken out ("Global Institute of Management & Technology" is no program). */
+function chatbot_programs_outside_name(string $question): array
+{
+    $q = chatbot_normalize($question);
+    $name = chatbot_normalize((string) (chatbot_facts()['name'] ?? ''));
+    if (trim($name) !== '') {
+        $q = str_replace([$name, str_replace('&', 'and', $name), str_replace(' & ', ' ', $name)], ' ', $q);
+    }
+    return chatbot_detect_programs($q);
+}
+
+/** Programs per level for the overview: ['count' => 41, 'text' => '6 undergraduate, 3 postgraduate, …'] (website programs only). */
+function chatbot_program_levels(string $lang = 'en'): array
+{
+    $labels = ['UG' => ['undergraduate', 'स्नातक (UG)', 'undergraduate'], 'PG' => ['postgraduate', 'स्नातकोत्तर (PG)', 'postgraduate'], 'Diploma' => ['diploma', 'डिप्लोमा', 'diploma'],
+        'Certificate' => ['certificate', 'सर्टिफ़िकेट', 'certificate'], 'PhD' => ['doctoral', 'डॉक्टरेट', 'doctoral']];
+    $idx = ['en' => 0, 'hi' => 1, 'hinglish' => 2][$lang] ?? 0;
+    $count = [];
+    foreach (chatbot_programs_data() as $p) {
+        $count[(string) $p['level']] = ($count[(string) $p['level']] ?? 0) + 1;
+    }
+    $parts = [];
+    foreach (array_unique(array_merge(array_keys($labels), array_keys($count))) as $level) {
+        if (!empty($count[$level])) {
+            $parts[] = $count[$level] . ' ' . ($labels[$level][$idx] ?? mb_strtolower(chatbot_level_label($level)));
+        }
+    }
+    return ['count' => array_sum($count), 'text' => implode(', ', $parts)];
+}
+
+/**
+ * Institute overview ("about" intent) built only from settings — name, year of establishment, affiliation / approvals,
+ * address — and the live program catalogue (count per level). A fact whose setting is empty is left out, never guessed.
+ */
+function chatbot_about_answer(string $lang): string
+{
+    $f = chatbot_facts();
+    $short = (string) ($f['short'] ?? 'GIMT');
+    $name = (string) ($f['name'] ?? $short);
+    $title = '**' . $name . '**' . ($short !== '' && mb_stripos($name, $short) === false ? ' (' . $short . ')' : '');
+    $lines = [!empty($f['established']) ? chatbot_t('about_est', $lang, ['title' => $title, 'year' => $f['established']]) : chatbot_t('about_name', $lang, ['title' => $title])];
+    if (!empty($f['affiliation'])) {
+        $lines[] = '- 🎓 ' . chatbot_t('about_affiliation', $lang, ['text' => $f['affiliation']]);
+    }
+    if (!empty($f['address']) || !empty($f['city'])) {
+        $lines[] = '- 📍 ' . ($f['address'] ?? $f['city']);
+    }
+    $levels = chatbot_program_levels($lang);
+    if ($levels['count'] > 0) {
+        $lines[] = '- 📚 ' . chatbot_t('about_programs', $lang, ['count' => $levels['count'], 'levels' => $levels['text']]);
+    }
+    $links = array_filter([
+        ($u = chatbot_route('/about')) ? chatbot_md_link(chatbot_t('about_link', $lang, ['short' => $short]), $u) : null,
+        ($u = chatbot_route('/programs')) ? chatbot_md_link(chatbot_t('about_programs_link', $lang), $u) : null,
+    ]);
+    if ($links) {
+        $lines[] = chatbot_t('more', $lang, ['link' => implode(' · ', $links)]);
+    }
+    $lines[] = chatbot_t('about_ask', $lang);
+    return implode("\n", $lines);
 }
 
 /** Localised template: [en, hi, hinglish]. */
@@ -151,6 +290,14 @@ function chatbot_t(string $key, string $lang, array $vars = []): string
         'events' => ['Upcoming events:', 'आगामी कार्यक्रम:', 'Upcoming events:'],
         'departments' => ['Our departments:', 'हमारे विभाग:', 'Hamare departments:'],
         'more' => ['More: {link}', 'अधिक जानकारी: {link}', 'Aur jaankari: {link}'],
+        'about_est' => ['{title} was established in **{year}**.', '{title} की स्थापना **{year}** में हुई थी।', '{title} ki sthapna **{year}** mein hui thi.'],
+        'about_name' => ['{title}', '{title}', '{title}'],
+        'about_affiliation' => ['{text}', 'मान्यता: {text}', '{text}'],
+        'about_programs' => ['**{count} programs**: {levels}', '**{count} प्रोग्राम**: {levels}', '**{count} programs**: {levels}'],
+        'about_link' => ['About {short}', '{short} के बारे में', '{short} ke baare mein'],
+        'about_programs_link' => ['All programs', 'सभी प्रोग्राम', 'Sabhi programs'],
+        'about_ask' => ['Ask me about programs, fees, eligibility, scholarships or the admission process.', 'आप कोर्स, फीस, योग्यता, स्कॉलरशिप या एडमिशन प्रक्रिया के बारे में पूछ सकते हैं।',
+            'Aap courses, fees, eligibility, scholarships ya admission process ke baare mein pooch sakte hain.'],
     ];
     $idx = ['en' => 0, 'hi' => 1, 'hinglish' => 2][$lang] ?? 0;
     $s = $p[$key][$idx] ?? ($p[$key][0] ?? $key);
@@ -201,6 +348,12 @@ function chatbot_offline_answer(string $question, array $ctx): array
     if (!$programs && in_array('fees', $topical, true) && array_intersect($topical, ['hostel', 'transport'])) {
         $topical = array_values(array_diff($topical, ['fees'])); // "hostel fees" = the hostel answer (it lists the charges)
     }
+    if ($programs && in_array('about', $topical, true)) {
+        $programs = chatbot_programs_outside_name($question); // "… Institute of Management & Technology" names no program
+    }
+    if ($programs) {
+        $topical = array_values(array_diff($topical, ['about'])); // a named program wins over the institute overview
+    }
     if (!$topical && $programs) {
         $topical = ['program_detail'];
     } elseif (!$topical && in_array('programs', $intents, true)) {
@@ -210,6 +363,13 @@ function chatbot_offline_answer(string $question, array $ctx): array
     foreach (array_slice($topical, 0, 2) as $intent) {
         $lines = [];
         switch ($intent) {
+            case 'about':
+                $lines[] = chatbot_about_answer($lang);
+                if ($u = chatbot_route('/about')) {
+                    $sources['/about'] = ['title' => 'About ' . $base['short'], 'url' => $u];
+                }
+                $useSource($byId['facts:affiliation'] ?? null);
+                break;
             case 'program_detail':
                 foreach (array_slice($programs, 0, 2) as $p) {
                     $lines[] = chatbot_t('program_one', $lang, ['name' => $p['name'] . ' (' . $p['short_name'] . ')']);
@@ -519,6 +679,7 @@ function chatbot_suggestions(array $intents, array $programs, bool $lead = false
             'placement' => [$msg('Programs', 'Which programs do you offer?'), $msg('Internships', 'Are internships compulsory?')],
             'location' => [$msg('Campus visit', 'Can I visit the campus before applying?'), $msg('Transport', 'Do you provide transport?')],
             'greeting' => [$msg('Programs & courses', 'Which programs do you offer?'), $msg('Fees & scholarships', 'What are the fees and scholarships?'), $msg('Admission process', 'How do I apply?')],
+            'about' => [$msg('Programs & courses', 'Which programs do you offer?'), $msg('Fees & scholarships', 'What are the fees and scholarships?'), $msg('Admission process', 'How do I apply?')],
             'unknown' => [$msg('Programs & courses', 'Which programs do you offer?'), $msg('Fees & scholarships', 'What are the fees and scholarships?')],
             'offtopic' => [$msg('Programs & courses', 'Which programs do you offer?'), $msg('Admission process', 'How do I apply?')],
         ];

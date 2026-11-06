@@ -41,7 +41,8 @@ export function AuthLayout({ children, title, subtitle }: { children: ReactNode;
       </div>
       <div className="flex flex-1 flex-col justify-center px-6 py-12 sm:px-12">
         <div className="mx-auto w-full max-w-sm">
-          <img src={session?.app.logo ?? appUrl('assets/images/logo.svg')} alt="Global IMT" className="mb-8 h-14 w-auto lg:hidden" />
+          <img src={session?.app.logo ?? appUrl('assets/images/logo.svg')} alt="Global IMT" className="mb-8 h-14 w-auto lg:hidden dark:hidden" />
+          <img src={session?.app.logo_white ?? appUrl('assets/images/logo-white.svg')} alt="Global IMT" className="mb-8 hidden h-14 w-auto dark:block lg:!hidden" />
           <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">{title}</h2>
           {subtitle && <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
           <div className="mt-8">{children}</div>

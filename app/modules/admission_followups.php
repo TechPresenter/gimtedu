@@ -9,7 +9,7 @@ return [
     'permission' => 'admissions',
     'icon' => 'phone-call',
     'description' => 'Counselling interactions and scheduled follow-ups.',
-    'select' => "t.*, COALESCE(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), e.name) AS contact_name, COALESCE(a.phone, e.phone) AS contact_phone,
+    'select' => "t.*, COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''), e.name) AS contact_name, COALESCE(a.phone, e.phone) AS contact_phone,
                  a.application_no, u.name AS created_by_name,
                  CASE WHEN t.next_followup_date IS NULL THEN 'logged' WHEN t.completed_at IS NOT NULL THEN 'done'
                       WHEN t.next_followup_date < CURDATE() THEN 'overdue' WHEN t.next_followup_date = CURDATE() THEN 'due_today' ELSE 'scheduled' END AS followup_state",

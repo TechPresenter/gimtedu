@@ -14,8 +14,8 @@ function visitor_counter(array $o = []): string
     $t = visitors_totals();
     $stat = function (string $icon, int $value, string $label) {
         return '<li class="inline-flex items-center gap-2 rounded-full border border-[#E2DAD0] bg-white px-3 py-1.5 text-xs text-[#4A5568] shadow-sm">'
-            . '<span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#FDEDE7] text-[#C93C14]" aria-hidden="true">' . icon($icon, 'h-3.5 w-3.5') . '</span>'
-            . '<span class="font-semibold tabular-nums text-[#0B2A5B]" data-count="' . $value . '">' . e(number_format($value)) . '</span>'
+            . '<span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-flame-tint text-flame-text" aria-hidden="true">' . icon($icon, 'h-3.5 w-3.5') . '</span>'
+            . '<span class="font-semibold tabular-nums text-brand-900" data-count="' . $value . '">' . e(number_format($value)) . '</span>'
             . '<span>' . e($label) . '</span></li>';
     };
     $html = '<div class="visitor-counter no-print" aria-label="Website visitors">'
@@ -28,6 +28,6 @@ function visitor_counter(array $o = []): string
             . '<span class="tabular-nums">' . e(number_format($t['today'])) . '</span> today</li>';
     }
     $html .= '</ul></div>';
-    $html .= '<script src="' . e(asset('assets/js/visit.js')) . '" data-endpoint="' . e(base_url('api/visit')) . '" defer></script>';
+    $html .= '<script src="' . e(asset('assets/js/visit.js')) . '" data-endpoint="' . e(base_url('api/visit')) . '" defer' . (function_exists('site_nonce_attr') ? site_nonce_attr() : '') . '></script>';
     return $html;
 }

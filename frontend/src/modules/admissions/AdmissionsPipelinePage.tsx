@@ -11,7 +11,7 @@ import { BarChart, DoughnutChart } from '@/components/charts';
 import { api, ApiError } from '@/lib/api';
 import { useApi, useInvalidate } from '@/lib/queries';
 import { useAcademicSession, useAuth } from '@/lib/auth';
-import { formatMoneyShort, formatNumber, formatPercent } from '@/lib/format';
+import { formatMoneyShort, formatNumber, formatPercent, formatPhone } from '@/lib/format';
 import { KanbanBoard } from './KanbanBoard';
 import { DueChip, FollowupModal, STAGE_TONE, StageBadge, followupIcon, type DueFollowup, type FollowupTarget } from './shared';
 
@@ -59,7 +59,7 @@ export default function AdmissionsPipelinePage() {
             ]}
           </Stagger>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-12">
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
             <Reveal className="min-w-0 lg:col-span-7">
               <Card className="h-full">
                 <CardHeader title="Admission funnel" subtitle="Applications that reached each stage this session" icon={ListChecks} />
@@ -83,7 +83,7 @@ export default function AdmissionsPipelinePage() {
             </Card>
           </Reveal>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-12">
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
             <Reveal className="min-w-0 lg:col-span-5">
               <Card className="h-full">
                 <CardHeader title="Applications by source" subtitle="Where applicants are coming from" />
@@ -110,7 +110,7 @@ export default function AdmissionsPipelinePage() {
             </Reveal>
           </div>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-12">
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
             <Reveal className="min-w-0 lg:col-span-8">
               <Card className="h-full">
                 <CardHeader title="Admission trend" subtitle="Applications received vs admissions confirmed (last 8 months)" />
@@ -364,7 +364,7 @@ function FollowupsDue({ data, loading, sessionId }: { data?: Dashboard; loading:
                     <DueChip date={f.next_followup_date} />
                     {can(f.admission_id ? 'admissions' : 'enquiries', 'edit') && (
                       <div className="flex gap-1">
-                        <button type="button" onClick={() => setTarget({ kind: f.admission_id ? 'admission' : 'enquiry', id: (f.admission_id ?? f.enquiry_id) as number, name: f.name, sub: f.application_no ?? f.phone ?? undefined })}
+                        <button type="button" onClick={() => setTarget({ kind: f.admission_id ? 'admission' : 'enquiry', id: (f.admission_id ?? f.enquiry_id) as number, name: f.name, sub: f.application_no ?? (f.phone ? formatPhone(f.phone) : undefined) })}
                           className="rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-500/10">
                           <PhoneCall className="mr-0.5 inline h-3 w-3" aria-hidden />Log
                         </button>

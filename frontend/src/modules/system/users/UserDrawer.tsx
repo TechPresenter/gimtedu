@@ -6,7 +6,7 @@ import { Alert, Avatar, Badge, Button, Drawer, IconButton, Skeleton, StatusBadge
 import { api, ApiError, apiUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useApi } from '@/lib/queries';
-import { formatDateTime, timeAgo } from '@/lib/format';
+import { formatDateTime, formatPhone, telHref, timeAgo } from '@/lib/format';
 import { actionMeta, InfoRow, RoleBadges } from '../components';
 import type { UserDetail, UserRow } from '../types';
 
@@ -157,7 +157,7 @@ export function UserDrawer({ id, onClose, onEdit, onResetPassword }: Props) {
             <div className="space-y-5 motion-safe:animate-fade-in">
               <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 <InfoRow label="Username">@{u.username}</InfoRow>
-                <InfoRow label="Phone">{u.phone}</InfoRow>
+                <InfoRow label="Phone">{u.phone ? <a className="hover:text-brand-700 dark:hover:text-brand-300" href={telHref(u.phone)}>{formatPhone(u.phone)}</a> : null}</InfoRow>
                 <InfoRow label="Department">{u.department_name}</InfoRow>
                 <InfoRow label="Last sign-in">{u.last_login_at ? `${formatDateTime(u.last_login_at)} · ${u.last_login_ip ?? ''}` : 'Never signed in'}</InfoRow>
                 <InfoRow label="Password last changed">{u.password_changed_at ? formatDateTime(u.password_changed_at) : null}</InfoRow>

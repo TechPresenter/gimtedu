@@ -5,7 +5,7 @@ import { CrudFormModal, type CrudRecordPayload } from '@/components/crud';
 import { api, ApiError } from '@/lib/api';
 import { useApi, useCrudMeta } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, formatPhone, telHref } from '@/lib/format';
 import type { Row } from '@/lib/types';
 import { useHostelRefresh } from './AllocationDialogs';
 import { VISITOR_RELATIONS, minutesLabel, openHostelPrint } from './shared';
@@ -98,7 +98,7 @@ export function VisitorDrawer({ id, onClose }: { id: number | null; onClose: () 
             </section>
             <DescriptionList
               items={[
-                { label: 'Mobile', value: v.phone ? <a href={`tel:${String(v.phone).replace(/\s+/g, '')}`} className="link">{String(v.phone)}</a> : null },
+                { label: 'Mobile', value: v.phone ? <a href={telHref(String(v.phone))} className="link">{formatPhone(v.phone)}</a> : null },
                 { label: 'ID proof', value: v.id_proof_type ? `${ID_PROOFS[String(v.id_proof_type)] ?? v.id_proof_type}${v.id_proof ? ` · ${v.id_proof}` : ''}` : (v.id_proof as string | null) },
                 { label: 'Vehicle', value: v.vehicle_no ? <Badge color="slate">{String(v.vehicle_no)}</Badge> : null },
                 { label: 'Gate pass', value: v.pass_no ? <span className="font-mono text-sm">{String(v.pass_no)}</span> : null },

@@ -66,7 +66,15 @@ export function useStudentPost<B = Record<string, unknown>, R = unknown>(path: s
     },
     onError: (e) => {
       const status = (e as { status?: number }).status;
-      if (status !== 422 || !Object.keys((e as { errors?: Record<string, string> }).errors ?? {}).length) toast.error(errorMessage(e));
+      if (status !== 422 || !Object.keys((e as { errors?: Record<string, string> }).errors ?? {}).length) {
+        toast.error(errorMessage(e));
+        return;
+      }
+      // field errors: move keyboard / screen-reader focus to the first invalid field once it has rendered
+      window.setTimeout(() => {
+        const scope = document.querySelector<HTMLElement>('[role="dialog"]') ?? document;
+        scope.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      }, 60);
     },
   });
 }
@@ -205,7 +213,7 @@ export function CompanyLogo({ src, name, className }: { src: string | null; name
   if (src && !failed) {
     return (
       <span className={clsx('inline-flex h-12 w-16 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white p-1.5 dark:border-slate-700', className)}>
-        <img src={appUrl(src)} alt={name} loading="lazy" className="max-h-8 w-auto max-w-full object-contain" onError={() => setFailed(true)} />
+        <img src={src} alt={name} loading="lazy" className="max-h-8 w-auto max-w-full object-contain" onError={() => setFailed(true)} />
       </span>
     );
   }

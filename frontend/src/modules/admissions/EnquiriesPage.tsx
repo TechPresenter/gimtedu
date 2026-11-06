@@ -12,7 +12,7 @@ import { CrudTable } from '@/components/crud';
 import { api, ApiError } from '@/lib/api';
 import { useApi, useInvalidate, useLookup } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
-import { formatDate, formatDateTime, formatNumber, formatPercent, timeAgo } from '@/lib/format';
+import { formatDate, formatDateTime, formatNumber, formatPercent, formatPhone, telHref, timeAgo, whatsappHref } from '@/lib/format';
 import type { Row } from '@/lib/types';
 import type { BadgeColor } from '@/lib/status';
 import { DueChip, ENQUIRY_STATUSES, FollowupForm, FollowupModal, OUTCOMES, StageBadge, followupIcon, followupLabel, sourceLabel, useExternalNavKey, type FollowupTarget } from './shared';
@@ -80,7 +80,7 @@ export default function EnquiriesPage() {
         renderers={{
           name: (r) => (
             <button type="button" onClick={() => setDrawer(Number(r.id))} className="block min-w-[10rem] whitespace-nowrap rounded-lg text-left transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40" aria-label={`Open enquiry from ${String(r.name)}`}>
-              <PersonCell name={String(r.name)} sub={<span className="font-mono">{String(r.phone)}</span>} />
+              <PersonCell name={String(r.name)} sub={<span className="whitespace-nowrap tabular-nums">{formatPhone(r.phone)}</span>} />
             </button>
           ),
           interest: (r) => (
@@ -110,12 +110,12 @@ export default function EnquiriesPage() {
           created_at: (r) => <span className="whitespace-nowrap" title={formatDateTime(r.created_at)}>{formatDate(r.created_at)}</span>,
         }}
         rowMenu={(r) => [
-          can('enquiries', 'edit') && r.status !== 'converted' && { label: 'Log follow-up', icon: PhoneCall, onClick: () => setFollowup({ kind: 'enquiry', id: Number(r.id), name: String(r.name), sub: String(r.phone) }) },
+          can('enquiries', 'edit') && r.status !== 'converted' && { label: 'Log follow-up', icon: PhoneCall, onClick: () => setFollowup({ kind: 'enquiry', id: Number(r.id), name: String(r.name), sub: formatPhone(r.phone) }) },
           can('enquiries', 'edit') && { label: 'Assign counsellor', icon: UserPlus, onClick: () => setAssign({ ids: [Number(r.id)], current: r.assigned_to ? String(r.assigned_to) : '' }) },
           r.admission_id ? { label: `View application ${r.application_no ?? ''}`, icon: FilePlus2, to: `/admissions/${r.admission_id}` } : canConvert && { label: 'Convert to application', icon: FilePlus2, onClick: () => convert(r) },
           { divider: true, label: 'd' },
-          { label: 'Call', icon: Phone, href: `tel:${String(r.phone).replace(/\s/g, '')}` },
-          { label: 'WhatsApp', icon: MessageCircle, href: `https://wa.me/${String(r.phone).replace(/\D/g, '')}`, target: '_blank' },
+          { label: 'Call', icon: Phone, href: telHref(r.phone) },
+          { label: 'WhatsApp', icon: MessageCircle, href: whatsappHref(r.phone), target: '_blank' },
         ]}
         bulkActions={can('enquiries', 'edit') ? [{ label: 'Assign counsellor', icon: Users, onClick: (ids, clear) => setAssign({ ids, clear }) }] : []}
       />
@@ -214,7 +214,7 @@ function EnquiryDrawer({ id, onClose, onConvert, onAssign }: { id: number | null
           </div>
           <DescriptionList
             items={[
-              { label: 'Phone', value: <a className="link" href={`tel:${String(e.phone).replace(/\s/g, '')}`}>{String(e.phone)}</a> },
+              { label: 'Phone', value: <a className="link" href={telHref(String(e.phone))}>{formatPhone(e.phone)}</a> },
               { label: 'Email', value: e.email ? <a className="link" href={`mailto:${e.email}`}>{String(e.email)}</a> : null },
               { label: 'Program interest', value: String(e.program_name ?? e.program_interest ?? '') || null },
               { label: 'City', value: (e.city as string) || null },

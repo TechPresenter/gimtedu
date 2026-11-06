@@ -49,7 +49,7 @@ $clubs = [
 $heroImg = 'assets/images/site/students-lawn.jpg';
 site_header([
     'title' => 'Campus Life — Facilities, Hostel & Student Clubs',
-    'description' => 'Campus life at GIMT Greater Noida: smart classrooms, labs, digital library' . ($hostel ? ', ' . $hostel['count'] . ' hostels' : ', hostels') . ($transport ? ', ' . $transport['routes'] . ' bus routes' : ', transport') . ', sports, student clubs, events and a green, safe campus.',
+    'description' => 'Campus life at GIMT Noida: smart classrooms, labs, digital library' . ($hostel ? ', ' . $hostel['count'] . ' hostels' : ', hostels') . ($transport ? ', ' . $transport['routes'] . ' bus routes' : ', transport') . ', sports, student clubs, events and a green, safe campus.',
     'active' => 'campus',
     'seo' => ['route', '/campus'],
     'image' => $heroImg,
@@ -58,7 +58,7 @@ site_header([
 ]);
 
 page_hero('Campus Life', 'Learn. Live. Belong.', ['Campus Life'], $heroImg,
-    'A green, safe and vibrant campus in Knowledge Park, Greater Noida — with modern facilities, hostels, transport and a calendar full of clubs, fests and sports.',
+    'A green, safe and vibrant campus in Sector 18, Noida — with modern facilities, hostels, transport and a calendar full of clubs, fests and sports.',
     [
         ['icon' => 'presentation', 'label' => 'Smart Classrooms'],
         ['icon' => 'bed-double', 'label' => 'Hostel & Mess'],
@@ -106,7 +106,7 @@ page_hero('Campus Life', 'Learn. Live. Belong.', ['Campus Life'], $heroImg,
       <h2 class="section-title"><?= $tour !== '' ? 'See GIMT Before You Arrive' : 'Experience the Campus in Person' ?></h2>
       <p class="section-lead"><?= $tour !== '' ? 'Walk through our academic blocks, labs, library, hostels and sports facilities in a short guided video.' : 'Walk through our academic blocks, labs, library, hostels and sports facilities with a student ambassador. Campus visits run Monday to Saturday.' ?></p>
       <ul class="mt-6 space-y-3 text-sm text-slate-600">
-        <li class="flex gap-3"><?= icon('map-pin', 'mt-0.5 h-5 w-5 shrink-0 text-accent-600') ?><span><?= e(setting('address', 'Plot No. 123, Knowledge Park, Greater Noida, Uttar Pradesh 201310, India')) ?></span></li>
+        <li class="flex gap-3"><?= icon('map-pin', 'mt-0.5 h-5 w-5 shrink-0 text-accent-600') ?><span><?= e(setting('address', 'Wave One, 36th Floor, L-2A, Pocket G, Sector 18, Noida, Uttar Pradesh - 201301')) ?></span></li>
         <li class="flex gap-3"><?= icon('clock', 'mt-0.5 h-5 w-5 shrink-0 text-accent-600') ?><span><?= e(setting('office_hours', 'Mon - Sat, 9:00 AM - 6:00 PM')) ?></span></li>
       </ul>
       <div class="mt-7 flex flex-wrap gap-3">
@@ -119,7 +119,7 @@ page_hero('Campus Life', 'Learn. Live. Belong.', ['Campus Life'], $heroImg,
         <?= video_lightbox(['url' => $tour, 'title' => 'GIMT Virtual Campus Tour', 'label' => 'Virtual Campus Tour', 'sublabel' => 'Explore our facilities', 'poster' => asset('assets/images/site/campus-building.jpg'), 'className' => 'rounded-3xl shadow-pop']) ?>
       <?php else: ?>
         <div class="relative">
-          <div class="img-zoom overflow-hidden rounded-3xl shadow-pop"><img src="<?= e(asset('assets/images/site/campus-building.jpg')) ?>" alt="GIMT campus building in Knowledge Park" loading="lazy" decoding="async" width="1260" height="580" class="aspect-[16/9] w-full object-cover"></div>
+          <div class="img-zoom overflow-hidden rounded-3xl shadow-pop"><img src="<?= e(asset('assets/images/site/campus-building.jpg')) ?>" alt="GIMT campus building in Noida" loading="lazy" decoding="async" width="1260" height="580" class="aspect-[16/9] w-full object-cover"></div>
           <span class="glass float-slow absolute -bottom-5 left-5 inline-flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-brand-900"><span class="live-dot pulse-ring" aria-hidden="true"></span>Campus visits open for <?= e(sa_session()['name'] ?? date('Y')) ?> admissions</span>
         </div>
       <?php endif; ?>

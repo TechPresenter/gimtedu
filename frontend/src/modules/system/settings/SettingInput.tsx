@@ -23,6 +23,10 @@ export interface SettingField {
   default_preview?: string;
   dark?: boolean;
   danger?: boolean;
+  /** shown disabled for information; never sent on save (the server ignores it too) */
+  readonly?: boolean;
+  /** 'approvals': JSON stored server-side, edited as "Label | Title | Description | emblem" lines */
+  format?: string;
 }
 
 export const colSpan: Record<number, string> = {
@@ -62,7 +66,7 @@ export function SettingInput({ field: f, value, onChange, invalid, disabled, sec
         </div>
       );
     case 'textarea':
-      return <Textarea id={id} value={value} onChange={(e) => onChange(e.target.value)} invalid={invalid} disabled={disabled} rows={3} placeholder={f.placeholder} />;
+      return <Textarea id={id} value={value} onChange={(e) => onChange(e.target.value)} invalid={invalid} disabled={disabled} rows={Math.min(8, Math.max(3, value.split('\n').length + 1))} placeholder={f.placeholder} />;
     case 'color':
       return (
         <div className="flex items-center gap-2">

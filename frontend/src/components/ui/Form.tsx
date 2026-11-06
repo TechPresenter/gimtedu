@@ -48,12 +48,16 @@ interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'prefix
   inputSize?: 'sm' | 'md';
 }
 
-export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ invalid, prefix, suffix, className, inputSize = 'md', ...rest }, ref) {
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ invalid, prefix, suffix, className, inputSize = 'md', style, ...rest }, ref) {
+  // pr-12 fits short units (₹, %, LPA, days); a longer text suffix ("seconds", "minutes") gets room for its own width so
+  // neither the typed value nor a number field's spinner runs under it
+  const longSuffix = typeof suffix === 'string' && suffix.length > 4;
   const input = (
     <input
       ref={ref}
       aria-invalid={invalid || undefined}
-      className={clsx('form-input', inputSize === 'sm' && 'form-input-sm', invalid && 'form-input-error', prefix && 'pl-9', suffix && 'pr-12', className)}
+      className={clsx('form-input', inputSize === 'sm' && 'form-input-sm', invalid && 'form-input-error', prefix && 'pl-9', suffix && !longSuffix && 'pr-12', className)}
+      style={longSuffix ? { paddingRight: `calc(${(suffix as string).length}ch + 1.5rem)`, ...style } : style}
       {...rest}
     />
   );

@@ -48,6 +48,19 @@ function ps_i($v): ?int
     return $v === null || $v === '' ? null : (int) $v;
 }
 
+/**
+ * Trimmed string input. Arrays / objects (e.g. {"purpose": ["x"]} in a hand-crafted request) become '' instead of
+ * "Array" plus a PHP warning, so validation rejects them like an empty field.
+ */
+function ps_str(array $in, string $key, string $default = ''): string
+{
+    $v = $in[$key] ?? $default;
+    if (is_bool($v)) {
+        return $v ? '1' : '';
+    }
+    return is_scalar($v) ? trim((string) $v) : '';
+}
+
 /** Faculty display name SQL ("Dr. Nandini Gupta"). */
 function ps_faculty_name_sql(string $a = 'f'): string
 {
@@ -568,10 +581,11 @@ function ps_payment_options(): array
         'ifsc' => (string) setting('bank_ifsc', ''), 'branch' => (string) setting('bank_branch', ''),
     ], fn ($v) => trim($v) !== '');
     $upi = trim((string) setting('upi_id', ''));
+    ps_need('cashfree');
     return [
         'gateway' => ['provider' => $gw['label'], 'configured' => (bool) $gw['configured'], 'mode' => $gw['mode'], 'online_enabled' => in_array('online', $modes, true),
-            // Online collection from the portal is not wired to a payment gateway yet - say so honestly.
-            'available' => false],
+            // portal payments run through Cashfree payment links (app/services/cashfree.php) once it is set up
+            'available' => cashfree_ready()],
         'modes' => array_values(array_map(fn ($m) => ['key' => $m, 'label' => fees_mode_label($m)], $modes)),
         'bank' => $bank ?: null, 'bank_complete' => isset($bank['account_no'], $bank['ifsc']),
         'upi_id' => $upi !== '' ? $upi : null,
@@ -772,10 +786,10 @@ function ps_hostel_complaint(array $s, array $in): array
     if (!$stay) {
         throw new CrudException('You do not have an active hostel allotment, so a hostel complaint cannot be raised.');
     }
-    $category = (string) ($in['category'] ?? '');
-    $priority = (string) ($in['priority'] ?? 'medium');
-    $subject = trim((string) ($in['subject'] ?? ''));
-    $description = trim((string) ($in['description'] ?? ''));
+    $category = ps_str($in, 'category');
+    $priority = ps_str($in, 'priority', 'medium');
+    $subject = ps_str($in, 'subject');
+    $description = ps_str($in, 'description');
     $errors = [];
     if (!isset(hostel_complaint_categories()[$category])) {
         $errors['category'] = 'Choose a category.';
@@ -805,6 +819,7 @@ function ps_hostel_complaint(array $s, array $in): array
         'category' => $category, 'subject' => $subject, 'description' => $description, 'priority' => $priority, 'status' => 'open']);
     $name = $s['full_name'] ?? trim(($s['first_name'] ?? '') . ' ' . ($s['last_name'] ?? ''));
     log_activity('create', 'hostel', $id, 'Hostel complaint ' . $no . ' "' . str_limit($subject, 60) . '" raised by ' . $name . ' (' . $s['student_uid'] . ') via the student portal');
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event('GIMT_COMPLAINT_REGISTERED', ['student_id' => $sid, 'complaint_id' => (int) $id, 'complaint_no' => $no, 'ticket_no' => $no, 'ticket_number' => $no, 'complaint_category' => $category, 'subject' => $subject, 'issue_summary' => str_limit($subject, 120), 'room_no' => (string) $stay['room_no']], ['dedupe_key' => 'hc:' . $id, 'source' => 'admission_portal']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     notify('perm:hostel', 'hostel', (in_array($priority, ['high', 'urgent'], true) ? ucfirst($priority) . ' hostel' : 'New hostel') . ' complaint',
         $no . ' · ' . $stay['hostel_code'] . ' · Room ' . $stay['room_no'] . ' · ' . str_limit($subject, 80), 'admin/hostel/complaints?view=' . $id, 'alert-triangle');
     return ['id' => $id, 'complaint_no' => $no];
@@ -899,9 +914,9 @@ function ps_certificate_request(array $s, array $in): array
 {
     ps_need('certificates');
     $sid = (int) $s['id'];
-    $type = (string) ($in['type'] ?? '');
-    $purpose = trim((string) ($in['purpose'] ?? ''));
-    $note = trim((string) ($in['note'] ?? ''));
+    $type = ps_str($in, 'type');
+    $purpose = ps_str($in, 'purpose');
+    $note = ps_str($in, 'note');
     $types = ps_certificate_requestable($s);
     $errors = [];
     if (!isset($types[$type])) {
@@ -958,6 +973,7 @@ function ps_certificate_request(array $s, array $in): array
     log_activity('request', 'certificates', $row['id'], sprintf('%s (%s) requested %s %s via the student portal%s', $name, $student['student_uid'], cert_type_label($row['type']),
         $row['certificate_no'], $row['purpose'] ? ' — ' . $row['purpose'] : ''));
     cert_notify_issued($row, $name); // pending -> notifies the approvers
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event('GIMT_CERTIFICATE_REQUESTED', ['certificate_id' => (int) $row['id'], 'student_id' => $sid], ['dedupe_key' => 'cert:' . $row['id'] . ':requested', 'source' => 'admission_portal']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     return ['id' => (int) $row['id'], 'certificate_no' => $row['certificate_no'], 'type_label' => cert_type_label($row['type'])];
 }
 
@@ -1056,7 +1072,9 @@ function ps_placement(array $s): array
         'applications' => $applications,
         'offers' => array_map(fn ($o) => ['id' => (int) $o['id'], 'company' => $o['company'], 'logo' => ps_public_file($o['logo']), 'role' => $o['job_role'],
             'package_lpa' => ps_f($o['package_lpa']), 'offer_date' => $o['offer_date'], 'joining_date' => $o['joining_date'], 'location' => $o['location'],
-            'status' => $o['status'], 'status_label' => $offerStatuses[$o['status']] ?? label_from_key((string) $o['status']), 'offer_letter' => ps_public_file($o['offer_letter'])], $offers),
+            'status' => $o['status'], 'status_label' => $offerStatuses[$o['status']] ?? label_from_key((string) $o['status']),
+            // offer letters are private uploads: served only through the student-scoped endpoint
+            'offer_letter' => $o['offer_letter'] ? base_url('api/portal/student/placement/offers/' . (int) $o['id'] . '/letter') : null], $offers),
     ];
 }
 
@@ -1191,11 +1209,11 @@ function ps_ticket_row(array $s, int $id): ?array
 function ps_ticket_create(array $s, array $in, ?string $forcedSubject = null): array
 {
     ps_need('admissions');
-    $type = (string) ($in['type'] ?? 'complaint');
-    $category = (string) ($in['category'] ?? '');
-    $subject = trim((string) ($forcedSubject ?? ($in['subject'] ?? '')));
-    $message = trim((string) ($in['message'] ?? ''));
-    $priority = (string) ($in['priority'] ?? 'medium');
+    $type = ps_str($in, 'type', 'complaint');
+    $category = ps_str($in, 'category');
+    $subject = $forcedSubject !== null ? trim($forcedSubject) : ps_str($in, 'subject');
+    $message = ps_str($in, 'message');
+    $priority = ps_str($in, 'priority', 'medium');
     $errors = [];
     if (!in_array($type, ['complaint', 'grievance', 'suggestion', 'feedback'], true)) {
         $errors['type'] = 'Choose what kind of request this is.';
@@ -1235,6 +1253,7 @@ function ps_ticket_create(array $s, array $in, ?string $forcedSubject = null): a
     ]);
     log_activity('create', 'feedback', $id, sprintf('%s %s "%s" raised by %s (%s) via the student portal', ucfirst($type), $no, str_limit($subject, 60),
         !empty($in['anonymous']) ? 'a student (identity hidden)' : $name, !empty($in['anonymous']) ? 'anonymous' : $s['student_uid']));
+    try { if (empty($in['anonymous'])) { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event($type === 'feedback' ? ['GIMT_TICKET_CREATED', 'GIMT_FEEDBACK_RECEIVED'] : 'GIMT_TICKET_CREATED', ['ticket_id' => (int) $id, 'student_id' => (int) $s['id']], ['dedupe_key' => 'fb:' . $id, 'source' => 'admission_portal']); } } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     notify('perm:feedback', 'feedback', 'New ' . $type . ' ' . $no, (!empty($in['anonymous']) ? 'Anonymous student' : $name) . ': ' . str_limit($subject, 80), 'admin/feedback?id=' . $id,
         in_array($type, ['complaint', 'grievance'], true) ? 'alert-triangle' : 'message-square');
     return ['id' => $id, 'ticket_no' => $no];
@@ -1244,9 +1263,9 @@ function ps_ticket_create(array $s, array $in, ?string $forcedSubject = null): a
 function ps_profile_correction(array $s, array $in): array
 {
     $fields = ps_correction_fields();
-    $field = (string) ($in['field'] ?? '');
-    $correct = trim((string) ($in['correct_value'] ?? ''));
-    $details = trim((string) ($in['details'] ?? ''));
+    $field = ps_str($in, 'field');
+    $correct = ps_str($in, 'correct_value');
+    $details = ps_str($in, 'details');
     $errors = [];
     if (!isset($fields[$field])) {
         $errors['field'] = 'Choose the detail that is wrong.';

@@ -79,7 +79,7 @@ route('POST', '/placement/drives/{id:\d+}/register', function ($p) {
 
 route('GET', '/placement/applications/options', function () {
     api_require('placement', 'view');
-    $q = trim((string) ($_GET['q'] ?? ''));
+    $q = trim(api_str($_GET['q'] ?? null));
     $where = ["a.status <> 'withdrawn'"];
     $args = [];
     if ($q !== '') {
@@ -89,7 +89,7 @@ route('GET', '/placement/applications/options', function () {
         }
     }
     if (!empty($_GET['ids'])) {
-        $ids = array_values(array_filter(array_map('intval', explode(',', (string) $_GET['ids']))));
+        $ids = array_values(array_filter(array_map('intval', explode(',', api_str($_GET['ids'])))));
         $where = $ids ? ['a.id IN (' . implode(',', $ids) . ')'] : ['1 = 0'];
         $args = [];
     }
@@ -118,7 +118,7 @@ route('POST', '/placement/applications/{id:\d+}/rounds', function ($p) {
     $in = api_input();
     $res = placement_record_round((int) $p['id'], $in);
     $msg = ($in['result'] ?? '') === 'pending'
-        ? trim((string) ($in['round_name'] ?? 'Round')) . ' scheduled.'
+        ? trim(api_str($in['round_name'] ?? null, 'Round')) . ' scheduled.'
         : match ($res['status']) {
             'selected' => 'Round recorded — the student cleared the final round and is selected.',
             'rejected' => 'Round recorded — the student did not clear this round.',
@@ -130,7 +130,7 @@ route('POST', '/placement/applications/{id:\d+}/rounds', function ($p) {
 route('POST', '/placement/applications/bulk', function () {
     api_require('placement', 'edit');
     $in = api_input();
-    $res = placement_bulk_applications((string) ($in['action'] ?? ''), (array) ($in['ids'] ?? []), $in);
+    $res = placement_bulk_applications(api_str($in['action'] ?? null), (array) ($in['ids'] ?? []), $in);
     api_ok($res, $res['message']);
 });
 

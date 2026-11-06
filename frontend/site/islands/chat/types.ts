@@ -19,8 +19,18 @@ export interface ChatConfig {
   botName: string;
   avatar: string | null;
   greeting: string;
-  /** Seconds before the greeting bubble appears. */
+  /** Minimum seconds before the greeting bubble may appear (the time trigger is max(greetingDelay, greetingAfter)). */
   greetingDelay: number;
+  /**
+   * Greeting bubble behaviour for this page (chatbot_widget() in includes/partials/chatbot.php):
+   * auto = after the scroll / time trigger when nothing important sits under it · forms = also never while a lead form is
+   * on screen (campaign landing pages) · off = never (apply, contact, portal pages).
+   */
+  greetingMode?: 'auto' | 'forms' | 'off';
+  /** Seconds on the page after which the bubble may appear without scrolling (default 20). */
+  greetingAfter?: number;
+  /** Share of the page (0–1) the visitor has scrolled after which the bubble may appear (default 0.3). */
+  greetingScroll?: number;
   welcome: string;
   welcomeSub: string;
   quickReplies: ChatSuggestion[];

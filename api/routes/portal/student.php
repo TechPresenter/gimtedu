@@ -19,6 +19,8 @@
  *   GET  /portal/student/results/{id}                  subject-wise marks of one published result
  *   GET  /portal/student/fees                          totals, invoices (+ installments), payments, concessions, payment options
  *   GET  /portal/student/fees/invoices/{id}            invoice detail
+ *   POST /portal/student/fees/pay                      {invoice_id [, amount]} -> {order_ref, url} Cashfree payment page
+ *   GET  /portal/student/fees/payments/{ref}           status of an online payment (re-checked with Cashfree)
  *   GET  /portal/student/library                       membership, current loans, history, fines
  *   GET  /portal/student/hostel                        allotment, roommates (first names), complaints
  *   POST /portal/student/hostel/complaints             {category, priority, subject, description}
@@ -28,6 +30,7 @@
  *   GET  /portal/student/placement                     eligible open drives, my applications (+ rounds), offers
  *   POST /portal/student/placement/drives/{id}/apply
  *   POST /portal/student/placement/applications/{id}/withdraw
+ *   GET  /portal/student/placement/offers/{id}/letter[?download=1]  own offer letter (private file)
  *   GET  /portal/student/documents                     own uploaded documents with verification status
  *   GET  /portal/student/documents/{id}/file[?download=1]  secure file stream
  *   GET  /portal/student/tickets                       my grievances / feedback (+ counts, types, categories)
@@ -68,7 +71,7 @@ route('GET', '/portal/student/timetable', function () {
 
 route('GET', '/portal/student/attendance', function () {
     $me = portal_student_require();
-    api_ok(ps_attendance($me['student'], trim((string) ($_GET['month'] ?? ''))));
+    api_ok(ps_attendance($me['student'], is_string($_GET['month'] ?? null) ? trim($_GET['month']) : ''));
 }, ['auth' => false]);
 
 route('GET', '/portal/student/exams', function () {
@@ -116,6 +119,32 @@ route('GET', '/portal/student/fees/invoices/{id:\d+}', function ($p) {
     $out['payments'] = array_map(fn ($pm) => ['id' => (int) $pm['id'], 'receipt_no' => $pm['receipt_no'], 'date' => $pm['payment_date'], 'mode' => fees_mode_label($pm['mode']),
         'reference_no' => $pm['reference_no'], 'status' => $pm['status'], 'amount' => (float) $pm['applied_amount']], $inv['payments']);
     api_ok($out);
+}, ['auth' => false]);
+
+// Online payment (Cashfree payment link): {invoice_id [, amount]} -> {order_ref, url} — the portal redirects to url
+route('POST', '/portal/student/fees/pay', function () {
+    require_once APP_ROOT . '/app/services/cashfree.php';
+    $me = portal_student_require();
+    ps_throttle($me, 'fee-pay', 12, 3600);
+    $in = api_input();
+    $amount = isset($in['amount']) && is_numeric($in['amount']) ? (float) $in['amount'] : null;
+    api_ok(cashfree_start_payment($me['student'], (int) ($in['invoice_id'] ?? 0), $amount), 'Opening the secure Cashfree payment page…');
+}, ['auth' => false]);
+
+// Status of an online payment started by this student (re-checked with Cashfree while it is open)
+route('GET', '/portal/student/fees/payments/{ref:[A-Za-z0-9_-]+}', function ($p) {
+    require_once APP_ROOT . '/app/services/cashfree.php';
+    $me = portal_student_require();
+    $o = strlen($p['ref']) <= 45 ? db_row('SELECT * FROM gateway_orders WHERE order_ref = ? AND student_id = ?', [$p['ref'], (int) $me['student']['id']]) : null;
+    if (!$o) {
+        api_error('Payment not found.', 404);
+    }
+    if ($o['status'] === 'created') {
+        $o = cashfree_sync($o['order_ref']) ?? $o;
+    }
+    api_ok(['ref' => $o['order_ref'], 'status' => $o['status'], 'amount' => (float) $o['amount'],
+        'receipt_no' => $o['payment_id'] ? db_value('SELECT receipt_no FROM payments WHERE id = ?', [(int) $o['payment_id']]) : null,
+        'payment_id' => $o['payment_id'] ? (int) $o['payment_id'] : null]);
 }, ['auth' => false]);
 
 /* ------------------------------------------------------------------ campus */
@@ -173,6 +202,16 @@ route('POST', '/portal/student/placement/drives/{id:\d+}/apply', function ($p) {
     api_ok(['id' => $r['id']], $r['message']);
 }, ['auth' => false]);
 
+route('GET', '/portal/student/placement/offers/{id:\d+}/letter', function ($p) {
+    $me = portal_student_require();
+    $o = db_row('SELECT o.id, o.offer_letter, c.name AS company FROM placement_offers o JOIN companies c ON c.id = o.company_id WHERE o.id = ? AND o.student_id = ?',
+        [(int) $p['id'], $me['student_id']]);
+    if (!$o || !$o['offer_letter']) {
+        api_error('Offer letter not found.', 404);
+    }
+    ps_stream_file($o['offer_letter'], 'Offer letter - ' . $o['company'], 'Offer letter not found.');
+}, ['auth' => false]);
+
 route('POST', '/portal/student/placement/applications/{id:\d+}/withdraw', function ($p) {
     $me = portal_student_require();
     ps_throttle($me, 'placement', 30, 3600);
@@ -190,17 +229,26 @@ route('GET', '/portal/student/documents', function () {
     api_ok(ps_documents($me['student']));
 }, ['auth' => false]);
 
-route('GET', '/portal/student/documents/{id:\d+}/file', function ($p) {
-    $me = portal_student_require();
-    $doc = db_row('SELECT id, student_id, title, file_path, original_name FROM student_documents WHERE id = ? AND student_id = ?', [(int) $p['id'], $me['student_id']]);
-    $path = (string) ($doc['file_path'] ?? '');
+/**
+ * Streams a stored file (private storage or public uploads) that the caller has ALREADY scoped to the student.
+ * PDFs / images open inline unless ?download=1; everything else downloads. Ends the request (404 when missing).
+ */
+function ps_stream_file(?string $path, string $fallbackName, string $notFound): void
+{
+    $path = (string) $path;
     $abs = APP_ROOT . '/' . $path;
-    if (!$doc || $path === '' || str_contains($path, '..') || !(str_starts_with($path, 'storage/private/') || str_starts_with($path, 'assets/uploads/')) || !is_file($abs)) {
-        api_error('Document not found.', 404);
+    if ($path === '' || str_contains($path, '..') || str_contains($path, "\0") || !(str_starts_with($path, 'storage/private/') || str_starts_with($path, 'assets/uploads/')) || !is_file($abs)) {
+        api_error($notFound, 404);
     }
     $mime = (new finfo(FILEINFO_MIME_TYPE))->file($abs) ?: 'application/octet-stream';
     $ext = pathinfo($abs, PATHINFO_EXTENSION);
-    $name = preg_replace('/[^A-Za-z0-9._\- ]/', '_', (string) ($doc['original_name'] ?: ($doc['title'] . ($ext ? '.' . $ext : ''))));
+    $name = trim((string) preg_replace('/[^A-Za-z0-9._\- ]/', '_', $fallbackName));
+    if ($name === '' || trim($name, '_. ') === '') {
+        $name = 'document';
+    }
+    if ($ext !== '' && !str_ends_with(strtolower($name), '.' . strtolower($ext))) {
+        $name .= '.' . $ext;
+    }
     $download = !empty($_GET['download']);
     $inline = !$download && in_array($mime, ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif'], true);
     header('Content-Type: ' . $mime);
@@ -211,6 +259,15 @@ route('GET', '/portal/student/documents/{id:\d+}/file', function ($p) {
     header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
     readfile($abs);
     exit;
+}
+
+route('GET', '/portal/student/documents/{id:\d+}/file', function ($p) {
+    $me = portal_student_require();
+    $doc = db_row('SELECT id, title, file_path, original_name FROM student_documents WHERE id = ? AND student_id = ?', [(int) $p['id'], $me['student_id']]);
+    if (!$doc) {
+        api_error('Document not found.', 404);
+    }
+    ps_stream_file($doc['file_path'], (string) ($doc['original_name'] ?: $doc['title']), 'Document not found.');
 }, ['auth' => false]);
 
 /* ------------------------------------------------------------------ grievances / feedback */
@@ -238,6 +295,7 @@ route('POST', '/portal/student/tickets', function () {
 
 route('POST', '/portal/student/tickets/{id:\d+}/rate', function ($p) {
     $me = portal_student_require();
+    ps_throttle($me, 'ticket-rate', 30, 3600);
     $f = ps_ticket_row($me['student'], (int) $p['id']);
     if (!$f) {
         api_error('Ticket not found.', 404);
@@ -245,7 +303,8 @@ route('POST', '/portal/student/tickets/{id:\d+}/rate', function ($p) {
     if (!in_array($f['status'], ['resolved', 'closed'], true)) {
         api_error('You can rate a ticket once it has been resolved.', 422);
     }
-    $rating = (int) api_param('rating', 0);
+    $raw = ps_str(api_input(), 'rating');
+    $rating = ctype_digit($raw) ? (int) $raw : 0;
     if ($rating < 1 || $rating > 5) {
         api_error('Choose a rating from 1 to 5.', 422, ['rating' => 'Choose a rating from 1 to 5.']);
     }
@@ -261,7 +320,7 @@ route('POST', '/portal/student/tickets/{id:\d+}/reopen', function ($p) {
     if (!$f) {
         api_error('Ticket not found.', 404);
     }
-    $reason = trim((string) api_param('reason', ''));
+    $reason = ps_str(api_input(), 'reason');
     if (mb_strlen($reason) < 10) {
         api_error('Tell us why the issue is not resolved (at least 10 characters).', 422, ['reason' => 'Tell us why the issue is not resolved (at least 10 characters).']);
     }

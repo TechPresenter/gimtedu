@@ -135,7 +135,7 @@ route('POST', '/contact-messages/bulk', function () {
         'archive' => ['is_archived = 1', '1 = 1'], 'unarchive' => ['is_archived = 0', '1 = 1'],
         'resolve' => ["status = 'closed', resolved_at = NOW(), read_at = COALESCE(read_at, NOW())", "status <> 'closed'"],
     ];
-    $action = (string) ($in['action'] ?? '');
+    $action = api_str($in['action'] ?? null);
     if (!$ids || !isset($map[$action])) {
         api_error(!$ids ? 'Select at least one message.' : 'Unknown bulk action.', 422);
     }

@@ -11,7 +11,9 @@ import { viewTransition } from './effects';
  *     .vm-text/.vm-extra parts)…</div>
  * The container's inline bootstrap script (from view_mode_open()) already applied the saved mode before its children
  * were parsed (no layout shift); this wires the segmented control, persists per key in localStorage and animates the
- * switch with the View Transitions API where available. Arrow keys move between modes (radiogroup pattern).
+ * switch with the View Transitions API where available. Arrow keys / Home / End move between modes (radiogroup
+ * pattern). site_view_sync_script($key) (includes/partials/theme.php), printed right after a toggle, marks the saved
+ * mode's button before the first paint, so the control and the listing never disagree while the bundle loads.
  */
 const storeKey = (key: string) => `gimt.view.${key}`;
 
@@ -46,6 +48,8 @@ export function initViewModes(root: ParentNode = document): void {
         let n = -1;
         if (e.key === 'ArrowRight' || e.key === 'ArrowDown') n = (i + 1) % buttons.length;
         else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') n = (i - 1 + buttons.length) % buttons.length;
+        else if (e.key === 'Home') n = 0;
+        else if (e.key === 'End') n = buttons.length - 1;
         if (n >= 0) {
           e.preventDefault();
           set(buttons[n].getAttribute('data-view-mode') || 'grid', true);

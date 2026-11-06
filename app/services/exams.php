@@ -507,6 +507,7 @@ function exam_refresh_schedule_status(int $examId): void
     $scheduled = (int) db_value('SELECT COUNT(*) FROM exam_schedules s JOIN exam_subjects es ON es.exam_id = s.exam_id AND es.subject_id = s.subject_id WHERE s.exam_id = ?', [$examId]);
     if ($subjects && $scheduled >= $subjects) {
         db_update('exams', ['status' => 'scheduled'], 'id = ?', [$examId]);
+        try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_fanout('GIMT_EXAM_SCHEDULED', ['exam_id' => $examId, 'portal_link' => absolute_url('portal/student')], db_column("SELECT id FROM students WHERE program_id = ? AND current_semester = ? AND status = 'active'", [(int) $e['program_id'], (int) $e['semester_no']]), 'exam:' . $examId, ['source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     }
 }
 
@@ -534,12 +535,12 @@ function exam_datesheet(array $q): array
         }
     }
     foreach (['from' => '>=', 'to' => '<='] as $k => $op) {
-        if (!empty($q[$k]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $q[$k])) {
+        if (!empty($q[$k]) && is_string($q[$k]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $q[$k])) {
             $where[] = "s.exam_date $op ?";
             $args[] = $q[$k];
         }
     }
-    $term = trim((string) ($q['q'] ?? ''));
+    $term = trim(api_str($q['q'] ?? null));
     if ($term !== '') {
         $where[] = '(sb.name LIKE ? OR sb.code LIKE ? OR ex.name LIKE ? OR r.code LIKE ?)';
         array_push($args, "%$term%", "%$term%", "%$term%", "%$term%");
@@ -788,7 +789,7 @@ function exam_assign_seats(int $examId): void
 function exam_students_list(array $e, array $q): array
 {
     [$page, $perPage] = [max(1, (int) ($q['page'] ?? 1)), max(1, min(100, (int) ($q['per_page'] ?? 25)))];
-    $term = trim((string) ($q['q'] ?? ''));
+    $term = trim(api_str($q['q'] ?? null));
     $search = '';
     $sargs = [];
     if ($term !== '') {
@@ -1285,6 +1286,10 @@ function exam_parse_marks_file(array $e, int $subjectId, array $file): array
     $path = APP_ROOT . '/' . $res['path'];
     try {
         $lines = spreadsheet_read($path, $res['extension']);
+    } catch (CrudException $e) {
+        throw $e;
+    } catch (RuntimeException $e) {
+        throw new CrudValidationException(['file' => $e->getMessage()], $e->getMessage()); // damaged / oversized workbook
     } finally {
         @unlink($path);
     }
@@ -1836,7 +1841,8 @@ function marksheet_number(): string
  */
 function marksheet_verify_url(array $m): string
 {
-    return absolute_url('api/marksheets/verify/' . rawurlencode($m['marksheet_no'])) . '?code=' . rawurlencode(substr((string) $m['verification_code'], 0, 16));
+    // pretty public URL (tools/router.php + .htaccess -> GET /api/marksheets/verify/{no}); printed in the marksheet QR code
+    return absolute_url('verify-marksheet/' . rawurlencode($m['marksheet_no'])) . '?code=' . rawurlencode(substr((string) $m['verification_code'], 0, 16));
 }
 
 /** Human-readable security code printed on the marksheet (first 12 hex digits of the verification code, e.g. 21BD-E3E0-9716). */

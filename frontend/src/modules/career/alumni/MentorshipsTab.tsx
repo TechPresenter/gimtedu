@@ -35,11 +35,11 @@ export function MentorshipsTab() {
             <CardHeader title="Most active mentors" subtitle="Alumni guiding the most students" icon={GraduationCap} />
             <div className="card-body !pt-0">
               {isLoading || !data ? (
-                <div className="grid gap-3 sm:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16" />)}</div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16" />)}</div>
               ) : data.top_mentors.length === 0 ? (
                 <EmptyState icon={Handshake} title="No mentorships yet" description="Pair an alumni mentor with a student using “Add Mentorship” below." className="py-8" />
               ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {data.top_mentors.map((m) => (
                     <Link key={String(m.id)} to={`/alumni/${m.id}`} className="flex items-center gap-3 rounded-xl border border-slate-200/80 p-3 transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-soft dark:border-slate-800 dark:hover:border-brand-500/40">
                       <Avatar name={String(m.name)} src={m.photo as string | null} />

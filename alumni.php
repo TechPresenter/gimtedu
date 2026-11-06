@@ -49,7 +49,7 @@ if ($events) {
 $schema = [pc_breadcrumb_ld([['Home', ''], ['Alumni', 'alumni']])];
 foreach ($events as $ev) {
     $online = $ev['mode'] === 'online';
-    $place = ['@type' => 'Place', 'name' => (string) ($ev['venue'] ?: institute_name()), 'address' => ['@type' => 'PostalAddress', 'addressLocality' => setting('city', 'Greater Noida'), 'addressCountry' => 'IN']];
+    $place = ['@type' => 'Place', 'name' => (string) ($ev['venue'] ?: institute_name()), 'address' => ['@type' => 'PostalAddress', 'addressLocality' => setting('city', 'Noida'), 'addressCountry' => 'IN']];
     $virtual = ['@type' => 'VirtualLocation', 'url' => !empty($ev['registration_link']) && preg_match('#^https?://#', (string) $ev['registration_link']) ? (string) $ev['registration_link'] : absolute_url('alumni')];
     $schema[] = array_filter([
         '@context' => 'https://schema.org', '@type' => 'Event', 'name' => (string) $ev['title'],
@@ -457,14 +457,14 @@ page_hero('GIMT Alumni Network', ($cms['subtitle'] ?? '') ?: 'Once a GIMTian, Al
           'fields' => [
               ['name' => 'name', 'label' => 'Full Name', 'required' => true, 'col' => 'half', 'maxLength' => 150, 'autocomplete' => 'name'],
               ['name' => 'email', 'label' => 'Email Address', 'type' => 'email', 'required' => true, 'col' => 'half', 'maxLength' => 190, 'autocomplete' => 'email'],
-              ['name' => 'phone', 'label' => 'Phone Number', 'type' => 'tel', 'required' => true, 'col' => 'half', 'maxLength' => 20, 'autocomplete' => 'tel', 'placeholder' => 'With country code if outside India'],
+              ['name' => 'phone', 'label' => 'Phone Number', 'type' => 'tel', 'required' => true, 'col' => 'half', 'autocomplete' => 'tel', 'country' => 'IN', 'help' => 'Choose your country code if you live outside India.'],
               ['name' => 'batch_year', 'label' => 'Batch (passing-out year)', 'type' => 'select', 'required' => true, 'col' => 'half', 'options' => $years, 'placeholder' => 'Select year'],
               ['name' => 'program_id', 'label' => 'Program', 'type' => 'select', 'required' => true, 'options' => $programOptions, 'placeholder' => 'Select your program'],
               ['name' => 'employment_status', 'label' => 'Current status', 'type' => 'select', 'required' => true, 'col' => 'half', 'options' => $statusOptions, 'value' => 'employed', 'placeholder' => 'Select status'],
               ['name' => 'company', 'label' => 'Company / Organisation', 'col' => 'half', 'maxLength' => 190, 'autocomplete' => 'organization', 'help' => 'Required if employed or running a business.'],
-              ['name' => 'designation', 'label' => 'Designation', 'col' => 'half', 'maxLength' => 150, 'autocomplete' => 'organization-title'],
+              ['name' => 'designation', 'label' => 'Designation', 'col' => 'half', 'maxLength' => 150, 'autocomplete' => 'organization-title', 'help' => 'Required if employed.'],
+              ['name' => 'country', 'label' => 'Country', 'type' => 'country', 'col' => 'half', 'value' => 'India'],
               ['name' => 'city', 'label' => 'City', 'required' => true, 'col' => 'half', 'maxLength' => 80, 'autocomplete' => 'address-level2'],
-              ['name' => 'country', 'label' => 'Country', 'col' => 'half', 'maxLength' => 80, 'autocomplete' => 'country-name', 'value' => 'India'],
               ['name' => 'linkedin_url', 'label' => 'LinkedIn profile (optional)', 'col' => 'half', 'maxLength' => 255, 'placeholder' => 'https://www.linkedin.com/in/your-name',
                'pattern' => '^https://([a-z]{2,3}\\.)?linkedin\\.com/(in|pub)/.+', 'patternMessage' => 'Enter your LinkedIn profile link, e.g. https://www.linkedin.com/in/your-name'],
               ['name' => 'mentor', 'label' => 'I would like to mentor current GIMT students', 'type' => 'checkbox'],

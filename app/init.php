@@ -74,9 +74,14 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: SAMEORIGIN');
     header('Referrer-Policy: strict-origin-when-cross-origin');
-    header('Permissions-Policy: camera=(self), microphone=(), geolocation=(self)');
+    // microphone=(self): voice input in the website search and the chatbot (only after the visitor taps the mic button)
+    header('Permissions-Policy: camera=(self), microphone=(self), geolocation=(self)');
     if (!empty(app_config('app')['force_https']) && empty($_SERVER['HTTPS']) && ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') !== 'https') {
-        header('Location: https://' . ($_SERVER['HTTP_HOST'] ?? '') . ($_SERVER['REQUEST_URI'] ?? '/'), true, 301);
+        // the configured site URL decides the host (a spoofed Host header must not pick the redirect target)
+        $host = (string) (parse_url((string) (app_config('app')['url'] ?? ''), PHP_URL_HOST) ?: preg_replace('/[^A-Za-z0-9.\-:\[\]]/', '', (string) ($_SERVER['HTTP_HOST'] ?? '')));
+        $port = parse_url((string) (app_config('app')['url'] ?? ''), PHP_URL_PORT);
+        $uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+        header('Location: https://' . $host . ($port ? ':' . $port : '') . (str_starts_with($uri, '/') && !str_starts_with($uri, '//') ? $uri : '/'), true, 301);
         exit;
     }
     if (!empty($_SERVER['HTTPS']) || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') {

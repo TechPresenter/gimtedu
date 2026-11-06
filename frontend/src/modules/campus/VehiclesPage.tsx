@@ -5,7 +5,7 @@ import { PageHeader, PersonCell, StatTile, Stagger, StatusBadge, Tabs } from '@/
 import { CrudFormModal, CrudTable } from '@/components/crud';
 import { useCrudList, useCrudMeta } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
-import { formatNumber, isoDate } from '@/lib/format';
+import { formatNumber, formatPhone, isoDate } from '@/lib/format';
 import type { Row } from '@/lib/types';
 import { DocumentChips, ExpiryCell, OccupancyBar, SummaryStrip, VEHICLE_TYPES, openPrint, useTransportRefresh } from './transport/shared';
 import { FuelLogPanel } from './transport/components/FuelLogPanel';
@@ -133,7 +133,7 @@ export default function VehiclesPage() {
               next_expiry: (r) => <DocumentChips row={r} alertDays={alertDays} />,
               driver_name: (r) =>
                 r.driver_name ? (
-                  <div className="whitespace-nowrap"><PersonCell name={String(r.driver_name)} sub={r.driver_phone} src={r.driver_photo} size="sm" /></div>
+                  <div className="whitespace-nowrap"><PersonCell name={String(r.driver_name)} sub={r.driver_phone ? formatPhone(r.driver_phone) : undefined} src={r.driver_photo} size="sm" /></div>
                 ) : (
                   <span className="text-xs font-medium text-amber-600 dark:text-amber-400">No driver</span>
                 ),

@@ -1,7 +1,7 @@
 import { memo, useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { appUrl } from '@/lib/config';
-import { formatDate, initials } from '@/lib/format';
+import { formatDate, formatPhone, initials } from '@/lib/format';
 import type { IdCardRow, InstituteInfo } from '../types';
 
 /* ------------------------------------------------------------------ QR (uses the bundled assets/vendor/qrcode.js) */
@@ -90,7 +90,7 @@ export const IdCardFront = memo(function IdCardFront({ s, institute }: { s: IdCa
         </div>
       </div>
       <div className="absolute inset-x-0 bottom-0 flex h-[13%] items-center justify-between bg-slate-50 px-[4cqw] text-[2.6cqw]">
-        <span>Emergency: <strong>{s.emergency_contact_phone ?? s.guardian_phone ?? '—'}</strong></span>
+        <span>Emergency: <strong>{s.emergency_contact_phone || s.guardian_phone ? formatPhone(s.emergency_contact_phone ?? s.guardian_phone) : '—'}</strong></span>
         <span>Valid till <strong>{formatDate(s.valid_until)}</strong></span>
       </div>
     </div>
@@ -107,7 +107,7 @@ export const IdCardBack = memo(function IdCardBack({ s, institute }: { s: IdCard
           <p className="text-[2.4cqw] font-semibold uppercase tracking-wider text-slate-500">Student address</p>
           <p className="mt-[0.6cqw] line-clamp-3 font-medium">{address || '—'}</p>
           <p className="mt-[2cqw] text-[2.4cqw] font-semibold uppercase tracking-wider text-slate-500">Mobile</p>
-          <p className="font-medium">{s.mobile}</p>
+          <p className="font-medium">{formatPhone(s.mobile)}</p>
           <p className="mt-[2cqw] text-[2.4cqw] font-semibold uppercase tracking-wider text-slate-500">If found, please return to</p>
           <p className="line-clamp-2 font-medium">{institute?.name ?? 'Global Institute of Management & Technology'}{institute?.address ? `, ${institute.address}` : ''}</p>
         </div>
@@ -117,7 +117,7 @@ export const IdCardBack = memo(function IdCardBack({ s, institute }: { s: IdCard
         </div>
       </div>
       <div className="absolute inset-x-0 bottom-0 flex h-[15%] items-center justify-between bg-brand-900 px-[4cqw] text-[2.5cqw] text-white">
-        <span>{institute?.phone ?? ''}{institute?.email ? ` · ${institute.email}` : ''}</span>
+        <span>{formatPhone(institute?.phone)}{institute?.email ? ` · ${institute.email}` : ''}</span>
         <span className="border-t border-white/50 pt-[0.4cqw] italic">Authorised signatory</span>
       </div>
     </div>

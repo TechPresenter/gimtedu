@@ -442,7 +442,7 @@ function ne_notice_badges(array $n): string
         $html .= '<span class="inline-flex items-center gap-1 rounded-full bg-brand-900 px-2.5 py-0.5 text-xs font-semibold text-white">' . ne_pin_icon() . 'Pinned</span>';
     }
     if (!$archived && ne_is_new(ne_notice_date($n))) {
-        $html .= '<span class="inline-flex items-center rounded-full bg-accent-600 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-white">New</span>';
+        $html .= '<span class="pill-gold uppercase tracking-wide">New</span>';
     }
     if ($archived) {
         $html .= '<span class="badge badge-slate">' . icon('archive', 'h-3.5 w-3.5') . 'Archived</span>';
@@ -521,7 +521,7 @@ function ne_notice_line(array $n): string
         . '<span class="min-w-0"><a href="' . e(ne_notice_url($n)) . '" class="stretched-link line-clamp-2 text-sm font-semibold leading-snug text-brand-900 group-hover:text-accent-700">' . e((string) $n['title']) . '</a>'
         . '<span class="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-slate-500"><time datetime="' . e(date('Y-m-d', strtotime($pub) ?: time())) . '">' . e(time_ago($pub)) . '</time>'
         . '<span aria-hidden="true">·</span>' . e($cat['label'])
-        . (ne_is_new($pub) && empty($n['is_archived']) ? '<span class="rounded-full bg-accent-600 px-1.5 text-[10px] font-bold uppercase leading-4 text-white">New</span>' : '') . '</span></span></li>';
+        . (ne_is_new($pub) && empty($n['is_archived']) ? '<span class="pill-gold !px-1.5 !py-0 !text-[10px] uppercase !leading-4">New</span>' : '') . '</span></span></li>';
 }
 
 /* =====================================================================================================================
@@ -679,7 +679,7 @@ function ne_event_map(?string $venue): ?array
     if (ne_event_online($venue)) {
         return null;
     }
-    $city = trim((string) setting('city', 'Greater Noida'));
+    $city = trim((string) setting('city', 'Noida'));
     $offCampus = $venue !== '' && (($city !== '' && stripos($venue, $city) !== false) || preg_match('/\b(expo|mart|hotel|stadium|centre for|center for|bhawan|bhavan|delhi|noida|gurugram|gurgaon|ghaziabad)\b/i', $venue));
     if ($offCampus) {
         return ['url' => 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($venue), 'label' => 'View venue on Google Maps'];
@@ -758,7 +758,7 @@ function ne_event_location_text(array $e): string
         return $venue;
     }
     $map = ne_event_map($venue);
-    $campus = institute_name() . ', ' . (string) setting('address', setting('city', 'Greater Noida'));
+    $campus = institute_name() . ', ' . (string) setting('address', setting('city', 'Noida'));
     return $map && str_starts_with($map['label'], 'Directions') ? trim($venue . ($venue !== '' ? ', ' : '') . $campus) : $venue;
 }
 
@@ -966,8 +966,8 @@ function ne_script(): string
         return '';
     }
     $done = true;
-    return <<<'HTML'
-<script>(function(d,w){function show(b){b.classList.remove('hidden')}
+    return '<script' . site_nonce_attr() . '>' . <<<'HTML'
+(function(d,w){function show(b){b.classList.remove('hidden')}
 function say(t){d.querySelectorAll('[data-ne-live]').forEach(function(l){l.textContent=t})}
 d.querySelectorAll('[data-ne-copy]').forEach(function(b){show(b);b.addEventListener('click',function(){var u=b.getAttribute('data-ne-copy'),l=b.querySelector('[data-ne-label]'),o=l?l.textContent:'';
 function ok(){if(l){l.textContent='Link copied';w.setTimeout(function(){l.textContent=o},2200)}say('Link copied to clipboard')}

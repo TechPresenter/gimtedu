@@ -45,8 +45,8 @@ function portal_respond(array $r, $data = null): void
 function portal_require_login_input(): array
 {
     $in = api_input();
-    $identifier = trim((string) ($in['identifier'] ?? ''));
-    $password = (string) ($in['password'] ?? '');
+    $identifier = trim(api_str($in['identifier'] ?? null));
+    $password = api_str($in['password'] ?? null);
     $errors = [];
     if ($identifier === '') {
         $errors['identifier'] = 'This field is required.';
@@ -105,13 +105,13 @@ route('POST', '/portal/student/logout', function () {
 
 route('POST', '/portal/student/activate/verify', function () {
     $in = api_input();
-    $r = portal_student_activation_verify((string) ($in['student_uid'] ?? ''), (string) ($in['dob'] ?? ''), (string) ($in['contact'] ?? ''));
+    $r = portal_student_activation_verify(api_str($in['student_uid'] ?? null), api_str($in['dob'] ?? null), api_str($in['contact'] ?? null));
     portal_respond($r);
 }, ['auth' => false]);
 
 route('POST', '/portal/student/activate', function () {
     $in = api_input();
-    $r = portal_student_activate((string) ($in['password'] ?? ''), (string) ($in['password_confirmation'] ?? ''));
+    $r = portal_student_activate(api_str($in['password'] ?? null), api_str($in['password_confirmation'] ?? null));
     if (!$r['ok']) {
         api_error($r['message'], $r['status'], $r['errors'] ?? []);
     }
@@ -119,7 +119,7 @@ route('POST', '/portal/student/activate', function () {
 }, ['auth' => false]);
 
 route('POST', '/portal/student/forgot', function () {
-    $identifier = trim((string) api_param('identifier', ''));
+    $identifier = trim(api_str(api_param('identifier')));
     if ($identifier === '' || mb_strlen($identifier) > 190) {
         api_error('Enter your Student ID or registered email.', 422, ['identifier' => 'Enter your Student ID or registered email.']);
     }
@@ -133,7 +133,7 @@ route('POST', '/portal/student/forgot', function () {
 }, ['auth' => false]);
 
 route('GET', '/portal/student/reset/{selector}', function ($p) {
-    api_ok(['valid' => (bool) portal_student_reset_row((string) $p['selector'], (string) ($_GET['token'] ?? ''))]);
+    api_ok(['valid' => (bool) portal_student_reset_row((string) $p['selector'], api_str($_GET['token'] ?? null))]);
 }, ['auth' => false]);
 
 route('POST', '/portal/student/reset', function () {
@@ -141,15 +141,15 @@ route('POST', '/portal/student/reset', function () {
     if (!rate_limit('portal-reset:' . client_ip(), 10, 900)) {
         api_error('Too many attempts. Please try again in 15 minutes.', 429);
     }
-    $row = portal_student_reset_row((string) ($in['selector'] ?? ''), (string) ($in['token'] ?? ''));
+    $row = portal_student_reset_row(api_str($in['selector'] ?? null), api_str($in['token'] ?? null));
     if (!$row) {
         api_error('This password reset link is invalid or has expired. Please request a new one.', 410);
     }
-    $password = (string) ($in['password'] ?? '');
+    $password = api_str($in['password'] ?? null);
     if ($err = password_policy_error($password)) {
         api_error($err, 422, ['password' => $err]);
     }
-    if ($password !== (string) ($in['password_confirmation'] ?? '')) {
+    if ($password !== api_str($in['password_confirmation'] ?? null)) {
         api_error('Passwords do not match.', 422, ['password_confirmation' => 'Passwords do not match.']);
     }
     $extra = ['must_change_password' => 0];
@@ -166,14 +166,14 @@ route('POST', '/portal/student/password', function () {
     $me = portal_student_require(true);
     $in = api_input();
     $acc = db_row('SELECT * FROM student_accounts WHERE id = ?', [$me['account_id']]);
-    if (!password_verify((string) ($in['current_password'] ?? ''), (string) $acc['password_hash'])) {
+    if (!password_verify(api_str($in['current_password'] ?? null), (string) $acc['password_hash'])) {
         api_error('Your current password is incorrect.', 422, ['current_password' => 'Your current password is incorrect.']);
     }
-    $password = (string) ($in['password'] ?? '');
+    $password = api_str($in['password'] ?? null);
     if ($err = password_policy_error($password)) {
         api_error($err, 422, ['password' => $err]);
     }
-    if ($password !== (string) ($in['password_confirmation'] ?? '')) {
+    if ($password !== api_str($in['password_confirmation'] ?? null)) {
         api_error('Passwords do not match.', 422, ['password_confirmation' => 'Passwords do not match.']);
     }
     if (password_verify($password, (string) $acc['password_hash'])) {
@@ -199,7 +199,7 @@ route('POST', '/portal/student/ping', function () {
 
 route('POST', '/portal/student/prefs', function () {
     $me = portal_student_require(true);
-    $theme = (string) api_param('theme', '');
+    $theme = api_str(api_param('theme'));
     if (!in_array($theme, ['light', 'dark', 'system'], true)) {
         api_error('Choose light, dark or system.', 422, ['theme' => 'Choose light, dark or system.']);
     }
@@ -258,8 +258,9 @@ route('GET', '/portal/student/dashboard', function () {
         foreach (db_all("SELECT a.subject_id, a.time_slot_id, r.status FROM attendance a
                          JOIN attendance_records r ON r.attendance_id = a.id AND r.person_type = 'student' AND r.person_id = ?
                          WHERE a.type = 'student' AND a.attendance_date = CURDATE() AND a.section_id = ?", [$sid, (int) $s['section_id']]) as $m) {
+            // key |0 = a register without a period (extra class): it covers every period of that subject on the day;
+            // a register of one period never counts for the other half of a double period
             $marks[(int) $m['subject_id'] . '|' . (int) $m['time_slot_id']] = $m['status'];
-            $marks[(int) $m['subject_id'] . '|0'] = $m['status'];
         }
         $now = date('H:i:s');
         foreach ($classes as &$c) {
@@ -312,7 +313,7 @@ route('GET', '/portal/student/notices', function () {
     $me = portal_student_require(true);
     $limit = max(1, min(50, (int) ($_GET['limit'] ?? 10)));
     $page = max(1, (int) ($_GET['page'] ?? 1));
-    $res = portal_notices('student', portal_student_scope($me['student']), $limit, ($page - 1) * $limit, trim((string) ($_GET['q'] ?? '')), trim((string) ($_GET['category'] ?? '')));
+    $res = portal_notices('student', portal_student_scope($me['student']), $limit, ($page - 1) * $limit, trim(api_str($_GET['q'] ?? null)), trim(api_str($_GET['category'] ?? null)));
     api_ok($res + ['page' => $page, 'per_page' => $limit]);
 }, ['auth' => false]);
 
@@ -339,6 +340,11 @@ route('POST', '/portal/faculty/login', function () {
     if (!$r['ok']) {
         api_error($r['message'], $r['status']);
     }
+    if (!can('faculty_portal', 'view')) {
+        logout_user();
+        session_start_secure();
+        api_error('This account does not have Faculty Portal access. Please contact the administrator.', 403);
+    }
     api_ok(portal_faculty_payload(), $r['message']);
 }, ['auth' => false]);
 
@@ -355,7 +361,7 @@ route('POST', '/portal/faculty/logout', function () {
 }, ['auth' => false]);
 
 route('POST', '/portal/faculty/forgot', function () {
-    $email = strtolower(trim((string) api_param('email', '')));
+    $email = strtolower(trim(api_str(api_param('email'))));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         api_error('Enter a valid email address.', 422, ['email' => 'Enter your registered email address.']);
     }
@@ -396,8 +402,8 @@ function portal_faculty_pending_attendance(array $periods, int $days = 7): array
     $in = implode(',', array_fill(0, count($sections), '?'));
     foreach (db_all("SELECT attendance_date, section_id, subject_id, time_slot_id FROM attendance WHERE type = 'student' AND attendance_date BETWEEN ? AND ? AND section_id IN ($in)",
         array_merge([$from, $to], $sections)) as $a) {
+        // (int) NULL = 0: a register without a period covers the whole day; a period register only its own slot (double periods)
         $marked[$a['attendance_date'] . '|' . (int) $a['section_id'] . '|' . (int) $a['subject_id'] . '|' . (int) $a['time_slot_id']] = true;
-        $marked[$a['attendance_date'] . '|' . (int) $a['section_id'] . '|' . (int) $a['subject_id'] . '|0'] = true;
     }
     $byDay = [];
     foreach ($periods as $p) {
@@ -459,8 +465,8 @@ route('GET', '/portal/faculty/dashboard', function () {
         $secIds = array_values(array_unique(array_map(fn ($p) => (int) $p['section_id'], $todayPeriods)));
         $in = implode(',', array_fill(0, count($secIds), '?'));
         foreach (db_all("SELECT section_id, subject_id, time_slot_id, total_count, present_count FROM attendance WHERE type = 'student' AND attendance_date = CURDATE() AND section_id IN ($in)", $secIds) as $a) {
+            // slot 0 = register without a period (covers the day); otherwise only its own period counts (double periods)
             $sheets[(int) $a['section_id'] . '|' . (int) $a['subject_id'] . '|' . (int) $a['time_slot_id']] = $a;
-            $sheets[(int) $a['section_id'] . '|' . (int) $a['subject_id'] . '|0'] = $a;
         }
         $now = date('H:i:s');
         foreach ($todayPeriods as $p) {
@@ -473,7 +479,9 @@ route('GET', '/portal/faculty/dashboard', function () {
                 'state' => $now >= $p['end_time'] ? 'done' : ($now >= $p['start_time'] ? 'now' : 'upcoming')];
         }
     }
-    $pendingAtt = portal_faculty_pending_attendance($periods);
+    // same window in which the faculty member may still mark a register (Settings > Academic > attendance_edit_days)
+    $pendingDays = max(1, min(14, (function_exists('pfac_edit_days') ? pfac_edit_days() : 7) + 1));
+    $pendingAtt = portal_faculty_pending_attendance($periods, $pendingDays);
     $pendingMarks = portal_faculty_pending_marks($fid);
     $balance = hr_leave_balance('faculty', $fid);
     $special = db_column('SELECT code FROM leave_types WHERE gender IS NOT NULL'); // maternity / paternity are not part of the regular balance
@@ -489,7 +497,7 @@ route('GET', '/portal/faculty/dashboard', function () {
         'load' => ['subjects' => (int) ($load['subjects'] ?? 0), 'sections' => (int) ($load['sections'] ?? 0), 'periods_per_week' => (int) ($load['periods'] ?? 0)],
         'kpis' => [
             'today_classes' => ['count' => count($classes), 'done' => count(array_filter($classes, fn ($c) => $c['state'] === 'done')), 'next' => array_values(array_filter($classes, fn ($c) => $c['state'] !== 'done'))[0] ?? null],
-            'pending_attendance' => ['count' => count($pendingAtt), 'days' => 7],
+            'pending_attendance' => ['count' => count($pendingAtt), 'days' => $pendingDays],
             'pending_marks' => ['count' => count($pendingMarks), 'students' => array_sum(array_map(fn ($m) => max(0, $m['students'] - $m['submitted']), $pendingMarks))],
             'leave' => ['available' => $available, 'pending' => $pendingLeaves,
                 'types' => array_map(fn ($b) => ['code' => $b['code'], 'name' => $b['name'], 'available' => $b['available'], 'quota' => $b['quota'], 'used' => $b['used']], $limited)],
@@ -534,7 +542,7 @@ route('GET', '/portal/faculty/notices', function () {
     $me = portal_faculty_require(true);
     $limit = max(1, min(50, (int) ($_GET['limit'] ?? 10)));
     $page = max(1, (int) ($_GET['page'] ?? 1));
-    $res = portal_notices('faculty', ['department_id' => $me['faculty']['department_id']], $limit, ($page - 1) * $limit, trim((string) ($_GET['q'] ?? '')), trim((string) ($_GET['category'] ?? '')));
+    $res = portal_notices('faculty', ['department_id' => $me['faculty']['department_id']], $limit, ($page - 1) * $limit, trim(api_str($_GET['q'] ?? null)), trim(api_str($_GET['category'] ?? null)));
     api_ok($res + ['page' => $page, 'per_page' => $limit]);
 }, ['auth' => false]);
 

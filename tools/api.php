@@ -9,7 +9,14 @@
  *   php tools/api.php DELETE crud/departments/9
  *   php tools/api.php --user accounts@gimt.ac.in --pass Demo@12345 GET fees/summary
  *
- * Options: --base http://127.0.0.1:8000 (or GIMT_BASE env), --user, --pass, --raw (print body as-is), --fresh (new login)
+ *   php tools/api.php --portal student --user GIMT25BBA0002 --pass Demo@12345 GET portal/student/dashboard
+ *   php tools/api.php --portal faculty --user nandini.gupta5@gimt.ac.in --pass Demo@12345 GET portal/faculty/dashboard
+ *   php tools/api.php --anon POST portal/student/login '{"identifier":"x","password":"y"}'   (no sign-in, CSRF only)
+ *   php tools/api.php POST settings/payment @body.json      (body from a file - needed on Windows PowerShell, which
+ *                                                           strips the quotes of JSON arguments; "-" reads stdin)
+ *
+ * Options: --base http://127.0.0.1:8000 (or GIMT_BASE env), --user, --pass, --raw (print body as-is), --fresh (new login),
+ *          --portal student|faculty (sign in through the portal endpoints), --anon (never sign in)
  * Exit code: 0 when the API answered ok:true, 1 otherwise.
  */
 
@@ -40,18 +47,39 @@ $user = $opt('user', 'admin');
 $pass = $opt('pass', 'Admin@12345');
 $raw = $flag('raw');
 $fresh = $flag('fresh');
+$portal = $opt('portal');
+$anon = $flag('anon');
+if ($portal !== null && !in_array($portal, ['student', 'faculty'], true)) {
+    fwrite(STDERR, "--portal must be student or faculty\n");
+    exit(2);
+}
 [$method, $path, $body] = array_pad($args, 3, null);
 if (!$method || !$path) {
     fwrite(STDERR, "Usage: php tools/api.php [--user u --pass p] METHOD path [json-body]\n");
     exit(2);
 }
 $method = strtoupper($method);
+// Body from a file ("@body.json") or stdin ("-"): Windows PowerShell 5.1 strips the double quotes of a JSON argument
+// passed to a native program ('{"a":1}' arrives as '{a:1}'), so use a file there.
+if (is_string($body) && $body !== '' && ($body === '-' || $body[0] === '@')) {
+    $src = $body === '-' ? 'php://stdin' : substr($body, 1);
+    $body = @file_get_contents($src);
+    if ($body === false) {
+        fwrite(STDERR, "Cannot read the request body from $src\n");
+        exit(2);
+    }
+}
+if (is_string($body) && json_decode($body) === null && json_last_error() !== JSON_ERROR_NONE) {
+    fwrite(STDERR, "The request body is not valid JSON (" . json_last_error_msg() . "): $body\n"
+        . "On Windows PowerShell put the JSON in a file and pass it as @file.json.\n");
+    exit(2);
+}
 
 $cacheDir = __DIR__ . '/.cache';
 if (!is_dir($cacheDir)) {
     mkdir($cacheDir, 0775, true);
 }
-$stateFile = $cacheDir . '/api-' . preg_replace('/[^a-z0-9]+/i', '_', $user) . '.json';
+$stateFile = $cacheDir . '/api-' . ($anon ? 'anon' : ($portal ? 'portal_' . $portal . '_' : '') . preg_replace('/[^a-z0-9]+/i', '_', $user)) . '.json';
 $state = (!$fresh && is_file($stateFile)) ? (json_decode((string) file_get_contents($stateFile), true) ?: []) : [];
 $state += ['cookies' => [], 'csrf' => ''];
 
@@ -91,19 +119,21 @@ $http = function (string $method, string $path, $body = null) use ($base, &$stat
     return [$status, substr($resp, $hsize), $head];
 };
 
-$ensureLogin = function () use ($http, &$state, $user, $pass, $stateFile) {
-    [, $sess] = $http('GET', 'auth/session');
+$ensureLogin = function () use ($http, &$state, $user, $pass, $stateFile, $portal, $anon) {
+    $sessionPath = $portal ? "portal/$portal/session" : 'auth/session';
+    $loginPath = $portal ? "portal/$portal/login" : 'auth/login';
+    [, $sess] = $http('GET', $sessionPath);
     $j = json_decode($sess, true);
     $state['csrf'] = $j['data']['csrf_token'] ?? '';
-    if (empty($j['data']['authenticated'])) {
-        [$st, $resp] = $http('POST', 'auth/login', ['identifier' => $user, 'password' => $pass, 'remember' => false]);
+    if (!$anon && empty($j['data']['authenticated'])) {
+        [$st, $resp] = $http('POST', $loginPath, ['identifier' => $user, 'password' => $pass, 'remember' => false]);
         $lj = json_decode($resp, true);
         if (empty($lj['ok'])) {
             fwrite(STDERR, "Login failed ($st): " . ($lj['message'] ?? $resp) . "\n");
             exit(2);
         }
         $state['csrf'] = $lj['data']['csrf_token'] ?? $state['csrf'];
-        [, $sess] = $http('GET', 'auth/session');
+        [, $sess] = $http('GET', $sessionPath);
         $j = json_decode($sess, true);
         $state['csrf'] = $j['data']['csrf_token'] ?? $state['csrf'];
     }
@@ -112,7 +142,7 @@ $ensureLogin = function () use ($http, &$state, $user, $pass, $stateFile) {
 
 $ensureLogin();
 [$status, $out, $head] = $http($method, $path, $body);
-if ($status === 419 || $status === 401) {
+if (!$anon && ($status === 419 || $status === 401)) {
     $state = ['cookies' => [], 'csrf' => ''];
     $ensureLogin();
     [$status, $out, $head] = $http($method, $path, $body);

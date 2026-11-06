@@ -94,7 +94,7 @@ route('GET', '/security/tokens', function () {
         $where .= ' AND t.user_id = ?';
         $args[] = (int) $_GET['user_id'];
     }
-    if (($q = trim((string) ($_GET['q'] ?? ''))) !== '') {
+    if (($q = trim(api_str($_GET['q'] ?? null))) !== '') {
         $where .= ' AND (u.name LIKE ? OR u.email LIKE ? OR t.ip_address LIKE ?)';
         array_push($args, "%$q%", "%$q%", "%$q%");
     }

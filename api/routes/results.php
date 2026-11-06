@@ -44,9 +44,9 @@ route('GET', '/results/exams', function () {
     }
     if (($_GET['status'] ?? '') !== '') {
         $where[] = 'e.status = ?';
-        $args[] = (string) $_GET['status'];
+        $args[] = api_str($_GET['status']);
     }
-    if (trim((string) ($_GET['q'] ?? '')) !== '') {
+    if (trim(api_str($_GET['q'] ?? null)) !== '') {
         $where[] = '(e.name LIKE ? OR p.short_name LIKE ?)';
         array_push($args, '%' . trim($_GET['q']) . '%', '%' . trim($_GET['q']) . '%');
     }

@@ -30,6 +30,13 @@ import {
 } from 'lucide-react';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { csrfToken } from '../core/dom';
+import { CountryField, PostalField, StateField, countryIso } from '../forms/AddressFields';
+import { CaptchaNote, EmailSuggestion } from '../forms/FormExtras';
+import { PhoneInput } from '../forms/PhoneInput';
+import { INDIA_STATES, postalError, postalLabel, postalRequired } from '../forms/address';
+import { emailError, normalizeEmail, suggestEmail } from '../forms/email';
+import { countryName, formatDisplay, loadPhoneLib, phoneError } from '../forms/phone';
+import { initialSecurity, postSecure, preloadCaptcha, pushLead, type CaptchaConfig, type FormSecurity } from '../forms/security';
 import { useStaticMode } from '../lib/hooks';
 import type { IslandBaseProps } from '../lib/types';
 
@@ -68,6 +75,8 @@ export interface WizardDocument {
   hint: string;
   /** always = required, pg = required for PG programs, category = shown for reserved categories (optional) */
   when: 'always' | 'pg' | 'category' | 'optional';
+  /** program levels for which an 'always' document is optional (e.g. the Class 12 marksheet for 'Certificate') */
+  optionalFor?: string[];
   /** images only (photo) — otherwise PDF/JPG/PNG/WebP */
   image: boolean;
   /** max bytes */
@@ -98,6 +107,8 @@ export interface ApplyWizardProps extends IslandBaseProps {
   links: { admissions: string; programs: string; privacy: string | null; terms: string | null; classic: string; contact: string };
   /** localStorage key for the draft (default gimt.apply.draft.v1) */
   storageKey?: string;
+  /** one-time form token + captcha config issued with the page (apply.php); fetched on demand when absent */
+  security?: { token: string; captcha: CaptchaConfig | null } | null;
 }
 
 /* ------------------------------------------------------------------ rules (mirror app/services/public_forms.php) */
@@ -117,10 +128,7 @@ interface Rule {
   num?: { min: number; max: number; integer?: boolean };
 }
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const PHONE = /^\+?[0-9\s\-()]{7,20}$/;
 const PERSON = /^\p{L}[\p{L}\p{M} .'-]*$/u;
-const digits = (s: string) => s.replace(/\D+/g, '');
 /** Keeps the required marker on the same line as the last word of a label. */
 const NBSP_STAR = String.fromCharCode(160) + '*';
 
@@ -144,8 +152,9 @@ function buildRules(l: ApplyWizardProps['limits']): Record<string, Rule> {
     email: { label: 'Email address', required: true, email: true, max: 190 },
     address: { label: 'Address', required: true, min: 5, max: 255 },
     city: { label: 'City', required: true, max: 80 },
-    state: { label: 'State', required: true, max: 80 },
-    pincode: { label: 'PIN code', required: true, max: 12 },
+    // required for India / for countries with postal codes — checked in validateStep('contact')
+    state: { label: 'State', max: 80 },
+    pincode: { label: 'PIN code', max: 12 },
     country: { label: 'Country', max: 80 },
     father_name: { label: "Father's name", required: true, max: 150, person: true },
     father_phone: { label: "Father's mobile", phone: true },
@@ -169,8 +178,14 @@ function buildRules(l: ApplyWizardProps['limits']): Record<string, Rule> {
   };
 }
 
-/** Same messages as validate() + pf_check_phone()/pf_check_name() on the server. */
-function checkRule(r: Rule, raw: string | undefined): string | null {
+/** Qualifying-exam fields that certificate courses do not require. */
+const QUALIFYING_FIELDS = ['previous_qualification', 'previous_board', 'passing_year', 'previous_percentage'];
+
+/** Level chip of a program in the program step. */
+const levelOf = (p: { level: string }) => (p.level === 'UG' ? 'ug' : p.level === 'PG' || p.level === 'PhD' ? 'pg' : p.level === 'Certificate' ? 'cert' : 'other');
+
+/** Same messages as validate() + pf_check_phone()/pf_check_name() on the server (phone: per country, app/services/phone.php). */
+function checkRule(r: Rule, raw: string | undefined, ctx: { phoneCountry?: string } = {}): string | null {
   const v = (raw ?? '').trim();
   if (!v) return r.required ? `${r.label} is required.` : null;
   if (r.num) {
@@ -180,11 +195,14 @@ function checkRule(r: Rule, raw: string | undefined): string | null {
     if (n < r.num.min) return `${r.label} must be at least ${r.num.min}.`;
     if (n > r.num.max) return `${r.label} may not be greater than ${r.num.max}.`;
   }
-  if (r.email && !EMAIL.test(v)) return 'Enter a valid email address.';
+  if (r.email) {
+    const ee = emailError(v);
+    if (ee) return ee;
+  }
   if (r.min && v.length < r.min) return `${r.label} must be at least ${r.min} characters.`;
   if (r.max && v.length > r.max) return `${r.label} may not be longer than ${r.max} characters.`;
   if (r.person && !PERSON.test(v)) return `${r.label} may only contain letters, spaces, dots and hyphens.`;
-  if (r.phone && (!PHONE.test(v) || digits(v).length < 10)) return 'Enter a valid 10-digit mobile number.';
+  if (r.phone) return phoneError(v, { country: ctx.phoneCountry });
   return null;
 }
 
@@ -327,21 +345,6 @@ function postMultipart<T>(url: string, body: FormData, onProgress: (p: number) =
   });
 }
 
-/** Fetch a fresh CSRF token (GET /api/public/csrf next to the apply endpoint) and put it in the page meta tag. */
-async function refreshCsrf(applyEndpoint: string): Promise<boolean> {
-  try {
-    const res = await fetch(applyEndpoint.replace(/\/apply\/?$/, '/csrf'), { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-    const json = (await res.json()) as Envelope<{ token?: string }>;
-    const token = json?.data?.token;
-    const meta = document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]');
-    if (!token || !meta) return false;
-    meta.content = token;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /* ------------------------------------------------------------------ small UI pieces */
 
 interface FieldProps {
@@ -364,6 +367,8 @@ interface FieldProps {
   max?: string;
   step?: string;
   disabled?: boolean;
+  /** extra content under the control (e.g. an email typo suggestion) */
+  after?: ReactNode;
   onChange: (name: string, value: string) => void;
   onBlur: (name: string) => void;
 }
@@ -398,7 +403,7 @@ function Field(p: FieldProps) {
         </select>
       ) : (
         <div className="relative">
-          {p.prefix && <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-sm font-semibold text-slate-400">{p.prefix}</span>}
+          {p.prefix && <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-sm font-semibold text-slate-500">{p.prefix}</span>}
           <input
             {...common}
             type={p.type ?? 'text'}
@@ -414,6 +419,7 @@ function Field(p: FieldProps) {
           />
         </div>
       )}
+      {p.after}
       {p.help && !p.error && (
         <p id={`${p.id}-help`} className="form-hint">
           {p.help}
@@ -596,13 +602,20 @@ export default function ApplyWizard(props: ApplyWizardProps) {
   const storageKey = props.storageKey ?? 'gimt.apply.draft.v1';
   const uid = useId();
   const isStatic = useStaticMode();
-  const rules = useMemo(() => buildRules(limits), [limits]);
+  const baseRules = useMemo(() => buildRules(limits), [limits]);
+  // certificate courses ask for Class 10 only: the qualifying exam (Class 12 / graduation) is optional (as pf_validate_application)
+  const certRules = useMemo(() => {
+    const r = { ...baseRules };
+    QUALIFYING_FIELDS.forEach((k) => (r[k] = { ...r[k], required: false }));
+    return r;
+  }, [baseRules]);
   const fid = (name: string) => `${uid}-${name}`;
 
   const [boot] = useState(() => {
     const draft = readDraft(storageKey);
     const base: Values = { nationality: 'Indian', country: 'India', quota: 'general' };
     const v: Values = { ...base, ...(draft?.v ?? {}) };
+    if (v.state === 'Outside India') v.state = '';
     const initial = props.initialProgram ? programs.find((p) => p.id === props.initialProgram) : undefined;
     if (initial) {
       if (v.program_id !== String(initial.id)) {
@@ -635,18 +648,37 @@ export default function ApplyWizard(props: ApplyWizardProps) {
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<SuccessData | null>(null);
   const [copied, setCopied] = useState(false);
-  const [level, setLevel] = useState<string>('all');
+  // start on the level of the chosen program (?program= or a restored draft) so it is on screen, not far down the list
+  const [level, setLevel] = useState<string>(() => {
+    const chosen = programs.find((p) => String(p.id) === boot.values.program_id);
+    return chosen ? levelOf(chosen) : 'all';
+  });
   const [showGuardian, setShowGuardian] = useState(() => !!(boot.values.guardian_name || boot.values.guardian_phone));
 
   const rootRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const honeypotRef = useRef<HTMLInputElement>(null);
+  const security = useRef<FormSecurity | null>(initialSecurity(props.security?.token, props.security?.captcha));
+  const captchaHolder = useRef<HTMLDivElement | null>(null);
+  const warmed = useRef(false);
+  const [emailHint, setEmailHint] = useState<string | null>(null);
+  /** first interaction: load the phone library + captcha script (never on page load) */
+  const warm = () => {
+    if (warmed.current) return;
+    warmed.current = true;
+    void loadPhoneLib().catch(() => undefined);
+    preloadCaptcha(security.current?.captcha ?? props.security?.captcha);
+  };
+  const isoOf = (v: Values) => v._country_iso || countryIso(v.country, 'IN');
+  const phoneCtx = (name: string, v: Values = values) => ({ phoneCountry: v[`_cc_${name}`] || 'IN' });
 
   const program = programs.find((p) => String(p.id) === values.program_id) ?? null;
   const isPG = program?.level === 'PG';
+  const isCert = program?.level === 'Certificate';
+  const rules = isCert ? certRules : baseRules;
   const reserved = !!values.category && values.category !== 'General';
   const visibleDocs = documents.filter((d) => d.when === 'always' || (d.when === 'pg' && isPG) || (d.when === 'category' && reserved) || d.when === 'optional');
-  const docRequired = (d: WizardDocument) => d.when === 'always' || (d.when === 'pg' && isPG);
+  const docRequired = (d: WizardDocument) => !(program && d.optionalFor?.includes(program.level)) && (d.when === 'always' || (d.when === 'pg' && isPG));
   const totalBytes = Object.values(files).reduce((s, f) => s + (f?.size ?? 0), 0);
   const current = STEPS[step];
 
@@ -710,7 +742,7 @@ export default function ApplyWizard(props: ApplyWizardProps) {
     });
     if (errors[name]) {
       const r = rules[name];
-      const err = r ? checkRule(r, value) : null;
+      const err = r ? checkRule(r, value, phoneCtx(name)) : null;
       setErrors((prev) => {
         const n = { ...prev };
         if (err) n[name] = err;
@@ -723,7 +755,22 @@ export default function ApplyWizard(props: ApplyWizardProps) {
   const blur = (name: string) => {
     const r = rules[name];
     if (!r) return;
-    const err = checkRule(r, values[name]);
+    if (name === 'email') {
+      const norm = normalizeEmail(values.email ?? '');
+      if (norm !== (values.email ?? '')) setValues((prev) => ({ ...prev, email: norm }));
+      setEmailHint(suggestEmail(norm));
+    }
+    if (['state', 'pincode', 'country'].includes(name)) {
+      const e = validateStep('contact')[name] ?? null;
+      setErrors((prev) => {
+        const n = { ...prev };
+        if (e) n[name] = e;
+        else delete n[name];
+        return n;
+      });
+      return;
+    }
+    const err = checkRule(r, name === 'email' ? normalizeEmail(values.email ?? '') : values[name], phoneCtx(name));
     setErrors((prev) => {
       const n = { ...prev };
       if (err) n[name] = err;
@@ -765,7 +812,7 @@ export default function ApplyWizard(props: ApplyWizardProps) {
   const validateStep = (key: StepKey, v: Values = values): Errors => {
     const e: Errors = {};
     STEP_FIELDS[key].forEach((name) => {
-      const err = checkRule(rules[name], v[name]);
+      const err = checkRule(rules[name], v[name], phoneCtx(name, v));
       if (err) e[name] = err;
     });
     if (key === 'program') {
@@ -780,8 +827,14 @@ export default function ApplyWizard(props: ApplyWizardProps) {
       if (v.aadhaar_no && !e.aadhaar_no && !/^\d{12}$/.test(v.aadhaar_no.replace(/\s+/g, ''))) e.aadhaar_no = 'Enter a valid 12-digit Aadhaar number.';
     }
     if (key === 'contact') {
-      const india = !v.country || v.country.trim().toLowerCase() === 'india';
-      if (v.pincode && !e.pincode && india && !/^\d{6}$/.test(v.pincode.trim())) e.pincode = 'Enter a valid 6-digit PIN code.';
+      // country -> state (India: a state / UT) -> postal code per country (India: 6-digit PIN code) — as pf_check_address()
+      const iso = isoOf(v);
+      if (iso === 'IN' && !(v.state ?? '').trim() && !e.state) e.state = 'State is required.';
+      if (iso === 'IN' && v.state && !e.state && !INDIA_STATES.includes(v.state)) e.state = 'Select a valid state or union territory.';
+      if (!e.pincode) {
+        const pe = postalError(v.pincode ?? '', iso, { required: true, countryName: countryName(iso) });
+        if (pe) e.pincode = pe;
+      }
     }
     if (key === 'parents') {
       if (v.guardian_name?.trim() && !v.guardian_phone?.trim() && !e.guardian_phone) e.guardian_phone = "Enter the guardian's mobile number.";
@@ -863,6 +916,8 @@ export default function ApplyWizard(props: ApplyWizardProps) {
       if (!k.startsWith('_') && v !== undefined && v !== null) fd.append(k, v);
     });
     if (values.aadhaar_no) fd.set('aadhaar_no', values.aadhaar_no.replace(/\s+/g, ''));
+    if (values.email) fd.set('email', normalizeEmail(values.email));
+    fd.set('country_code', isoOf(values));
     fd.set('website', honeypotRef.current?.value ?? '');
     visibleDocs.forEach((d) => {
       const f = files[d.key];
@@ -871,32 +926,43 @@ export default function ApplyWizard(props: ApplyWizardProps) {
     setSubmitting(true);
     setProgress(0);
     setAlert('');
-    let { status, json } = await postMultipart<SuccessData>(endpoint, fd, setProgress);
-    // session token expired while the form was open: get a fresh one and retry once (files are still attached)
-    if (status === 419 && (await refreshCsrf(endpoint))) {
-      setProgress(0);
-      ({ status, json } = await postMultipart<SuccessData>(endpoint, fd, setProgress));
-    }
+    // one-time token + captcha; an expired session / token is refreshed and the upload retried once (files stay attached)
+    const res = await postSecure<SuccessData>(fd, {
+      endpoint,
+      form: 'apply',
+      security: security.current,
+      captchaHolder: captchaHolder.current,
+      transport: async (body) => {
+        setProgress(0);
+        const r = await postMultipart<SuccessData>(endpoint, body, setProgress);
+        const errs = r.json?.errors && !Array.isArray(r.json.errors) ? r.json.errors : {};
+        return { ok: !!r.json?.ok, status: r.status, message: r.json?.message ?? '', data: r.json?.data, errors: errs };
+      },
+    });
+    security.current = res.ok ? null : res.security;
+    const status = res.status;
+    const json = { ok: res.ok, message: res.message, data: res.data, errors: res.errors };
     setSubmitting(false);
-    if (json?.ok && json.data) {
+    if (json.ok && json.data) {
       writeDraft(storageKey, null);
       setResult(json.data);
+      pushLead('application', { program: json.data.program });
       setAnnounce(`Application ${json.data.application_no} submitted successfully.`);
       window.setTimeout(() => rootRef.current?.scrollIntoView({ behavior: isStatic ? 'auto' : 'smooth', block: 'start' }), 30);
       return;
     }
-    const serverErrors = json?.errors && typeof json.errors === 'object' ? json.errors : {};
+    const serverErrors = json.errors && typeof json.errors === 'object' ? json.errors : {};
     const keys = Object.keys(serverErrors);
     if (keys.length) {
       const target = Math.min(...keys.map(stepOfField));
       setErrors(serverErrors);
       if (target !== step) goTo(target);
-      setAlert(json?.message || 'Please fix the highlighted fields and try again.');
+      setAlert(json.message || 'Please fix the highlighted fields and try again.');
       focusFirst(serverErrors);
       return;
     }
     setAlert(
-      json?.message ||
+      json.message ||
         (status === 413 ? 'Your documents are too large to upload together. Please use smaller files.' : status === 0 ? 'Unable to submit right now. Please check your connection and try again.' : 'Something went wrong. Please try again.'),
     );
   };
@@ -919,10 +985,11 @@ export default function ApplyWizard(props: ApplyWizardProps) {
   /* ---- completion meter (required fields + documents) */
   const completion = useMemo(() => {
     const req = Object.entries(rules).filter(([, r]) => r.required).map(([k]) => k);
-    const docs = documents.filter((d) => d.when === 'always' || (d.when === 'pg' && isPG));
+    const docs = documents.filter(docRequired);
     const done = req.filter((k) => (values[k] ?? '').trim() !== '').length + docs.filter((d) => files[d.key]).length;
     return Math.round((done / (req.length + docs.length)) * 100);
-  }, [rules, documents, isPG, values, files]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- docRequired depends only on program / isPG
+  }, [rules, documents, isPG, program, values, files]);
 
   const opt = (list: string[]) => list.map((s) => ({ value: s, label: s }));
   const years = useMemo(() => {
@@ -933,17 +1000,64 @@ export default function ApplyWizard(props: ApplyWizardProps) {
   const tenthYears = years.filter((y) => Number(y.value) <= limits.maxYear);
   const fieldProps = (name: string) => ({ id: fid(name), name, rule: rules[name], value: values[name] ?? '', error: errors[name], onChange: set, onBlur: blur, disabled: submitting });
   const levels = useMemo(() => {
-    const present = new Set<string>(programs.map((p) => (p.level === 'UG' ? 'ug' : p.level === 'PG' || p.level === 'PhD' ? 'pg' : 'other')));
+    const present = new Set<string>(programs.map(levelOf));
     return [
       { key: 'all', label: 'All Programs' },
       { key: 'ug', label: 'Undergraduate' },
       { key: 'pg', label: 'Postgraduate' },
-      { key: 'other', label: 'Diploma & Certificate' },
+      { key: 'other', label: 'Diploma' },
+      { key: 'cert', label: 'Certificate Courses' },
     ].filter((l) => l.key === 'all' || present.has(l.key));
   }, [programs]);
-  const levelOf = (p: WizardProgram) => (p.level === 'UG' ? 'ug' : p.level === 'PG' || p.level === 'PhD' ? 'pg' : 'other');
   const shownPrograms = programs.filter((p) => level === 'all' || levelOf(p) === level);
   const label = (list: WizardOption[], v?: string) => list.find((o) => o.value === v)?.label ?? v ?? '';
+
+  /** International phone field (country selector + number, E.164 value; the country is kept in "_cc_<name>"). */
+  const phoneField = (name: string, col: 3 | 4 | 6 | 12, extra: { disabled?: boolean; help?: string } = {}) => {
+    const r = rules[name];
+    const err = errors[name];
+    const describedBy = [err && `${fid(name)}-err`, extra.help && `${fid(name)}-help`].filter(Boolean).join(' ') || undefined;
+    return (
+      <div className={clsx('col-span-12', COL[col])}>
+        <label htmlFor={fid(name)} className="form-label">
+          {r.label}
+          {r.required && <span className="form-required">{NBSP_STAR}</span>}
+        </label>
+        <PhoneInput
+          id={fid(name)}
+          label={r.label}
+          value={values[name] ?? ''}
+          defaultCountry={values[`_cc_${name}`] || 'IN'}
+          required={r.required}
+          disabled={submitting || extra.disabled}
+          invalid={!!err}
+          describedBy={describedBy}
+          onChange={(val, info) => {
+            set(`_cc_${name}`, info.country);
+            set(name, val);
+          }}
+          onBlur={() => window.setTimeout(() => blur(name), 0)}
+        />
+        {extra.help && !err && (
+          <p id={`${fid(name)}-help`} className="form-hint">
+            {extra.help}
+          </p>
+        )}
+        {err && (
+          <p id={`${fid(name)}-err`} className="form-error">
+            {err}
+          </p>
+        )}
+      </div>
+    );
+  };
+  const iso = isoOf(values);
+  const fieldError = (name: string) =>
+    errors[name] ? (
+      <p id={`${fid(name)}-err`} className="form-error">
+        {errors[name]}
+      </p>
+    ) : null;
 
   /* ------------------------------------------------------------------ success screen */
   if (result) {
@@ -1107,7 +1221,7 @@ export default function ApplyWizard(props: ApplyWizardProps) {
           </div>
         </div>
 
-        <form onSubmit={next} noValidate aria-busy={submitting}>
+        <form onSubmit={next} onFocus={warm} noValidate aria-busy={submitting}>
           <input ref={honeypotRef} type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
           <div className="px-5 py-6 sm:px-8 sm:py-8">
             {restoredAt && (
@@ -1151,7 +1265,7 @@ export default function ApplyWizard(props: ApplyWizardProps) {
                 <div className="space-y-6">
                   <div className="pill-row scrollbar-none" role="toolbar" aria-label="Filter programs by level">
                     {levels.map((l) => (
-                      <button key={l.key} type="button" className={clsx('chip', level === l.key && 'chip-active')} aria-pressed={level === l.key} onClick={() => setLevel(l.key)}>
+                      <button key={l.key} type="button" className={clsx('chip !px-4 !py-2 !text-[13.5px]', level === l.key && 'chip-active')} aria-pressed={level === l.key} onClick={() => setLevel(l.key)}>
                         {l.label}
                       </button>
                     ))}
@@ -1165,8 +1279,8 @@ export default function ApplyWizard(props: ApplyWizardProps) {
                           <label
                             key={p.id}
                             className={clsx(
-                              'group relative flex cursor-pointer items-center gap-3 rounded-2xl border p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-soft has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-brand-500/25',
-                              selected ? 'border-accent-500 bg-accent-50/60 ring-2 ring-accent-500/20' : 'border-slate-200 bg-white hover:border-brand-200',
+                              'group relative flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors duration-200 has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-brand-500/25',
+                              selected ? 'border-accent-500 bg-accent-50/60 ring-2 ring-accent-500/20' : 'border-slate-200 bg-white hover:border-brand-300',
                             )}
                           >
                             <input
@@ -1186,13 +1300,11 @@ export default function ApplyWizard(props: ApplyWizardProps) {
                               }}
                               className="sr-only"
                             />
-                            <img src={p.image} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
                             <span className="min-w-0 flex-1">
-                              <span className="block text-sm font-semibold leading-snug text-brand-900">{p.name}</span>
+                              <span className="block text-[13.5px] font-semibold leading-snug text-brand-900">{p.name}</span>
                               <span className="mt-0.5 block text-xs text-slate-500">
-                                {p.levelLabel} · {p.duration}
+                                {[p.levelLabel, p.duration, p.fee].filter(Boolean).join(' · ')}
                               </span>
-                              <span className="mt-0.5 block text-xs font-semibold text-brand-700">{p.fee}</span>
                             </span>
                             <span
                               className={clsx(
@@ -1324,20 +1436,100 @@ export default function ApplyWizard(props: ApplyWizardProps) {
               {/* ---------------- step 3: contact */}
               {current.key === 'contact' && (
                 <div className="grid grid-cols-12 gap-5">
-                  <Field {...fieldProps('phone')} col={6} type="tel" inputMode="tel" autoComplete="tel" placeholder="+91 98765 43210" />
+                  {phoneField('phone', 6)}
                   <div className="col-span-12 sm:col-span-6">
-                    <Field {...fieldProps('whatsapp')} col={12} type="tel" inputMode="tel" disabled={submitting || values._wa_same === '1'} />
+                    {phoneField('whatsapp', 12, { disabled: values._wa_same === '1' })}
                     <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">
                       <input type="checkbox" className="form-check" checked={values._wa_same === '1'} onChange={(e) => set('_wa_same', e.target.checked ? '1' : '')} />
                       Same as mobile number
                     </label>
                   </div>
-                  <Field {...fieldProps('email')} col={12} type="email" inputMode="email" autoComplete="email" placeholder="name@example.com" help="Your application number and admission updates will be sent here." />
+                  <Field
+                    {...fieldProps('email')}
+                    col={12}
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    placeholder="name@example.com"
+                    help="Your application number and admission updates will be sent here."
+                    after={
+                      <EmailSuggestion
+                        suggestion={emailHint}
+                        onAccept={(sug) => {
+                          set('email', sug);
+                          setEmailHint(null);
+                        }}
+                      />
+                    }
+                  />
                   <Field {...fieldProps('address')} col={12} autoComplete="street-address" placeholder="House no., street, locality" />
+                  <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+                    <label htmlFor={fid('country')} className="form-label">
+                      Country<span className="form-required">{NBSP_STAR}</span>
+                    </label>
+                    <CountryField
+                      id={fid('country')}
+                      iso={iso}
+                      label="Country"
+                      invalid={!!errors.country}
+                      disabled={submitting}
+                      describedBy={errors.country ? `${fid('country')}-err` : undefined}
+                      onChange={(next) => {
+                        set('_country_iso', next);
+                        set('country', countryName(next));
+                        if (next !== 'IN' && INDIA_STATES.includes(values.state ?? '')) set('state', '');
+                        setErrors((prev) => {
+                          const n = { ...prev };
+                          delete n.country;
+                          delete n.state;
+                          delete n.pincode;
+                          return n;
+                        });
+                      }}
+                    />
+                    {fieldError('country')}
+                  </div>
+                  <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+                    <label htmlFor={fid('state')} className="form-label">
+                      {iso === 'IN' ? 'State / UT' : 'State / province'}
+                      {iso === 'IN' && <span className="form-required">{NBSP_STAR}</span>}
+                    </label>
+                    <StateField
+                      id={fid('state')}
+                      country={iso}
+                      value={values.state ?? ''}
+                      required={iso === 'IN'}
+                      invalid={!!errors.state}
+                      disabled={submitting}
+                      describedBy={errors.state ? `${fid('state')}-err` : undefined}
+                      onChange={(v) => {
+                        set('state', v);
+                        if (errors.state && v) setErrors((prev) => ({ ...prev, state: '' }));
+                      }}
+                      onBlur={() => blur('state')}
+                    />
+                    {fieldError('state')}
+                  </div>
                   <Field {...fieldProps('city')} col={3} autoComplete="address-level2" />
-                  <Field {...fieldProps('state')} col={3} options={opt(options.states)} emptyLabel="Select state" />
-                  <Field {...fieldProps('pincode')} col={3} inputMode="numeric" autoComplete="postal-code" placeholder="201310" />
-                  <Field {...fieldProps('country')} col={3} autoComplete="country-name" />
+                  <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+                    <label htmlFor={fid('pincode')} className="form-label">
+                      {postalLabel(iso)}
+                      {postalRequired(iso) && <span className="form-required">{NBSP_STAR}</span>}
+                    </label>
+                    <PostalField
+                      id={fid('pincode')}
+                      country={iso}
+                      value={values.pincode ?? ''}
+                      required={postalRequired(iso)}
+                      invalid={!!errors.pincode}
+                      disabled={submitting}
+                      describedBy={errors.pincode ? `${fid('pincode')}-err` : undefined}
+                      placeholder={iso === 'IN' ? '201310' : undefined}
+                      onChange={(v) => set('pincode', v)}
+                      onBlur={() => blur('pincode')}
+                    />
+                    {fieldError('pincode')}
+                  </div>
                 </div>
               )}
 
@@ -1346,12 +1538,12 @@ export default function ApplyWizard(props: ApplyWizardProps) {
                 <div className="grid grid-cols-12 gap-5">
                   <SubHeading icon={User}>Father</SubHeading>
                   <Field {...fieldProps('father_name')} col={6} />
-                  <Field {...fieldProps('father_phone')} col={3} type="tel" inputMode="tel" />
-                  <Field {...fieldProps('father_occupation')} col={3} list={fid('occupations')} />
+                  {phoneField('father_phone', 6)}
+                  <Field {...fieldProps('father_occupation')} col={12} list={fid('occupations')} />
                   <SubHeading icon={User}>Mother</SubHeading>
                   <Field {...fieldProps('mother_name')} col={6} />
-                  <Field {...fieldProps('mother_phone')} col={3} type="tel" inputMode="tel" />
-                  <Field {...fieldProps('mother_occupation')} col={3} list={fid('occupations')} />
+                  {phoneField('mother_phone', 6)}
+                  <Field {...fieldProps('mother_occupation')} col={12} list={fid('occupations')} />
                   <datalist id={fid('occupations')}>
                     {OCCUPATIONS.map((o) => (
                       <option key={o} value={o} />
@@ -1362,7 +1554,7 @@ export default function ApplyWizard(props: ApplyWizardProps) {
                     <>
                       <Field {...fieldProps('guardian_name')} col={4} />
                       <Field {...fieldProps('guardian_relation')} col={4} options={opt(options.relations)} emptyLabel="Select relation" />
-                      <Field {...fieldProps('guardian_phone')} col={4} type="tel" inputMode="tel" />
+                      {phoneField('guardian_phone', 12)}
                     </>
                   ) : (
                     <div className="col-span-12">
@@ -1388,7 +1580,7 @@ export default function ApplyWizard(props: ApplyWizardProps) {
                       <option key={b} value={b} />
                     ))}
                   </datalist>
-                  <SubHeading icon={GraduationCap}>{isPG ? 'Graduation (qualifying exam)' : 'Class 12 / Diploma (qualifying exam)'}</SubHeading>
+                  <SubHeading icon={GraduationCap}>{isPG ? 'Graduation (qualifying exam)' : isCert ? 'Class 12 / Graduation (optional for certificate courses)' : 'Class 12 / Diploma (qualifying exam)'}</SubHeading>
                   <Field {...fieldProps('previous_qualification')} col={4} options={options.qualifications} emptyLabel="Select" />
                   <Field {...fieldProps('previous_board')} col={4} list={isPG ? undefined : fid('boards')} placeholder={isPG ? 'e.g. CCS University' : 'e.g. CBSE'} />
                   <Field {...fieldProps('previous_institution')} col={4} />
@@ -1468,8 +1660,8 @@ export default function ApplyWizard(props: ApplyWizardProps) {
                     icon={MapPin}
                     onEdit={() => goTo(2)}
                     rows={[
-                      ['Mobile', values.phone],
-                      ['WhatsApp', values.whatsapp],
+                      ['Mobile', formatDisplay(values.phone)],
+                      ['WhatsApp', formatDisplay(values.whatsapp)],
                       ['Email', values.email],
                       ['Address', [values.address, values.city, values.state, values.pincode, values.country].filter(Boolean).join(', ')],
                     ]}
@@ -1479,9 +1671,9 @@ export default function ApplyWizard(props: ApplyWizardProps) {
                     icon={Users}
                     onEdit={() => goTo(3)}
                     rows={[
-                      ['Father', [values.father_name, values.father_phone, values.father_occupation].filter(Boolean).join(' · ')],
-                      ['Mother', [values.mother_name, values.mother_phone, values.mother_occupation].filter(Boolean).join(' · ')],
-                      ['Local guardian', [values.guardian_name, values.guardian_relation, values.guardian_phone].filter(Boolean).join(' · ')],
+                      ['Father', [values.father_name, formatDisplay(values.father_phone), values.father_occupation].filter(Boolean).join(' · ')],
+                      ['Mother', [values.mother_name, formatDisplay(values.mother_phone), values.mother_occupation].filter(Boolean).join(' · ')],
+                      ['Local guardian', [values.guardian_name, values.guardian_relation, formatDisplay(values.guardian_phone)].filter(Boolean).join(' · ')],
                       ['Annual family income', values.family_income ? `₹${Number(values.family_income).toLocaleString('en-IN')}` : ''],
                     ]}
                   />
@@ -1510,6 +1702,8 @@ export default function ApplyWizard(props: ApplyWizardProps) {
                       </span>
                     </p>
                   )}
+                  <CaptchaNote captcha={security.current?.captcha ?? props.security?.captcha} holderRef={(el) => (captchaHolder.current = el)} />
+                  {errors.captcha && <p className="form-error">{errors.captcha}</p>}
                   <div>
                     <label className={clsx('flex cursor-pointer items-start gap-3 rounded-2xl border p-4 text-sm leading-relaxed text-slate-700', errors.declaration ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-slate-50')}>
                       <input
@@ -1622,11 +1816,9 @@ export default function ApplyWizard(props: ApplyWizardProps) {
         <div className="hidden overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-soft lg:block">
           {program ? (
             <>
-              <div className="relative aspect-[16/9] overflow-hidden">
-                <img src={program.image} alt="" className="h-full w-full object-cover" loading="lazy" />
-                <span className="absolute inset-0 bg-gradient-to-t from-brand-950/85 via-brand-950/20 to-transparent" aria-hidden="true" />
-                <span className="absolute left-4 top-4 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-brand-900">{program.levelLabel}</span>
-                <p className="absolute inset-x-4 bottom-3 font-display text-lg font-bold leading-snug text-white">{program.name}</p>
+              <div className="px-5 pt-5">
+                <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-brand-800">{program.levelLabel}</span>
+                <p className="mt-2.5 font-display text-[17px] font-bold leading-snug text-brand-900">{program.name}</p>
               </div>
               <dl className="grid grid-cols-2 gap-3 px-5 py-4 text-sm">
                 <div>
@@ -1634,7 +1826,7 @@ export default function ApplyWizard(props: ApplyWizardProps) {
                   <dd className="font-semibold text-slate-800">{program.duration}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-slate-500">Tuition fee</dt>
+                  <dt className="text-xs text-slate-500">Fee</dt>
                   <dd className="font-semibold text-slate-800">{program.fee}</dd>
                 </div>
               </dl>
@@ -1663,7 +1855,7 @@ export default function ApplyWizard(props: ApplyWizardProps) {
           <h3 className="font-display text-base font-bold text-brand-900">Keep these ready</h3>
           <ul className="mt-3 space-y-2.5">
             {documents
-              .filter((d) => d.when === 'always' || (d.when === 'pg' && isPG))
+              .filter(docRequired)
               .map((d) => (
                 <li key={d.key} className="flex items-center gap-2.5 text-sm text-slate-700">
                   <span
@@ -1680,7 +1872,6 @@ export default function ApplyWizard(props: ApplyWizardProps) {
         </div>
 
         <div className="relative isolate overflow-hidden rounded-3xl bg-brand-900 p-5 text-white shadow-soft">
-          <div className="pattern-dots-light pattern-fade absolute inset-0 -z-10 opacity-50" aria-hidden="true" />
           <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/15">
             <Headset className="h-5 w-5 text-accent-300" aria-hidden="true" />
           </span>

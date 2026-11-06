@@ -91,6 +91,7 @@ $form = '<form action="' . e(site_url('search')) . '" method="get" role="search"
     . icon('search', 'h-5 w-5 shrink-0 text-slate-400')
     . '<input id="search-q" name="q" type="search" value="' . e($q) . '" maxlength="100" placeholder="Search programs, admissions, faculty, policies…" class="h-11 w-0 min-w-0 flex-1 border-0 bg-transparent text-base text-brand-900 placeholder:text-slate-400 focus:outline-none focus:ring-0"' . ($q === '' ? ' autofocus' : '') . '>'
     . ($type !== 'all' ? '<input type="hidden" name="type" value="' . e($type) . '">' : '')
+    . '<button type="button" class="voice-btn" data-voice-input="#search-q" data-voice-submit aria-label="Search by voice" title="Search by voice" hidden>' . icon('mic', 'h-5 w-5') . '</button>'
     . '<button type="submit" class="btn btn-explore shrink-0">Search</button></div></form>';
 page_hero($title, '', ['Search'], '', $words ? number_format($total) . ' ' . ($total === 1 ? 'result' : 'results') . ' across the website.' : 'Find programs, admission details, policies, faculty, FAQs and more.', [],
     ['actions' => $form, 'highlight' => false, 'size' => 'md']);
@@ -117,7 +118,7 @@ page_hero($title, '', ['Search'], '', $words ? number_format($total) . ' ' . ($t
               <div class="mb-4 flex items-end justify-between gap-4">
                 <h2 id="res-<?= e($t) ?>" class="flex items-center gap-3 font-display text-xl font-extrabold text-brand-900">
                   <span class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent-50 text-accent-600"><?= icon($types[$t]['icon'], 'h-5 w-5') ?></span><?= e($types[$t]['label']) ?>
-                  <span class="text-sm font-semibold text-slate-400">(<?= number_format((int) $counts[$t]) ?>)</span>
+                  <span class="text-sm font-semibold text-slate-500">(<?= number_format((int) $counts[$t]) ?>)</span>
                 </h2>
                 <?php if ($type === 'all' && $counts[$t] > count($rows)): ?>
                   <a href="<?= e($link(['q' => $q, 'type' => $t])) ?>" class="link-arrow shrink-0 text-sm">View all <?= number_format((int) $counts[$t]) ?><span class="sr-only"> <?= e(strtolower($types[$t]['label'])) ?> results</span><?= icon('arrow-right', 'h-4 w-4') ?></a>
@@ -131,7 +132,7 @@ page_hero($title, '', ['Search'], '', $words ? number_format($total) . ' ' . ($t
                       <h3 class="font-display text-base font-bold leading-snug text-brand-900 sm:text-lg [&_mark]:bg-accent-100 [&_mark]:text-brand-900"><a href="<?= e($r['url']) ?>" class="stretched-link"><?= cp_highlight($r['title'], $words) ?></a></h3>
                       <?php if ($r['meta'] !== ''): ?><p class="mt-0.5 text-xs font-semibold uppercase tracking-wide text-accent-700"><?= e($r['meta']) ?></p><?php endif; ?>
                       <?php if ($r['snippet'] !== ''): ?><p class="mt-2 text-sm leading-relaxed text-slate-600 [&_mark]:bg-accent-100 [&_mark]:text-brand-900"><?= cp_highlight($r['snippet'], $words) ?></p><?php endif; ?>
-                      <p class="mt-2 truncate text-xs text-slate-400"><?= e(rawurldecode((string) preg_replace('#^https?://[^/]+#', '', (string) $r['url']))) ?></p>
+                      <p class="mt-2 truncate text-xs text-slate-500"><?= e(rawurldecode((string) preg_replace('#^https?://[^/]+#', '', (string) $r['url']))) ?></p>
                     </div>
                   </li>
                 <?php endforeach; ?>

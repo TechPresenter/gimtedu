@@ -102,8 +102,8 @@ route('POST', '/transport/vehicles/{id:\d+}/renew', function ($p) {
 
 route('GET', '/transport/fuel/stats', function () {
     api_require('transport', 'view');
-    $from = (string) ($_GET['from'] ?? '');
-    $to = (string) ($_GET['to'] ?? '');
+    $from = api_str($_GET['from'] ?? null);
+    $to = api_str($_GET['to'] ?? null);
     foreach (['from' => $from, 'to' => $to] as $k => $v) {
         if ($v !== '' && !DateTime::createFromFormat('Y-m-d', $v)) {
             api_error('Invalid date.', 422, [$k => 'Enter a valid date.']);
@@ -115,7 +115,7 @@ route('GET', '/transport/fuel/stats', function () {
 route('GET', '/transport/pending', function () {
     api_require('transport', 'view');
     [$page, $perPage] = api_pagination(10);
-    api_ok(transport_pending_students(trim((string) ($_GET['q'] ?? '')), $page, $perPage));
+    api_ok(transport_pending_students(trim(api_str($_GET['q'] ?? null)), $page, $perPage));
 });
 
 route('POST', '/transport/allocations/{id:\d+}/cancel', function ($p) {
@@ -132,14 +132,14 @@ route('POST', '/transport/allocations/{id:\d+}/transfer', function ($p) {
 
 route('POST', '/transport/allocations/{id:\d+}/invoice', function ($p) {
     api_require('transport', 'edit');
-    $due = trim((string) (api_input()['due_date'] ?? ''));
+    $due = trim(api_str(api_input()['due_date'] ?? null));
     $inv = transport_create_invoice((int) $p['id'], $due !== '' ? $due : null);
     api_ok(['invoice' => $inv], 'Invoice ' . $inv['invoice_no'] . ' raised for ' . money($inv['net_amount']) . '.');
 });
 
 route('GET', '/transport/allocations/pass', function () {
     if (transport_print_guard('view')) {
-        $ids = array_filter(array_map('intval', explode(',', (string) ($_GET['ids'] ?? ''))));
+        $ids = array_filter(array_map('intval', explode(',', api_str($_GET['ids'] ?? null))));
         transport_print_passes(array_slice($ids, 0, 200));
     }
     exit;
@@ -159,7 +159,7 @@ route('POST', '/transport/maintenance/{id:\d+}/complete', function ($p) {
 route('POST', '/transport/complaints/{id:\d+}/status', function ($p) {
     api_require('transport', 'edit');
     $in = api_input();
-    $to = (string) ($in['status'] ?? '');
+    $to = api_str($in['status'] ?? null);
     $row = transport_complaint_set_status((int) $p['id'], $to, $in['resolution'] ?? null, $in['note'] ?? null, !empty($in['assigned_to']) ? (int) $in['assigned_to'] : null);
     api_ok($row, 'Complaint moved to ' . strtolower(transport_complaint_statuses()[$to] ?? $to) . '.');
 });

@@ -75,7 +75,7 @@ route('GET', '/events/{id:\d+}', function ($p) {
 
 route('POST', '/events/{id:\d+}/remind', function ($p) {
     api_require('events', 'edit');
-    $note = mb_substr(trim((string) (api_input()['note'] ?? '')), 0, 1000);
+    $note = mb_substr(trim(api_str(api_input()['note'] ?? null)), 0, 1000);
     $res = comm_event_remind((int) $p['id'], $note);
     api_ok($res, 'Sending reminders to ' . number_format($res['queued']['email']) . ' participant' . ($res['queued']['email'] === 1 ? '' : 's') . '…');
 });

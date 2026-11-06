@@ -84,7 +84,8 @@ function TrendPill({ kpi }: { kpi: Kpi }) {
 function KpiCard({ def, kpi, loading }: { def: KpiDef; kpi?: Kpi; loading: boolean }) {
   const h = HUES[def.hue];
   const busy = loading || !kpi;
-  const foot = kpi?.trend?.label ? kpi.trend.label : kpi?.hint ?? null;
+  // The trend pill and its label read as one phrase ("↗ 12% from last session"); the hint is shown when there is no trend.
+  const foot = kpi?.trend ? kpi.trend.label ?? '' : kpi?.hint ?? null;
   return (
     <Link
       to={def.to}
@@ -94,15 +95,15 @@ function KpiCard({ def, kpi, loading }: { def: KpiDef; kpi?: Kpi; loading: boole
       )}
     >
       <span className={clsx('absolute inset-x-0 top-0 h-[3px] origin-left scale-x-0 bg-gradient-to-r transition-transform duration-500 ease-out group-hover:scale-x-100 group-focus-visible:scale-x-100 motion-reduce:transition-none', h.edge)} aria-hidden />
-      <div className="flex items-start justify-between gap-2">
-        <span className={clsx('inline-flex h-10 w-10 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-105 motion-reduce:transition-none', h.chip)}>
-          <def.icon className="h-5 w-5" aria-hidden />
-        </span>
-        {!busy && kpi && <TrendPill kpi={kpi} />}
-      </div>
+      <span className={clsx('inline-flex h-10 w-10 shrink-0 items-center justify-center self-start rounded-xl transition-transform duration-300 group-hover:scale-105 motion-reduce:transition-none', h.chip)}>
+        <def.icon className="h-5 w-5" aria-hidden />
+      </span>
       <p className="mt-3 truncate text-[13px] font-medium text-slate-600 dark:text-slate-300" title={def.label}>{def.label}</p>
       {busy ? <Skeleton className="mt-1.5 h-7 w-20" /> : <p className="mt-0.5 font-display text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{renderValue(def, kpi)}</p>}
-      <p className="mt-1 min-h-[1rem] truncate text-xs text-slate-500 dark:text-slate-400" title={foot ?? undefined}>{busy ? '' : foot}</p>
+      <p className="mt-1 flex h-5 min-w-0 items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400" title={busy ? undefined : [kpi?.trend?.value, foot].filter(Boolean).join(' ') || undefined}>
+        {!busy && kpi?.trend && <TrendPill kpi={kpi} />}
+        {!busy && foot && <span className="truncate">{foot}</span>}
+      </p>
       <div className="mt-auto pt-2">
         {!busy && kpi?.spark ? (
           <Sparkline spark={kpi.spark} color={h.hex} />
@@ -156,7 +157,15 @@ export function GlanceStrip({ kpis, loading }: { kpis?: Partial<Record<KpiKey, K
                   {loading || !kpi ? (
                     <Skeleton className="mt-1 h-5 w-12" />
                   ) : (
-                    <span className="block font-display text-lg font-bold leading-tight text-slate-900 dark:text-white">{renderValue(d, kpi)}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="block whitespace-nowrap font-display text-lg font-bold leading-tight text-slate-900 dark:text-white">{renderValue(d, kpi)}</span>
+                      {/* Tiny 6-point trend next to the value (same series as the headline cards). */}
+                      {kpi.spark && (
+                        <span className="block w-12 shrink-0">
+                          <Sparkline spark={kpi.spark} color={h.hex} height={20} compact />
+                        </span>
+                      )}
+                    </span>
                   )}
                   {kpi?.hint && <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400" title={kpi.hint}>{kpi.hint}</span>}
                 </span>

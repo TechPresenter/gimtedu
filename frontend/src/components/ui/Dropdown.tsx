@@ -13,6 +13,7 @@ export interface DropdownItem {
   target?: string;
   danger?: boolean;
   disabled?: boolean;
+  /** Draw a separator line above this item (an item with only `divider: true` and no label is just the line). */
   divider?: boolean;
   hint?: string;
 }
@@ -37,10 +38,9 @@ export function Dropdown({ trigger, items, align = 'right', triggerClassName, he
       </MenuButton>
       <MenuItems anchor={align === 'right' ? 'bottom end' : 'bottom start'} className={clsx('menu-panel [--anchor-gap:6px]', width)} modal={false}>
         {header && <div className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">{header}</div>}
-        {list.map((item, i) =>
-          item.divider ? (
-            <div key={`d${i}`} className="my-1 border-t border-slate-100 dark:border-slate-800" />
-          ) : (
+        {list.flatMap((item, i) => [
+          item.divider && i > 0 ? <div key={`d${i}`} className="my-1 border-t border-slate-100 dark:border-slate-800" role="separator" /> : null,
+          !item.label && item.divider ? null : (
             <MenuItem key={`${item.label}${i}`} disabled={item.disabled} as={Fragment}>
               {({ focus }) => {
                 const cls = clsx('menu-item', item.danger && '!text-red-600 dark:!text-red-400', item.disabled && 'opacity-50', focus && 'bg-slate-100 dark:bg-slate-800');
@@ -57,7 +57,7 @@ export function Dropdown({ trigger, items, align = 'right', triggerClassName, he
               }}
             </MenuItem>
           ),
-        )}
+        ])}
       </MenuItems>
     </Menu>
   );

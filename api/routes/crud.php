@@ -25,7 +25,8 @@ route('GET', '/crud/{module}', function ($p) {
 
 route('GET', '/crud/{module}/export', function ($p) {
     $m = crud_api_module($p['module'], 'export');
-    $format = in_array($_GET['format'] ?? 'csv', ['csv', 'xlsx', 'print', 'pdf'], true) ? $_GET['format'] : 'csv';
+    $format = api_query('format', 'csv');
+    $format = in_array($format, ['csv', 'xlsx', 'print', 'pdf'], true) ? $format : 'csv';
     crud_export($m, $_GET, $format);
 });
 
@@ -42,7 +43,10 @@ route('POST', '/crud/{module}/import', function ($p) {
     if (empty($_FILES['file'])) {
         api_error('Choose a CSV or Excel file to import.', 422, ['file' => 'Choose a CSV or Excel file to import.']);
     }
-    $summary = crud_import($m, $_FILES['file'], api_param('mode', 'insert') === 'upsert' ? 'upsert' : 'insert');
+    // optional scope of an embedded table (JSON object or scope[key]=value), e.g. participants imported inside an event
+    $scope = api_param('scope');
+    $scope = is_string($scope) ? (json_decode($scope, true) ?: []) : (is_array($scope) ? $scope : []);
+    $summary = crud_import($m, $_FILES['file'], api_param('mode', 'insert') === 'upsert' ? 'upsert' : 'insert', is_array($scope) ? $scope : []);
     api_ok($summary, sprintf('Import finished: %d added, %d updated, %d skipped, %d failed.', $summary['inserted'], $summary['updated'], $summary['skipped'], $summary['failed']));
 });
 
@@ -69,7 +73,7 @@ route('GET', '/crud/{module}/options/{field}', function ($p) {
 
 route('POST', '/crud/{module}/bulk', function ($p) {
     $in = api_input();
-    $action = (string) ($in['action'] ?? '');
+    $action = api_str($in['action'] ?? null);
     $ids = (array) ($in['ids'] ?? []);
     if (!$ids) {
         api_error('Select at least one record.', 422);
@@ -88,7 +92,7 @@ route('POST', '/crud/{module}/bulk', function ($p) {
     }
     if ($action === 'status') {
         $m = crud_api_module($p['module'], 'edit');
-        $n = crud_bulk_update($m, $ids, (string) ($in['field'] ?? ($m['bulk']['status_field'] ?? 'status')), (string) ($in['value'] ?? ''));
+        $n = crud_bulk_update($m, $ids, (string) ($in['field'] ?? ($m['bulk']['status_field'] ?? 'status')), api_str($in['value'] ?? null));
         api_ok(['updated' => $n], $n . ' record(s) updated.');
     }
     $m = crud_api_module($p['module'], 'edit');
@@ -112,14 +116,14 @@ route('POST', '/crud/{module}', function ($p) {
     $m = crud_api_module($p['module'], 'create');
     $res = crud_save($m, api_input(), $_FILES);
     $row = crud_find($m, $res['id']);
-    api_ok(['id' => $res['id'], 'row' => $row ? crud_public_row($m, $row) : null], $m['singular'] . ' created successfully.', 201);
+    api_ok(['id' => $res['id'], 'row' => $row ? crud_public_row($m, $row) : null], crud_message($m, 'created'), 201);
 });
 
 $update = function ($p) {
     $m = crud_api_module($p['module'], 'edit');
     $res = crud_save($m, api_input(), $_FILES, (int) $p['id']);
     $row = crud_find($m, $res['id']);
-    api_ok(['id' => $res['id'], 'row' => $row ? crud_public_row($m, $row) : null], $m['singular'] . ' updated successfully.');
+    api_ok(['id' => $res['id'], 'row' => $row ? crud_public_row($m, $row) : null], crud_message($m, 'updated'));
 };
 route('POST', '/crud/{module}/{id:\d+}', $update);
 route('PUT', '/crud/{module}/{id:\d+}', $update);
@@ -134,5 +138,5 @@ route('DELETE', '/crud/{module}/{id:\d+}', function ($p) {
     if (!$res['deleted']) {
         api_error($m['singular'] . ' not found.', 404);
     }
-    api_ok(null, $m['singular'] . ' deleted successfully.');
+    api_ok(null, crud_message($m, 'deleted'));
 });

@@ -1,7 +1,8 @@
 import clsx from 'clsx';
-import { ArrowDown, ArrowUp, ChevronDown, Phone, PhoneCall, RotateCcw, RotateCw, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, Mic, Phone, PhoneCall, RotateCcw, RotateCw, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { lockScroll, trapFocus } from '../../core/dom';
+import { listen, speechCtor, voiceErrorText, voiceLang, type VoiceSession } from '../../core/voice';
 import { getJson, loadChat, postJson, saveChat, streamMessage, utmParams } from './api';
 import { BotAvatar } from './Avatar';
 import { WA_PILL, WhatsAppBadge } from './icons';
@@ -48,6 +49,34 @@ export default function ChatWindow({ cfg, open, staticMode, onClose, initialMess
   const honeypot = useRef<HTMLInputElement>(null);
   const cidRef = useRef<string | null>(chat.cid);
   cidRef.current = chat.cid;
+  // voice input (core/voice.ts): the spoken question fills the box live; the visitor reviews it and presses Send
+  const [voice] = useState(() => !!speechCtor());
+  const [listening, setListening] = useState(false);
+  const voiceSession = useRef<VoiceSession | null>(null);
+  const toggleVoice = () => {
+    if (voiceSession.current) {
+      voiceSession.current.stop();
+      return;
+    }
+    const before = input;
+    voiceSession.current = listen({
+      lang: voiceLang(),
+      onText: (text) => setInput(text.slice(0, cfg.maxLength)),
+      onEnd: (error) => {
+        voiceSession.current = null;
+        setListening(false);
+        setInput((v) => v || before);
+        const msg = voiceErrorText(error);
+        setAnnounce(msg ?? 'Stopped listening.');
+        field.current?.focus();
+      },
+    });
+    if (voiceSession.current) {
+      setListening(true);
+      setAnnounce('Listening — speak your question.');
+    }
+  };
+  useEffect(() => () => voiceSession.current?.stop(), []);
 
   /* ---------------------------------------------------------------- open / close transitions, focus trap, scroll lock */
   useEffect(() => {
@@ -457,11 +486,27 @@ export default function ChatWindow({ cfg, open, staticMode, onClose, initialMess
               maxLength={cfg.maxLength}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKey}
-              placeholder="Type your question…"
+              placeholder={listening ? 'Listening… speak now' : 'Type your question…'}
               aria-describedby={`${uid}-count`}
               className="max-h-[120px] min-h-[36px] flex-1 resize-none bg-transparent py-1.5 text-[14.5px] leading-snug text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
             />
             <input ref={honeypot} type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="absolute -left-[9999px] h-px w-px opacity-0" />
+            {voice && (
+              <button
+                type="button"
+                onClick={toggleVoice}
+                disabled={busy}
+                aria-pressed={listening}
+                aria-label={listening ? 'Stop listening' : 'Speak your question'}
+                title={listening ? 'Stop listening' : 'Speak your question'}
+                className={clsx(
+                  'relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 disabled:opacity-40',
+                  listening ? 'voice-listening bg-accent-600 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-brand-900',
+                )}
+              >
+                <Mic className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden="true" />
+              </button>
+            )}
             <button
               type="submit"
               disabled={busy || !input.trim()}

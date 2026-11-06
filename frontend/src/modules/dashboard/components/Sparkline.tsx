@@ -26,7 +26,7 @@ function smoothPath(xy: (readonly [number, number])[], h: number): string {
  * Tiny trend line with a soft gradient area in the KPI's hue. Drawn in real pixels (measured width) so the stroke
  * stays crisp at any card width; draws in once when scrolled into view; every point is described for screen readers.
  */
-export function Sparkline({ spark, color, height = 34, className }: { spark: Spark; color: string; height?: number; className?: string }) {
+export function Sparkline({ spark, color, height = 34, className, compact = false }: { spark: Spark; color: string; height?: number; className?: string; compact?: boolean }) {
   const { ref, inView } = useInView<HTMLDivElement>();
   const gid = `dh-spark-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const [width, setWidth] = useState(0);
@@ -48,8 +48,8 @@ export function Sparkline({ spark, color, height = 34, className }: { spark: Spa
   let area = '';
   let last: readonly [number, number] | null = null;
   if (width > 0 && pts.length > 1) {
-    const padX = 4;
-    const padY = 4;
+    const padX = compact ? 3 : 4;
+    const padY = compact ? 3 : 4;
     const min = Math.min(...pts);
     const max = Math.max(...pts);
     const span = max - min;
@@ -70,8 +70,8 @@ export function Sparkline({ spark, color, height = 34, className }: { spark: Spa
             </linearGradient>
           </defs>
           <path d={area} fill={`url(#${gid})`} className={clsx('transition-opacity duration-700 motion-reduce:transition-none', inView ? 'opacity-100' : 'opacity-0')} />
-          <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" strokeDashoffset={inView ? 0 : 1} className="dh-draw" />
-          <circle cx={last[0]} cy={last[1]} r="3.2" fill={color} stroke="currentColor" strokeWidth="2" className={clsx('text-white transition-opacity duration-500 dark:text-slate-900 motion-reduce:transition-none', inView ? 'opacity-100' : 'opacity-0')} />
+          <path d={line} fill="none" stroke={color} strokeWidth={compact ? 1.6 : 2} strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" strokeDashoffset={inView ? 0 : 1} className="dh-draw" />
+          <circle cx={last[0]} cy={last[1]} r={compact ? 2.4 : 3.2} fill={color} stroke="currentColor" strokeWidth={compact ? 1.4 : 2} className={clsx('text-white transition-opacity duration-500 dark:text-slate-900 motion-reduce:transition-none', inView ? 'opacity-100' : 'opacity-0')} />
         </svg>
       )}
     </div>

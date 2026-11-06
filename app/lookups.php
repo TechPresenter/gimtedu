@@ -71,7 +71,8 @@ function lookup_sources(): array
         'publishers' => ['table' => 'publishers pb', 'value' => 'pb.id', 'label' => 'pb.name', 'order' => 'pb.name', 'search' => ['pb.name']],
         'books' => ['table' => 'books b', 'value' => 'b.id', 'label' => 'b.title', 'sub' => "CONCAT(COALESCE(b.isbn, ''), ' · ', b.available_copies, ' available')", 'order' => 'b.title', 'search' => ['b.title', 'b.isbn'], 'async' => true],
         'library_members' => ['table' => 'library_members lm', 'joins' => 'LEFT JOIN students s ON s.id = lm.student_id LEFT JOIN faculty f ON f.id = lm.faculty_id LEFT JOIN staff st ON st.id = lm.staff_id',
-            'value' => 'lm.id', 'label' => "CONCAT(COALESCE(TRIM(CONCAT_WS(' ', s.first_name, s.last_name)), TRIM(CONCAT_WS(' ', f.first_name, f.last_name)), TRIM(CONCAT_WS(' ', st.first_name, st.last_name))), ' (', lm.membership_no, ')')",
+            // CONCAT_WS returns '' (not NULL) for a missing person, so COALESCE never fell through: pick the name by member type
+            'value' => 'lm.id', 'label' => "CONCAT((CASE lm.member_type WHEN 'student' THEN TRIM(CONCAT_WS(' ', s.first_name, s.last_name)) WHEN 'faculty' THEN TRIM(CONCAT_WS(' ', f.title, f.first_name, f.last_name)) ELSE TRIM(CONCAT_WS(' ', st.first_name, st.last_name)) END), ' (', lm.membership_no, ')')",
             'sub' => 'lm.member_type', 'where' => "lm.status = 'active'", 'order' => 'lm.membership_no', 'search' => ['lm.membership_no', 's.first_name', 's.last_name', 'f.first_name', 'f.last_name', 'st.first_name', 's.student_uid'], 'async' => true],
         'alumni' => ['table' => 'alumni a', 'value' => 'a.id', 'label' => 'a.name', 'sub' => "CONCAT('Batch ', a.batch_year, IFNULL(CONCAT(' · ', a.company), ''))", 'order' => 'a.name', 'search' => ['a.name', 'a.email', 'a.company'], 'async' => true],
         'blog_categories' => ['table' => 'blog_categories bc', 'value' => 'bc.id', 'label' => 'bc.name', 'order' => 'bc.name', 'search' => ['bc.name']],
@@ -83,6 +84,44 @@ function lookup_sources(): array
         'student_fees' => ['table' => 'student_fees sf', 'value' => 'sf.id', 'label' => "CONCAT(sf.invoice_no, ' — ', sf.title)", 'sub' => "CONCAT('Balance ', sf.balance_amount)", 'order' => 'sf.due_date', 'search' => ['sf.invoice_no', 'sf.title'],
             'filters' => ['student_id' => 'sf.student_id', 'status' => 'sf.status'], 'async' => true],
     ];
+}
+
+/**
+ * Who may read a named source through GET /api/lookup/{source}. Lookups feed admin pickers, so the caller must hold at
+ * least one admin-panel permission (portal-only accounts such as the Faculty role get 403, like every other admin
+ * API). Sources that list people or money also need a related module: a Content Manager has no reason to search the
+ * student register, and only fee staff may list invoices with balances.
+ */
+function lookup_source_permissions(): array
+{
+    $studentModules = ['students', 'admissions', 'fees', 'timetable', 'attendance', 'examination', 'results', 'certificates', 'library',
+        'hostel', 'transport', 'placement', 'alumni', 'feedback', 'communication'];
+    return [
+        'students' => $studentModules,
+        'all_students' => $studentModules,
+        'admissions' => ['admissions', 'fees', 'students'],
+        'student_fees' => ['fees'],
+        'alumni' => ['alumni', 'events', 'communication', 'placement'],
+        'library_members' => ['library'],
+        'drivers' => ['transport'],
+    ];
+}
+
+function lookup_allowed(string $source): bool
+{
+    if (!user_id()) {
+        return false;
+    }
+    if (is_super_admin()) {
+        return true;
+    }
+    $perms = user_permissions();
+    unset($perms['faculty_portal']); // the Faculty Portal permission alone does not open admin data
+    if (!$perms) {
+        return false;
+    }
+    $need = lookup_source_permissions()[$source] ?? null;
+    return $need === null || can_any($need);
 }
 
 /**
@@ -101,7 +140,7 @@ function lookup_options($source, array $params = [], int $defaultLimit = 1000): 
     $where = [];
     $args = [];
     if (!empty($params['ids'])) {
-        $ids = array_values(array_filter(array_map('trim', explode(',', (string) $params['ids'])), fn ($v) => $v !== ''));
+        $ids = array_values(array_filter(array_map('trim', explode(',', api_str($params['ids']))), fn ($v) => $v !== ''));
         if (!$ids) {
             return [];
         }
@@ -117,7 +156,7 @@ function lookup_options($source, array $params = [], int $defaultLimit = 1000): 
                 $args[] = $params[$param];
             }
         }
-        $q = trim((string) ($params['q'] ?? ''));
+        $q = trim(api_str($params['q'] ?? null));
         if ($q !== '' && !empty($def['search'])) {
             $or = [];
             foreach ($def['search'] as $col) {

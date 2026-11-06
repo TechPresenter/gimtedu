@@ -24,11 +24,15 @@ const typeTone: Record<string, string> = {
   certificate: 'bg-violet-100 text-violet-700', security: 'bg-red-100 text-red-600', system: 'bg-slate-100 text-slate-600',
 };
 
-/** Convert stored URL ("admin/students/5" or "/admin/x") into an SPA route. */
+/**
+ * Convert a stored URL ("admin/students/5", "/admin/x", "leaves") into an SPA route. Classic page names such as
+ * "admin/security.php" (raised by the account-lockout alert) map to the SPA route without ".php".
+ */
 export function notificationRoute(url: string | null): string | null {
   if (!url) return null;
   if (/^https?:/i.test(url)) return url;
-  return '/' + url.replace(/^\/?(admin\/)?/, '');
+  const route = url.replace(/^\/?(admin\/)?/, '').replace(/^(index|dashboard)\.php(?=$|[?#])/i, '').replace(/\.php(?=$|[?#])/i, '');
+  return '/' + route;
 }
 
 export function NotificationMenu({ count }: { count: number }) {

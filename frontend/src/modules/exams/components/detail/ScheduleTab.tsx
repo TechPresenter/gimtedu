@@ -148,7 +148,7 @@ function AutoScheduleModal({ open, onClose, data }: { open: boolean; onClose: ()
         </>
       }
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="First paper on" error={errors.start_date} htmlFor="as-date" hint={e.start_date ? `Exam window ${formatDate(e.start_date)} – ${formatDate(e.end_date)}` : undefined}>
           <Input id="as-date" type="date" value={form.start_date} onChange={(ev) => setForm({ ...form, start_date: ev.target.value })} invalid={!!errors.start_date} />
         </Field>

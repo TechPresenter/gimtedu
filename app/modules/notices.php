@@ -3,6 +3,20 @@
 require_once APP_ROOT . '/app/services/communication.php';
 
 $state = comm_notice_state_sql('t');
+
+// Brief §notice board: results, scholarship announcements and important deadlines are categories of their own (the public
+// notice board already has labels, icons and colours for them - includes/partials/notices_events.php). Added here next
+// to their nearest relatives without changing the shared comm_notice_categories() list.
+$categories = [];
+foreach (comm_notice_categories() as $key => $label) {
+    $categories[$key] = $label;
+    if ($key === 'examination') {
+        $categories += ['result' => 'Result'];
+    } elseif ($key === 'admission') {
+        $categories += ['scholarship' => 'Scholarship', 'deadline' => 'Deadline'];
+    }
+}
+$categories += ['result' => 'Result', 'scholarship' => 'Scholarship', 'deadline' => 'Deadline'];
 $semesters = [];
 for ($i = 1; $i <= 10; $i++) {
     $semesters[$i] = 'Semester ' . $i;
@@ -47,7 +61,7 @@ return [
         ['key' => 'views', 'label' => 'Views', 'format' => 'number'], ['key' => 'created_by_name', 'label' => 'Created by'],
     ],
     'filters' => [
-        ['key' => 'category', 'label' => 'Category', 'options' => comm_notice_categories()],
+        ['key' => 'category', 'label' => 'Category', 'options' => $categories],
         ['key' => 'audience', 'label' => 'Audience', 'options' => comm_notice_audiences()],
         ['key' => 'department_id', 'label' => 'Department', 'source' => 'departments'],
         ['key' => 'pinned', 'label' => 'Pinned', 'sql_map' => ['yes' => 't.is_pinned = 1', 'no' => 't.is_pinned = 0'], 'options' => ['yes' => 'Pinned only', 'no' => 'Not pinned']],
@@ -58,7 +72,7 @@ return [
         ['type' => 'section', 'label' => 'Notice'],
         ['name' => 'title', 'label' => 'Title', 'type' => 'text', 'required' => true, 'col' => 12, 'maxlength' => 255, 'placeholder' => 'e.g. Mid-semester examination schedule — October 2026'],
         ['name' => 'slug', 'label' => 'URL slug', 'type' => 'slug', 'slug_from' => 'title', 'col' => 6, 'maxlength' => 190, 'help' => 'Used for the public link /notices/{slug}. Generated from the title when left empty.'],
-        ['name' => 'category', 'label' => 'Category', 'type' => 'select', 'required' => true, 'default' => 'general', 'col' => 3, 'options' => comm_notice_categories()],
+        ['name' => 'category', 'label' => 'Category', 'type' => 'select', 'required' => true, 'default' => 'general', 'col' => 3, 'options' => $categories],
         ['name' => 'status', 'label' => 'Status', 'type' => 'select', 'required' => true, 'default' => 'draft', 'col' => 3,
             'options' => ['draft' => 'Draft', 'published' => 'Published', 'expired' => 'Expired']],
         ['name' => 'description', 'label' => 'Description', 'type' => 'richtext', 'col' => 12, 'placeholder' => 'Write the notice…'],
@@ -87,9 +101,9 @@ return [
                 comm_expire_notices();
             }
         },
-        'transform_row' => function (array $r): array {
+        'transform_row' => function (array $r) use ($categories): array {
             $r['audience_label'] = comm_notice_audience_label($r);
-            $r['category_label'] = comm_notice_categories()[$r['category']] ?? label_from_key((string) $r['category']);
+            $r['category_label'] = $categories[$r['category']] ?? label_from_key((string) $r['category']);
             return $r;
         },
         'validate' => function (array $data, ?int $id, ?array $old, array $input): array {

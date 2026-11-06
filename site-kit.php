@@ -164,6 +164,29 @@ page_hero('Website Kit', 'Design v3 tokens, components & motion', ['Website Kit'
   <?= $code("section_heading('Top Programs', 'Lead…', 'Eyebrow', 'left', \$actionHtml, ['highlight' => 'Programs', 'sticker' => ['text' => 'Admissions open', 'color' => 'sun']]);\nprogram_card(\$p, ['variant' => 'default'|'landing']);  feature_tile('users', 'Title', 'Text', ['tint' => 'navy'|'orange', 'variant' => 'card'|'warm'|'compact']);\npastel_card('Title', 'Text', ['color' => 'warm'|'navy'|'sky'…, 'button' => [...]]);  approvals_card();  approval_card(\$a);  overlay_card(…)") ?>
 <?= section_close() ?>
 
+<!-- Yellow-gold highlights (client request 2026-10-13) -->
+<?= section_open(['id' => 'gold', 'bg' => 'light']) ?>
+  <?= section_heading('Scholarships for Every Achiever', 'gold_highlight() / gold_text() — a yellow-gold marker behind one key phrase (max 1–2 per screen, never on body text, never with a scribble on the same heading). Text on gold is always navy.', 'Gold highlights', 'left', '', ['gold' => 'Every Achiever']) ?>
+  <div class="grid gap-6 lg:grid-cols-3">
+    <div class="rounded-[22px] border border-warm-2 bg-white p-6">
+      <p class="eyebrow mb-2">Marker</p>
+      <p class="font-display text-3xl font-extrabold leading-tight text-brand-900">Get <?= gold_highlight('Free Counselling') ?></p>
+      <p class="mt-3 font-display text-lg font-bold text-brand-900"><?= gold_highlight('Small labels', ['tall' => true]) ?> use the full-height band</p>
+    </div>
+    <div class="rounded-[22px] bg-brand-900 p-6 text-white">
+      <p class="eyebrow mb-2 !text-accent-300">On navy</p>
+      <p class="font-display text-3xl font-extrabold leading-tight">Merit scholarships <?= gold_highlight(($m = site_max_scholarship()) ? 'up to ' . $m . '%' : 'for toppers') ?></p>
+      <p class="mt-3 font-display text-lg font-bold">Soft variant: <?= gold_highlight(($m ? 'up to ' . $m . '%' : 'merit based'), ['variant' => 'soft']) ?></p>
+    </div>
+    <div class="rounded-[22px] border border-warm-2 bg-white p-6">
+      <p class="eyebrow mb-2">Pills (data-driven tags)</p>
+      <p class="flex flex-wrap gap-2"><?= gold_highlight('Most Popular', ['variant' => 'pill']) ?><?= gold_highlight('New', ['variant' => 'pill']) ?><?= gold_highlight('Admissions Open ' . site_admission_session_name(), ['variant' => 'pill', 'icon' => 'graduation-cap', 'size' => 'lg']) ?></p>
+      <button type="button" class="btn btn-callback mt-5" data-modal-open="#enquiry-modal"><?= icon('message-circle', 'h-4 w-4') ?>Open the enquiry popup</button>
+    </div>
+  </div>
+  <?= $code("gold_highlight('Free Counselling');                       // marker (draws in on reveal)\ngold_text('Get [Free Counselling]');                      // [brackets] = the gold phrase\ngold_highlight('Most Popular', ['variant' => 'pill']);   // gold pill label\ngold_highlight('up to 50%', ['variant' => 'soft']);      // gold text on navy\nsection_heading(\$title, \$lead, \$eyebrow, 'left', '', ['gold' => 'Achiever']);  page_hero(…, ['gold' => '2026-27']);  cta_band(['gold' => '…']);\n// React islands: import { GoldMark, goldText } from '../lib/GoldMark';  <GoldMark text=\"Free Counselling\" />") ?>
+<?= section_close() ?>
+
 <!-- Stats -->
 <?= section_open(['id' => 'stats', 'bg' => 'ink']) ?>
   <?= section_heading('Our Impact', 'StatCounter "divided" variant on a navy band: bold Jakarta numbers with thin dividers (demo figures).', 'Island · StatCounter', 'left', '', ['highlight' => 'Impact', 'scribble' => 'light']) ?>
@@ -223,6 +246,11 @@ page_hero('Website Kit', 'Design v3 tokens, components & motion', ['Website Kit'
           'fields' => [['name' => 'name', 'label' => 'Full Name', 'required' => true, 'col' => 'half'], ['name' => 'email', 'label' => 'Email', 'type' => 'email', 'required' => true, 'col' => 'half'],
                        ['name' => 'message', 'label' => 'Your Message', 'type' => 'textarea', 'required' => true, 'minLength' => 10]]]) ?>
       <p class="text-sm text-slate-600">Countdown island (boxes): <?= countdown(null, ['variant' => 'boxes']) ?: 'no future deadline set' ?></p>
+      <div class="rounded-2xl border border-slate-200 bg-white p-5">
+        <p class="font-display font-bold text-brand-900">ApplyWizard (7-step online application)</p>
+        <p class="mt-1 text-sm text-slate-600">Not embedded here: every submission creates a real application with uploaded documents. Props are built by <code>sf_apply_props()</code> (includes/partials/site_forms.php, docs/WEBSITE.md §3); try it on the live page.</p>
+        <div class="mt-3 flex flex-wrap gap-2"><?= button_link('Open the wizard', '/apply?program=master-of-business-administration', 'apply', ['size' => 'sm']) ?><?= button_link('Single-page / no-JS form', '/apply?classic=1', 'brochure', ['size' => 'sm', 'icon' => '']) ?></div>
+      </div>
     </div>
   </div>
   <?= $code("enquiry_form(['theme' => 'lead', 'title' => 'Talk to an Admission Expert', 'titleHighlight' => 'Admission Expert', 'tags' => [...], 'captureUtm' => true,\n  'footer' => countdown(site_admissions_deadline(), ['label' => 'Application closes in']) . \$seatsHtml, 'fields' => [... ['type' => 'tel', 'prefix' => '+91'] ...]]);") ?>
@@ -237,7 +265,7 @@ page_hero('Website Kit', 'Design v3 tokens, components & motion', ['Website Kit'
   <?= view_mode_open('kit-programs') ?>
     <?php foreach (array_slice($programs, 0, 6) as $p): ?>
       <article class="view-item">
-        <a href="<?= e(site_url('programs/' . $p['slug'])) ?>" class="vm-media img-zoom"><img src="<?= e(site_image($p['image'])) ?>" alt="" loading="lazy"></a>
+        <a href="<?= e(site_url('programs/' . $p['slug'])) ?>" class="vm-media img-zoom" tabindex="-1" aria-hidden="true"><img src="<?= e(site_image($p['image'])) ?>" alt="" loading="lazy"></a>
         <div class="vm-body">
           <p class="text-xs font-bold uppercase tracking-[0.12em] text-accent-700"><?= e(program_level_label($p['level'])) ?></p>
           <h3 class="font-display text-[17px] font-extrabold text-brand-900"><?= e($p['name']) ?></h3>

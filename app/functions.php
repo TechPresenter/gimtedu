@@ -93,13 +93,34 @@ function redirect(string $url, int $code = 302): void
     exit;
 }
 
-/** Only allow redirects to local paths (prevents open redirects). */
+/**
+ * Only allow redirects to local paths (prevents open redirects). Control characters are refused too: browsers strip
+ * tab / CR / LF from URLs, so "/\t/evil.example" would otherwise become the protocol-relative "//evil.example".
+ */
 function safe_redirect_target(?string $target, string $fallback): string
 {
-    if (!$target || !str_starts_with($target, '/') || str_starts_with($target, '//') || str_contains($target, "\n") || str_contains($target, '\\')) {
+    if (!is_string($target) || $target === '' || !str_starts_with($target, '/') || str_starts_with($target, '//')
+        || str_contains($target, '\\') || preg_match('/[\x00-\x1F\x7F]/', $target)) {
         return $fallback;
     }
     return $target;
+}
+
+/** Local path + query of a same-host Referer (for "go back" redirects), else $fallback. Never trusts another host. */
+function safe_referer_path(string $fallback): string
+{
+    $ref = $_SERVER['HTTP_REFERER'] ?? '';
+    if (!is_string($ref) || $ref === '') {
+        return $fallback;
+    }
+    $parts = parse_url($ref);
+    $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+    $refHost = strtolower((string) ($parts['host'] ?? '')) . (isset($parts['port']) ? ':' . $parts['port'] : '');
+    if (!$parts || $host === '' || $refHost !== $host) {
+        return $fallback;
+    }
+    $path = ($parts['path'] ?? '/') . (isset($parts['query']) ? '?' . $parts['query'] : '');
+    return safe_redirect_target($path, $fallback);
 }
 
 /* ------------------------------------------------------------------
@@ -146,6 +167,31 @@ function input_int(string $key, int $default = 0): int
 {
     $v = input($key);
     return is_numeric($v) ? (int) $v : $default;
+}
+
+/**
+ * A request value as a string: '' (or $default) when it is missing or not a scalar. Use it instead of (string) casts on
+ * request input - `?q[]=x` or a JSON array would otherwise raise "Array to string conversion" warnings that corrupt the
+ * JSON response.
+ */
+function api_str($value, string $default = ''): string
+{
+    if (is_string($value)) {
+        return $value;
+    }
+    if (is_int($value) || is_float($value)) {
+        return (string) $value;
+    }
+    if (is_bool($value)) {
+        return $value ? '1' : '';
+    }
+    return $default;
+}
+
+/** Query-string value as a trimmed string (non-scalar values become $default). */
+function api_query(string $key, string $default = ''): string
+{
+    return trim(api_str($_GET[$key] ?? null, $default));
 }
 
 function json_response(array $data, int $status = 200): void
@@ -208,7 +254,7 @@ function csrf_verify(): void
     }
     http_response_code(419);
     flash('error', 'Your session has expired. Please try again.');
-    redirect($_SERVER['HTTP_REFERER'] ?? admin_url(''));
+    redirect(safe_referer_path(admin_url('')));
 }
 
 /* ------------------------------------------------------------------
@@ -454,6 +500,16 @@ function validate(array $data, array $rules, array $labels = []): array
         $label = $labels[$field] ?? label_from_key($field);
         $isEmpty = $value === null || $value === '' || (is_array($value) && !$value);
         $isNumericRule = in_array('numeric', $rulesList, true) || in_array('integer', $rulesList, true);
+        if (is_array($value) && !$isEmpty) {
+            // a list / object where the rules expect one value (JSON {"email": ["x"]}, ?q[]=x): reject it instead of
+            // checking the string "Array" (which passed max:/min: and raised "Array to string conversion" warnings)
+            foreach ($rulesList as $rule) {
+                if (in_array(explode(':', (string) $rule, 2)[0], ['email', 'numeric', 'integer', 'min', 'max', 'date', 'time', 'in', 'regex', 'phone', 'url', 'alpha_dash', 'unique', 'exists', 'string'], true)) {
+                    $errors[$field] = "$label is invalid.";
+                    continue 2;
+                }
+            }
+        }
         foreach ($rulesList as $rule) {
             [$name, $param] = array_pad(explode(':', $rule, 2), 2, null);
             if ($name === 'required') {
@@ -469,7 +525,10 @@ function validate(array $data, array $rules, array $labels = []): array
             $error = null;
             switch ($name) {
                 case 'email':
-                    if (!filter_var($value, FILTER_VALIDATE_EMAIL)) {
+                    // strict check of the normalised address (app/services/phone.php: trim, lowercase, IDN -> ASCII)
+                    // (callers that store the raw value never get whitespace, <brackets>, quotes or "mailto:" through)
+                    require_once APP_ROOT . '/app/services/phone.php';
+                    if (!is_string($value) || preg_match('/[\s<>"]|^mailto:/iu', $value) || !email_is_valid($value)) {
                         $error = "Enter a valid email address.";
                     }
                     break;
@@ -516,8 +575,11 @@ function validate(array $data, array $rules, array $labels = []): array
                     }
                     break;
                 case 'phone':
-                    if (!preg_match('/^\+?[0-9\s\-()]{7,20}$/', (string) $value)) {
-                        $error = "Enter a valid phone number.";
+                    // 'phone' or 'phone:GB' (region for numbers typed without a country code; default setting
+                    // phone_default_country = IN). Per-country check with the libphonenumber metadata (app/services/phone.php).
+                    require_once APP_ROOT . '/app/services/phone.php';
+                    if ($phoneError = phone_error((string) $value, $param ? strtoupper((string) $param) : null)) {
+                        $error = $phoneError;
                     }
                     break;
                 case 'url':
@@ -586,6 +648,24 @@ function password_policy_error(string $password): ?string
  * HTML sanitising for rich text (CMS content, notices, templates)
  * ------------------------------------------------------------------ */
 
+/**
+ * URL allowed in a sanitised href / src: relative URLs, #fragments, ?queries, {{placeholders}} and the schemes http(s),
+ * mailto, tel and sms; data: only for raster images in <img src>. The scheme is read the way browsers read it -
+ * after dropping control characters and spaces (entity-encoded "java&#9;script:" decodes to "java<TAB>script:",
+ * which a browser runs as javascript:).
+ */
+function sanitize_url_allowed(string $value, bool $imageSrc = false): bool
+{
+    $v = strtolower((string) preg_replace('/[\x00-\x20\x7F]+/', '', html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+    if (!preg_match('/^([a-z][a-z0-9+.\-]*):/', $v, $m)) {
+        return true; // relative, protocol-relative ("//host" stays http/https), fragment, query or {{placeholder}}
+    }
+    if (in_array($m[1], ['http', 'https', 'mailto', 'tel', 'sms'], true)) {
+        return true;
+    }
+    return $imageSrc && (bool) preg_match('#^data:image/(png|jpe?g|gif|webp)[;,]#', $v);
+}
+
 function sanitize_html(?string $html): string
 {
     $html = (string) $html;
@@ -628,10 +708,12 @@ function sanitize_html(?string $html): string
                         $child->removeAttribute($attr->name);
                         continue;
                     }
-                    if (in_array($name, ['href', 'src'], true) && preg_match('/^\s*(javascript|vbscript|data):/i', $val) && !preg_match('/^data:image\/(png|jpe?g|gif|webp);/i', $val)) {
+                    if (in_array($name, ['href', 'src'], true) && !sanitize_url_allowed($attr->value, $name === 'src' && $tag === 'img')) {
                         $child->removeAttribute($attr->name);
+                        continue;
                     }
-                    if ($name === 'style' && preg_match('/expression|javascript|url\s*\(/i', $val)) {
+                    // CSS escapes ("\75 rl(") and comments can hide url()/expression() from the check below: refuse them
+                    if ($name === 'style' && preg_match('/expression|javascript|behavior|-moz-binding|url\s*\(|\\\\|\/\*/i', (string) preg_replace('/[\x00-\x20\x7F]+/', '', $val))) {
                         $child->removeAttribute($attr->name);
                     }
                 }
@@ -656,7 +738,8 @@ function sanitize_html(?string $html): string
     foreach ($root->childNodes as $child) {
         $out .= $doc->saveHTML($child);
     }
-    return $out;
+    // libxml URL-escapes href/src values: keep template placeholders such as href="{{unsubscribe_url}}" usable
+    return (string) preg_replace('/%7B%7B(?:%20)*([A-Za-z0-9_]+)(?:%20)*%7D%7D/i', '{{$1}}', $out);
 }
 
 /* ------------------------------------------------------------------
@@ -666,8 +749,11 @@ function sanitize_html(?string $html): string
 function client_ip(): string
 {
     $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-    if (setting('trust_proxy_headers', '0') === '1' && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-        $ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
+    if (setting('trust_proxy_headers', '0') === '1' && !empty($_SERVER['HTTP_X_FORWARDED_FOR']) && is_string($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        // the reverse proxy APPENDS the address it saw: take the last entry. The first one is whatever the client sent
+        // and would let anyone dodge the per-IP login limits / lockouts by sending a fake X-Forwarded-For.
+        $hops = array_values(array_filter(array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])), fn ($h) => $h !== ''));
+        $ip = $hops ? $hops[count($hops) - 1] : $ip;
     }
     return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '0.0.0.0';
 }
@@ -711,7 +797,8 @@ function log_activity(string $action, string $module, $recordId = null, string $
 {
     try {
         db_insert('activity_logs', [
-            'user_id'     => function_exists('user_id') ? user_id() : null,
+            // background WhatsApp work (worker ticks, webhook processing) has no human actor, even inside a staff request
+            'user_id'     => function_exists('wa_in_worker') && wa_in_worker() ? null : (function_exists('user_id') ? user_id() : null),
             'action'      => mb_substr($action, 0, 50),
             'module'      => mb_substr($module, 0, 60),
             'record_id'   => $recordId !== null ? (string) $recordId : null,

@@ -13,7 +13,7 @@ export default function AcademicTab({ profile, studentId, refresh }: TabProps) {
   const defaults = useMemo(() => ({ program_id: s.program_id, academic_session_id: s.academic_session_id ?? '', roll_no: s.roll_no ?? '' }), [s.program_id, s.academic_session_id, s.roll_no]);
   return (
     <div className="space-y-5">
-      <div className="grid gap-5 lg:grid-cols-5 [&>*]:min-w-0">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-5 [&>*]:min-w-0">
         <Reveal className="lg:col-span-3">
           <Card className="h-full">
             <CardHeader title="Current enrolment" icon={GraduationCap} subtitle={s.session_name ? `Admitted in ${s.session_name}` : undefined} />

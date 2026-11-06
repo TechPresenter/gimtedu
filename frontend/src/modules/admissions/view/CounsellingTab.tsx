@@ -62,7 +62,7 @@ export function CounsellingTab({ data }: { data: AdmissionProfile }) {
   };
 
   return (
-    <div className="grid gap-6 xl:grid-cols-5">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
       <div className="space-y-6 xl:col-span-2">
         <Card>
           <CardHeader title="Counselling notes" subtitle="Goals, preferences and concerns discussed with the applicant" icon={NotebookPen} />

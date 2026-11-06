@@ -31,6 +31,8 @@ export interface SessionUser {
   last_login_at: string | null;
   last_login_ip: string | null;
   must_change_password: boolean;
+  /** Why the mandatory "Set a new password" screen is shown (null when no change is pending). */
+  password_change_reason?: 'expired' | 'required' | null;
 }
 
 export interface AcademicSession {

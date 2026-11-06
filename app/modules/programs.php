@@ -5,6 +5,10 @@ require_once APP_ROOT . '/app/services/academics.php';
 $levels = ['UG' => 'Undergraduate (UG)', 'PG' => 'Postgraduate (PG)', 'Diploma' => 'Diploma', 'Certificate' => 'Certificate', 'PhD' => 'Doctoral (Ph.D.)'];
 $categories = ['Management' => 'Management', 'Technology' => 'Technology', 'Commerce' => 'Commerce', 'Science' => 'Science', 'Computer Applications' => 'Computer Applications',
     'Diploma' => 'Diploma', 'Certificate' => 'Certificate', 'Professional' => 'Professional'];
+// certificate course groups (website /certifications) — same labels as site_cert_groups() in includes/config.php
+foreach (['Management & Business', 'Computer & Technology', 'Skill Development', 'Emerging Skills', 'Academic & Career Preparation'] as $group) {
+    $categories[$group] = 'Certificate · ' . $group;
+}
 
 return [
     'table' => 'programs',
@@ -55,7 +59,8 @@ return [
         ['name' => 'degree', 'label' => 'Degree awarded', 'type' => 'text', 'col' => 4, 'maxlength' => 80, 'placeholder' => "Bachelor's Degree"],
         ['name' => 'category', 'label' => 'Category', 'type' => 'select', 'options' => $categories, 'col' => 4],
         ['type' => 'section', 'label' => 'Duration, intake & fee'],
-        ['name' => 'duration_years', 'label' => 'Duration (years)', 'type' => 'decimal', 'required' => true, 'default' => 3, 'min' => 0.1, 'max' => 6, 'step' => 0.5, 'col' => 4],
+        ['name' => 'duration_years', 'label' => 'Duration (years)', 'type' => 'decimal', 'required' => true, 'default' => 3, 'min' => 0.1, 'max' => 6, 'step' => 0.1, 'col' => 4,
+         'help' => 'Short courses: about 0.1 per month (3 months = 0.3) — the website shows the duration label.'],
         ['name' => 'duration_label', 'label' => 'Duration label', 'type' => 'text', 'col' => 4, 'maxlength' => 40, 'placeholder' => '3 Years', 'help' => 'Shown on the website, e.g. "6 Months".'],
         ['name' => 'total_semesters', 'label' => 'Total semesters', 'type' => 'number', 'required' => true, 'default' => 6, 'min' => 1, 'max' => 12, 'col' => 4],
         ['name' => 'total_credits', 'label' => 'Total credits', 'type' => 'number', 'min' => 0, 'max' => 400, 'col' => 4],

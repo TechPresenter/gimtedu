@@ -367,7 +367,7 @@ function KpiValue({ kpi }: { kpi: Kpi }): ReactNode {
 function ViewSkeleton() {
   return (
     <>
-      <div className="card mb-5 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="card mb-5 grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i}>
             <Skeleton className="mb-2 h-3 w-20" />

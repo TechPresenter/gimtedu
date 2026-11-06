@@ -142,7 +142,7 @@ export default function FaqsPage() {
           }
         />
       ) : (
-        <div className="grid items-start gap-6 lg:grid-cols-4">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-4">
           {/* Category navigation */}
           <nav aria-label="FAQ categories" className="min-w-0 lg:sticky lg:top-20">
             <Card className="p-2">

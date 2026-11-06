@@ -70,8 +70,8 @@ export function HeroArt({ className, paused = false }: { className?: string; pau
           <stop offset="1" stopColor="#FFFFFF" stopOpacity=".05" />
         </linearGradient>
         <linearGradient id={id('bld')} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#FFFFFF" stopOpacity=".2" />
-          <stop offset="1" stopColor="#FFFFFF" stopOpacity=".04" />
+          <stop offset="0" stopColor="#FFFFFF" stopOpacity=".28" />
+          <stop offset="1" stopColor="#FFFFFF" stopOpacity=".07" />
         </linearGradient>
         <linearGradient id={id('horizon')} x1="0" x2="1">
           <stop offset="0" stopColor="#7DD3FC" stopOpacity="0" />
@@ -122,7 +122,7 @@ export function HeroArt({ className, paused = false }: { className?: string; pau
       </g>
 
       {/* skyline: back layer */}
-      <g fill="#FFFFFF" fillOpacity=".055">
+      <g fill="#FFFFFF" fillOpacity=".08">
         <rect x="24" y="238" width="38" height="44" rx="2" />
         <rect x="58" y="224" width="30" height="58" rx="2" />
         <rect x="336" y="228" width="34" height="54" rx="2" />
@@ -138,7 +138,7 @@ export function HeroArt({ className, paused = false }: { className?: string; pau
       {/* columned hall */}
       <polygon points={`150,214 ${CX},186 270,214`} fill="#FFFFFF" fillOpacity=".16" stroke="#FFFFFF" strokeOpacity=".35" strokeWidth="1" strokeLinejoin="round" />
       <rect x="156" y="214" width="108" height="6" fill="#FFFFFF" fillOpacity=".2" />
-      <g fill="#FFFFFF" fillOpacity=".2">
+      <g fill="#FFFFFF" fillOpacity=".28">
         {[164, 181, 198, 215, 232, 249].map((x) => <rect key={x} x={x} y="222" width="7" height="52" rx="1.5" />)}
       </g>
       <rect x="152" y="274" width="116" height="8" fill="#FFFFFF" fillOpacity=".14" />

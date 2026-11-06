@@ -50,7 +50,7 @@ route('GET', '/notices/summary', function () {
 
 route('GET', '/notices/audience-preview', function () {
     api_require('notices', 'view');
-    $aud = (string) ($_GET['audience'] ?? 'all');
+    $aud = api_str($_GET['audience'] ?? null, 'all');
     if (!isset(comm_notice_audiences()[$aud])) {
         api_error('Unknown audience.', 422, ['audience' => 'Select a valid audience.']);
     }

@@ -8,6 +8,8 @@
  *   GET  /api/auth/reset/{selector}?token=...   validate reset link
  *   POST /api/auth/reset              {selector, token, password, password_confirmation}
  *   POST /api/auth/password           {current_password, password, password_confirmation}
+ *                                     (also completes a mandatory change: while users.must_change_password = 1 every
+ *                                     other API answers 403 {code: password_change_required} - see enforce_password_change())
  *   POST /api/auth/prefs              {theme?, academic_session_id?}
  *   POST /api/auth/ping               keep the session alive
  */
@@ -65,6 +67,8 @@ function auth_session_payload(): array
             'theme' => $user['theme'], 'faculty_id' => $user['faculty_id'] ? (int) $user['faculty_id'] : null,
             'last_login_at' => $_SESSION['previous_login']['at'] ?? null, 'last_login_ip' => $_SESSION['previous_login']['ip'] ?? null,
             'must_change_password' => (bool) $user['must_change_password'],
+            // why the "Set a new password" screen is shown: expired (password expiry policy) | required (temporary / forced)
+            'password_change_reason' => $user['must_change_password'] ? password_change_reason() : null,
         ],
         'is_super' => $super,
         'permissions' => (object) $perms,
@@ -82,8 +86,8 @@ route('GET', '/auth/session', function () {
 
 route('POST', '/auth/login', function () {
     $in = api_input();
-    $identifier = trim((string) ($in['identifier'] ?? $in['email'] ?? ''));
-    $password = (string) ($in['password'] ?? '');
+    $identifier = trim(api_str($in['identifier'] ?? $in['email'] ?? null));
+    $password = api_str($in['password'] ?? null);
     $errors = [];
     if ($identifier === '') {
         $errors['identifier'] = 'Enter your email or username.';
@@ -108,7 +112,7 @@ route('POST', '/auth/logout', function () {
 }, ['auth' => false]);
 
 route('POST', '/auth/forgot', function () {
-    $email = strtolower(trim((string) api_param('email', '')));
+    $email = strtolower(trim(api_str(api_param('email'))));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         api_error('Enter a valid email address.', 422, ['email' => 'Enter a valid email address.']);
     }
@@ -139,21 +143,21 @@ function auth_reset_token(string $selector, string $token): ?array
 }
 
 route('GET', '/auth/reset/{selector}', function ($p) {
-    $valid = (bool) auth_reset_token($p['selector'], (string) ($_GET['token'] ?? ''));
+    $valid = (bool) auth_reset_token($p['selector'], api_str($_GET['token'] ?? null));
     api_ok(['valid' => $valid]);
 }, ['auth' => false]);
 
 route('POST', '/auth/reset', function () {
     $in = api_input();
-    $row = auth_reset_token((string) ($in['selector'] ?? ''), (string) ($in['token'] ?? ''));
+    $row = auth_reset_token(api_str($in['selector'] ?? null), api_str($in['token'] ?? null));
     if (!$row) {
         api_error('This password reset link is invalid or has expired. Please request a new one.', 410);
     }
-    $password = (string) ($in['password'] ?? '');
+    $password = api_str($in['password'] ?? null);
     if ($err = password_policy_error($password)) {
         api_error($err, 422, ['password' => $err]);
     }
-    if ($password !== (string) ($in['password_confirmation'] ?? '')) {
+    if ($password !== api_str($in['password_confirmation'] ?? null)) {
         api_error('Passwords do not match.', 422, ['password_confirmation' => 'Passwords do not match.']);
     }
     db_transaction(function () use ($row, $password) {
@@ -168,22 +172,33 @@ route('POST', '/auth/reset', function () {
 route('POST', '/auth/password', function () {
     $in = api_input();
     $user = db_row('SELECT * FROM users WHERE id = ?', [user_id()]);
-    if (!password_verify((string) ($in['current_password'] ?? ''), $user['password_hash'])) {
+    // a hijacked session must not be able to guess the current password (and take the account over) by trial and error
+    $rlKey = 'auth-password:' . (int) $user['id'];
+    $rl = db_row('SELECT hits, reset_at FROM rate_limits WHERE rl_key = ?', [$rlKey]);
+    if ($rl && strtotime($rl['reset_at']) > time() && (int) $rl['hits'] >= 10) {
+        api_error('Too many incorrect attempts. Please try again in 15 minutes.', 429);
+    }
+    if (!password_verify(api_str($in['current_password'] ?? null), $user['password_hash'])) {
+        rate_limit($rlKey, 10, 900);
         api_error('Your current password is incorrect.', 422, ['current_password' => 'Your current password is incorrect.']);
     }
-    $password = (string) ($in['password'] ?? '');
+    $password = api_str($in['password'] ?? null);
     if ($err = password_policy_error($password)) {
         api_error($err, 422, ['password' => $err]);
     }
-    if ($password !== (string) ($in['password_confirmation'] ?? '')) {
+    if ($password !== api_str($in['password_confirmation'] ?? null)) {
         api_error('Passwords do not match.', 422, ['password_confirmation' => 'Passwords do not match.']);
     }
     if (password_verify($password, $user['password_hash'])) {
         api_error('Choose a password different from your current one.', 422, ['password' => 'Choose a password different from your current one.']);
     }
+    $wasRequired = (bool) $user['must_change_password'];
     db_update('users', ['password_hash' => password_hash($password, PASSWORD_DEFAULT), 'password_changed_at' => date('Y-m-d H:i:s'), 'must_change_password' => 0], 'id = ?', [$user['id']]);
     db_exec("DELETE FROM user_tokens WHERE user_id = ? AND type = 'remember'", [$user['id']]);
-    log_activity('update', 'auth', $user['id'], 'Changed account password');
+    session_refresh_password_fp(); // this browser stays signed in; every other session of the account is signed out
+    $reason = password_change_reason();
+    unset($_SESSION['password_change_reason']);
+    log_activity('update', 'auth', $user['id'], $wasRequired ? 'Set a new password at sign-in (' . ($reason === 'expired' ? 'expired password' : 'password change required') . ')' : 'Changed account password');
     api_ok(null, 'Password updated successfully.');
 });
 

@@ -85,12 +85,12 @@ $urlWith = fn (array $over = []) => ne_query_url('events', array_merge($state, $
 $pageUrl = fn (int $p) => $urlWith(['page' => $p]) . '#listing';
 
 /* ------------------------------------------------------------------ SEO */
-$title = ($catInfo ? $catInfo['label'] . ' Events' : ($tab === 'past' ? 'Past Events' : 'Events & Activities')) . ($catInfo && $tab === 'past' ? ' — Past' : '') . ($pg['page'] > 1 ? ' — Page ' . $pg['page'] : '');
+$title = ($catInfo ? $catInfo['label'] . ' Events' : ($tab === 'past' ? 'Past Events & Activities' : 'Events & Activities — Seminars, Fests & Workshops')) . ($catInfo && $tab === 'past' ? ' — Past' : '') . ($pg['page'] > 1 ? ' — Page ' . $pg['page'] : '');
 $descr = $tab === 'past'
-    ? 'Past events at ' . institute_name() . ' — seminars, workshops, webinars, fests, sports meets and celebrations held this session.'
-    : 'Upcoming events at ' . institute_name() . ': seminars, workshops, webinars, fests, sports, placement drives and admission counselling — dates, venues and online registration.';
+    ? site_meta_description('Past events at ' . institute_name() . ' — seminars, workshops, webinars, fests, sports meets and celebrations held this session.')
+    : site_meta_description('Upcoming events at ' . setting('institute_short_name', 'GIMT') . ', ' . setting('city', 'Noida') . ': seminars, workshops, webinars, fests, sports meets and placement drives, with dates, venues and online registration.');
 $canonical = ne_abs_url('events', ['tab' => $tab === 'past' ? 'past' : null, 'page' => $outOfRange ? null : $pg['page']]);
-ne_site_header([
+site_header([
     'title' => $title,
     'description' => $descr,
     'active' => 'events',
@@ -104,10 +104,11 @@ ne_site_header([
         ['@context' => 'https://schema.org', '@type' => 'ItemList', 'name' => $title, 'numberOfItems' => $total,
          'itemListElement' => array_map(fn ($e, $i) => ['@type' => 'ListItem', 'position' => $pg['offset'] + $i + 1, 'url' => absolute_url('events/' . $e['slug']), 'name' => (string) $e['title']], $events, array_keys($events))],
     ],
-], [
-    // rel prev/next in <head> (the shared header has no slot yet — see ne_site_header())
-    ['rel' => 'prev', 'href' => !$outOfRange && $pg['page'] > 1 ? ne_abs_url('events', array_merge($state, ['page' => $pg['page'] - 1])) : null],
-    ['rel' => 'next', 'href' => !$outOfRange && $pg['page'] < $pg['pages'] ? ne_abs_url('events', array_merge($state, ['page' => $pg['page'] + 1])) : null],
+    // rel prev/next in <head> (empty hrefs are skipped by the header)
+    'head' => [
+        ['rel' => 'prev', 'href' => !$outOfRange && $pg['page'] > 1 ? ne_abs_url('events', array_merge($state, ['page' => $pg['page'] - 1])) : null],
+        ['rel' => 'next', 'href' => !$outOfRange && $pg['page'] < $pg['pages'] ? ne_abs_url('events', array_merge($state, ['page' => $pg['page'] + 1])) : null],
+    ],
 ]);
 
 $chips = [['icon' => 'calendar-days', 'label' => $upcomingAll . ' upcoming event' . ($upcomingAll === 1 ? '' : 's')]];
@@ -163,7 +164,7 @@ page_hero(
         <a href="<?= e(ne_query_url('events', array_merge($state, ['tab' => $t === 'past' ? 'past' : null, 'month' => null])) . '#listing') ?>" class="inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition <?= $on ? 'bg-brand-900 text-white' : 'text-slate-600 hover:text-brand-900' ?>"<?= $on ? ' aria-current="page"' : '' ?>><?= icon($ic, 'h-4 w-4') ?><?= e($label) ?><span class="opacity-75">(<?= $tabTotals[$t] ?>)</span></a>
       <?php endforeach; ?>
     </nav>
-    <div class="hidden [.js_&]:block"><?= view_mode_toggle('events', ['grid', 'list', 'compact', 'detailed'], view_mode_default('events', 'grid')) ?></div>
+    <div class="hidden [.js_&]:block"><?= view_mode_toggle('events', ['grid', 'list', 'compact', 'detailed'], view_mode_default('events', 'grid')) ?><?= function_exists('site_view_sync_script') ? site_view_sync_script('events') : '' ?></div>
   </div>
 
   <form method="get" action="<?= e(site_url('events')) ?>#listing" role="search" aria-label="Search events" class="mt-5 rounded-[22px] border border-warm-2 bg-white p-4 sm:p-5">

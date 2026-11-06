@@ -4,13 +4,16 @@ import { initHeader } from './header';
 import { initIslands } from './islands';
 import { initLightbox, openLightbox } from './lightbox';
 import { initLoader } from './loader';
-import { initAttention, initBlobs, initDismiss, initSpotlight, initTextReveal } from './effects';
+import { initAttention, initBlobs, initDismiss, initGleam, initSpotlight, initTextReveal } from './effects';
 import { initMega } from './mega';
+import { initTheme } from './theme';
 import { initViewModes } from './viewmode';
 import { initMenus } from './menu';
 import { initCounters, initLazyImages, initMarquee, initParallax, initProgress, initReveal, initScribbles } from './motion';
 import { initOverlays } from './overlays';
+import { initEnquiryPopup } from './popup';
 import { initCursor, initMagnetic, initRipple, initTilt } from './pointer';
+import { initVoiceInputs } from './voice';
 import { initAccordions, initFilters, initForms, initSliders } from './widgets';
 
 /** Enhancements that can run on any subtree (initial page, island content, injected HTML). Idempotent. */
@@ -23,6 +26,7 @@ export function enhance(root: ParentNode = document): void {
     ['blobs', initBlobs],
     ['dismiss', initDismiss],
     ['mega', initMega],
+    ['theme', initTheme],
     ['view-modes', initViewModes],
     ['counters', initCounters],
     ['progress', initProgress],
@@ -30,11 +34,13 @@ export function enhance(root: ParentNode = document): void {
     ['filters', initFilters],
     ['sliders', initSliders],
     ['forms', initForms],
+    ['voice', initVoiceInputs],
     ['marquee', initMarquee],
     ['magnetic', initMagnetic],
     ['tilt', initTilt],
     ['spotlight', initSpotlight],
     ['attention', initAttention],
+    ['gleam', initGleam],
   ];
   // error isolation: one failing behaviour never blocks the others
   for (const [name, fn] of steps) {
@@ -65,6 +71,7 @@ export function boot(): void {
       ['header', initHeader],
       ['menus', initMenus],
       ['overlays', initOverlays],
+      ['enquiry-popup', initEnquiryPopup],
       ['ripple', initRipple],
       ['lightbox', initLightbox],
       ['cursor', initCursor],

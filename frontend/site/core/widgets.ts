@@ -196,14 +196,53 @@ export async function postForm<T = unknown>(url: string, body: FormData): Promis
   }
 }
 
+type CaptchaAttr = { provider: 'recaptcha_v3' | 'turnstile' | 'hcaptcha'; siteKey: string } | null;
+function captchaAttr(form: HTMLFormElement): CaptchaAttr {
+  try {
+    const c = JSON.parse(form.getAttribute('data-captcha') || 'null') as CaptchaAttr;
+    return c && c.provider && c.siteKey ? c : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Forms platform protection for plain server-rendered forms (footer + blog newsletter — site_secure_form_attrs() /
+ * site_secure_form_fields() in includes/components.php): the one-time form token "_ft" printed with the page, the
+ * captcha answer when a provider is configured (script loaded on first focus only), a single retry for an expired
+ * token, and a fresh token after a success so the form can be used again. Same code as the React islands
+ * (forms/security.ts, loaded on demand — not part of the entry chunk).
+ */
+async function postSecureForm(form: HTMLFormElement, key: string): Promise<ApiEnvelope<{ redirect?: string }>> {
+  const action = form.getAttribute('action') || '';
+  const sec = await import('../forms/security');
+  const tokenInput = form.querySelector<HTMLInputElement>('input[name="_ft"]');
+  const captcha = captchaAttr(form);
+  const security = tokenInput?.value ? { token: tokenInput.value, captcha, at: Date.now() - 60000, minSeconds: 0 } : null;
+  const res = await sec.postSecure<{ redirect?: string }>(new FormData(form), { endpoint: action, form: key, security, captchaHolder: form.querySelector<HTMLElement>('[data-captcha-holder]') });
+  if (res.ok && tokenInput) {
+    // tokens are single-use: fetch the next one for another submission from the same page
+    void sec.fetchSecurity(action).then((next) => {
+      if (next) tokenInput.value = next.token;
+    });
+  }
+  return { ok: res.ok, message: res.message, errors: res.errors, data: res.data };
+}
+
 /**
  * <form data-ajax-form action="/api/public/contact" data-success="Thanks!"> … <p data-form-message></p></form>
- * Field errors go to [data-error-for="field"]; inputs get .is-invalid. Fires `form:success` with the response.
- * A `data-redirect` response (res.data.redirect) navigates away.
+ * Field errors go to [data-error-for="field"]; inputs get .is-invalid. Fires `form:success` (bubbling) with the
+ * response. A `data-redirect` response (res.data.redirect) navigates away. With data-secure="<form key>" the post
+ * carries the form token + captcha answer (postSecureForm above).
  */
 export function initForms(root: ParentNode = document): void {
   within<HTMLFormElement>('form[data-ajax-form]', root).forEach((form) => {
     if (!bindOnce(form, 'ajax-form')) return;
+    const secureKey = form.getAttribute('data-secure');
+    if (secureKey && captchaAttr(form)) {
+      // start loading the captcha provider only when the visitor starts filling the form
+      form.addEventListener('focusin', () => void import('../forms/security').then((m) => m.preloadCaptcha(captchaAttr(form))), { once: true });
+    }
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = form.querySelector<HTMLButtonElement>('[type="submit"]');
@@ -218,7 +257,7 @@ export function initForms(root: ParentNode = document): void {
         btn.classList.add('is-loading');
         btn.setAttribute('aria-busy', 'true');
       }
-      const res = await postForm<{ redirect?: string }>(form.getAttribute('action') || '', new FormData(form));
+      const res = secureKey ? await postSecureForm(form, secureKey) : await postForm<{ redirect?: string }>(form.getAttribute('action') || '', new FormData(form));
       if (btn) {
         btn.disabled = false;
         btn.classList.remove('is-loading');
@@ -233,7 +272,7 @@ export function initForms(root: ParentNode = document): void {
         form.reset();
         form.classList.add('is-success');
         window.setTimeout(() => form.classList.remove('is-success'), 2400);
-        form.dispatchEvent(new CustomEvent('form:success', { detail: res }));
+        form.dispatchEvent(new CustomEvent('form:success', { detail: res, bubbles: true }));
         if (res.data?.redirect) window.location.href = res.data.redirect;
         return;
       }

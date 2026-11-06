@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowRight, Ban, FileText, Globe, KeyRound, Lock, LockOpen, LogIn, LogOut, Monitor, Printer, Save, Settings, ShieldAlert, ShieldCheck, ShieldX, Smartphone, UserX,
+  ArrowRight, Ban, Bug, FileText, Globe, KeyRound, Lock, LockOpen, LogIn, LogOut, Monitor, Printer, Save, Settings, ShieldAlert, ShieldCheck, ShieldX, Smartphone, UserX,
 } from 'lucide-react';
 import { CrudTable } from '@/components/crud';
 import {
@@ -18,6 +18,7 @@ import { useApi } from '@/lib/queries';
 import { formatDateTime, formatNumber, timeAgo } from '@/lib/format';
 import type { Paginated } from '@/lib/types';
 import { checkMeta, type CheckStatus } from './components';
+import { ErrorLogDrawer } from './settings/ErrorLogDrawer';
 import type { TokenRow } from './types';
 import './system.css';
 
@@ -51,6 +52,7 @@ export default function SecurityPage() {
   const { data: ov, isLoading, error, refetch } = useApi<Overview>(['security-overview'], 'security/overview');
   const { data: checklist, isLoading: clLoading } = useApi<Checklist>(['security-checklist'], 'security/checklist', undefined, { staleTime: 60_000 });
   const [blockKey, setBlockKey] = useState(0);
+  const [errorLogOpen, setErrorLogOpen] = useState(false);
 
   // Deep links such as /security?tab=logins (used by notifications) land on the tab panel. Wait until the
   // KPI, chart and checklist cards above have loaded, otherwise they grow after the scroll and push the tabs down.
@@ -115,6 +117,9 @@ export default function SecurityPage() {
         breadcrumbs={[{ label: 'System' }, { label: 'Security' }]}
         actions={
           <>
+            <Button variant="secondary" icon={Bug} onClick={() => setErrorLogOpen(true)}>
+              Error log
+            </Button>
             <Button variant="secondary" icon={Printer} href={apiUrl('security/report')} target="_blank">
               Security report
             </Button>
@@ -370,6 +375,7 @@ export default function SecurityPage() {
           {tab === 'policy' && <PolicyPanel ov={ov} onSaved={() => void refreshAll()} />}
         </div>
       </Card>
+      <ErrorLogDrawer open={errorLogOpen} onClose={() => setErrorLogOpen(false)} />
     </>
   );
 }
@@ -525,11 +531,12 @@ const policyFields: { key: string; label: string; type: 'number' | 'toggle'; suf
   { key: 'session_timeout', label: 'Idle session timeout', type: 'number', suffix: 'min', min: 5, max: 720 },
   { key: 'remember_me_days', label: '“Remember me” duration', type: 'number', suffix: 'days', min: 1, max: 365 },
 ];
-const policyToggles: { key: string; label: string; help: string }[] = [
+const policyToggles: { key: string; label: string; help: string; unavailable?: boolean }[] = [
   { key: 'password_require_uppercase', label: 'Require an uppercase letter', help: 'A–Z' },
   { key: 'password_require_number', label: 'Require a number', help: '0–9' },
   { key: 'password_require_special', label: 'Require a special character', help: 'e.g. @ # $ %' },
-  { key: 'two_factor_enabled', label: 'Two-factor authentication (2FA-ready)', help: 'Prepare accounts for TOTP enrolment' },
+  // not in this release: the server refuses to switch it on (app/services/system.php), so the switch is shown read-only
+  { key: 'two_factor_enabled', label: 'Two-factor authentication (coming soon)', help: 'Authenticator-app sign-in is planned for a later release.', unavailable: true },
 ];
 
 function PolicyPanel({ ov, onSaved }: { ov?: Overview; onSaved: () => void }) {
@@ -578,7 +585,7 @@ function PolicyPanel({ ov, onSaved }: { ov?: Overview; onSaved: () => void }) {
         <div className="space-y-3">
           {policyToggles.map((t) => (
             <div key={t.key} className="rounded-xl border border-slate-200 px-3.5 py-3 dark:border-slate-700">
-              <Toggle checked={values[t.key] === '1'} onChange={(v) => set(t.key, v ? '1' : '0')} label={t.label} description={t.help} disabled={readOnly} />
+              <Toggle checked={values[t.key] === '1'} onChange={(v) => set(t.key, v ? '1' : '0')} label={t.label} description={t.help} disabled={readOnly || t.unavailable} />
             </div>
           ))}
         </div>

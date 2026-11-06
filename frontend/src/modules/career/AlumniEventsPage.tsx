@@ -74,12 +74,12 @@ export default function AlumniEventsPage() {
           <CardHeader title="Coming up" subtitle="Next alumni events and how registrations are filling up" icon={CalendarHeart} />
           <div className="card-body !pt-0">
             {isLoading || !data ? (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-56" />)}</div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-56" />)}</div>
             ) : data.upcoming.length === 0 ? (
               <EmptyState icon={CalendarPlus} title="No upcoming events" description="Plan the next reunion, chapter meet or webinar for your alumni."
                 action={can('alumni', 'create') && <Button icon={CalendarPlus} onClick={() => setFormId('new')}>New event</Button>} className="py-8" />
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {data.upcoming.map((e) => {
                   const d = new Date(e.event_date.replace(' ', 'T'));
                   const fill = e.capacity ? Math.round((e.registrations / e.capacity) * 100) : null;

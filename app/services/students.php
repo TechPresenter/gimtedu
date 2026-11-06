@@ -268,19 +268,19 @@ function students_validate_parents($parents): array
         if (!is_array($p)) {
             continue;
         }
-        $rel = strtolower(trim((string) ($p['relation'] ?? '')));
+        $rel = strtolower(trim(api_str($p['relation'] ?? null)));
         if (!in_array($rel, ['father', 'mother', 'guardian'], true)) {
             continue;
         }
         $row = [
             'relation' => $rel,
-            'name' => trim((string) ($p['name'] ?? '')),
-            'phone' => trim((string) ($p['phone'] ?? '')) ?: null,
-            'email' => strtolower(trim((string) ($p['email'] ?? ''))) ?: null,
-            'occupation' => trim((string) ($p['occupation'] ?? '')) ?: null,
+            'name' => trim(api_str($p['name'] ?? null)),
+            'phone' => trim(api_str($p['phone'] ?? null)) ?: null,
+            'email' => strtolower(trim(api_str($p['email'] ?? null))) ?: null,
+            'occupation' => trim(api_str($p['occupation'] ?? null)) ?: null,
             'annual_income' => ($p['annual_income'] ?? '') === '' || ($p['annual_income'] ?? null) === null ? null : str_replace(',', '', (string) $p['annual_income']),
-            'address' => trim((string) ($p['address'] ?? '')) ?: null,
-            'relation_label' => trim((string) ($p['relation_label'] ?? '')) ?: null,
+            'address' => trim(api_str($p['address'] ?? null)) ?: null,
+            'relation_label' => trim(api_str($p['relation_label'] ?? null)) ?: null,
             'is_emergency_contact' => in_array($p['is_emergency_contact'] ?? false, [true, 1, '1', 'true', 'on'], true) ? 1 : 0,
         ];
         $hasOther = $row['phone'] || $row['email'] || $row['occupation'] || $row['annual_income'] !== null;
@@ -664,7 +664,8 @@ function students_promote(array $p): array
         'program_id' => 'required|integer|exists:programs,id', 'from_semester' => 'required|integer|min:1|max:12', 'from_session_id' => 'integer|exists:academic_sessions,id',
         'to_semester' => 'integer|min:1|max:12', 'to_session_id' => 'integer|exists:academic_sessions,id', 'from_section_id' => 'integer|exists:sections,id',
         'to_section_id' => 'integer|exists:sections,id', 'section_mode' => 'in:same,fixed,none', 'remarks' => 'max:255',
-    ], ['from_semester' => 'Current semester', 'to_semester' => 'Target semester', 'to_session_id' => 'Target session', 'from_session_id' => 'Current session']);
+    ], ['program_id' => 'Program', 'from_semester' => 'Current semester', 'to_semester' => 'Target semester', 'to_session_id' => 'Target session', 'from_session_id' => 'Current session',
+        'from_section_id' => 'Current section', 'to_section_id' => 'Target section', 'section_mode' => 'Section option', 'remarks' => 'Remarks']);
     $items = is_array($p['items'] ?? null) ? $p['items'] : [];
     if (!$items) {
         $errors['items'] = 'Select at least one student.';
@@ -763,7 +764,7 @@ function students_promote(array $p): array
             // close (or create) the current academic record
             $updated = db_exec("UPDATE student_academic SET status = ?, promoted_at = ?, promoted_by = ?, attendance_percent = COALESCE(?, attendance_percent), cgpa = COALESCE(?, cgpa), remarks = ?
                                 WHERE student_id = ? AND semester_no = ? AND status = 'studying'",
-                [$closeStatus, $now, $userId, $att, $cgpa, mb_substr((string) ($p['remarks'] ?? '') ?: ucfirst(str_replace('_', ' ', $act)) . ' via promotion', 0, 255), $sid, $fromSem]);
+                [$closeStatus, $now, $userId, $att, $cgpa, mb_substr(api_str($p['remarks'] ?? null) ?: ucfirst(str_replace('_', ' ', $act)) . ' via promotion', 0, 255), $sid, $fromSem]);
             if (!$updated) {
                 db_exec('INSERT INTO student_academic (student_id, academic_session_id, program_id, semester_no, section_id, roll_no, status, attendance_percent, cgpa, promoted_at, promoted_by, remarks)
                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -806,7 +807,7 @@ function students_promote(array $p): array
             'reference_no' => $ref, 'program_id' => $programId, 'from_semester' => $fromSem, 'to_semester' => $summary['promote'] ? $toSem : null,
             'from_section_id' => $sectionId, 'from_session_id' => $fromSession, 'to_session_id' => $summary['promote'] ? $toSession : null,
             'promoted_count' => $summary['promote'], 'detained_count' => $summary['detain'], 'passed_out_count' => $summary['pass_out'], 'skipped_count' => $summary['skip'],
-            'details' => json_encode($details), 'remarks' => mb_substr((string) ($p['remarks'] ?? ''), 0, 255) ?: null, 'created_by' => $userId,
+            'details' => json_encode($details), 'remarks' => mb_substr(api_str($p['remarks'] ?? null), 0, 255) ?: null, 'created_by' => $userId,
         ]);
         $parts = [];
         if ($summary['promote']) {
@@ -820,6 +821,7 @@ function students_promote(array $p): array
         }
         log_activity('promote', 'students', $ref, mb_substr("Promotion $ref — {$program['short_name']} semester $fromSem: " . (implode(', ', $parts) ?: 'no changes'), 0, 500), 'success',
             ['program_id' => $programId, 'from_semester' => $fromSem, 'to_semester' => $toSem, 'counts' => $summary]);
+        try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_fanout('GIMT_STUDENT_PROMOTED', ['promotion' => 'promote', 'from_semester' => $fromSem, 'to_semester' => $toSem, 'session' => (string) $sessionName, 'reference_no' => $ref], array_column(array_filter($details, fn ($d) => $d['action'] === 'promote'), 'student_id'), 'prm:' . $ref, ['source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
         if ($summary['pass_out']) {
             notify('perm:alumni', 'system', 'Students passed out', $summary['pass_out'] . ' ' . $program['short_name'] . ' students were marked as passed out and are ready for the alumni network.', 'students?f.status=graduated', 'graduation-cap');
         }
@@ -840,7 +842,7 @@ function students_card_rows(array $q, int $limit = 300): array
 {
     $where = [];
     $args = [];
-    $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string) ($q['ids'] ?? ''))))));
+    $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', api_str($q['ids'] ?? null))))));
     if ($ids) {
         $where[] = 's.id IN (' . implode(',', $ids) . ')';
     } else {
@@ -850,18 +852,18 @@ function students_card_rows(array $q, int $limit = 300): array
                 $args[] = (int) $q[$k];
             }
         }
-        $status = (string) ($q['status'] ?? 'active');
+        $status = api_str($q['status'] ?? null, 'active');
         if ($status !== 'all') {
             $where[] = 's.status = ?';
             $args[] = array_key_exists($status, students_status_options()) ? $status : 'active';
         }
-        $term = trim((string) ($q['q'] ?? ''));
+        $term = trim(api_str($q['q'] ?? null));
         if ($term !== '') {
             $where[] = "(s.first_name LIKE ? OR s.last_name LIKE ? OR s.student_uid LIKE ? OR s.roll_no LIKE ? OR CONCAT(s.first_name, ' ', COALESCE(s.last_name, '')) LIKE ?)";
             array_push($args, ...array_fill(0, 5, '%' . mb_substr($term, 0, 60) . '%'));
         }
     }
-    $emptySelection = !$ids && empty($q['program_id']) && empty($q['section_id']) && empty($q['batch_id']) && empty($q['department_id']) && trim((string) ($q['q'] ?? '')) === '';
+    $emptySelection = !$ids && empty($q['program_id']) && empty($q['section_id']) && empty($q['batch_id']) && empty($q['department_id']) && trim(api_str($q['q'] ?? null)) === '';
     if ($emptySelection) {
         return ['rows' => [], 'total' => 0, 'by_ids' => false, 'empty_selection' => true];
     }

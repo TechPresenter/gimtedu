@@ -10,7 +10,7 @@ require_once APP_ROOT . '/app/services/reports.php';
 require_login();
 require_permission('reports', 'export');
 
-$key = (string) ($_GET['report'] ?? '');
+$key = api_query('report');
 $cat = reports_catalog()[$key] ?? null;
 if (!$cat) {
     http_response_code(404);
@@ -25,7 +25,7 @@ require_permission($cat['module'], 'view');
 
 $def = reports_def($key);
 $f = reports_filters($def, $_GET);
-$run = reports_run($def, $f, null, 0, isset($_GET['sort']) ? (string) $_GET['sort'] : null, isset($_GET['dir']) ? (string) $_GET['dir'] : null, true, REPORTS_PRINT_LIMIT);
+$run = reports_run($def, $f, null, 0, api_query('sort') ?: null, api_query('dir') ?: null, true, REPORTS_PRINT_LIMIT);
 $applied = reports_applied($def, $f);
 $isPdf = ($_GET['output'] ?? '') === 'pdf';
 log_activity($isPdf ? 'export' : 'print', 'reports', null, sprintf('%s %s report (%s, %d rows%s)%s', $isPdf ? 'Exported' : 'Printed', $def['title'], $isPdf ? 'PDF' : 'print',

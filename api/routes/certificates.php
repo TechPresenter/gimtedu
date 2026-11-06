@@ -40,7 +40,7 @@ function cert_api_issue_input(array $in): array
 /* ------------------------------------------------------------------ Public verification (no login) */
 
 route('GET', '/certificates/verify/{no:[A-Za-z0-9\-]+}', function ($p) {
-    $res = cert_verify((string) $p['no'], 'api', isset($_GET['h']) ? (string) $_GET['h'] : null);
+    $res = cert_verify((string) $p['no'], 'api', isset($_GET['h']) ? api_str($_GET['h']) : null);
     if ($res['state'] === 'rate_limited') {
         api_error('Too many verification requests. Please wait a few minutes and try again.', 429);
     }
@@ -156,7 +156,7 @@ route('POST', '/certificates/settings', function () {
     api_require('certificates', 'manage');
     $in = api_input();
     $errors = [];
-    $prefix = strtoupper(trim((string) ($in['prefix'] ?? '')));
+    $prefix = strtoupper(trim(api_str($in['prefix'] ?? null)));
     if ($prefix === '' || !preg_match('/^[A-Z0-9]{2,10}$/', $prefix)) {
         $errors['prefix'] = 'Use 2–10 letters or digits (e.g. GIMT).';
     }

@@ -181,7 +181,7 @@ function AwardModal({ schemeId, onClose, onDone }: { schemeId: number | null; on
         <Field htmlFor="award-scheme" label="Scheme" required error={errors.scholarship_id}>
           <Select id="award-scheme" value={scheme} onChange={(e) => setScheme(e.target.value)} options={schemes.map((o) => ({ value: o.value, label: `${o.label}${o.sub ? ` — ${o.sub}` : ''}` }))} placeholder="Select an active scheme" />
         </Field>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field htmlFor="award-narrow-by-program" label="Narrow by program" className="sm:col-span-1">
             <Select id="award-narrow-by-program" value={programId} onChange={(e) => setProgramId(e.target.value)} options={programs} placeholder="All programs" />
           </Field>

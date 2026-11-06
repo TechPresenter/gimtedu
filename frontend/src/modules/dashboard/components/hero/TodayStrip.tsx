@@ -76,17 +76,22 @@ export function TodayStrip({ today, loading }: { today?: HeroData['today']; load
               <Link
                 to={ch.to}
                 title={ch.sub ? `${ch.label} · ${ch.sub}` : ch.label}
-                className="dh-glass group flex h-full min-h-[60px] items-center gap-3 rounded-2xl px-3 py-2.5 outline-none transition duration-300 hover:-translate-y-0.5 hover:bg-white/[.13] focus-visible:ring-2 focus-visible:ring-sky-300 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                className="dh-glass group flex h-full min-h-[60px] flex-col gap-1.5 rounded-2xl px-3 py-2.5 outline-none transition duration-300 hover:-translate-y-0.5 hover:bg-white/[.13] focus-visible:ring-2 focus-visible:ring-sky-300 motion-reduce:transition-none motion-reduce:hover:translate-y-0 xl:flex-row xl:items-center xl:gap-3"
               >
-                <span className={clsx('inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition duration-300 group-hover:scale-105 motion-reduce:transition-none', HUES[ch.hue].chip)}>
-                  <ch.icon className="h-[18px] w-[18px]" aria-hidden />
+                {/* Phones/tablets: icon + value on one line, label wraps below (+ sub from sm). xl: icon chip | value + label / sub. */}
+                <span className="flex items-center gap-2 xl:contents">
+                  <span className={clsx('inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition duration-300 group-hover:scale-105 motion-reduce:transition-none xl:h-9 xl:w-9 xl:rounded-xl', HUES[ch.hue].chip)}>
+                    <ch.icon className="h-4 w-4 xl:h-[18px] xl:w-[18px]" aria-hidden />
+                  </span>
+                  <span className="font-display text-lg font-bold leading-none tabular-nums whitespace-nowrap text-white xl:hidden">{ch.value}</span>
                 </span>
                 <span className="min-w-0">
-                  <span className="flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5">
-                    <span className="font-display text-lg font-bold leading-none tabular-nums text-white">{ch.value}</span>
-                    <span className="mt-0.5 truncate text-xs font-medium text-sky-50 sm:mt-0">{ch.label}</span>
+                  <span className="hidden items-baseline gap-1.5 xl:flex">
+                    <span className="font-display text-lg font-bold leading-none tabular-nums whitespace-nowrap text-white">{ch.value}</span>
+                    <span className="truncate text-xs font-medium text-sky-50">{ch.label}</span>
                   </span>
-                  {ch.sub && <span className="mt-1 block truncate text-[11px] text-slate-300">{ch.sub}</span>}
+                  <span className="line-clamp-2 text-xs font-medium leading-snug text-sky-50 xl:hidden">{ch.label}</span>
+                  {ch.sub && <span className="mt-1 hidden truncate text-[11px] text-slate-300 sm:block">{ch.sub}</span>}
                 </span>
               </Link>
             </li>

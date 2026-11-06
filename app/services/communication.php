@@ -310,7 +310,7 @@ function comm_audience_people(string $audience, array $t = []): array
 function comm_address(array $p, string $channel): string
 {
     if ($channel === 'email') {
-        $em = strtolower(trim((string) ($p['email'] ?? '')));
+        $em = strtolower(trim(api_str($p['email'] ?? null)));
         return filter_var($em, FILTER_VALIDATE_EMAIL) ? $em : '';
     }
     $ph = preg_replace('/[^0-9+]/', '', (string) ($channel === 'whatsapp' ? ($p['whatsapp'] ?? $p['phone'] ?? '') : ($p['phone'] ?? '')));
@@ -384,7 +384,7 @@ function comm_enqueue(string $batch, string $channel, array $people, callable $r
         }
         $seen[$addr] = true;
         $msg = $render($p);
-        $rows[] = [$batch, $channel, mb_substr($addr, 0, 190), mb_substr((string) ($p['name'] ?? ''), 0, 150) ?: null, isset($msg['subject']) ? mb_substr((string) $msg['subject'], 0, 255) : null,
+        $rows[] = [$batch, $channel, mb_substr($addr, 0, 190), mb_substr(api_str($p['name'] ?? null), 0, 150) ?: null, isset($msg['subject']) ? mb_substr((string) $msg['subject'], 0, 255) : null,
             (string) $msg['body'], $meta['related_type'] ?? null, $meta['related_id'] ?? null, $meta['campaign_id'] ?? null, user_id()];
     }
     foreach (array_chunk($rows, 200) as $chunk) {
@@ -686,6 +686,7 @@ function comm_notice_publish(int $id, array $channels, bool $inApp = true): arra
     }
     log_activity('publish', 'notices', $id, sprintf('Published notice "%s" for %s%s%s', str_limit((string) $n['title'], 90), comm_notice_audience_label($n),
         $parts ? ' — queued ' . implode(', ', $parts) : '', $notified ? " · $notified in-app alerts" : ''));
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_fanout('GIMT_NOTICE_PUBLISHED', ['notice_id' => $id, 'notice_title' => (string) $n['title'], 'notice_category' => (string) $n['category'], 'notice_link' => absolute_url('notices/' . $n['slug'])], array_column(array_filter(comm_audience_people((string) $n['audience'], comm_notice_targets($n)), fn ($x) => ($x['type'] ?? '') === 'student'), 'id'), 'notice:' . $id, ['source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     $total = array_sum($queued);
     $progress = $total ? comm_process_queue(['batch' => $batch], 6.0) : null;
     return ['batch' => $total ? $batch : null, 'queued' => $queued, 'notified' => $notified, 'progress' => $progress, 'scheduled' => $scheduled];
@@ -823,7 +824,7 @@ function comm_campaign_filter(array $c): array
     $f = $c['audience_filter'] ?? null;
     $f = is_array($f) ? $f : (json_decode((string) $f, true) ?: []);
     return ['program_ids' => array_values(array_filter(array_map('intval', (array) ($f['program_ids'] ?? [])))), 'semester_no' => !empty($f['semester_no']) ? (int) $f['semester_no'] : null,
-        'emails' => (string) ($f['emails'] ?? '')];
+        'emails' => api_str($f['emails'] ?? null)];
 }
 
 function comm_campaign_audience_label(array $c): string
@@ -842,7 +843,7 @@ function comm_campaign_audience_label(array $c): string
 /** Personalised message for one campaign recipient. */
 function comm_campaign_message(array $c, array $p): array
 {
-    $vars = comm_base_vars() + ['name' => $p['name'] ?: 'there', 'email' => (string) ($p['email'] ?? ''), 'unsubscribe_link' => comm_unsubscribe_url($p['token'] ?? null)];
+    $vars = comm_base_vars() + ['name' => $p['name'] ?: 'there', 'email' => api_str($p['email'] ?? null), 'unsubscribe_link' => comm_unsubscribe_url($p['token'] ?? null)];
     if ($c['channel'] !== 'email') {
         return ['subject' => null, 'body' => comm_render(comm_plain_text((string) $c['body_html']), $vars, false)];
     }

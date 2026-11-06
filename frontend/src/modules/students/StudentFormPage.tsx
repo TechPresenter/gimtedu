@@ -370,7 +370,7 @@ export default function StudentFormPage() {
         ))}
       </nav>
 
-      <div className="grid gap-6 lg:grid-cols-[230px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[230px_minmax(0,1fr)]">
         {/* Desktop sticky section nav */}
         <aside className="hidden lg:block">
           <div className="sticky top-24 space-y-4">
@@ -532,7 +532,7 @@ export default function StudentFormPage() {
               </FormSection>
 
               <FormSection id="parents" title="Parents & guardian" description="Father, mother and an optional local guardian. Mark who to call in an emergency." icon={Users}>
-                <div className="grid gap-4 xl:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                   {(['father', 'mother'] as Rel[]).map((rel) => (
                     <ParentCard key={rel} rel={rel} title={rel === 'father' ? 'Father' : 'Mother'} p={parents[rel]} errors={errors} onChange={setParent} emergency={emergencyRel === rel} onEmergency={() => { setEmergencyRel(rel); setDirty(true); }} />
                   ))}
@@ -605,7 +605,7 @@ export default function StudentFormPage() {
                   <F span={4} label="Previous percentage" error={err('previous_percentage')} id={fid('previous_percentage')}>
                     <Input id={fid('previous_percentage')} type="number" inputMode="decimal" min={0} max={100} step="0.01" suffix="%" value={values.previous_percentage} onChange={(e) => set('previous_percentage', e.target.value)} invalid={!!err('previous_percentage')} />
                   </F>
-                  <div className="sm:col-span-12 grid gap-3 rounded-xl bg-slate-50 p-3.5 sm:grid-cols-2 dark:bg-slate-800/40">
+                  <div className="sm:col-span-12 grid grid-cols-1 gap-3 rounded-xl bg-slate-50 p-3.5 sm:grid-cols-2 dark:bg-slate-800/40">
                     <Toggle checked={toggles.is_hosteller} onChange={(v) => { setToggles((t) => ({ ...t, is_hosteller: v })); setDirty(true); }} label="Hosteller" description="Needs hostel accommodation" />
                     <Toggle checked={toggles.uses_transport} onChange={(v) => { setToggles((t) => ({ ...t, uses_transport: v })); setDirty(true); }} label="College transport" description="Uses the college bus service" />
                   </div>
@@ -738,7 +738,7 @@ function FormSkeleton() {
               <Skeleton className="h-3 w-64" />
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {Array.from({ length: 6 }).map((_, j) => (
               <div key={j} className="space-y-2">
                 <Skeleton className="h-3 w-24" />

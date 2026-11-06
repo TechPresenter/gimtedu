@@ -97,6 +97,18 @@ Seeded system pages: `about vision-mission leadership research campus-life priva
 refund-policy accessibility` (content pages) and `programs admissions academics campus placement alumni faculty
 contact` (route pages — hero copy + intro for their templates); `database/seed/05_cms_core.php` upserts exactly these
 slugs (ids stay stable: About GIMT = 1) and never touches other pages such as the policy pages of `08_policies.php`.
+
+**Policy pages** (`database/seed/08_policies.php`, core seed): the `/policies` hub ("Policies & Disclosures") plus
+`disclaimer cookie-policy refund-and-cancellation-policy admission-policy scholarship-policy fee-policy
+examination-policy code-of-conduct anti-ragging-policy grievance-redressal-policy internal-complaints-committee
+equal-opportunity-policy mandatory-disclosure`. `page.php` renders them with the editor-stated "Last updated" line, a
+table of contents built from the `h2`s (scroll-spy), a print button and **highlighted `[To be confirmed by GIMT: …]`
+notes** — every legal or statutory detail GIMT still has to verify is written that way; replace each note with the
+verified text in CMS › Pages. The seeder only updates pages it created and that no editor has changed since
+(`pages.updated_by`), so completed pages are never overwritten. `/refund-policy` redirects to
+`/refund-and-cancellation-policy` when no published `refund-policy` page exists. The Leadership page (`leadership`)
+holds `person` cards marked "(placeholder)" until GIMT enters the real names, photos and profiles; `/about` reads the
+same cards.
 A NEW page may not take a reserved slug (`cms_reserved_slugs()`: router prefixes such as `admin api assets page blog
 events notices gallery programs portal search`, every top-level folder and every slug that already has its own PHP
 template or public route, e.g. `apply` or `faq`) — the API answers 422.
@@ -170,14 +182,15 @@ Columns: `title` (heading), `highlight` (second line in accent colour), `eyebrow
 | placement | Rendered as |
 |---|---|
 | `home_hero` | the **spotlight carousel card** of the home hero (when `hero.use_banners`): eyebrow, title, thumbnail (`mobile_image` or `desktop_image`) and the first button. Rules (includes/partials/home.php, mirrored by the admin preview `spotlightSlides()`): live banners in `sort_order`, max 4; a banner needs a button (`cta_text`+`cta_url` or `cta2_text`+`cta2_url`); a banner whose title equals the hero headline is skipped |
-| `page_header` | wide promotional card under the page hero on inner pages (Programs, Admissions …), first live banner |
-| `popup` | modal shown once per browser session on the home page (first live banner; image + heading + CTAs) |
-| `strip` | slim full-width promo bar between home sections (after Programs) |
+| `page_header` | wide promotional card under the page hero of Programs, Admissions, Academics, Campus, Placements, Faculty, Alumni and About (`site_page_promo()`, printed by `page_hero()`; page option `'promo' => true\|false` overrides): first live banner with a title — image, eyebrow (gold pill), title + highlight, sub-heading, up to 2 buttons |
+| `popup` | notice popup on the **homepage** (`notice_modal()` in the footer): first live banner with a title — image \| text card, eyebrow, title + highlight, sub-heading, buttons. Once per browser session per banner (editing it shows it again), 3 s after load (phones: after 35 % scroll or 20 s), never on top of another dialog, the cookie banner or the chat; on the homepage the enquiry popup goes first and the notice waits for a later page view; `?popup=notice` previews it |
+| `strip` | slim navy promo bar on the homepage after the Programs section (after the first section when Programs is off) (`site_promo_strip()`): round photo, gold eyebrow pill, title + highlight, sub-heading, 1–2 buttons |
 
 Images are **paths** chosen with the CMS image picker (bundled campus photos, the media library or a new upload that is
 registered in the media library), validated by `cms_valid_image()`; deleting a banner never deletes a shared file.
-Website support today: `home_hero` is rendered (spotlight card); `page_header`, `popup` and `strip` are part of the
-contract for the templates that adopt them.
+Website support: **all four placements are rendered** (helpers in `includes/components.php`, "CMS placements"). Each
+returns nothing when no banner is live, so pages look exactly as before without CMS data. Popups never appear on
+`/apply`, `/contact`, campaign landing pages (minimal header) or error pages.
 
 ---------------------------------------------------------------------------------------------------------------------
 ## 5. Announcements — table `announcements`
@@ -187,13 +200,13 @@ Columns: `title` (≤255, the message), `content` (≤500, longer text for popup
 
 | type | Rendered as |
 |---|---|
-| `topbar` | the scrolling announcement strip above the header (`site_announcement_items()` in `includes/config.php`: title + link; falls back to `ticker` items when no topbar item is live) |
-| `ticker` | scrolling news ticker strip under the hero / on `/admissions-open` (orange text on light bar) |
-| `popup` | modal on first visit (title + content + link), once per session |
-| `banner` | dismissible alert bar above the header for important notices (closures, deadlines) |
+| `topbar` | items of the scrolling announcement strip above the header on every page (`site_announcement_items()` in `includes/config.php`: title + optional link; `topbar` items first) |
+| `ticker` | news-ticker items in the same strip, after the `topbar` items (max 8 items in total). With no live `topbar` / `ticker` item the strip shows the setting `announcement_strip_text` ("A \| B \| C"), else the admissions-open line. The strip shows when `show_topbar` = 1 (System Settings › Website › Header). Campaign landing pages use their own strip text (setting `landing_strip_text`) |
+| `popup` | notice popup (`notice_modal()`): title + `content` + `link` / `link_text` button under a gold header. Shown on every page except `/apply`, `/contact`, campaign landings and error pages; on the homepage only when no `popup` banner is live (§4). Same rules as the banner popup: once per browser session per announcement, 3 s after load (phones: 35 % scroll or 20 s), never over another dialog |
+| `banner` | dismissible gold alert bar above the header on every page (`site_alert_bars()` in `includes/header.php`; closures, deadlines): title + `link` / `link_text`; max 2 live bars; ✕ hides a bar in that browser until its text or link changes |
 
-Website support today: the announcement strip (`topbar`, falling back to `ticker`) is rendered on every page; the
-separate `ticker`, `popup` and `banner` types are part of the contract for the templates that adopt them.
+Website support: **all four types are rendered**. `starts_at` / `ends_at` schedule them; only `status = active` rows
+inside the schedule appear.
 
 ---------------------------------------------------------------------------------------------------------------------
 ## 6. SEO — table `seo_settings` + settings
@@ -221,14 +234,23 @@ Known public routes (`cms_public_routes()`): `/ /about /programs /admissions /ad
 /placement /alumni /faculty /contact /blog /events /notices /gallery /faq /apply /verify-certificate` (a route is
 listed in the sitemap once its template file exists).
 
-**sitemap.xml** — the website's `sitemap.php` must output exactly `cms_sitemap_urls()`: `[{loc, path, type, title,
-lastmod, changefreq, priority}]` = existing routes + published CMS pages + active programs + published posts +
-website events + website notices + published galleries, minus anything `noindex` or `include_in_sitemap = 0`.
-**robots.txt** — setting `robots_txt` (group `seo`); when empty use `cms_default_robots_txt()` (allows everything
-except `/admin/ /api/ /storage/`, plus the `Sitemap:` line). The admin previews both under SEO › Robots & sitemap.
-Ready-made helpers for the website: `cms_sitemap_xml()` (the complete XML document — `sitemap.php` can simply set
-`Content-Type: application/xml` and echo it) and `cms_robots_txt()`; `cms_seo_files_served()` tells the admin whether
-`sitemap.php` / `robots.php` exist yet (until then the admin offers the generated files as downloads).
+**Sitemaps** — the URL set is `cms_sitemap_urls()`: `[{loc, path, type, title, lastmod, changefreq, priority}]` =
+existing routes + published CMS pages + active programs + published posts + website events + website notices +
+published galleries, minus anything `noindex` or `include_in_sitemap = 0`. The website serves it (`sitemap.php`,
+`app/services/seo.php`) as a **sitemap index** at `/sitemap.xml` with child sitemaps `/sitemap-pages.xml`,
+`-programs`, `-posts`, `-events`, `-notices`, `-galleries` and, when setting `sitemap_images` is on, `-images`
+(cached in `storage/cache/seo`, rebuilt when content changes; "Rebuild" under SEO › Robots & sitemap).
+**robots.txt** — served by `robots.php` from setting `robots_txt` (group `seo`, edited under SEO › Robots & sitemap);
+when empty, the recommended defaults (`seo_default_robots_txt()`: allow the website, disallow `/admin/`, `/api/`,
+`/portal/`, `/storage/`, `/search` and filtered / tracking query URLs, plus the `Sitemap:` line). When "Discourage search
+engines" is on (setting `seo_block_indexing`, System Settings › Integrations › Search engines) it serves
+`Disallow: /` instead — use that on staging copies only. `cms_sitemap_xml()` / `cms_robots_txt()` remain for the admin
+preview and the download endpoints below; `cms_seo_files_served()` reports both files as served.
+
+**Redirects** — Website CMS › Redirects (`/admin/redirects`, permission `seo`): 301 / 302 / 307 / 308 rules and 410
+"Gone", with loop / chain / missing-target checks, a URL tester, hit counters, bulk activate / deactivate, CSV / Excel
+export and CSV import, and a 404 report (human vs bot hits, suggestions). Unknown URLs reach `404.php`, which applies
+the rules first, then the lower-case / no-trailing-slash URL when it exists, and logs the 404 otherwise.
 
 ---------------------------------------------------------------------------------------------------------------------
 ## 7. Admin API (for reference)
@@ -248,6 +270,30 @@ Ready-made helpers for the website: `cms_sitemap_xml()` (the complete XML docume
 | `GET menus`, `GET menus/{location}`, `PUT menus/{location}` (`{name, status, items: tree}`), `GET menus/{location}/fallback`, `POST menus/header/sync-programs` (`{mode: auto\|columns}`) | menu tree editor |
 | `GET seo/overview`, `GET seo/entries`, `GET/PUT/DELETE seo/entry`, `GET/PUT seo/robots`, `GET seo/sitemap` (+ `served` flags) | SEO |
 | `GET seo/sitemap-xml`, `GET seo/robots-txt` | download the generated sitemap.xml / robots.txt (Search Console, manual publishing) |
+| `/api/crud/redirects`, `GET redirects/summary`, `POST redirects/check`, `POST redirects/test`, `POST redirects/bulk`, `GET redirects/404s` | redirect manager and 404 report |
+| `GET integrations/sitemaps`, `POST integrations/sitemaps/rebuild`, `GET/POST integrations/seo-audit…` | child sitemaps, cache rebuild, SEO audit crawler (SEO › Audit) |
 
 Permissions: `cms` (view/create/edit/delete/**publish**/manage) for pages, menus, sections, banners, announcements;
-publishing a page needs `cms.publish`; `seo` (view/edit/manage) for SEO.
+publishing a page needs `cms.publish`; `seo` (view/edit/manage) for SEO and redirects; `blog` for blog / news and
+categories; `media` for the media library and gallery. Every change is written to the activity log.
+
+---------------------------------------------------------------------------------------------------------------------
+## 8. Website settings that change what the CMS content looks like
+
+Admin › System Settings (`/admin/settings`). These are settings, not CMS rows, but editors usually need them together.
+
+| Setting (key) | Where | Effect |
+|---|---|---|
+| Default colour theme `site_theme_default` (system \| light \| dark), switch visibility `site_theme_toggle` | Website › Appearance | Light / Dark / System theme of the public site; visitors' own choice is remembered in their browser (cookie `gimt_theme`, localStorage `gimt.theme`) |
+| Listing views `view_mode_default`, `view_mode_programs`, `view_mode_faculty`, `view_mode_notices`, `view_mode_events`, `view_mode_news` (grid \| list \| compact \| detailed) | Website › Appearance | default Grid / List / Compact / Detailed view of each listing (seeded: notices list, everything else grid); visitors' choice is remembered per listing |
+| Enquiry popup `enquiry_modal_image`, `enquiry_popup_title` (words in `[brackets]` get the gold highlight), `enquiry_popup_ribbon` (`{session}` = admission session), `enquiry_popup_auto`, `enquiry_popup_delay` (3–60 s, default 8) | Website › Enquiry popup | the "Get Free Counselling" popup (Enquire Now tab, Request a Callback buttons) and its automatic opening on the homepage — once per visit, never for 30 days after the visitor sent an enquiry. Use a real high-resolution photo (ideally a transparent PNG cut-out, about 600 × 700 px) |
+| `show_topbar`, `header_cta_text` / `header_cta_url`, `whatsapp_number` | Website › Header | announcement strip on / off (§5), header button, WhatsApp buttons |
+| `footer_about`, `copyright_text` (`{year}`) | Website › Footer | footer texts |
+| `maintenance_mode` | Website › Maintenance mode | maintenance page for visitors; the admin panel stays available |
+| `affiliation` | General › Institute information | approvals line on the website, prints and chatbot answers (currently demo text — GIMT must confirm) |
+| `approvals_list` (JSON `[{label, title, text, icon}]`), `announcement_strip_text`, `admissions_deadline`, `landing_*` (campaign landing copy, `landing_indexable`, `landing_show_seats`, `landing_strip_text`, `landing_scholarship_text`) | Website › Additional settings | approval cards, strip fallback text, application deadline countdown, campaign landing pages (`docs/WEBSITE.md` §11) |
+| Chat assistant (`chatbot_*`) | Admin › AI Chatbot › Settings | launcher, greeting bubble, show on phones, providers (`docs/CHATBOT.md`) |
+
+Gold highlights (`.hl-gold`, `.pill-gold`) are added only from data: popular / featured programs, notices that are pinned
+or newer than `notice_new_days`, and the real maximum active scholarship ("Scholarships up to N%" — set the real
+scholarships in Fees › Scholarships & Discounts, or override the text with `landing_scholarship_text`).

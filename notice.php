@@ -70,7 +70,7 @@ $article = array_filter([
 ], fn ($v) => $v !== null && $v !== '');
 ne_site_header([
     'title' => $notice['title'] . ($archived ? ' (Archived)' : ''),
-    'description' => $excerpt !== '' ? $excerpt : $cat['label'] . ' notice from ' . institute_name() . ', published ' . date('d M Y', $pubTs) . '.',
+    'description' => site_meta_description($excerpt !== '' ? $excerpt : $cat['label'] . ' notice from ' . institute_name() . ', published ' . date('d M Y', $pubTs) . '.'),
     'active' => 'notices',
     'seo' => ['notice', (int) $notice['id']],
     'canonical' => $url,

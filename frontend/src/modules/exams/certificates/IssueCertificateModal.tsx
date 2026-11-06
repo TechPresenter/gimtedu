@@ -47,7 +47,7 @@ export function IssueCertificateModal({ open, onClose, studentId: initialStudent
       {configError ? (
         <Alert variant="error" title="Unable to load certificate settings">{(configError as ApiError).message}</Alert>
       ) : !config ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="space-y-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
           <Skeleton className="h-96 w-full" />
         </div>
@@ -214,7 +214,7 @@ function IssueForm({ config, initialStudent, initialType, initialTemplate, onClo
   const generalError = errors._placeholders;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
       {/* ------------------------------------------------ Form */}
       <div className="min-w-0 space-y-5">
         <Field label="Student" required error={errors.student_id} htmlFor="cert-student">
@@ -295,7 +295,7 @@ function IssueForm({ config, initialStudent, initialType, initialTemplate, onClo
         </div>
 
         {typeDef && (
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Field label="Template" error={errors.template_id} htmlFor="cert-template" className="sm:col-span-3">
               <Select
                 id="cert-template"
@@ -319,7 +319,7 @@ function IssueForm({ config, initialStudent, initialType, initialTemplate, onClo
         {typeDef && fieldDefs.length > 0 && (
           <fieldset className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
             <legend className="px-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{typeDef.short} details</legend>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {fieldDefs.map((f) => {
                 const err = errors[`fields.${f.key}`] ?? (pv?.field_errors as Record<string, string> | undefined)?.[`fields.${f.key}`];
                 const wide = f.type === 'text' && (f.maxlength ?? 0) > 120;

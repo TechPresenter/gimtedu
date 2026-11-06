@@ -3,7 +3,7 @@ import { Bus, Fuel, Pencil, Phone, RefreshCcw, Satellite, Wrench } from 'lucide-
 import { Alert, Badge, Button, Drawer, EmptyState, PersonCell, Skeleton, StatusBadge } from '@/components/ui';
 import { useApi } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
-import { formatDate, formatMoney, formatNumber } from '@/lib/format';
+import { formatDate, formatMoney, formatNumber, formatPhone, telHref } from '@/lib/format';
 import { ExpiryCell, InfoItem, MAINTENANCE_TYPES, OccupancyBar, VEHICLE_TYPES } from '../shared';
 import type { VehicleDetail } from '../types';
 import type { RenewTarget } from './RenewDocumentModal';
@@ -77,9 +77,9 @@ export function VehicleDrawer({ vehicleId, onClose, onEdit, onRenew, onLogFuel, 
                   <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">{c.role}</p>
                   {c.name ? (
                     <div className="flex items-center justify-between gap-2">
-                      <PersonCell name={c.name} sub={c.extra ? <>Licence till {formatDate(c.extra)}</> : c.phone} src={c.photo} />
+                      <PersonCell name={c.name} sub={c.extra ? <>Licence till {formatDate(c.extra)}</> : formatPhone(c.phone)} src={c.photo} />
                       {c.phone && (
-                        <a href={`tel:${String(c.phone).replace(/\s/g, '')}`} className="btn-icon !h-8 !w-8" aria-label={`Call ${c.name}`}>
+                        <a href={telHref(String(c.phone))} className="btn-icon !h-8 !w-8" aria-label={`Call ${c.name}`}>
                           <Phone className="h-4 w-4" />
                         </a>
                       )}

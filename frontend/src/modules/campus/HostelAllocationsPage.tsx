@@ -137,6 +137,8 @@ export default function HostelAllocationsPage() {
         emptyTitle={status === 'active' ? 'No students allotted yet' : 'No records'}
         emptyText={status === 'active' ? 'Allot a free bed to a student to get started.' : 'Nothing in this list yet.'}
         onView={(r) => setDrawer(Number(r.id))}
+        // an active allocation must be vacated, transferred or cancelled first (the server refuses the delete)
+        canDelete={(r) => r.status !== 'active'}
         // the status column repeats the tab on every row except "All history"
         hideColumns={[...(status === 'active' ? ['vacated_on'] : []), ...(status === 'all' ? [] : ['status'])]}
         renderers={{

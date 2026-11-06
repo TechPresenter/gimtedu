@@ -54,7 +54,7 @@ function cp_contact(): array
         'admission_email' => (string) setting('admission_email', 'admissions@gimt.ac.in'),
         'support_email' => (string) setting('support_email', 'support@gimt.ac.in'),
         'hours' => (string) setting('office_hours', 'Mon - Sat, 9:00 AM - 6:00 PM'),
-        'address' => (string) setting('address', 'Plot No. 123, Knowledge Park, Greater Noida, Uttar Pradesh 201310, India'),
+        'address' => (string) setting('address', 'Wave One, 36th Floor, L-2A, Pocket G, Sector 18, Noida, Uttar Pradesh - 201301'),
         'whatsapp_url' => $wa !== '' ? 'https://wa.me/' . $wa . '?text=' . rawurlencode('Hello GIMT, I need some help.') : '',
     ];
 }
@@ -540,7 +540,28 @@ function cp_stat_items(array $items): array
         if (!is_array($s) || trim((string) ($s['label'] ?? '')) === '') {
             continue;
         }
-        $v = cms_stat_value($s['source'] ?? null, $s['value'] ?? null);
+        $src = trim((string) ($s['source'] ?? ''));
+        if ($src !== '') {
+            // live statistic: only the real figure — hidden when there is no data (a typed placeholder is never shown
+            // for a live source, same rule as the homepage); satisfaction only when GIMT entered it (Settings › Website ›
+            // Verified figures); placement figures from the same season + formula as the Placements page
+            if ($src === 'satisfaction') {
+                $sat = setting('student_satisfaction');
+                $v = is_numeric($sat) && (float) $sat > 0 ? (float) $sat : null;
+            } elseif (in_array($src, ['placement_rate', 'highest_package', 'average_package'], true)) {
+                require_once __DIR__ . '/public_career.php';
+                $season = pc_default_season(pc_placement_seasons());
+                $ps = $season ? pc_placement_stats($season) : [];
+                $v = $ps[['placement_rate' => 'percent', 'highest_package' => 'highest', 'average_package' => 'average'][$src]] ?? null;
+            } else {
+                $v = cms_stat_value($src, null);
+            }
+            if ($v === null || !is_numeric($v) || (float) $v <= 0) {
+                continue;
+            }
+        } else {
+            $v = $s['value'] ?? null;
+        }
         if ($v === null || $v === '' || !is_numeric(str_replace(',', '', (string) $v))) {
             continue;
         }
@@ -848,9 +869,9 @@ function cp_block_cta(array $d, array $s): string
         $html .= '<div class="relative isolate overflow-hidden rounded-[28px] px-6 py-10 sm:px-12 sm:py-12 ' . ($orange ? 'bg-accent-600 text-white' : 'border border-warm-2 bg-warm') . '"' . reveal_attr() . '>'
             . geo_shapes('card')
             . '<div class="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between"><div class="max-w-2xl">'
-            . (trim((string) ($d['eyebrow'] ?? '')) !== '' ? '<p class="eyebrow mb-2' . ($orange ? ' !text-white/85' : '') . '">' . e($d['eyebrow']) . '</p>' : '')
+            . (trim((string) ($d['eyebrow'] ?? '')) !== '' ? '<p class="eyebrow mb-2' . ($orange ? ' !text-white' : '') . '">' . e($d['eyebrow']) . '</p>' : '')
             . '<h2 class="font-display text-[clamp(1.6rem,1.1rem+1.6vw,2.3rem)] font-extrabold leading-tight ' . ($orange ? 'text-white' : 'text-brand-900') . '">' . e($title) . '</h2>'
-            . (trim((string) ($d['text'] ?? '')) !== '' ? '<p class="mt-3 ' . ($orange ? 'text-white/85' : 'text-slate-600') . '">' . e($d['text']) . '</p>' : '')
+            . (trim((string) ($d['text'] ?? '')) !== '' ? '<p class="mt-3 ' . ($orange ? 'text-white' : 'text-slate-600') . '">' . e($d['text']) . '</p>' : '')
             . '</div><div class="flex shrink-0 flex-wrap gap-3">'
             . ($primary ? button_link($primary['label'], $primary['url'], $orange ? 'white' : 'apply', ['size' => 'lg']) : '')
             . ($secondary ? button_link($secondary['label'], $secondary['url'], $orange ? 'outline-light' : cp_secondary_variant($secondary), ['size' => 'lg']) : '')

@@ -55,7 +55,7 @@ export default function AttendanceTab({ studentId }: TabProps) {
         ]}
       </Stagger>
 
-      <div className="grid gap-5 lg:grid-cols-3 [&>*]:min-w-0">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 [&>*]:min-w-0">
         <Reveal className="lg:col-span-2">
           <Card className="h-full">
             <CardHeader title="Monthly attendance" subtitle="Percentage of classes attended" icon={TrendingUp} />
@@ -75,7 +75,7 @@ export default function AttendanceTab({ studentId }: TabProps) {
         </Reveal>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-5 [&>*]:min-w-0">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-5 [&>*]:min-w-0">
         <Reveal className="lg:col-span-3">
           <Card className="h-full">
             <CardHeader title="Subject-wise attendance" icon={ListChecks} subtitle={`${d.subjects.length} subject${d.subjects.length === 1 ? '' : 's'}`} />

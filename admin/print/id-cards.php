@@ -11,7 +11,8 @@ require_once APP_ROOT . '/app/services/students.php';
 require_login();
 require_permission('students', 'view');
 
-$side = in_array($_GET['side'] ?? 'both', ['both', 'front', 'back'], true) ? ($_GET['side'] ?? 'both') : 'both';
+$side = api_query('side', 'both');
+$side = in_array($side, ['both', 'front', 'back'], true) ? $side : 'both';
 $res = students_card_rows($_GET, 400);
 $rows = $res['rows'];
 $institute = institute_name();

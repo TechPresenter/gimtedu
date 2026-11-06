@@ -4,6 +4,7 @@ import { useCallback, useRef, useState, type KeyboardEvent } from 'react';
 import { CountUp } from '../lib/CountUp';
 import { useHoverPause, useInView, usePageVisible, usePausableTimer, useStaticMode, useSwipe } from '../lib/hooks';
 import { Icon } from '../lib/Icon';
+import { goldText } from '../lib/GoldMark';
 import { scribbleText } from '../lib/Scribble';
 import type { IslandBaseProps, LinkProp } from '../lib/types';
 import { VideoModal } from './VideoLightbox';
@@ -16,6 +17,8 @@ export interface HeroSlide {
   title: string;
   /** Word/phrase of the title circled with the hand-drawn orange ellipse. */
   scribble?: string;
+  /** Word/phrase of the title marked with the yellow-gold highlight (wins over `scribble` — never both). */
+  gold?: string;
   /** Second headline line rendered in orange. */
   highlight?: string;
   text?: string;
@@ -108,7 +111,7 @@ export default function HeroSlider({ slides, chips = [], stats = [], video, tagl
                     </p>
                   )}
                   <Heading className="hero-title">
-                    {scribbleText(s.title, s.scribble, dark ? 'light' : 'orange')}
+                    {s.gold ? goldText(s.title, s.gold) : scribbleText(s.title, s.scribble, dark ? 'light' : 'orange')}
                     {s.highlight && <span className="hero-highlight">{s.highlight}</span>}
                   </Heading>
                   {s.text && <p className="hero-text">{s.text}</p>}

@@ -9,7 +9,7 @@ import { Alert, Avatar, Button, Card, CardSkeleton, CountUp, Dropdown, EmptyStat
 import { useApi } from '@/lib/queries';
 import { useAuth, type PermissionAction } from '@/lib/auth';
 import { appUrl, printUrl } from '@/lib/config';
-import { formatDate, formatMoneyShort, formatNumber } from '@/lib/format';
+import { formatDate, formatMoneyShort, formatNumber, formatPhone, telHref } from '@/lib/format';
 import type { ApiError } from '@/lib/api';
 import { INACTIVE_STATUSES, STATUS_COLORS, statusLabel } from './constants';
 import { StatusDialog } from './components/StatusDialog';
@@ -170,7 +170,7 @@ export default function StudentProfilePage() {
             ))}
           </div>
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-slate-600 dark:text-slate-300">
-            <a href={`tel:${s.mobile.replace(/\s/g, '')}`} className="inline-flex items-center gap-1.5 hover:text-brand-700 dark:hover:text-white"><Phone className="h-4 w-4 text-slate-400" />{s.mobile}</a>
+            <a href={telHref(s.mobile)} className="inline-flex items-center gap-1.5 hover:text-brand-700 dark:hover:text-white"><Phone className="h-4 w-4 text-slate-400" />{formatPhone(s.mobile)}</a>
             {s.email && <a href={`mailto:${s.email}`} className="inline-flex min-w-0 items-center gap-1.5 hover:text-brand-700 dark:hover:text-white"><Mail className="h-4 w-4 shrink-0 text-slate-400" /><span className="truncate">{s.email}</span></a>}
             {s.dob && <span className="inline-flex items-center gap-1.5"><Cake className="h-4 w-4 text-slate-400" />{formatDate(s.dob)}{s.age !== null ? ` (${s.age} yrs)` : ''}</span>}
             {s.blood_group && <span className="inline-flex items-center gap-1.5"><Droplet className="h-4 w-4 text-red-400" />{s.blood_group}</span>}
@@ -203,7 +203,7 @@ export default function StudentProfilePage() {
 
       <Tabs tabs={tabDefs} value={tab} onChange={setTab} className="mb-5" />
 
-      <Suspense fallback={<div className="grid gap-5 lg:grid-cols-2"><CardSkeleton lines={5} /><CardSkeleton lines={5} /></div>}>
+      <Suspense fallback={<div className="grid grid-cols-1 gap-5 lg:grid-cols-2"><CardSkeleton lines={5} /><CardSkeleton lines={5} /></div>}>
         <div key={tab} className="motion-safe:animate-fade-in">
           <Active profile={q.data} studentId={s.id} onTab={setTab} refresh={() => void q.refetch()} />
         </div>
@@ -256,7 +256,7 @@ function ProfileSkeleton() {
         </div>
       </div>
       <Skeleton className="mb-5 h-10 w-full" />
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <CardSkeleton lines={5} />
         <CardSkeleton lines={5} />
       </div>

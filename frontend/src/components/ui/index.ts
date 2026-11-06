@@ -13,3 +13,4 @@ export * from './Display';
 export * from './DataTable';
 export * from './RichText';
 export * from './Motion';
+export * from './PhoneInput';

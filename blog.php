@@ -75,11 +75,15 @@ if ($pg['page'] > 1) {
 $catDesc = rtrim(trim((string) ($category['description'] ?? '')), '.');
 $description = $category
     // short admin descriptions ("Seminars, expert talks …") get the institute context search snippets need
-    ? ($catDesc !== '' ? $catDesc . '. ' . (mb_strlen($catDesc) < 110 ? 'Latest ' . $catName . ' news and articles from GIMT, ' . setting('city', 'Greater Noida') . '.' : '') : 'Latest ' . $catName . ' news, stories and articles from Global Institute of Management & Technology (GIMT), Greater Noida.')
-    : 'News, achievements, campus stories, events and articles from the students and faculty of Global Institute of Management & Technology (GIMT), Greater Noida.';
+    ? ($catDesc !== '' ? $catDesc . '. ' . (mb_strlen($catDesc) < 110 ? 'Latest ' . $catName . ' news and articles from GIMT, ' . setting('city', 'Noida') . '.' : '') : 'Latest ' . $catName . ' news, stories and articles from Global Institute of Management & Technology (GIMT), Noida.')
+    : 'News, achievements, campus stories, events and articles from the students and faculty of Global Institute of Management & Technology (GIMT), Noida.';
 $description = trim($description);
 if ($pg['page'] > 1) {
-    $description .= ' Page ' . $pg['page'] . ' of ' . $pg['pages'] . '.';
+    // keep the page number inside the ~158 characters a result snippet shows
+    $suffixPg = ' Page ' . $pg['page'] . ' of ' . $pg['pages'] . '.';
+    $description = site_meta_description($description, 158 - mb_strlen($suffixPg)) . $suffixPg;
+} else {
+    $description = site_meta_description($description);
 }
 $canonical = $pageAbs($pg['page']);
 $crumbs = $category ? ['News & Blog' => '/blog', $catName] : ($filtered ? ['News & Blog' => '/blog', $q !== '' ? 'Search results' : ($tag !== '' ? '#' . $tag : 'Most read')] : ['News & Blog']);
@@ -98,7 +102,7 @@ if (!$filtered && $listed) {
             'url' => absolute_url('blog/' . $p['slug']), 'name' => $p['title']], $listed, array_keys($listed))]];
 }
 $heroImage = $lead['thumbnail'] ?? ($posts[0]['thumbnail'] ?? null);
-ng_site_header([
+site_header([
     'title' => implode(' — ', $titleParts),
     'description' => $description,
     'active' => 'blog',
@@ -108,7 +112,8 @@ ng_site_header([
     'image' => $heroImage ?: 'assets/images/site/news-campus.jpg',
     'preload' => $lead ? [site_image($lead['thumbnail'] ?? null, 'assets/images/site/news-campus.jpg')] : [],
     'schema' => $schema,
-], ng_rel_links($pg, $pageAbs));
+    'head' => [ng_rel_links($pg, $pageAbs)], // rel prev/next of the paginated listing
+]);
 
 /* ------------------------------------------------------------------ hero */
 $chips = [];
@@ -193,7 +198,7 @@ page_hero($h1, $category ? 'Stories from GIMT News & Blog' : 'Stories, achieveme
           <a href="<?= e(ng_blog_url(['sort' => 'latest'] + $params)) ?>#latest" class="view-toggle-btn<?= $sort === 'latest' ? ' is-active' : '' ?>"<?= $sort === 'latest' ? ' aria-current="true"' : '' ?>><?= icon('clock', 'h-4 w-4') ?><span class="ml-1.5">Latest</span></a>
           <a href="<?= e(ng_blog_url(['sort' => 'popular'] + $params)) ?>#latest" class="view-toggle-btn<?= $sort === 'popular' ? ' is-active' : '' ?>"<?= $sort === 'popular' ? ' aria-current="true"' : '' ?>><?= icon('trending-up', 'h-4 w-4') ?><span class="ml-1.5">Most read</span></a>
         </div>
-        <?php if ($posts): ?><div class="hidden [.js_&]:block"><?= view_mode_toggle('news') ?></div><?php endif; ?>
+        <?php if ($posts): ?><div class="hidden [.js_&]:block"><?= view_mode_toggle('news') ?><?= function_exists('site_view_sync_script') ? site_view_sync_script('news') : '' ?></div><?php endif; ?>
       </div>
     </div>
 

@@ -40,7 +40,7 @@ function api_method(): string
 function api_path(): string
 {
     if (isset($_GET['r'])) {
-        return trim((string) $_GET['r'], '/');
+        return trim(api_str($_GET['r']), '/');
     }
     $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
     $base = base_path() . '/api';
@@ -89,6 +89,8 @@ function api_param(string $key, $default = null)
     $v = $in[$key] ?? $_GET[$key] ?? $default;
     return is_string($v) ? trim($v) : $v;
 }
+
+// api_str() / api_query() (safe string reads of request input) live in app/functions.php so services can use them too.
 
 function api_ok($data = null, string $message = '', int $status = 200): void
 {
@@ -191,6 +193,14 @@ function api_dispatch(): void
             api_error($e->getMessage(), 422);
         } catch (InvalidArgumentException $e) {
             api_error($e->getMessage(), 400);
+        } catch (TypeError $e) {
+            // a list sent where one value is expected ({"stage": ["x"]}, ?id[]=1) reaching a typed function: answer 400
+            // instead of a 500; every other TypeError is a real bug and goes to the exception handler (logged, 500)
+            if (!str_contains($e->getMessage(), 'array given')) {
+                throw $e;
+            }
+            error_log('[GIMT] API ' . $method . ' /' . $path . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            api_error('Invalid request: a field that takes a single value was sent a list.', 400);
         }
         api_ok();
     }

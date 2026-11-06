@@ -153,7 +153,7 @@ export function BulkIssueModal({ open, onClose }: { open: boolean; onClose: () =
         <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-11 w-full" />)}</div>
       ) : step === 'setup' ? (
         <div className="space-y-5">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Field label="Program" htmlFor="bulk-program" error={errors.program_id}>
               <Select id="bulk-program" value={programId} onChange={(e) => { setProgramId(e.target.value); setSectionId(null); }} options={(programs.data ?? []).map((p) => ({ value: String(p.value), label: p.label }))} placeholder="Select program…" />
             </Field>
@@ -178,7 +178,7 @@ export function BulkIssueModal({ open, onClose }: { open: boolean; onClose: () =
             {errors.type && <p className="form-error">{errors.type}</p>}
             {typeDef?.once && <p className="form-hint">{typeDef.short} is issued once per student — students who already have one are skipped.</p>}
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Field label="Template" htmlFor="bulk-template" error={errors.template_id} className="sm:col-span-2">
               <Select id="bulk-template" value={templateId} onChange={(e) => setTemplateId(e.target.value)} options={templates.map((t) => ({ value: String(t.id), label: t.name }))}
                 placeholder={`Default — ${templates.find((t) => t.type === type && t.is_default)?.name ?? 'none'}`} />
@@ -190,7 +190,7 @@ export function BulkIssueModal({ open, onClose }: { open: boolean; onClose: () =
           {typeDef && typeDef.fields.length > 0 && (
             <fieldset className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
               <legend className="px-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Common {typeDef.short} details (same for every student)</legend>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {typeDef.fields.map((k) => config.fields[k]).filter(Boolean).map((f) => (
                   <Field key={f.key} label={f.label} required={typeDef.required.includes(f.key)} error={errors[`fields.${f.key}`]} htmlFor={`bf-${f.key}`}>
                     {f.type === 'select' ? (

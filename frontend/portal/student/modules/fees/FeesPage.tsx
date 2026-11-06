@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   AlarmClock, BadgePercent, Banknote, Building2, CalendarClock, CircleCheck, Clock, Copy, CreditCard, FileText, IndianRupee, Mail, Phone, Printer, Receipt, ShieldCheck, Smartphone, Wallet,
@@ -7,11 +8,62 @@ import {
 import { Alert, Stagger, Tabs, useToast } from '@/components/ui';
 import { formatDate } from '@/lib/format';
 import { EmptyBlock, ErrorState, KpiCard, KpiSkeleton, PageHead, Section } from '../../../components/Ui';
-import { DateTile, ListSkeleton, PrintButton, StatusBadge, dueLabel, money, useStudent } from '../../shared/ui';
-import type { Invoice, PayOptions, StudentFees } from '../../shared/types';
+import { DateTile, ListSkeleton, PrintButton, StatusBadge, dueLabel, money, useStudent, useStudentPost } from '../../shared/ui';
+import type { Invoice, OnlinePayment, PayOptions, StudentFees } from '../../shared/types';
 import { InvoiceDrawer } from './InvoiceDrawer';
 
-function CopyRow({ label, value }: { label: string; value: string }) {
+/**
+ * Result of an online payment when Cashfree sends the student back (?payment=<ref>): polls the status a few times while
+ * the payment is still open (the webhook may arrive a moment later), then refreshes the fees data once it is paid.
+ */
+function PaymentReturn({ refId, onDone }: { refId: string; onDone: () => void }) {
+  const qc = useQueryClient();
+  const { data, refetch, isLoading } = useStudent<OnlinePayment>(['fees', 'payment', refId], `fees/payments/${encodeURIComponent(refId)}`);
+  const [tries, setTries] = useState(0);
+  const status = data?.status;
+  useEffect(() => {
+    if (status === 'created' && tries < 6) {
+      const t = window.setTimeout(() => {
+        setTries((n) => n + 1);
+        void refetch();
+      }, 4000);
+      return () => window.clearTimeout(t);
+    }
+    if (status === 'paid' || status === 'review') void qc.invalidateQueries({ queryKey: ['portal', 'student', 'fees'], exact: true });
+    return undefined;
+  }, [status, tries, refetch, qc]);
+  if (isLoading || !data) return <Alert variant="info" title="Checking your payment…">Please wait while we confirm the payment with Cashfree.</Alert>;
+  const dismiss = (
+    <button type="button" onClick={onDone} className="ml-1 font-semibold underline underline-offset-2">
+      Dismiss
+    </button>
+  );
+  if (status === 'paid')
+    return (
+      <Alert variant="success" title={`Payment of ${money(data.amount)} received`}>
+        Receipt {data.receipt_no} has been added to your payments and emailed to you. {dismiss}
+      </Alert>
+    );
+  if (status === 'review')
+    return (
+      <Alert variant="warning" title={`Payment of ${money(data.amount)} received`}>
+        The accounts office will post it to your invoice shortly — no need to pay again. {dismiss}
+      </Alert>
+    );
+  if (status === 'created')
+    return (
+      <Alert variant="info" title="Payment not confirmed yet">
+        {tries < 6 ? 'Waiting for confirmation from Cashfree…' : 'If money was debited, it will be confirmed automatically within a few minutes — please do not pay again.'} {dismiss}
+      </Alert>
+    );
+  return (
+    <Alert variant="error" title="Payment was not completed">
+      No money was taken for this attempt ({data.ref}). You can try again from the invoice. {dismiss}
+    </Alert>
+  );
+}
+
+function CopyRow({ label, value, mono = true }: { label: string; value: string; mono?: boolean }) {
   const toast = useToast();
   const copy = () => {
     void navigator.clipboard?.writeText(value).then(
@@ -23,7 +75,7 @@ function CopyRow({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between gap-3 py-2">
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
-        <p className="break-all font-mono text-sm font-semibold text-slate-900 dark:text-white">{value}</p>
+        <p className={clsx('text-sm font-semibold text-slate-900 dark:text-white', mono ? 'break-all font-mono' : 'break-words')}>{value}</p>
       </div>
       <button type="button" onClick={copy} className="btn-icon h-8 w-8 shrink-0" aria-label={`Copy ${label}`}>
         <Copy className="h-4 w-4" aria-hidden />
@@ -37,26 +89,44 @@ function PayCard({ pay, balance }: { pay: PayOptions; balance: number }) {
   return (
     <Section title="How to pay" subtitle={balance > 0 ? `${money(balance)} outstanding` : 'No dues right now'} icon={CreditCard}>
       <div className="space-y-4">
-        <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 p-3.5 dark:border-slate-800">
-          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 dark:bg-slate-800">
-            <ShieldCheck className="h-[18px] w-[18px]" aria-hidden />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold text-slate-900 dark:text-white">Pay online</p>
-              <span className="badge badge-slate">Not available yet</span>
+        {pay.gateway.available ? (
+          <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3.5 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
+              <ShieldCheck className="h-[18px] w-[18px]" aria-hidden />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Pay online</p>
+                <span className="badge badge-green">UPI · Cards · Net banking</span>
+                {pay.gateway.mode !== 'live' && <span className="badge badge-amber">Test mode</span>}
+              </div>
+              <p className="mt-1 text-[13px] text-slate-600 dark:text-slate-300">
+                Use <strong>Pay online</strong> on an invoice to pay securely through {pay.gateway.provider ?? 'Cashfree'}. The receipt appears here automatically after payment.
+              </p>
             </div>
-            <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
-              {pay.gateway.configured
-                ? `The institute has set up ${pay.gateway.provider ?? 'a payment gateway'}, but paying from the student portal has not been switched on yet.`
-                : `Online payment through the portal is not available yet${pay.gateway.provider ? ` (${pay.gateway.provider} is not configured)` : ''}.`}{' '}
-              Please use one of the options below. Your receipt appears here as soon as the accounts office records the payment.
-            </p>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 p-3.5 dark:border-slate-800">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 dark:bg-slate-800">
+              <ShieldCheck className="h-[18px] w-[18px]" aria-hidden />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Pay online</p>
+                <span className="badge badge-slate">Not available yet</span>
+              </div>
+              <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
+                {pay.gateway.configured
+                  ? `The institute has set up ${pay.gateway.provider ?? 'a payment gateway'}, but paying from the student portal has not been switched on yet.`
+                  : `Online payment through the portal is not available yet${pay.gateway.provider ? ` (${pay.gateway.provider} is not configured)` : ''}.`}{' '}
+                Please use one of the options below. Your receipt appears here as soon as the accounts office records the payment.
+              </p>
+            </div>
+          </div>
+        )}
 
         {(pay.bank || pay.upi_id) && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
             {pay.bank && (
               <div className="rounded-2xl bg-slate-50 px-3.5 py-2 dark:bg-slate-800/40">
                 <p className="flex items-center gap-2 pt-1.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
@@ -64,7 +134,7 @@ function PayCard({ pay, balance }: { pay: PayOptions; balance: number }) {
                 </p>
                 <div className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
                   {Object.entries(pay.bank).map(([k, v]) => (
-                    <CopyRow key={k} label={bankLabels[k] ?? k} value={String(v)} />
+                    <CopyRow key={k} label={bankLabels[k] ?? k} value={String(v)} mono={k === 'account_no' || k === 'ifsc'} />
                   ))}
                 </div>
               </div>
@@ -114,7 +184,7 @@ function PayCard({ pay, balance }: { pay: PayOptions; balance: number }) {
   );
 }
 
-function InvoiceCard({ inv, onOpen }: { inv: Invoice; onOpen: () => void }) {
+function InvoiceCard({ inv, onOpen, onPay, paying }: { inv: Invoice; onOpen: () => void; onPay?: () => void; paying?: boolean }) {
   const paidPct = inv.net > 0 ? Math.min(100, Math.round((inv.paid / inv.net) * 100)) : 100;
   return (
     <article className={clsx('card flex h-full flex-col p-4 sm:p-5', inv.status === 'cancelled' && 'opacity-70')}>
@@ -155,6 +225,11 @@ function InvoiceCard({ inv, onOpen }: { inv: Invoice; onOpen: () => void }) {
       )}
       {inv.late_fee_due > 0 && <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">Late fee accrued so far: {money(inv.late_fee_due)}</p>}
       <div className="mt-auto flex flex-wrap gap-2 pt-4">
+        {onPay && inv.open && inv.balance > 0 && (
+          <button type="button" onClick={onPay} disabled={paying} className="btn btn-primary btn-sm">
+            <CreditCard className="h-4 w-4" aria-hidden /> {paying ? 'Opening…' : `Pay ${money(inv.balance)} online`}
+          </button>
+        )}
         <button type="button" onClick={onOpen} className="btn btn-navy btn-sm">
           <FileText className="h-4 w-4" aria-hidden /> Details
         </button>
@@ -177,6 +252,22 @@ export default function StudentFeesPage() {
   };
   const t = data?.totals;
   const overdueParts = data?.schedule.filter((p) => p.overdue) ?? [];
+  // online payment: the server creates a Cashfree payment link, the student pays on Cashfree's page and comes back with ?payment=<ref>
+  const returnRef = params.get('payment');
+  const [payingId, setPayingId] = useState<number | null>(null);
+  const startPay = useStudentPost<{ invoice_id: number }, { order_ref: string; url: string }>('fees/pay', {
+    toastSuccess: false,
+    onSuccess: (d) => window.location.assign(d.url),
+  });
+  const payInvoice = (id: number) => {
+    setPayingId(id);
+    startPay.mutate({ invoice_id: id }, { onError: () => setPayingId(null) });
+  };
+  const clearReturn = () => {
+    const p = new URLSearchParams(params);
+    p.delete('payment');
+    setParams(p, { replace: true });
+  };
 
   return (
     <div>
@@ -202,6 +293,8 @@ export default function StudentFeesPage() {
               <KpiCard key="conc" label="Scholarships & concessions" icon={BadgePercent} tone="violet" value={money(t.concessions)} foot={data.concessions.length ? `${data.concessions.length} applied` : 'None applied'} />,
             ]}
           </Stagger>
+
+          {returnRef && /^[A-Za-z0-9_-]{3,45}$/.test(returnRef) && <PaymentReturn refId={returnRef} onDone={clearReturn} />}
 
           {overdueParts.length > 0 ? (
             <Alert variant="error" title={`${money(overdueParts.reduce((a, p) => a + p.amount, 0))} is overdue`}>
@@ -233,7 +326,13 @@ export default function StudentFeesPage() {
                 ) : (
                   <Stagger className="grid grid-cols-1 gap-4 md:grid-cols-2" itemClassName="h-full">
                     {data.invoices.map((inv) => (
-                      <InvoiceCard key={inv.id} inv={inv} onOpen={() => open(inv.id)} />
+                      <InvoiceCard
+                        key={inv.id}
+                        inv={inv}
+                        onOpen={() => open(inv.id)}
+                        onPay={data.pay.gateway.available ? () => payInvoice(inv.id) : undefined}
+                        paying={payingId === inv.id && (startPay.isPending || startPay.isSuccess)}
+                      />
                     ))}
                   </Stagger>
                 )

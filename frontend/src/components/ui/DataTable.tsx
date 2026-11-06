@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import clsx from 'clsx';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Inbox } from 'lucide-react';
 import { EmptyState, Skeleton } from './Display';
@@ -39,9 +39,46 @@ interface DataTableProps<T> {
   dense?: boolean;
   skeletonRows?: number;
   caption?: string;
+  /** Keep the Actions column pinned to the right edge while a wide table scrolls sideways (default true; not on phones). */
+  stickyActions?: boolean;
 }
 
-/** Presentational data table with sorting, selection, skeleton loading and empty state. */
+/**
+ * Watches a horizontally scrollable wrapper: `overflowing` when the table is wider than its card, `atEnd` when scrolled
+ * fully to the right (the pinned Actions column then drops its edge shadow).
+ */
+function useHorizontalOverflow() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [state, setState] = useState({ overflowing: false, atEnd: true, roomy: true });
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const overflowing = el.scrollWidth > el.clientWidth + 1;
+    const atEnd = !overflowing || el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+    const roomy = el.clientWidth >= 640; // phones: a pinned Actions column would hide most of the data
+    setState((s) => (s.overflowing === overflowing && s.atEnd === atEnd && s.roomy === roomy ? s : { overflowing, atEnd, roomy }));
+  }, []);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    measure();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure);
+      return () => window.removeEventListener('resize', measure);
+    }
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild); // the table grows / shrinks with its rows
+    return () => ro.disconnect();
+  }, [measure]);
+  return { ref, onScroll: measure, ...state };
+}
+
+/**
+ * Presentational data table with sorting, selection, skeleton loading and empty state. When the table is wider than its
+ * container the scroll area becomes a focusable, labelled region (keyboard users scroll it with the arrow keys — WCAG
+ * 2.1.1) and the Actions column stays pinned on the right.
+ */
 export function DataTable<T extends Record<string, any>>({ // eslint-disable-line @typescript-eslint/no-explicit-any
   columns,
   rows,
@@ -59,7 +96,10 @@ export function DataTable<T extends Record<string, any>>({ // eslint-disable-lin
   dense,
   skeletonRows = 8,
   caption,
+  stickyActions = true,
 }: DataTableProps<T>) {
+  const scroll = useHorizontalOverflow();
+  const pin = !!actions && stickyActions && scroll.overflowing && scroll.roomy;
   const visible = columns.filter((c) => !c.hidden);
   const keys = rows.map((r, i) => rowKey(r, i));
   const allSelected = selectable && rows.length > 0 && keys.every((k) => selected?.has(k));
@@ -80,7 +120,12 @@ export function DataTable<T extends Record<string, any>>({ // eslint-disable-lin
   const cellPad = dense ? '!py-2' : '';
 
   return (
-    <div className="table-wrap">
+    <div
+      ref={scroll.ref}
+      onScroll={scroll.onScroll}
+      className={clsx('table-wrap', scroll.overflowing && 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500/60')}
+      {...(scroll.overflowing ? { tabIndex: 0, role: 'region', 'aria-label': `${caption || 'Table'} — scroll sideways for more columns` } : {})}
+    >
       <table className="data-table">
         {caption && <caption className="sr-only">{caption}</caption>}
         <thead>
@@ -118,7 +163,7 @@ export function DataTable<T extends Record<string, any>>({ // eslint-disable-lin
                 </th>
               );
             })}
-            {actions && <th className="w-px text-right">Actions</th>}
+            {actions && <th className={clsx('w-px text-right', pin && 'right-0 !z-[2] !bg-slate-50 dark:!bg-slate-900', pin && !scroll.atEnd && 'shadow-[-12px_0_12px_-12px_rgba(15,23,42,.35)]')}>Actions</th>}
           </tr>
         </thead>
         <tbody>
@@ -137,7 +182,7 @@ export function DataTable<T extends Record<string, any>>({ // eslint-disable-lin
                 return (
                   <tr
                     key={k}
-                    className={clsx(onRowClick && 'cursor-pointer', selected?.has(k) && '!bg-brand-50/60 dark:!bg-brand-500/10', loading && 'opacity-60', rowClassName?.(row))}
+                    className={clsx('group/row', onRowClick && 'cursor-pointer', selected?.has(k) && '!bg-brand-50/60 dark:!bg-brand-500/10', loading && 'opacity-60', rowClassName?.(row))}
                     onClick={onRowClick ? (e) => !(e.target as HTMLElement).closest('a,button,input,label') && onRowClick(row) : undefined}
                   >
                     {selectable && (
@@ -150,7 +195,20 @@ export function DataTable<T extends Record<string, any>>({ // eslint-disable-lin
                         {c.render ? c.render(row, i) : (row[c.key] ?? <span className="text-slate-400">—</span>)}
                       </td>
                     ))}
-                    {actions && <td className={clsx('whitespace-nowrap text-right', cellPad)}>{actions(row)}</td>}
+                    {actions && (
+                      <td
+                        className={clsx(
+                          'whitespace-nowrap text-right',
+                          cellPad,
+                          // pinned: opaque backgrounds matching the row's hover / selected tint
+                          pin && 'sticky right-0 z-[1] bg-white transition-colors group-hover/row:bg-slate-50 dark:bg-slate-900 dark:group-hover/row:bg-[#151e31]',
+                          pin && selected?.has(k) && '!bg-[#F5F8FC] dark:!bg-[#121e37]',
+                          pin && !scroll.atEnd && 'shadow-[-12px_0_12px_-12px_rgba(15,23,42,.35)] dark:shadow-[-12px_0_12px_-12px_rgba(0,0,0,.7)]',
+                        )}
+                      >
+                        {actions(row)}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

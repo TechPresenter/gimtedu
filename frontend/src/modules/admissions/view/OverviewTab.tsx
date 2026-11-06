@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { BookOpen, GraduationCap, Phone, User, Users } from 'lucide-react';
 import { Card, CardHeader, DescriptionList } from '@/components/ui';
-import { formatDate, formatDateTime, formatMoney, labelize, toNumber } from '@/lib/format';
+import { formatDate, formatDateTime, formatMoney, formatPhone, labelize, telHref, toNumber, whatsappHref } from '@/lib/format';
 import type { AdmissionProfile } from './types';
 
 const QUOTAS: Record<string, string> = { general: 'General Merit', management: 'Management Quota', sports: 'Sports Quota', nri: 'NRI Quota', defence: 'Defence / Ex-servicemen', scholarship: 'Scholarship', lateral: 'Lateral Entry' };
@@ -27,9 +27,10 @@ function Section({ title, icon, children }: { title: string; icon: typeof User; 
 export function OverviewTab({ data }: { data: AdmissionProfile }) {
   const a = data.admission;
   const v = (x: unknown) => (x === null || x === undefined || x === '' ? null : String(x));
+  const ph = (x: unknown) => (v(x) ? formatPhone(x) : null);
   const masked = a.aadhaar_no ? `XXXX XXXX ${String(a.aadhaar_no).slice(-4)}` : null;
   return (
-    <div className="grid gap-6 xl:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
       <Section title="Personal details" icon={User}>
         <DescriptionList
           items={[
@@ -47,8 +48,8 @@ export function OverviewTab({ data }: { data: AdmissionProfile }) {
       <Section title="Contact" icon={Phone}>
         <DescriptionList
           items={[
-            { label: 'Mobile', value: a.phone ? <a className="link" href={`tel:${String(a.phone).replace(/\s/g, '')}`}>{String(a.phone)}</a> : null },
-            { label: 'WhatsApp', value: v(a.whatsapp) },
+            { label: 'Mobile', value: a.phone ? <a className="link" href={telHref(String(a.phone))}>{formatPhone(a.phone)}</a> : null },
+            { label: 'WhatsApp', value: a.whatsapp ? <a className="link" href={whatsappHref(String(a.whatsapp))} target="_blank" rel="noreferrer">{formatPhone(a.whatsapp)}</a> : null },
             { label: 'Email', value: a.email ? <a className="link" href={`mailto:${a.email}`}>{String(a.email)}</a> : null, full: true },
             { label: 'Address', value: [a.address, a.city, a.state, a.pincode, a.country].filter(Boolean).join(', ') || null, full: true },
           ]}
@@ -58,11 +59,11 @@ export function OverviewTab({ data }: { data: AdmissionProfile }) {
         <DescriptionList
           items={[
             { label: "Father's name", value: v(a.father_name) },
-            { label: "Father's mobile / occupation", value: [a.father_phone, a.father_occupation].filter(Boolean).join(' · ') || null },
+            { label: "Father's mobile / occupation", value: [ph(a.father_phone), a.father_occupation].filter(Boolean).join(' · ') || null },
             { label: "Mother's name", value: v(a.mother_name) },
-            { label: "Mother's mobile / occupation", value: [a.mother_phone, a.mother_occupation].filter(Boolean).join(' · ') || null },
+            { label: "Mother's mobile / occupation", value: [ph(a.mother_phone), a.mother_occupation].filter(Boolean).join(' · ') || null },
             { label: 'Local guardian', value: a.guardian_name ? `${a.guardian_name}${a.guardian_relation ? ` (${a.guardian_relation})` : ''}` : null },
-            { label: 'Guardian mobile', value: v(a.guardian_phone) },
+            { label: 'Guardian mobile', value: ph(a.guardian_phone) },
             { label: 'Annual family income', value: a.family_income ? formatMoney(a.family_income) : null },
           ]}
         />

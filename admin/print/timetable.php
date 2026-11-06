@@ -11,7 +11,8 @@ require APP_ROOT . '/app/auth.php';
 require_once APP_ROOT . '/app/services/timetable.php';
 require_permission('timetable', 'view');
 
-$view = in_array($_GET['view'] ?? 'class', ['class', 'faculty', 'room', 'student'], true) ? $_GET['view'] : 'class';
+$view = api_query('view', 'class');
+$view = in_array($view, ['class', 'faculty', 'room', 'student'], true) ? $view : 'class';
 $id = input_int('id');
 $sessionId = input_int('session_id') ?: (int) current_session_id();
 $session = db_row('SELECT id, name FROM academic_sessions WHERE id = ?', [$sessionId]);

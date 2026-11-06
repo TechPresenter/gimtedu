@@ -53,7 +53,7 @@ route('POST', '/chatbot/test', function () {
 route('POST', '/chatbot/try', function () {
     api_require('communication', 'view');
     $in = api_input();
-    $message = trim((string) ($in['message'] ?? ''));
+    $message = trim(api_str($in['message'] ?? null));
     if ($message === '' || mb_strlen($message) > 2000) {
         api_error('Type a question of up to 2000 characters.', 422, ['message' => 'Type a question of up to 2000 characters.']);
     }

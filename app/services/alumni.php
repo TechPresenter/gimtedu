@@ -984,7 +984,7 @@ function alumni_donation_set_status(int $id, string $status, array $input = []):
             throw new CrudException('Only pledged donations can be marked as received.');
         }
         $mode = (string) ($input['payment_mode'] ?? $d['payment_mode'] ?? '');
-        $ref = trim((string) ($input['reference_no'] ?? ''));
+        $ref = trim(api_str($input['reference_no'] ?? null));
         $date = (string) ($input['donation_date'] ?? date('Y-m-d'));
         $errors = [];
         if (!isset(alumni_payment_modes()[$mode])) {
@@ -1010,7 +1010,7 @@ function alumni_donation_set_status(int $id, string $status, array $input = []):
         if ($d['status'] === 'cancelled') {
             throw new CrudException('This donation is already cancelled.');
         }
-        $reason = trim((string) ($input['reason'] ?? ''));
+        $reason = trim(api_str($input['reason'] ?? null));
         if (mb_strlen($reason) < 5) {
             throw new CrudValidationException(['reason' => 'Give a reason for cancelling (at least 5 characters).']);
         }

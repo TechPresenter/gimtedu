@@ -50,7 +50,7 @@ export default function SettingsTab() {
   if (error) return <Alert variant="error" title="Unable to load the chatbot settings">{(error as ApiError).message}</Alert>;
   if (isLoading || !data || !form) {
     return (
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2"><CardSkeleton lines={8} /><CardSkeleton lines={6} /></div>
         <CardSkeleton lines={8} />
       </div>
@@ -134,11 +134,11 @@ export default function SettingsTab() {
         )}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
           <Card>
             <CardHeader title="Website widget" subtitle="Bottom-left launcher, greeting bubble and the chat window texts." icon={MessageSquareText} />
-            <div className="card-body grid gap-4 md:grid-cols-2">
+            <div className="card-body grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="md:col-span-2 flex flex-wrap gap-x-8 gap-y-3">
                 <Toggle checked={flag('enabled')} onChange={(v) => setFlag('enabled', v)} label="Show the chat on the website" disabled={!editable} />
                 <Toggle checked={flag('show_mobile')} onChange={(v) => setFlag('show_mobile', v)} label="Show on phones" disabled={!editable} />
@@ -201,7 +201,7 @@ export default function SettingsTab() {
 
           <Card>
             <CardHeader title="Answer behaviour" subtitle="How the AI answers. The rule-based assistant ignores these." icon={SlidersHorizontal} />
-            <div className="card-body grid gap-4 md:grid-cols-2">
+            <div className="card-body grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field label="Reasoning effort" htmlFor="cb-effort" hint="Claude & OpenAI reasoning models: low = fastest and cheapest (recommended for chat)." error={err('effort')}>
                 <Select id="cb-effort" value={form.effort} onChange={(e) => set('effort', e.target.value as ChatbotValues['effort'])} options={[{ value: 'low', label: 'Low (fast)' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High (slower, costlier)' }]} />
               </Field>

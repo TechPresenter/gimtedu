@@ -9,11 +9,15 @@
  * Owns: certificate_templates.
  */
 return function (array $opts): void {
-    $registrar = ['Dr. Rajeev Saxena', 'Registrar'];
-    $director = ['Prof. Neha Verma', 'Director'];
-    $coe = ['Dr. Kavita Rao', 'Controller of Examinations'];
-    $tpo = ['Ms. Neha Kapoor', 'Training & Placement Officer'];
-    $dean = ['Dr. Amit Kumar', 'Dean — Academics'];
+    // Signatories print as designation only: GIMT has not confirmed the office holders' names yet (the earlier demo
+    // names were placeholders, like the leadership cards on /leadership). [To be confirmed by GIMT: names of the
+    // Registrar, Director, Controller of Examinations, Training & Placement Officer and Dean - Academics; enter them in
+    // Admin > Certificates > Templates, they are then printed under the signature lines.]
+    $registrar = ['', 'Registrar'];
+    $director = ['', 'Director'];
+    $coe = ['', 'Controller of Examinations'];
+    $tpo = ['', 'Training & Placement Officer'];
+    $dean = ['', 'Dean — Academics'];
 
     $templates = [
         [

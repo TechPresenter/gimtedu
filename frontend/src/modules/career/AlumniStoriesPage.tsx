@@ -71,11 +71,11 @@ export default function AlumniStoriesPage() {
           <CardHeader title="Featured stories" subtitle="Shown first on the website and in alumni newsletters" icon={Star} />
           <div className="card-body !pt-0">
             {isLoading || !data ? (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-72" />)}</div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-72" />)}</div>
             ) : data.featured.length === 0 ? (
               <EmptyState icon={Star} title="No featured stories" description="Feature up to six stories from the table below to highlight them." className="py-8" />
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {data.featured.map((s) => (
                   <article key={String(s.id)} className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white transition hover:-translate-y-0.5 hover:shadow-soft dark:border-slate-800 dark:bg-slate-900">
                     <div className="relative h-36 overflow-hidden bg-brand-900">

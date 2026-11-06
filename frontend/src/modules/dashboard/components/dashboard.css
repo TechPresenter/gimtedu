@@ -92,7 +92,7 @@
 .dh-paused, .dh-paused * { -webkit-animation-play-state: paused !important; animation-play-state: paused !important; }
 
 /* Progress-ring / sparkline draw-in (stroke only; tiny SVGs). */
-.dh-draw { transition: stroke-dashoffset 1s cubic-bezier(.22, 1, .36, 1); }
+.dh-draw { transition: stroke-dashoffset .9s cubic-bezier(.22, 1, .36, 1); } /* in step with CountUp (900 ms) */
 
 @media (prefers-reduced-motion: reduce) {
   .dh-drift-a, .dh-drift-b, .dh-drift-c, .dh-shine, .dh-twinkle, .dh-float, .dh-spin-slow, .dh-rise, .dh-sway, .dh-pulse { -webkit-animation: none !important; animation: none !important; }

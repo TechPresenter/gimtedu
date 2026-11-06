@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { CalendarPlus, Eye, KeyRound, Printer } from 'lucide-react';
 import { CrudTable, type CrudBulkAction } from '@/components/crud';
 import { Avatar, StatusBadge } from '@/components/ui';
-import { formatDate, labelize } from '@/lib/format';
+import { formatDate, formatPhone, labelize, telHref } from '@/lib/format';
 import { useAuth } from '@/lib/auth';
 import { printUrl } from '@/lib/config';
 import type { Row } from '@/lib/types';
@@ -114,7 +114,7 @@ export function EmployeeTable({ type, module, tableKey, tableRef, header, bulkAc
           ),
           phone: (r) => (
             <div className="leading-tight">
-              {r.phone ? <a href={`tel:${String(r.phone).replace(/\s/g, '')}`} className="whitespace-nowrap text-slate-800 hover:text-brand-700 dark:text-slate-100">{r.phone}</a> : <span className="text-slate-400">—</span>}
+              {r.phone ? <a href={telHref(String(r.phone))} className="whitespace-nowrap text-slate-800 hover:text-brand-700 dark:text-slate-100">{formatPhone(r.phone)}</a> : <span className="text-slate-400">—</span>}
               {r.email && <a href={`mailto:${r.email}`} className="block max-w-[9.5rem] truncate text-xs text-slate-500 hover:text-brand-700 dark:text-slate-400 2xl:max-w-[14rem]" title={String(r.email)}>{r.email}</a>}
             </div>
           ),

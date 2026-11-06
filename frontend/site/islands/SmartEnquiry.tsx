@@ -1,7 +1,12 @@
 import clsx from 'clsx';
 import { ArrowLeft, ArrowRight, Check, CircleAlert, Download, LoaderCircle, PhoneCall } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { postForm } from '../core/widgets';
+import { StateField } from '../forms/AddressFields';
+import { CaptchaNote, EmailSuggestion } from '../forms/FormExtras';
+import { PhoneInput } from '../forms/PhoneInput';
+import { emailError, normalizeEmail, suggestEmail } from '../forms/email';
+import { DEFAULT_COUNTRY, loadPhoneLib, phoneError } from '../forms/phone';
+import { fetchSecurity, postSecure, preloadCaptcha, pushLead, type FormSecurity } from '../forms/security';
 import { useStaticMode } from '../lib/hooks';
 import type { IslandBaseProps } from '../lib/types';
 import { ENQUIRY_EVENT, type EnquiryIntent, type Option } from './home/shared';
@@ -38,45 +43,79 @@ interface Values {
   level: string;
   program: string;
   name: string;
+  /** E.164 from the international phone field */
   phone: string;
+  phoneCountry: string;
   email: string;
   city: string;
+  state: string;
   time: string;
   consent: boolean;
 }
 
-const EMPTY: Values = { level: '', program: '', name: '', phone: '', email: '', city: '', time: '', consent: false };
+const EMPTY: Values = { level: '', program: '', name: '', phone: '', phoneCountry: DEFAULT_COUNTRY, email: '', city: '', state: '', time: '', consent: false };
 const STEPS = ['Interest', 'Contact', 'Callback'];
-const FIELD_STEP: Record<string, number> = { program: 0, program_id: 0, level: 0, name: 1, phone: 1, email: 1, city: 2, callback_time: 2, consent: 2, message: 2 };
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const FIELD_STEP: Record<string, number> = { program: 0, program_id: 0, level: 0, name: 1, phone: 1, email: 1, city: 2, state: 2, country: 2, callback_time: 2, consent: 2, message: 2, captcha: 2 };
 const NAME = /^\p{L}[\p{L}\p{M} .'-]*$/u;
 
-/** Indian mobile: keep the 10 significant digits (drops +91 / 0 prefixes). */
-const mobileDigits = (v: string) => {
-  let d = v.replace(/\D/g, '');
-  if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
-  if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
-  return d;
-};
+/**
+ * Values typed into the server-rendered single-step fallback form (includes/partials/home.php) before this island
+ * mounted — read during the first render, while the fallback DOM is still in place, so nothing typed is lost.
+ */
+function fallbackValues(programs: Option[]): Partial<Values> {
+  if (typeof document === 'undefined') return {};
+  const form = document.querySelector<HTMLInputElement>('form input[type="hidden"][name="form"][value="smart-enquiry"]')?.form;
+  if (!form) return {};
+  const val = (n: string) => (form.elements.namedItem(n) as HTMLInputElement | HTMLSelectElement | null)?.value?.trim() ?? '';
+  const out: Partial<Values> = {};
+  (['name', 'email', 'city'] as const).forEach((k) => {
+    if (val(k)) out[k] = val(k);
+  });
+  const ph = val('phone').replace(/^\+91\s*$/, '');
+  if (ph) out.phone = ph;
+  const prog = val('program');
+  if (prog && programs.some((p) => p.value === prog)) out.program = prog;
+  if ((form.elements.namedItem('consent') as HTMLInputElement | null)?.checked) out.consent = true;
+  return out;
+}
 
 /**
- * Smart Enquiry: compact 3-step lead form — 1) interest (level + program) 2) name, +91 mobile, email 3) city, preferred
- * callback time, consent — with per-step inline validation mirroring the server, a progress indicator, honeypot, CSRF
- * (postForm) and a success state with next steps. Posts to /api/public/enquiry with source/form/utm fields plus
+ * Smart Enquiry: compact 3-step lead form — 1) interest (level + program) 2) name, international mobile (country
+ * selector, E.164), email (typo suggestions) 3) city, state, preferred callback time, consent — with per-step inline
+ * validation mirroring the server, a progress indicator, honeypot, CSRF, one-time form token + optional captcha
+ * (postSecure), dataLayer conversion and a success state with next steps. Posts to /api/public/enquiry with source/form/utm fields plus
  * level, callback_time and a composed message. Other widgets can pre-fill it via openEnquiry() (islands/home/shared.ts).
  */
 export default function SmartEnquiry({ endpoint, levels, programs, times, officeHours, consent, privacyUrl, hidden = {}, applyUrl, brochureUrl, phone }: SmartEnquiryProps) {
   const uid = useId();
   const isStatic = useStaticMode();
   const [step, setStep] = useState(0);
-  const [v, setV] = useState<Values>(EMPTY);
+  const [v, setV] = useState<Values>(() => ({ ...EMPTY, ...fallbackValues(programs) }));
   const [note, setNote] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
   const [website, setWebsite] = useState('');
+  const [emailHint, setEmailHint] = useState<string | null>(null);
   const stepRef = useRef<HTMLDivElement>(null);
   const moved = useRef(false);
+  const security = useRef<FormSecurity | null>(null);
+  const [captcha, setCaptcha] = useState<FormSecurity['captcha']>(null);
+  const captchaHolder = useRef<HTMLDivElement | null>(null);
+  const warmed = useRef(false);
+
+  /** First interaction: fetch the one-time form token (+ captcha config) and start loading the phone library. */
+  const warm = () => {
+    if (warmed.current) return;
+    warmed.current = true;
+    void loadPhoneLib().catch(() => undefined);
+    void fetchSecurity(endpoint).then((sec) => {
+      if (!sec) return;
+      security.current = sec;
+      setCaptcha(sec.captcha);
+      preloadCaptcha(sec.captcha);
+    });
+  };
 
   // pre-fill from other widgets (Course Finder, Scholarship Assistant)
   useEffect(() => {
@@ -120,14 +159,15 @@ export default function SmartEnquiry({ endpoint, levels, programs, times, office
       if (!name) e.name = 'Full Name is required.';
       else if (name.length < 2) e.name = 'Full Name must be at least 2 characters.';
       else if (!NAME.test(name)) e.name = 'Full Name may only contain letters, spaces, dots and hyphens.';
-      const d = mobileDigits(v.phone);
-      if (!v.phone.trim()) e.phone = 'Mobile number is required.';
-      else if (d.length !== 10) e.phone = 'Enter a valid 10-digit mobile number.';
-      if (v.email.trim() && !EMAIL.test(v.email.trim())) e.email = 'Enter a valid email address.';
+      const pe = phoneError(v.phone, { required: true, label: 'Mobile number', country: v.phoneCountry });
+      if (pe) e.phone = pe;
+      const ee = emailError(v.email);
+      if (ee) e.email = ee;
     }
     if (s === 2) {
       if (v.city.length > 80) e.city = 'City may not be longer than 80 characters.';
-      if (!v.consent) e.consent = 'Please accept to continue.';
+      if (v.state.length > 80) e.state = 'State may not be longer than 80 characters.';
+      if (!v.consent) e.consent = 'Please tick the box to agree to be contacted.';
     }
     return e;
   };
@@ -160,9 +200,11 @@ export default function SmartEnquiry({ endpoint, levels, programs, times, office
     Object.entries(hidden).forEach(([k, val]) => fd.append(k, val));
     fd.append('website', website);
     fd.append('name', v.name.trim());
-    fd.append('phone', `+91 ${mobileDigits(v.phone)}`);
-    if (v.email.trim()) fd.append('email', v.email.trim());
+    fd.append('phone', v.phone);
+    fd.append('phone_country', v.phoneCountry);
+    if (v.email.trim()) fd.append('email', normalizeEmail(v.email));
     if (v.city.trim()) fd.append('city', v.city.trim());
+    if (v.state.trim()) fd.append('state', v.state.trim());
     fd.append('program', program ? program.value : level ? `${level.label} program (undecided)` : '');
     fd.append('level', level?.label ?? '');
     if (time) fd.append('callback_time', `${time.label}${time.hint ? ` (${time.hint})` : ''}`);
@@ -179,10 +221,12 @@ export default function SmartEnquiry({ endpoint, levels, programs, times, office
     );
     setStatus('sending');
     setMessage('');
-    const res = await postForm(endpoint, fd);
+    const res = await postSecure(fd, { endpoint, form: 'enquiry', security: security.current, captchaHolder: captchaHolder.current });
+    security.current = res.ok ? null : res.security;
     if (res.ok) {
       setStatus('success');
       setMessage(res.message || 'Thank you! Our admission counsellor will call you shortly.');
+      pushLead('enquiry', { variant: 'smart_enquiry' });
       return;
     }
     setStatus('error');
@@ -247,7 +291,7 @@ export default function SmartEnquiry({ endpoint, levels, programs, times, office
   }
 
   return (
-    <form className="smart-enquiry flex min-h-[470px] flex-col rounded-[30px] bg-white p-6 text-slate-600 shadow-[0_40px_80px_-40px_rgba(0,0,0,.55)] sm:p-8" onSubmit={submit} noValidate aria-busy={sending}>
+    <form className="smart-enquiry flex min-h-[470px] flex-col rounded-[30px] bg-white p-6 text-slate-600 shadow-[0_40px_80px_-40px_rgba(0,0,0,.55)] sm:p-8" onSubmit={submit} onFocus={warm} onPointerEnter={warm} noValidate aria-busy={sending}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-accent-700">Free counselling</p>
@@ -334,30 +378,53 @@ export default function SmartEnquiry({ endpoint, levels, programs, times, office
               <label htmlFor={`${uid}-phone`} className="form-label">
                 Mobile number<span className="form-required"> *</span>
               </label>
-              <div className={clsx('flex h-12 items-center overflow-hidden rounded-xl border bg-white transition focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-accent-500/10', errors.phone ? 'border-red-400' : 'border-warm-2')}>
-                <span className="flex h-full items-center border-r border-warm-2 bg-[#FAF8F5] px-3.5 text-[14.5px] font-semibold text-brand-900" aria-hidden="true">
-                  +91
-                </span>
-                <input
-                  id={`${uid}-phone`}
-                  name="phone"
-                  type="tel"
-                  inputMode="numeric"
-                  autoComplete="tel-national"
-                  value={v.phone}
-                  onChange={(e) => set('phone', e.target.value.replace(/[^\d\s+-]/g, '').slice(0, 16))}
-                  placeholder="10-digit mobile number"
-                  className="h-full min-w-0 flex-1 border-0 bg-transparent px-3.5 text-[14.5px] text-brand-900 placeholder:text-slate-400 focus:outline-none focus:ring-0"
-                  {...aria('phone')}
-                />
-              </div>
+              <PhoneInput
+                id={`${uid}-phone`}
+                label="Mobile number"
+                value={v.phone}
+                defaultCountry={v.phoneCountry}
+                required
+                invalid={!!errors.phone}
+                describedBy={errors.phone ? `${uid}-phone-err` : undefined}
+                className={clsx('!h-12 !rounded-xl', errors.phone ? '!border-red-400' : '!border-warm-2')}
+                inputClassName="!py-0 text-[14.5px] text-brand-900"
+                onChange={(val, info) => {
+                  setV((prev) => ({ ...prev, phone: val, phoneCountry: info.country || prev.phoneCountry }));
+                  if (errors.phone) setErrors((prev) => ({ ...prev, phone: '' }));
+                }}
+              />
               {err('phone')}
             </div>
             <div>
               <label htmlFor={`${uid}-email`} className="form-label">
                 Email <span className="font-normal text-slate-400">(optional)</span>
               </label>
-              <input id={`${uid}-email`} name="email" type="email" value={v.email} onChange={(e) => set('email', e.target.value)} autoComplete="email" maxLength={190} className={clsx(input, errors.email ? 'border-red-400' : 'border-warm-2')} {...aria('email')} />
+              <input
+                id={`${uid}-email`}
+                name="email"
+                type="email"
+                inputMode="email"
+                autoCapitalize="off"
+                spellCheck={false}
+                value={v.email}
+                onChange={(e) => set('email', e.target.value)}
+                onBlur={() => {
+                  const norm = normalizeEmail(v.email);
+                  if (norm !== v.email) set('email', norm);
+                  setEmailHint(suggestEmail(norm));
+                }}
+                autoComplete="email"
+                maxLength={190}
+                className={clsx(input, errors.email ? 'border-red-400' : 'border-warm-2')}
+                {...aria('email')}
+              />
+              <EmailSuggestion
+                suggestion={emailHint}
+                onAccept={(sug) => {
+                  set('email', sug);
+                  setEmailHint(null);
+                }}
+              />
               {err('email')}
             </div>
           </fieldset>
@@ -372,6 +439,22 @@ export default function SmartEnquiry({ endpoint, levels, programs, times, office
               </label>
               <input id={`${uid}-city`} name="city" value={v.city} onChange={(e) => set('city', e.target.value)} autoComplete="address-level2" maxLength={80} className={clsx(input, errors.city ? 'border-red-400' : 'border-warm-2')} {...aria('city')} />
               {err('city')}
+            </div>
+            <div>
+              <label htmlFor={`${uid}-state`} className="form-label">
+                State <span className="font-normal text-slate-400">(optional)</span>
+              </label>
+              <StateField
+                id={`${uid}-state`}
+                country={v.phoneCountry === 'IN' ? 'IN' : 'XX'}
+                value={v.state}
+                onChange={(val) => set('state', val)}
+                invalid={!!errors.state}
+                describedBy={errors.state ? `${uid}-state-err` : undefined}
+                className={clsx('!h-12 !rounded-xl !py-0 !text-[14.5px] !text-brand-900', errors.state ? '!border-red-400' : '!border-warm-2')}
+                placeholder={v.phoneCountry === 'IN' ? 'Select your state' : 'State / province'}
+              />
+              {err('state')}
             </div>
             <div role="radiogroup" aria-label="Preferred callback time">
               <span className="form-label">Preferred callback time</span>
@@ -414,6 +497,8 @@ export default function SmartEnquiry({ endpoint, levels, programs, times, office
           </fieldset>
         )}
       </div>
+
+      <CaptchaNote captcha={captcha} holderRef={(el) => (captchaHolder.current = el)} />
 
       {status === 'error' && message && (
         <p className="form-alert mt-4" role="alert">

@@ -13,6 +13,9 @@ import { DAY_NAMES, MiniStat, PercentPill, PillTabs, TrailDots, fpath, todayIso 
 
 type SortKey = 'roll' | 'name' | 'low' | 'high';
 
+/** Masked contact values arrive with one bullet per hidden character; show a short, fixed run instead. */
+const compactMask = (v: string) => v.replace(/•{4,}/g, '••••');
+
 function csvCell(v: unknown): string {
   const s = v === null || v === undefined ? '' : String(v);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -168,7 +171,7 @@ export default function ClassRosterPage() {
                           <th>
                             Last {data.trail_dates.length} classes
                           </th>
-                          <th className="hidden xl:table-cell">Contact</th>
+                          <th className="hidden 2xl:table-cell">Contact</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -194,17 +197,19 @@ export default function ClassRosterPage() {
                             <td>
                               <TrailDots trail={s.trail} dates={data.trail_dates} />
                             </td>
-                            <td className="hidden max-w-[190px] text-xs text-slate-500 xl:table-cell dark:text-slate-400">
-                              {s.email && (
-                                <p className="flex items-center gap-1 truncate">
-                                  <Mail className="h-3 w-3 shrink-0" aria-hidden /> {s.email}
-                                </p>
-                              )}
-                              {s.mobile && (
-                                <p className="flex items-center gap-1">
-                                  <Phone className="h-3 w-3 shrink-0" aria-hidden /> {s.mobile}
-                                </p>
-                              )}
+                            <td className="hidden text-xs text-slate-500 2xl:table-cell dark:text-slate-400">
+                              <div className="w-44 space-y-0.5">
+                                {s.email && (
+                                  <p className="flex min-w-0 items-center gap-1" title={s.email}>
+                                    <Mail className="h-3 w-3 shrink-0" aria-hidden /> <span className="min-w-0 truncate">{compactMask(s.email)}</span>
+                                  </p>
+                                )}
+                                {s.mobile && (
+                                  <p className="flex items-center gap-1">
+                                    <Phone className="h-3 w-3 shrink-0" aria-hidden /> {compactMask(s.mobile)}
+                                  </p>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -256,7 +261,7 @@ export default function ClassRosterPage() {
                     {data.registers.map((r) => (
                       <li key={r.id}>
                         <Link
-                          to={`${fpath('attendance')}?date=${r.date}&section_id=${c.section_id}&subject_id=${c.subject_id}${r.time_slot_id ? `&slot=${r.time_slot_id}` : ''}`}
+                          to={`${fpath('attendance')}?date=${r.date}&section_id=${c.section_id}&subject_id=${c.subject_id}&slot=${r.time_slot_id ?? 0}`}
                           className="flex items-center gap-3 rounded-xl px-2 py-2.5 transition hover:bg-slate-50 dark:hover:bg-slate-800/50"
                         >
                           <div className="min-w-0 flex-1">

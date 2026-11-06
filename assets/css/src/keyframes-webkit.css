@@ -46,3 +46,9 @@
 @media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
 @-webkit-keyframes overlay-pulse { 0%, 100% { opacity: .35; } 50% { opacity: .75; } }
 @-webkit-keyframes cta-glow { 0%, 72%, 100% { box-shadow: 0 0 0 0 rgba(240, 90, 40, 0); } 82% { box-shadow: 0 0 0 10px rgba(240, 90, 40, .22); } 92% { box-shadow: 0 0 0 16px rgba(240, 90, 40, 0); } }
+@-webkit-keyframes voice-ring { from { -webkit-transform: scale(1); opacity: .75; } to { -webkit-transform: scale(1.65); opacity: 0; } }
+@-webkit-keyframes epop-float { 0% { -webkit-transform: translate3d(0, 0, 0) rotate(0deg); } 100% { -webkit-transform: translate3d(0, -10px, 0) rotate(10deg); } }
+@-webkit-keyframes epop-wiggle { 0%, 100% { -webkit-transform: rotate(-3deg); } 25% { -webkit-transform: rotate(2.5deg); } 55% { -webkit-transform: rotate(-5deg); } 80% { -webkit-transform: rotate(-1.5deg); } }
+@-webkit-keyframes btn-gleam { 0% { -webkit-transform: translate3d(-170%, 0, 0) skewX(-18deg); } 27.5%, 100% { -webkit-transform: translate3d(280%, 0, 0) skewX(-18deg); } }
+@-webkit-keyframes btn-shine-hover { from { -webkit-transform: translate3d(-170%, 0, 0) skewX(-18deg); } to { -webkit-transform: translate3d(280%, 0, 0) skewX(-18deg); } }
+@-webkit-keyframes wipe-bar { 0% { -webkit-transform: translateX(0) scaleX(0); } 46%, 54% { -webkit-transform: translateX(0) scaleX(1); } 100% { -webkit-transform: translateX(100%) scaleX(0); } }

@@ -14,8 +14,8 @@ require_once APP_ROOT . '/app/services/cms.php';
 
 function seo_target_from_request(array $src): array
 {
-    $type = (string) ($src['type'] ?? '');
-    $target = cms_seo_resolve($type, isset($src['id']) && $src['id'] !== '' ? (int) $src['id'] : null, isset($src['route']) ? (string) $src['route'] : null);
+    $type = api_str($src['type'] ?? null);
+    $target = cms_seo_resolve($type, isset($src['id']) && $src['id'] !== '' ? (int) $src['id'] : null, isset($src['route']) ? api_str($src['route']) : null);
     if (!$target) {
         api_error($type === 'route' ? 'Enter a valid path starting with /, e.g. /contact.' : 'The page or record you are editing no longer exists.', $type === 'route' ? 422 : 404,
             $type === 'route' ? ['route' => 'Enter a valid path starting with /, e.g. /contact.'] : []);
@@ -48,14 +48,14 @@ route('GET', '/seo/overview', function () {
 
 route('GET', '/seo/entries', function () {
     cms_api_require('seo', 'view');
-    $type = (string) ($_GET['type'] ?? '');
+    $type = api_str($_GET['type'] ?? null);
     if ($type !== '' && !isset(cms_seo_entity_types()[$type])) {
         api_error('Unknown type.', 422);
     }
     $rows = cms_seo_entries($type ?: null);
-    $issue = (string) ($_GET['issue'] ?? '');
-    $status = (string) ($_GET['status'] ?? '');
-    $q = mb_strtolower(trim((string) ($_GET['q'] ?? '')));
+    $issue = api_str($_GET['issue'] ?? null);
+    $status = api_str($_GET['status'] ?? null);
+    $q = mb_strtolower(trim(api_str($_GET['q'] ?? null)));
     $rows = array_values(array_filter($rows, function ($r) use ($issue, $status, $q) {
         if ($issue === 'any') {
             if (!array_diff($r['issues'], ['noindex', 'auto_description'])) {
@@ -85,7 +85,7 @@ route('GET', '/seo/entries', function () {
         }
         return true;
     }));
-    $sort = (string) ($_GET['sort'] ?? 'score');
+    $sort = api_str($_GET['sort'] ?? null, 'score');
     $dir = ($_GET['dir'] ?? 'asc') === 'desc' ? -1 : 1;
     usort($rows, function ($a, $b) use ($sort, $dir) {
         $va = $a[$sort] ?? $a['score'];
@@ -146,7 +146,7 @@ route('GET', '/seo/robots', function () {
 route('PUT', '/seo/robots', function () {
     cms_api_require('seo', 'edit');
     $in = api_input();
-    $content = trim(str_replace("\r\n", "\n", (string) ($in['content'] ?? '')));
+    $content = trim(str_replace("\r\n", "\n", api_str($in['content'] ?? null)));
     $reset = !empty($in['reset']) || $content === '' || $content === rtrim(cms_default_robots_txt());
     if (!$reset && ($err = cms_robots_error($content))) {
         api_error($err, 422, ['content' => $err]);

@@ -82,7 +82,7 @@ export function DocumentsTab({ data }: { data: AdmissionProfile }) {
         <CardHeader title="Document checklist" subtitle={`${verifiedReq} of ${req.length} required documents verified`} icon={ShieldCheck} />
         <div className="card-body">
           <ProgressBar value={req.length ? (verifiedReq / req.length) * 100 : 0} tone={verifiedReq === req.length ? 'green' : 'amber'} label="Required documents verified" />
-          <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+          <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {req.map((r) => (
               <li key={r.doc_type} className="flex items-center gap-2 text-sm">
                 {r.verified ? <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden /> : r.uploaded ? <Circle className="h-4 w-4 text-amber-500" aria-hidden /> : <XCircle className="h-4 w-4 text-slate-300 dark:text-slate-600" aria-hidden />}
@@ -97,7 +97,7 @@ export function DocumentsTab({ data }: { data: AdmissionProfile }) {
       {canEdit && (
         <Card>
           <CardHeader title="Upload a document" subtitle="PDF, Word or image files. Re-uploading a pending or rejected document replaces it." icon={Upload} />
-          <div className="card-body grid gap-4 md:grid-cols-12">
+          <div className="card-body grid grid-cols-1 gap-4 md:grid-cols-12">
             <Field className="md:col-span-4" label="Document type" required error={errors.doc_type} htmlFor="doc-type">
               <Select id="doc-type" value={type} onChange={(e) => setType(e.target.value)} options={data.doc_types} placeholder="Select type" invalid={!!errors.doc_type} />
             </Field>

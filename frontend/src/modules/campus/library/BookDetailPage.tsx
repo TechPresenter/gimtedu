@@ -194,6 +194,8 @@ export default function BookDetailPage() {
               emptyTitle="No copies yet"
               emptyText="Add copies of this title — accession numbers and barcodes are generated automatically."
               onSaved={() => void q.refetch()}
+              onDeleted={() => void q.refetch()}
+              canDelete={(r) => r.status !== 'issued'}
               renderers={{ borrower: (r) => <CopyBorrowerCell borrower={r.borrower} due={r.due_date} /> }}
               bulkActions={[
                 ...(d?.can.edit ? [{ label: 'Change status', icon: Wrench, onClick: (ids: number[], clear: () => void) => setStatusIds({ ids, clear }) }] : []),

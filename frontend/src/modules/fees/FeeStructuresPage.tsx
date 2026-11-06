@@ -312,7 +312,7 @@ function StructureEditor({ id, onClose, onSaved }: { id: number | null; onClose:
       {id && isLoading ? <PageLoader /> : (
         <div className="space-y-6">
           {formError && <Alert variant="error">{formError}</Alert>}
-          <div className="grid gap-4 sm:grid-cols-12">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
             <Field htmlFor="fs-academic-session" label="Academic session" required error={errors.academic_session_id} className="sm:col-span-4">
               <Select id="fs-academic-session" value={values.academic_session_id} onChange={(e) => set('academic_session_id', e.target.value)} options={sessions} placeholder="Select session" invalid={!!errors.academic_session_id} />
             </Field>
@@ -405,7 +405,7 @@ function StructureEditor({ id, onClose, onSaved }: { id: number | null; onClose:
             )}
           </section>
 
-          <div className="grid gap-4 sm:grid-cols-12">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
             <Field htmlFor="fs-late-fee-per-day" label="Late fee per day (₹)" error={errors.late_fee_per_day} className="sm:col-span-3" hint="0 = institute default">
               <Input id="fs-late-fee-per-day" type="number" min={0} step="1" value={values.late_fee_per_day} invalid={!!errors.late_fee_per_day} onChange={(e) => set('late_fee_per_day', e.target.value)} />
             </Field>
@@ -478,7 +478,7 @@ function AssignModal({ id, onClose }: { id: number | null; onClose: () => void }
         </>
       }
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field htmlFor="fs-students-in-semester" label="Students in semester" hint={s?.semester_no ? `Structure semester: ${s.semester_no}` : s?.year_no ? 'Yearly structure — choose the semester to bill' : 'Not tied to a semester — narrow it down if needed'}>
           <Select id="fs-students-in-semester" value={semester} onChange={(e) => { setSemester(e.target.value); setSection(''); }} options={SEMESTERS.slice(0, s?.total_semesters || 8)} placeholder={s?.semester_no ? `Semester ${s.semester_no} (structure)` : s?.year_no ? `Both semesters of year ${s.year_no}` : 'All semesters'} />
         </Field>

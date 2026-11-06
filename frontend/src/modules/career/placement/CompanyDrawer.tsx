@@ -6,7 +6,7 @@ import { BarChart, chartColor } from '@/components/charts';
 import { CrudFormModal } from '@/components/crud';
 import { useApi, useCrudMeta } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatPhone, telHref } from '@/lib/format';
 import type { CompanyHistory } from './types';
 import { COMPANY_TYPES, CompanyLogo, DRIVE_STATUS, DRIVE_STATUS_COLORS, JOB_TYPES, OFFER_STATUS, OFFER_STATUS_COLORS, TIE_UP, TIE_UP_COLORS, ctcRange, lpa, usePlacementRefresh } from './shared';
 
@@ -98,7 +98,7 @@ export function CompanyDrawer({ id, onClose }: { id: number | null; onClose: () 
                 items={[
                   { label: 'Contact person', value: c.contact_person ? `${c.contact_person}${c.contact_designation ? ` — ${c.contact_designation}` : ''}` : null },
                   { label: 'Email', value: c.email ? <a className="link inline-flex items-center gap-1 !font-normal" href={`mailto:${c.email}`}><Mail className="h-3.5 w-3.5" />{String(c.email)}</a> : null },
-                  { label: 'Phone', value: c.phone ? <a className="inline-flex items-center gap-1 hover:text-brand-700" href={`tel:${String(c.phone).replace(/\s/g, '')}`}><Phone className="h-3.5 w-3.5" />{String(c.phone)}</a> : null },
+                  { label: 'Phone', value: c.phone ? <a className="inline-flex items-center gap-1 hover:text-brand-700" href={telHref(String(c.phone))}><Phone className="h-3.5 w-3.5" />{formatPhone(c.phone)}</a> : null },
                   { label: 'Office', value: [c.address, c.city].filter(Boolean).join(', ') || null },
                   ...(c.description ? [{ label: 'About', value: String(c.description), full: true }] : []),
                   ...(c.notes ? [{ label: 'Internal notes', value: <span className="whitespace-pre-line">{String(c.notes)}</span>, full: true }] : []),

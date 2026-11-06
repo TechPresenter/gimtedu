@@ -18,6 +18,8 @@ import { routes as cms } from '@/modules/cms/routes';
 import { routes as reports } from '@/modules/reports/routes';
 import { routes as chatbot } from '@/modules/chatbot/routes';
 import { routes as portal } from '@/modules/portal/routes';
+import { routes as redirects } from '@/modules/redirects/routes';
+import { routes as whatsapp } from '@/modules/whatsapp/routes';
 
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'));
 const ForgotPasswordPage = lazy(() => import('@/pages/auth/ForgotPasswordPage'));
@@ -25,7 +27,7 @@ const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'));
 const NotFound = lazy(() => import('@/components/layout/NotFound'));
 
 const appRoutes: RouteObject[] = [
-  ...dashboard, ...system, ...students, ...faculty, ...academics, ...admissions, ...attendance, ...fees, ...exams, ...campus, ...career, ...communication, ...cms, ...reports, ...chatbot, ...portal,
+  ...dashboard, ...system, ...students, ...faculty, ...academics, ...admissions, ...attendance, ...fees, ...exams, ...campus, ...career, ...communication, ...cms, ...reports, ...chatbot, ...portal, ...redirects, ...whatsapp,
   { path: '*', element: <NotFound /> },
 ];
 

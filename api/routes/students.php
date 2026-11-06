@@ -305,6 +305,7 @@ route('POST', '/students/{id:\d+}/status', function ($p) {
     }
     $name = students_full_name($s);
     log_activity('status', 'students', $s['id'], 'Changed status of ' . $name . ' (' . $s['student_uid'] . ') from ' . $s['status'] . ' to ' . $in['status'] . ($in['reason'] ? ' — ' . $in['reason'] : ''));
+    try { require_once APP_ROOT . '/app/whatsapp_hook.php'; gimt_wa_event(gimt_wa_student_status_codes((string) $s['status'], (string) $in['status']), ['student_id' => (int) $s['id'], 'old_status' => $s['status'], 'new_status' => $in['status'], 'status_label' => students_status_options()[$in['status']] ?? $in['status'], 'reason' => (string) ($in['reason'] ?? '')], ['dedupe_key' => 'st:' . $s['id'] . ':' . $in['status'] . ':' . date('YmdHi'), 'source' => 'admin']); } catch (\Throwable $waE) { error_log('[GIMT] WhatsApp hook: ' . $waE->getMessage()); }
     $label = students_status_options()[$in['status']];
     api_ok(['id' => (int) $s['id'], 'status' => $in['status']], $in['status'] === 'active' ? "$name has been re-activated." : "$name marked as " . strtolower($label) . '.');
 });

@@ -50,7 +50,7 @@ export default function ProfilePage() {
           {(error as ApiError).message}
         </Alert>
       ) : isLoading || !data ? (
-        <div className="grid gap-6 lg:grid-cols-12">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           <div className="lg:col-span-4">
             <CardSkeleton lines={10} />
           </div>
@@ -60,7 +60,7 @@ export default function ProfilePage() {
           </div>
         </div>
       ) : (
-        <div className="grid items-start gap-6 lg:grid-cols-12">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
           <Reveal className="lg:sticky lg:top-20 lg:col-span-4">
             <ProfileCard data={data} onUpdated={onUpdated} />
           </Reveal>

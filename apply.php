@@ -1,16 +1,23 @@
 <?php
 /**
- * Online application (/apply) — multi-step React island ApplyWizard (frontend/site/islands/ApplyWizard.tsx) that posts
- * to /api/public/apply, with a complete server-rendered form as the no-JS / fallback path (POSTs here).
+ * Online application (/apply) — one clean single-page form (sf_apply_classic_form(), multipart POST here, server-side
+ * validation with inline errors). The multi-step React island ApplyWizard (frontend/site/islands/ApplyWizard.tsx →
+ * /api/public/apply) is still available at /apply?wizard=1.
  *
  *   /apply?program=<slug|id>         preselect a program
- *   /apply?classic=1                 single-page form without the wizard
+ *   /apply?wizard=1                  step-by-step wizard instead of the single page
  *   /apply?ack=<application_no>&t=…  printable acknowledgement (token = HMAC, see pf_ack_token())
  */
 require __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/partials/site_forms.php';
 
 $programs = pf_programs();
+
+/** Add the one-time form token (timing check + duplicate protection, see pf_form_token()) to the server-rendered form. */
+function apply_with_token(string $html): string
+{
+    return (string) preg_replace('/(<input type="hidden" name="_csrf"[^>]*>)/', '$1<input type="hidden" name="_ft" value="' . e(pf_form_token()) . '">', $html, 1);
+}
 $initial = pf_find_program((string) ($_GET['program'] ?? ''));
 $c = sf_contact();
 $session = sf_session_name();
@@ -44,7 +51,7 @@ if (isset($_GET['ack'])) {
       <?php endif; ?>
     <?= section_close() ?>
     <?php
-    site_footer(['cta' => false]);
+    site_footer(site_form_page_footer());
     return;
 }
 
@@ -60,8 +67,14 @@ if (is_post()) {
         $classicMessage = 'Your session expired before the form was submitted. Please attach your documents and submit again.';
     } else {
         try {
-            pf_guard('apply', $_POST, 20, 3600);
-            $res = pf_submit_application($_POST, $_FILES);
+            // E.164 phones (+ "<field>_country"), one-time form token (a resubmitted form goes to the first acknowledgement)
+            $in = pf_prepare_input($_POST);
+            if (($replay = pf_token_replay($in)) && !empty($replay['data']['ack_url'])) {
+                redirect($replay['data']['ack_url'] . '&new=1', 303);
+            }
+            pf_guard('apply', $in, 20, 3600);
+            $res = pf_submit_application($in, $_FILES);
+            pf_token_consume($in, $res);
             redirect($res['data']['ack_url'] . '&new=1', 303);
         } catch (PublicFormException $e) {
             $classicMessage = $e->getMessage();
@@ -73,33 +86,31 @@ if (is_post()) {
             }
         }
     }
-    $initial = $initial ?? pf_find_program((string) ($_POST['program_id'] ?? ''));
+    $initial = $initial ?? pf_find_program(is_string($_POST['program_id'] ?? null) ? $_POST['program_id'] : '');
 }
-$classic = !empty($_GET['classic']) || is_post();
+// one single-page form by default; the step-by-step ApplyWizard stays available at /apply?wizard=1
+$classic = empty($_GET['wizard']) || is_post();
 $open = sf_admissions_open();
 
 $title = $initial ? 'Apply for ' . $initial['short_name'] . ' — Admissions ' . $session : 'Apply Online — Admissions ' . $session;
-$heroImage = 'assets/images/site/students-laptop.jpg';
 site_header([
     'title' => $title,
-    'description' => 'Apply online to Global Institute of Management & Technology (GIMT), Greater Noida for the ' . $session . ' session. Simple 7-step application, secure document upload, instant application number and no application fee.',
+    'description' => 'Apply online to Global Institute of Management & Technology (GIMT), Noida for the ' . $session . ' session. Simple 7-step application, secure document upload, instant application number and no application fee.',
     'active' => 'admissions', 'seo' => ['route', '/apply'], 'canonical' => absolute_url('apply'),
-    'preload' => [asset($heroImage)],
+    'announce' => false, 'loader' => false,
     'schema' => [sf_breadcrumb_schema(['Home' => '', 'Admissions' => 'admissions', 'Apply Online' => 'apply'])],
 ]);
 
-page_hero(
-    $initial ? 'Apply for ' . $initial['short_name'] : 'Apply Online',
-    'Admissions ' . $session,
+// form page: quiet header, the application is the only focus
+site_form_page_hero(
+    ($initial ? 'Apply for ' . $initial['short_name'] : 'Apply Online') . ' — Admissions ' . $session,
+    'One simple form — fill in your details, attach your documents and submit. It takes about 10 minutes.',
     ['Admissions' => '/admissions', 'Apply Online'],
-    $heroImage,
-    'Complete your application in about 10 minutes. Save your progress as you go, upload documents securely and get your application number instantly.',
-    [['icon' => 'clock', 'label' => 'About 10 minutes'], ['icon' => 'shield-check', 'label' => 'Secure document upload'], ['icon' => 'badge-check', 'label' => 'Instant application number'], ['icon' => 'wallet', 'label' => 'No application fee']],
-    ['eyebrow' => (string) setting('admissions_open_text', 'Admissions Open for ' . $session), 'image_alt' => 'Students working together on a laptop', 'script' => 'Learn Grow Innovate Succeed']
+    [['clock', 'About 10 minutes'], ['shield-check', 'Secure document upload'], ['badge-check', 'Instant application number'], ['wallet', 'No application fee']]
 );
 ?>
 
-<?= section_open(['id' => 'application', 'bg' => 'brand-soft', 'label' => 'Online application form', 'class' => 'scroll-mt-24']) ?>
+<?= section_open(['id' => 'application', 'bg' => 'light', 'label' => 'Online application form', 'class' => 'scroll-mt-24 !pt-8 sm:!pt-10']) ?>
   <?php if (!$programs): ?>
     <div class="mx-auto max-w-xl rounded-3xl border border-slate-100 bg-white p-8 text-center shadow-soft">
       <span class="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-800"><?= icon('graduation-cap', 'h-7 w-7') ?></span>
@@ -116,39 +127,21 @@ page_hero(
     </div>
   <?php elseif ($classic): ?>
     <div class="mx-auto max-w-4xl">
-      <div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p class="eyebrow mb-1">Single-page form</p>
-          <h2 class="font-display text-2xl font-extrabold text-brand-900">Application for Admission <?= e($session) ?></h2>
-        </div>
-        <a href="<?= e(site_url('apply' . ($initial ? '?program=' . rawurlencode($initial['slug']) : ''))) ?>" class="link-arrow">Use the step-by-step form<?= icon('arrow-right', 'h-4 w-4') ?></a>
+      <div class="mb-5 flex flex-col gap-2 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <p>Fields marked <span class="form-required">*</span> are required.</p>
+        <p>Need help? Call <a href="<?= e(sf_tel($c['phone'])) ?>" class="font-semibold text-brand-900 hover:text-accent-700"><?= e($c['phone']) ?></a><?= $c['whatsapp_url'] ? ' or <a href="' . e($c['whatsapp_url']) . '" target="_blank" rel="noopener" class="font-semibold text-brand-900 hover:text-accent-700">chat on WhatsApp<span class="sr-only"> (opens WhatsApp)</span></a>' : '' ?></p>
       </div>
-      <?= sf_apply_classic_form($programs, $initial, $old, $classicErrors, $classicMessage, true) ?>
+      <?= apply_with_token(sf_apply_classic_form($programs, $initial, $old, $classicErrors, $classicMessage, true)) ?>
     </div>
   <?php else: ?>
-    <?= island('ApplyWizard', sf_apply_props($programs, $initial), sf_apply_skeleton(count($programs)) . sf_apply_classic_form($programs, $initial), ['eager' => true, 'class' => 'block']) ?>
+    <?= island('ApplyWizard', sf_apply_props($programs, $initial) + ['security' => ['token' => pf_form_token(), 'captcha' => pf_captcha_public()]], sf_apply_skeleton(count($programs)) . apply_with_token(sf_apply_classic_form($programs, $initial)), ['eager' => true, 'class' => 'block']) ?>
   <?php endif; ?>
 <?= section_close() ?>
 
-<?= section_open(['bg' => 'white', 'padding' => 'tight', 'label' => 'Why apply online']) ?>
-  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-stagger="70">
-    <?= feature_tile('shield-check', 'Secure & Private', 'Documents are stored privately and used only for admission verification.', ['variant' => 'compact', 'tint' => 'green']) ?>
-    <?= feature_tile('save', 'Save & Continue', 'Your progress is saved on this device — finish whenever you are ready.', ['variant' => 'compact', 'tint' => 'blue']) ?>
-    <?= feature_tile('mail-check', 'Instant Acknowledgement', 'Get your application number on screen and by email immediately.', ['variant' => 'compact', 'tint' => 'violet']) ?>
-    <?= feature_tile('messages-square', 'Counsellor Support', 'Call ' . $c['phone'] . ' — ' . $c['hours'] . '.', ['variant' => 'compact', 'tint' => 'amber']) ?>
-  </div>
-<?= section_close() ?>
-
 <?php $applyFaqs = sf_faqs(['admissions', 'fees'], sf_admission_faq_defaults(), 8); ?>
-<?= section_open(['id' => 'faq', 'bg' => 'light']) ?>
-  <?= section_heading('Application FAQs', 'Answers to the questions applicants ask most often.', 'Need help?', 'left', '<a href="' . e(site_url('admissions#faq')) . '" class="link-arrow">Admissions FAQs' . icon('arrow-right', 'h-4 w-4') . '</a>') ?>
+<?= section_open(['id' => 'faq', 'bg' => 'white']) ?>
+  <?= section_heading('Application FAQs', 'Answers to the questions applicants ask most often.', '', 'left', '<a href="' . e(site_url('admissions#faq')) . '" class="link-arrow">Admissions FAQs' . icon('arrow-right', 'h-4 w-4') . '</a>') ?>
   <?= faq_accordion(array_slice($applyFaqs, 0, 6), ['columns' => 2, 'defaultOpen' => -1]) ?>
 <?= section_close() ?>
 
-<?php site_footer([
-    'cta_title' => 'Questions About Your Application?',
-    'cta_text' => 'Our admission counsellors are here to help — ' . $c['hours'] . '.',
-    'cta_primary' => ['label' => 'Talk to a Counsellor', 'url' => '/admissions#enquiry'],
-    'cta_secondary' => ['label' => 'Call ' . $c['phone'], 'url' => sf_tel($c['phone']), 'icon' => 'phone'],
-    'cta_image' => 'assets/images/site/students-atrium.jpg',
-]);
+<?php site_footer(site_form_page_footer());

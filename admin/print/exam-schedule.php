@@ -21,8 +21,8 @@ foreach (['from', 'to'] as $k) {
         $q[$k] = $v;
     }
 }
-if (trim((string) input('q', '')) !== '') {
-    $q['q'] = trim((string) input('q'));
+if (trim(api_str(input('q'))) !== '') {
+    $q['q'] = trim(api_str(input('q')));
 }
 if (!isset($q['session_id']) && !isset($q['exam_id'])) {
     $q['session_id'] = current_session_id();

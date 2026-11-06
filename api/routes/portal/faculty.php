@@ -14,6 +14,7 @@
  *   GET  /portal/faculty/attendance/day?date=                     my periods on a date + register status + class picker
  *   GET  /portal/faculty/attendance/sheet?date&section_id&subject_id&time_slot_id   roster + marks of one period
  *   POST /portal/faculty/attendance/sheet                         {date, section_id, subject_id, time_slot_id?, remarks?, records: [{student_id, status, remarks?}]}
+ *   GET  /portal/faculty/attendance/pending?days=8                held periods without a register + today's register status
  *   GET  /portal/faculty/attendance/history?section_id&subject_id&from&to&page   registers of my classes
  *   GET  /portal/faculty/attendance/me?month=Y-m                  my own (employee) attendance calendar
  *   GET  /portal/faculty/marks                                    exams with my papers + progress for my sections
@@ -52,7 +53,7 @@ function pfac_route(string $method, string $pattern, callable $handler): void
 /* ---------------------------------------------------------------- Timetable + classes */
 
 pfac_route('GET', '/timetable', function (array $me) {
-    api_ok(pfac_timetable($me['faculty_id'], isset($_GET['week']) ? (string) $_GET['week'] : null));
+    api_ok(pfac_timetable($me['faculty_id'], isset($_GET['week']) ? api_str($_GET['week']) : null));
 });
 
 pfac_route('GET', '/classes', function (array $me) {
@@ -66,11 +67,11 @@ pfac_route('GET', '/classes/{section:\d+}/{subject:\d+}', function (array $me, a
 /* ---------------------------------------------------------------- Class attendance */
 
 pfac_route('GET', '/attendance/day', function (array $me) {
-    api_ok(pfac_attendance_day($me['faculty_id'], (string) ($_GET['date'] ?? date('Y-m-d'))));
+    api_ok(pfac_attendance_day($me['faculty_id'], api_str($_GET['date'] ?? null, date('Y-m-d'))));
 });
 
 pfac_route('GET', '/attendance/sheet', function (array $me) {
-    $date = (string) ($_GET['date'] ?? '');
+    $date = api_str($_GET['date'] ?? null);
     $section = (int) ($_GET['section_id'] ?? 0);
     $subject = (int) ($_GET['subject_id'] ?? 0);
     if (!$section || !$subject) {
@@ -90,12 +91,17 @@ pfac_route('POST', '/attendance/sheet', function (array $me) {
     api_ok($res, $msg);
 });
 
+pfac_route('GET', '/attendance/pending', function (array $me) {
+    // default window = the days a register may still be marked (Settings > Academic > attendance_edit_days, + today)
+    api_ok(pfac_register_status($me['faculty_id'], isset($_GET['days']) ? (int) api_str($_GET['days']) : pfac_edit_days() + 1));
+});
+
 pfac_route('GET', '/attendance/history', function (array $me) {
     api_ok(pfac_attendance_history($me['faculty_id'], $_GET));
 });
 
 pfac_route('GET', '/attendance/me', function (array $me) {
-    api_ok(pfac_my_attendance($me['faculty_id'], (string) ($_GET['month'] ?? date('Y-m'))));
+    api_ok(pfac_my_attendance($me['faculty_id'], api_str($_GET['month'] ?? null, date('Y-m'))));
 });
 
 /* ---------------------------------------------------------------- Marks entry */

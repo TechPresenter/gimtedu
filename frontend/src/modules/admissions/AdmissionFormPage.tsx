@@ -259,15 +259,15 @@ export default function AdmissionFormPage() {
       )}
 
       {state.loading || !meta || waitingPrefill ? (
-        <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[240px_1fr]">
           <Skeleton className="hidden h-96 lg:block" />
           <div className="space-y-6">
-            <Card className="p-5"><Skeleton className="mb-4 h-5 w-48" /><div className="grid gap-4 sm:grid-cols-3">{Array.from({ length: 9 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div></Card>
+            <Card className="p-5"><Skeleton className="mb-4 h-5 w-48" /><div className="grid grid-cols-1 gap-4 sm:grid-cols-3">{Array.from({ length: 9 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div></Card>
             <PageLoader label="Loading form…" />
           </div>
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[240px_1fr]">
           {/* Section navigation */}
           <aside className="hidden lg:block">
             <div className="sticky top-20 space-y-4">
@@ -332,7 +332,7 @@ export default function AdmissionFormPage() {
                 {!formMeta ? (
                   <Skeleton className="h-40" />
                 ) : (
-                  <ul className="grid gap-3 md:grid-cols-2">
+                  <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     {formMeta.doc_types.map((d) => {
                       const ex = existing?.documents.filter((x) => x.doc_type === d.value) ?? [];
                       const verified = ex.some((x) => x.status === 'verified');

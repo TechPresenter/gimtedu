@@ -22,13 +22,22 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const sizeClass: Record<ButtonSize, string> = { xs: 'btn-xs', sm: 'btn-sm', md: '', lg: 'btn-lg' };
+// Written out literally so Tailwind keeps every variant class (it cannot see dynamically built names such as `btn-${v}`).
+const variantClass: Record<ButtonVariant, string> = {
+  primary: 'btn-primary',
+  secondary: 'btn-secondary',
+  success: 'btn-success',
+  danger: 'btn-danger',
+  ghost: 'btn-ghost',
+  soft: 'btn-soft',
+};
 const iconSize: Record<ButtonSize, string> = { xs: 'h-3.5 w-3.5', sm: 'h-4 w-4', md: 'h-4 w-4', lg: 'h-5 w-5' };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'primary', size = 'md', loading, icon: Icon, iconRight: IconRight, to, href, target, className, children, disabled, type = 'button', ...rest },
   ref,
 ) {
-  const cls = clsx('btn', `btn-${variant}`, sizeClass[size], className);
+  const cls = clsx('btn', variantClass[variant] ?? variantClass.primary, sizeClass[size], className);
   const content = (
     <>
       {loading ? <Spinner className={iconSize[size]} /> : Icon ? <Icon className={iconSize[size]} aria-hidden /> : null}

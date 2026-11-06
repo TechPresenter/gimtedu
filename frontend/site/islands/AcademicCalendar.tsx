@@ -189,7 +189,7 @@ export default function AcademicCalendar({ session, today, items, types, fullUrl
             </div>
           </div>
           <div ref={gridRef} role="grid" aria-labelledby="ac-month" className="mt-4">
-            <div role="row" className="grid grid-cols-7 text-center text-[11.5px] font-bold uppercase tracking-wider text-slate-400">
+            <div role="row" className="grid grid-cols-7 text-center text-[11.5px] font-bold uppercase tracking-wider text-slate-500">
               {WEEKDAYS.map((d) => (
                 <span key={d} role="columnheader" aria-label={d} className="py-1">
                   {d.slice(0, 3)}
@@ -268,7 +268,7 @@ export default function AcademicCalendar({ session, today, items, types, fullUrl
               <li key={it.id} className="flex items-start gap-3 rounded-2xl border border-warm-2 p-3">
                 <span className="w-11 shrink-0 text-center">
                   <span className="block font-display text-lg font-extrabold leading-none text-brand-900">{it.start.slice(8)}</span>
-                  <span className="text-[10.5px] font-bold uppercase text-slate-400">{MONTHS[parseInt(it.start.slice(5, 7), 10) - 1].slice(0, 3)}</span>
+                  <span className="text-[10.5px] font-bold uppercase text-slate-500">{MONTHS[parseInt(it.start.slice(5, 7), 10) - 1].slice(0, 3)}</span>
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[14px] font-semibold leading-snug text-brand-900">
@@ -283,7 +283,7 @@ export default function AcademicCalendar({ session, today, items, types, fullUrl
                   <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-slate-500">
                     <span className={clsx('rounded-full px-2 py-0.5 text-[11px] font-bold', CHIP[it.type])}>{types[it.type]}</span>
                     {range(it)}
-                    {it.meta ? <span className="text-slate-400">· {it.meta}</span> : null}
+                    {it.meta ? <span className="text-slate-500">· {it.meta}</span> : null}
                   </span>
                 </span>
               </li>

@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useStaticMode } from '../lib/hooks';
 import type { IslandBaseProps } from '../lib/types';
 import { inr, openEnquiry, type Option } from './home/shared';
+import { GoldMark } from '../lib/GoldMark';
 
 interface Rules {
   minPct?: number;
@@ -210,7 +211,9 @@ export default function ScholarshipAssistant({
         </p>
         {maxPercent ? (
           <div className="mt-6 flex items-end gap-3">
-            <p className="font-display text-[2.6rem] font-extrabold leading-none text-white">{maxPercent}%</p>
+            <p className="font-display text-[2.6rem] font-extrabold leading-none text-white">
+              <GoldMark text={`${maxPercent}%`} tall />
+            </p>
             <p className="pb-1 text-[14px] leading-snug text-white/70">highest merit scholarship on tuition</p>
           </div>
         ) : null}

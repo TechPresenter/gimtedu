@@ -13,7 +13,7 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { useApi, useInvalidate, useLookup } from '@/lib/queries';
 import { printUrl } from '@/lib/config';
-import { formatDate, formatDateTime, formatMoney, timeAgo, toNumber } from '@/lib/format';
+import { formatDate, formatDateTime, formatMoney, telHref, timeAgo, toNumber, whatsappHref } from '@/lib/format';
 import { DueChip, PIPELINE, STAGE_TONE, StageBadge, StageMoveModal, sourceLabel, stageLabel, type MoveRequest } from './shared';
 import { OverviewTab } from './view/OverviewTab';
 import { DocumentsTab } from './view/DocumentsTab';
@@ -73,7 +73,7 @@ export default function AdmissionViewPage() {
       <Reveal>
         <PipelineCard data={data} onTab={setTab} />
       </Reveal>
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="min-w-0 lg:col-span-2">
           <Tabs
             className="mb-5"
@@ -298,8 +298,8 @@ function PipelineCard({ data, onTab }: { data: AdmissionProfile; onTab: (t: stri
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400">{Number(a.days_in_stage)} day{Number(a.days_in_stage) === 1 ? '' : 's'} in {stageLabel(stage).toLowerCase()}</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {a.phone && <a href={`tel:${String(a.phone).replace(/\s/g, '')}`} className="btn btn-secondary btn-xs" aria-label="Call applicant"><Phone className="h-3.5 w-3.5" />Call</a>}
-              {a.whatsapp && <a href={`https://wa.me/${String(a.whatsapp).replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-xs" aria-label="WhatsApp applicant"><MessageCircle className="h-3.5 w-3.5" />WhatsApp</a>}
+              {a.phone && <a href={telHref(String(a.phone))} className="btn btn-secondary btn-xs" aria-label="Call applicant"><Phone className="h-3.5 w-3.5" />Call</a>}
+              {a.whatsapp && <a href={whatsappHref(a.whatsapp)} target="_blank" rel="noreferrer" className="btn btn-secondary btn-xs" aria-label="WhatsApp applicant"><MessageCircle className="h-3.5 w-3.5" />WhatsApp</a>}
               {a.email && <a href={`mailto:${a.email}`} className="btn btn-secondary btn-xs" aria-label="Email applicant"><Mail className="h-3.5 w-3.5" />Email</a>}
             </div>
           </div>
@@ -509,7 +509,7 @@ function ProfileSkeleton() {
         </div>
         <Skeleton className="mt-5 h-10 w-full" />
       </Card>
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2"><CardSkeleton lines={6} /><CardSkeleton lines={4} /></div>
         <CardSkeleton lines={6} />
       </div>

@@ -91,7 +91,7 @@ function ExpensesTab() {
             ]}
           </Stagger>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-12">
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
             <Reveal className="lg:col-span-8">
               <Card className="h-full">
                 <CardHeader title="Monthly spend vs fee income" subtitle="Approved & paid expenses against fee collection" icon={TrendingUp} />
@@ -120,13 +120,13 @@ function ExpensesTab() {
             </Reveal>
           </div>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-12">
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
             <Reveal className="lg:col-span-8">
               <Card className="h-full">
                 <CardHeader title="Budget utilisation" subtitle="Session spend against each category's annual budget" icon={FolderTree} />
                 <div className="card-body">
                   {isLoading || !data ? <CardSkeleton lines={6} /> : (
-                    <ul className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+                    <ul className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
                       {data.categories.map((c, i) => {
                         const u = c.utilization ?? 0;
                         return (
@@ -311,7 +311,7 @@ function PayExpenseModal({ row, onClose, onDone }: { row: Row | null; onClose: (
         </>
       }
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field htmlFor="exp-paid-via" label="Paid via" required error={errors.payment_mode}>
           <Select id="exp-paid-via" value={values.payment_mode} onChange={(e) => set('payment_mode', e.target.value)} options={modes} />
         </Field>

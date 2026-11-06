@@ -213,20 +213,23 @@ function sa_leaders(): array
     return $people;
 }
 
-/** Approvals & affiliations (setting approvals_json = [{title, subtitle, icon}] overrides). Generic emblems only. */
+/** Approvals & affiliations (setting approvals_json = [{title, subtitle, icon}] overrides). Generic emblems only, verified data only. */
 function sa_approvals(): array
 {
     $json = json_decode((string) setting('approvals_json', ''), true);
     if (is_array($json) && $json) {
         return array_values(array_filter(array_map(fn ($a) => is_array($a) && !empty($a['title']) ? ['title' => (string) $a['title'], 'subtitle' => (string) ($a['subtitle'] ?? ''), 'icon' => (string) ($a['icon'] ?? 'badge-check')] : null, $json)));
     }
-    return [
-        ['title' => 'AICTE', 'subtitle' => 'Approved', 'icon' => 'cog'],
-        ['title' => 'UGC', 'subtitle' => 'Recognized', 'icon' => 'landmark'],
-        ['title' => 'NAAC', 'subtitle' => 'Accredited', 'icon' => 'award'],
-        ['title' => 'Affiliated to', 'subtitle' => 'State University', 'icon' => 'university'],
-        ['title' => 'ISO 9001:2015', 'subtitle' => 'Certified', 'icon' => 'shield-check'],
-    ];
+    // Otherwise the verified list every other page uses (Settings › approvals_list, else the `affiliation` text —
+    // site_approvals()). No built-in defaults: approvals / accreditations are claims GIMT must confirm.
+    $icons = ['pillars' => 'landmark', 'seal' => 'badge-check', 'shield' => 'shield-check', 'laurel' => 'award', 'globe' => 'globe', 'book' => 'book-open', 'medal' => 'medal'];
+    $out = [];
+    foreach (site_approvals() as $a) {
+        $label = (string) $a['label'];
+        $rest = trim((string) preg_replace('/\s+/u', ' ', str_ireplace($label, '', (string) $a['title'])), " -–—:,");
+        $out[] = ['title' => $label, 'subtitle' => $rest !== '' && $rest !== $label ? $rest : (string) $a['text'], 'icon' => $icons[$a['icon']] ?? 'badge-check'];
+    }
+    return $out;
 }
 
 /** Generic emblem (concentric rings + icon) for an approval / affiliation. */
@@ -273,7 +276,8 @@ function sa_counts(): array
         'alumni' => $int('SELECT COUNT(*) FROM alumni'),
         'classrooms' => $int("SELECT COUNT(*) FROM classrooms WHERE status = 'active' AND type = 'classroom'"),
         'labs' => $int("SELECT COUNT(*) FROM classrooms WHERE status = 'active' AND type = 'lab'"),
-        'satisfaction' => (float) setting('student_satisfaction', 95),
+        // only a figure GIMT entered (Settings › Website › Student satisfaction, from its own survey) — never a default
+        'satisfaction' => is_numeric($sat = setting('student_satisfaction')) && (float) $sat > 0 && (float) $sat <= 100 ? (float) $sat : null,
         'established' => (int) setting('established_year', 2008),
     ];
     return $c;
@@ -373,7 +377,7 @@ function sa_brochure_url(?array $p = null): string
 /** Program options for enquiry selects. */
 function sa_program_options(): array
 {
-    return array_map(fn ($p) => ['value' => (string) $p['id'], 'label' => $p['name'] . (program_title_suffix($p) !== '' ? ' (' . program_title_suffix($p) . ')' : '')], sa_programs());
+    return site_program_select_options(sa_programs(), true);
 }
 
 /**
@@ -385,7 +389,58 @@ function sa_program_card(array $p, array $o = []): string
     if (strcasecmp(trim((string) ($p['category'] ?? '')), program_level_label($p['level'] ?? '')) === 0) {
         $p['category'] = '';
     }
-    return program_card($p, $o);
+    $html = program_card($p, $o);
+    // 'extra' (programs listing): facts shown only in the Detailed view mode (.vm-extra, hidden in the other modes)
+    if (!empty($o['extra'])) {
+        $facts = [];
+        if (trim((string) ($p['eligibility'] ?? '')) !== '') {
+            $facts[] = ['Eligibility', str_limit(strip_tags((string) $p['eligibility']), 150)];
+        }
+        if ((int) ($p['intake_capacity'] ?? 0) > 0) {
+            $facts[] = ['Intake', (int) $p['intake_capacity'] . ' seats'];
+        }
+        $structure = array_filter([(int) ($p['total_semesters'] ?? 0) > 0 ? (int) $p['total_semesters'] . ' semesters' : '', (int) ($p['total_credits'] ?? 0) > 0 ? (int) $p['total_credits'] . ' credits' : '']);
+        if ($structure) {
+            $facts[] = ['Structure', implode(' · ', $structure)];
+        }
+        if (!empty($p['department_name'])) {
+            $facts[] = ['Department', (string) $p['department_name']];
+        }
+        $careers = array_slice(sa_lines($p['career_prospects'] ?? ''), 0, 4);
+        if ($facts || $careers) {
+            $extra = '<div class="vm-extra program-extra">';
+            if ($facts) {
+                $extra .= '<dl class="program-extra-facts">';
+                foreach ($facts as [$label, $value]) {
+                    $extra .= '<div' . ($label === 'Eligibility' ? ' class="sm:col-span-2"' : '') . '><dt>' . e($label) . '</dt><dd>' . e($value) . '</dd></div>';
+                }
+                $extra .= '</dl>';
+            }
+            if ($careers) {
+                $extra .= '<p class="program-extra-label">Career paths</p><ul class="program-extra-careers">' . implode('', array_map(fn ($c) => '<li>' . e($c) . '</li>', $careers)) . '</ul>';
+            }
+            $extra .= '</div>';
+            $pos = strpos($html, '<div class="program-card-actions">');
+            $html = $pos === false ? $html : substr_replace($html, $extra, $pos, 0);
+        }
+    }
+    return $html;
+}
+
+/**
+ * View-mode scope for listings whose cards are not .view-item (program explorer, faculty directory): the attributes
+ * core/viewmode.ts switches (data-view + data-view-key, same key as view_mode_toggle()) plus the inline bootstrap that
+ * applies the visitor's saved mode before the children are parsed (no layout shift). Put the script first inside it.
+ *   <div class="program-views"<?= sa_view_scope_attrs('programs') ?>><?= sa_view_scope_script('programs') ?> …
+ */
+function sa_view_scope_attrs(string $key, ?string $default = null): string
+{
+    return ' data-view="' . e($default ?? view_mode_default($key)) . '" data-view-key="' . e($key) . '"';
+}
+
+function sa_view_scope_script(string $key): string
+{
+    return '<script' . site_nonce_attr() . '>(function(e){try{var v=localStorage.getItem(' . js_json('gimt.view.' . $key) . ');if(/^(grid|list|compact|detailed)$/.test(v||""))e.setAttribute("data-view",v)}catch(x){}})(document.currentScript.parentNode)</script>';
 }
 
 /**
@@ -396,14 +451,14 @@ function sa_program_card(array $p, array $o = []): string
  */
 function sa_program_explorer(array $programs, array $props = []): string
 {
-    $props += ['categories' => sa_program_categories(), 'layout' => 'tiles', 'search' => true, 'syncParam' => 'category',
+    $props += ['categories' => sa_program_categories(), 'layout' => 'tiles', 'search' => true, 'syncParam' => 'category', 'searchParam' => 'q',
         'gridClass' => 'sm:grid-cols-2 xl:grid-cols-3', 'searchPlaceholder' => 'Search programs, e.g. MBA',
         'emptyText' => 'No programs match your selection — try another category or search term.'];
     $initial = $props['initial'] ?? 'all';
     $tiles = '';
     foreach ($props['categories'] as $c) {
         $on = $c['key'] === $initial;
-        $href = site_url('programs' . ($c['key'] === 'all' ? '' : '?category=' . rawurlencode($c['key']))) . '#find';
+        $href = $c['href'] ?? site_url('programs' . ($c['key'] === 'all' ? '' : '?category=' . rawurlencode($c['key']))) . '#find';
         $tiles .= '<a href="' . e($href) . '" class="filter-tile' . ($on ? ' is-active' : '') . '"' . ($on ? ' aria-current="true"' : '') . '>'
             . '<span class="filter-tile-icon">' . icon($c['icon'], 'h-5 w-5') . '</span><span class="text-sm font-semibold">' . e($c['label']) . '</span></a>';
     }
@@ -413,13 +468,13 @@ function sa_program_explorer(array $programs, array $props = []): string
         $match = $initial === 'all' || in_array($initial, explode(' ', $tokens), true);
         $search = trim($p['name'] . ' ' . $p['short_name'] . ' ' . ($p['category'] ?? '') . ' ' . program_level_label($p['level'] ?? '') . ' ' . ($p['department_name'] ?? ''));
         // data-off (not a class: slot children are handed to the island as outerHTML) is hidden by the fallback grid only
-        $cards .= '<div class="h-full" data-key="' . e($p['slug']) . '" data-category="' . e($tokens) . '" data-search="' . e($search) . '"' . ($match ? '' : ' data-off') . '>' . sa_program_card($p) . '</div>';
+        $cards .= '<div class="h-full" data-key="' . e($p['slug']) . '" data-category="' . e($tokens) . '" data-search="' . e($search) . '"' . ($match ? '' : ' data-off') . '>' . sa_program_card($p, ['extra' => true]) . '</div>';
     }
     $searchField = $props['search']
         ? '<div class="flex items-center gap-3"><label class="search-field">' . icon('search', 'h-4 w-4 shrink-0 text-slate-400')
           . '<span class="sr-only">Search programs</span><input type="search" placeholder="' . e($props['searchPlaceholder']) . '" class="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0" disabled></label></div>'
         : '';
-    $fallback = '<div class="program-explorer"><div class="mb-8 flex flex-col gap-4"><div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8" role="toolbar" aria-label="Filter programs by category">' . $tiles . '</div>' . $searchField . '</div>'
+    $fallback = '<div class="program-explorer"><div class="mb-8 flex flex-col gap-4"><div class="' . e(program_tile_grid(count($props['categories']))) . '" role="toolbar" aria-label="Filter programs by category">' . $tiles . '</div>' . $searchField . '</div>'
         . '<div class="grid gap-6 ' . e($props['gridClass']) . ' [&>[data-off]]:hidden" data-slot="items">' . $cards . '</div></div>';
     return island('ProgramExplorer', $props, $fallback, ['eager' => true]);
 }
@@ -433,7 +488,7 @@ function sa_counselling_form(array $o = []): string
         ['name' => 'email', 'label' => 'Email Address', 'type' => 'email', 'required' => true, 'maxLength' => 190, 'autocomplete' => 'email'],
     ];
     if (empty($o['program_id'])) {
-        $fields[] = ['name' => 'program_id', 'label' => 'Program Interest', 'type' => 'select', 'placeholder' => 'Select Program Interest', 'options' => sa_program_options()];
+        $fields[] = ['name' => 'program_id', 'label' => $o['select_label'] ?? 'Program Interest', 'type' => 'select', 'placeholder' => $o['select_placeholder'] ?? 'Select Program Interest', 'options' => $o['options'] ?? sa_program_options()];
     }
     $hidden = ['source' => (string) ($o['source'] ?? 'website')];
     if (!empty($o['program_id'])) {
@@ -654,17 +709,21 @@ function sa_avatar(?string $photo, string $name, int $seed = 0, string $class = 
     return '<span class="' . e($class) . ' inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br ' . $grad . ' font-display font-extrabold text-white ring-4 ring-white" aria-hidden="true">' . e(initials($clean)) . '</span>';
 }
 
-/** Faculty card (directory / highlights). $o: modal (bool, adds the profile button + template), reveal. */
+/**
+ * Faculty card (directory / highlights). $o: modal (bool, adds the profile button + template), reveal, extra (bool:
+ * bio excerpt + research interests for the Detailed view mode — .vm-extra, hidden otherwise). Hooks for the faculty
+ * directory view modes: .fac-card > .fac-head (avatar + name) · .fac-facts (dl) · .vm-extra · .fac-actions.
+ */
 function sa_faculty_card(array $f, array $o = []): string
 {
     $name = sa_person_name($f);
     $exp = (float) ($f['experience_years'] ?? 0);
-    $html = '<article class="group relative flex h-full flex-col rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-brand-200 hover:shadow-card"' . (!empty($o['reveal']) ? reveal_attr('fade-up', (int) ($o['delay'] ?? 0)) : '') . '>'
-        . '<div class="flex items-start gap-4">' . sa_avatar($f['photo'] ?? null, $name, (int) $f['id'], 'h-16 w-16 text-lg shadow-soft')
+    $html = '<article class="fac-card group relative flex h-full flex-col rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-brand-200 hover:shadow-card"' . (!empty($o['reveal']) ? reveal_attr('fade-up', (int) ($o['delay'] ?? 0)) : '') . '>'
+        . '<div class="fac-head flex items-start gap-4">' . sa_avatar($f['photo'] ?? null, $name, (int) $f['id'], 'fac-avatar h-16 w-16 text-lg shadow-soft')
         . '<div class="min-w-0"><h3 class="font-display text-base font-bold leading-snug text-brand-900">' . e($name) . '</h3>'
         . '<p class="mt-0.5 text-sm font-medium text-accent-800">' . e($f['designation']) . '</p>'
         . (!empty($f['department_name']) ? '<p class="mt-1 text-xs text-slate-500">' . e($f['department_name']) . '</p>' : '') . '</div></div>'
-        . '<dl class="mt-4 space-y-2 text-[13px] text-slate-600">';
+        . '<dl class="fac-facts mt-4 space-y-2 text-[13px] text-slate-600">';
     if (!empty($f['qualification'])) {
         $html .= '<div class="flex gap-2"><dt class="sr-only">Qualification</dt>' . icon('graduation-cap', 'mt-0.5 h-4 w-4 shrink-0 text-brand-500') . '<dd>' . e($f['qualification']) . '</dd></div>';
     }
@@ -675,8 +734,19 @@ function sa_faculty_card(array $f, array $o = []): string
         $html .= '<div class="flex gap-2"><dt class="sr-only">Experience</dt>' . icon('briefcase', 'mt-0.5 h-4 w-4 shrink-0 text-brand-500') . '<dd>' . e(rtrim(rtrim(number_format($exp, 1), '0'), '.')) . '+ years experience</dd></div>';
     }
     $html .= '</dl>';
+    if (!empty($o['extra'])) {
+        $interests = array_slice(array_values(array_filter(array_map('trim', explode(',', (string) ($f['research_interests'] ?? ''))))), 0, 4);
+        $pubs = (int) ($f['publications_count'] ?? 0);
+        if (!empty($f['bio']) || $interests || $pubs > 0) {
+            $html .= '<div class="vm-extra fac-extra">'
+                . (!empty($f['bio']) ? '<p class="fac-bio">' . e(str_limit(trim(strip_tags((string) $f['bio'])), 230)) . '</p>' : '')
+                . ($interests ? '<ul class="fac-interests" aria-label="Research interests">' . implode('', array_map(fn ($r) => '<li>' . e(ucfirst($r)) . '</li>', $interests)) . '</ul>' : '')
+                . ($pubs > 0 ? '<p class="fac-pubs">' . icon('book-open', 'h-4 w-4') . $pubs . ' research publications</p>' : '')
+                . '</div>';
+        }
+    }
     if (!empty($o['modal'])) {
-        $html .= '<div class="mt-auto pt-5"><button type="button" class="btn btn-outline btn-sm w-full" data-modal-open="#faculty-profile" data-faculty-open="' . (int) $f['id'] . '">View Profile<span class="sr-only"> of ' . e($name) . '</span>' . icon('arrow-right', 'h-4 w-4') . '</button></div>'
+        $html .= '<div class="fac-actions mt-auto pt-5"><button type="button" class="btn btn-outline btn-sm w-full" data-modal-open="#faculty-profile" data-faculty-open="' . (int) $f['id'] . '">View Profile<span class="sr-only"> of ' . e($name) . '</span>' . icon('arrow-right', 'h-4 w-4') . '</button></div>'
             . '<template id="faculty-tpl-' . (int) $f['id'] . '">' . sa_faculty_profile($f) . '</template>';
     }
     return $html . '</article>';
@@ -707,15 +777,15 @@ function sa_faculty_profile(array $f): string
         $html .= '<dl class="mt-6 grid gap-3 sm:grid-cols-2">';
         foreach ($facts as [$ic, $label, $val]) {
             $html .= '<div class="flex gap-3 rounded-xl bg-slate-50 p-3 text-left"><span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-brand-700 shadow-sm">' . icon($ic, 'h-4 w-4') . '</span>'
-                . '<div><dt class="text-[11px] font-bold uppercase tracking-wider text-slate-400">' . e($label) . '</dt><dd class="text-sm font-medium text-slate-700">' . e($val) . '</dd></div></div>';
+                . '<div><dt class="text-[11px] font-bold uppercase tracking-wider text-slate-500">' . e($label) . '</dt><dd class="text-sm font-medium text-slate-700">' . e($val) . '</dd></div></div>';
         }
         $html .= '</dl>';
     }
     if (!empty($f['bio'])) {
-        $html .= '<div class="mt-6 text-left"><h3 class="font-sans text-xs font-bold uppercase tracking-wider text-slate-400">About</h3><p class="mt-2 text-sm leading-relaxed text-slate-600">' . nl2br(e(str_limit($f['bio'], 900))) . '</p></div>';
+        $html .= '<div class="mt-6 text-left"><h3 class="font-sans text-xs font-bold uppercase tracking-wider text-slate-500">About</h3><p class="mt-2 text-sm leading-relaxed text-slate-600">' . nl2br(e(str_limit($f['bio'], 900))) . '</p></div>';
     }
     if (!empty($f['research_interests'])) {
-        $html .= '<div class="mt-5 text-left"><h3 class="font-sans text-xs font-bold uppercase tracking-wider text-slate-400">Research interests</h3><ul class="mt-2 flex flex-wrap gap-2">';
+        $html .= '<div class="mt-5 text-left"><h3 class="font-sans text-xs font-bold uppercase tracking-wider text-slate-500">Research interests</h3><ul class="mt-2 flex flex-wrap gap-2">';
         foreach (array_filter(array_map('trim', explode(',', $f['research_interests']))) as $r) {
             $html .= '<li class="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-800">' . e(ucfirst($r)) . '</li>';
         }
@@ -780,7 +850,7 @@ function sa_bundled_photos(): array
 {
     $p = fn ($file, $alt, $caption, $cat) => ['src' => asset('assets/images/site/' . $file), 'alt' => $alt, 'caption' => $caption, 'category' => $cat];
     return [
-        $p('campus-main.jpg', 'GIMT main campus building in Knowledge Park, Greater Noida', 'Main Campus', 'Campus'),
+        $p('campus-main.jpg', 'GIMT main campus building in Sector 18, Noida', 'Main Campus', 'Campus'),
         $p('facility-classroom.jpg', 'Smart classroom with interactive displays', 'Smart Classrooms', 'Facilities'),
         $p('facility-labs.jpg', 'Students working in the computer laboratory', 'Advanced Laboratories', 'Facilities'),
         $p('campus-library.jpg', 'Library and learning centre reading hall', 'Library & Learning Centre', 'Facilities'),
@@ -1053,7 +1123,7 @@ function sa_calendar_list(array $entries, string $empty = 'No entries in this pe
             $past = ($en['end'] ?: $en['date']) < $today;
             [$cls, $label] = $badge[$en['kind']] ?? $badge['event'];
             $range = $en['end'] && $en['end'] !== $en['date'] ? date('d M', $ts) . ' – ' . date('d M', strtotime($en['end'])) : date('D, d M', $ts);
-            $html .= '<li class="flex items-start gap-3 py-3' . ($past ? ' opacity-60' : '') . '"><span class="w-12 shrink-0 text-center"><span class="block font-display text-xl font-extrabold leading-none text-brand-900">' . date('d', $ts) . '</span><span class="text-[11px] font-semibold uppercase text-slate-400">' . date('D', $ts) . '</span></span>'
+            $html .= '<li class="flex items-start gap-3 py-3' . ($past ? ' opacity-60' : '') . '"><span class="w-12 shrink-0 text-center"><span class="block font-display text-xl font-extrabold leading-none text-brand-900">' . date('d', $ts) . '</span><span class="text-[11px] font-semibold uppercase text-slate-500">' . date('D', $ts) . '</span></span>'
                 . '<span class="min-w-0 flex-1"><span class="block text-sm font-semibold leading-snug text-slate-800">' . e($en['title']) . '</span><span class="mt-0.5 block text-xs text-slate-500">' . e($range) . ($en['meta'] !== '' ? ' · ' . e(str_limit($en['meta'], 120)) : '') . '</span></span>'
                 . '<span class="badge ' . $cls . ' shrink-0">' . e($label) . '</span></li>';
         }
@@ -1085,7 +1155,7 @@ function sa_render_brochure(array $programs, ?array $single = null): void
     echo '<main class="sheet mx-auto my-6 w-full max-w-[210mm] bg-white p-6 shadow-xl sm:p-[12mm]">';
     echo '<header class="flex flex-col gap-4 border-b-2 border-brand-800 pb-5 sm:flex-row sm:items-center"><img src="' . e(logo_url()) . '" alt="GIMT logo" class="h-16 w-auto self-start">'
         . '<div class="sm:flex-1 sm:text-right"><p class="font-display text-lg font-extrabold uppercase leading-tight text-brand-900">' . e($name) . '</p>'
-        . '<p class="text-xs text-slate-600">' . e(setting('address', 'Plot No. 123, Knowledge Park, Greater Noida, Uttar Pradesh 201310, India')) . '</p>'
+        . '<p class="text-xs text-slate-600">' . e(setting('address', 'Wave One, 36th Floor, L-2A, Pocket G, Sector 18, Noida, Uttar Pradesh - 201301')) . '</p>'
         . '<p class="text-xs text-slate-600">' . e(setting('phone', '+91 9955446477')) . ' · ' . e(setting('admission_email', setting('email', 'info@gimt.ac.in'))) . ' · ' . e(setting('website', 'www.gimt.ac.in')) . '</p></div></header>';
     if ($single) {
         $p = $single;
@@ -1095,7 +1165,7 @@ function sa_render_brochure(array $programs, ?array $single = null): void
             . '<p class="mt-3 text-sm leading-relaxed text-slate-700">' . e((string) $p['overview']) . '</p></section>';
         echo '<dl class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">';
         foreach ([['Duration', $p['duration_label'] ?: $p['duration_years'] . ' Years'], ['Semesters', (string) $p['total_semesters']], ['Intake', $p['intake_capacity'] ? $p['intake_capacity'] . ' seats' : '—'], ['Fee', sa_program_fee($p) ?: '—']] as [$k, $v]) {
-            echo '<div class="rounded-xl border border-slate-200 p-3"><dt class="text-[11px] font-bold uppercase tracking-wider text-slate-400">' . e($k) . '</dt><dd class="mt-0.5 text-sm font-bold text-brand-900">' . e($v) . '</dd></div>';
+            echo '<div class="rounded-xl border border-slate-200 p-3"><dt class="text-[11px] font-bold uppercase tracking-wider text-slate-500">' . e($k) . '</dt><dd class="mt-0.5 text-sm font-bold text-brand-900">' . e($v) . '</dd></div>';
         }
         echo '</dl>';
         if (!empty($p['eligibility'])) {
@@ -1116,7 +1186,7 @@ function sa_render_brochure(array $programs, ?array $single = null): void
             foreach ($curriculum as $sem => $subjects) {
                 echo '<div class="break-inside-avoid rounded-xl border border-slate-200"><p class="border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold uppercase tracking-wider text-brand-900">Semester ' . (int) $sem . ' · ' . e(rtrim(rtrim(number_format(array_sum(array_column($subjects, 'credits')), 1), '0'), '.')) . ' credits</p><ul class="divide-y divide-slate-100 text-[12.5px]">';
                 foreach ($subjects as $s) {
-                    echo '<li class="flex justify-between gap-3 px-3 py-1.5"><span><span class="font-mono text-[11px] text-slate-400">' . e($s['code']) . '</span> ' . e($s['name']) . '</span><span class="shrink-0 font-semibold text-slate-600">' . e(rtrim(rtrim((string) $s['credits'], '0'), '.')) . '</span></li>';
+                    echo '<li class="flex justify-between gap-3 px-3 py-1.5"><span><span class="font-mono text-[11px] text-slate-500">' . e($s['code']) . '</span> ' . e($s['name']) . '</span><span class="shrink-0 font-semibold text-slate-600">' . e(rtrim(rtrim((string) $s['credits'], '0'), '.')) . '</span></li>';
                 }
                 echo '</ul></div>';
             }
@@ -1127,7 +1197,9 @@ function sa_render_brochure(array $programs, ?array $single = null): void
             . '<h1 class="mt-1 font-display text-3xl font-extrabold text-brand-900">Academic Programs ' . e($session['name'] ?? '') . '</h1>'
             . '<p class="mt-3 text-sm leading-relaxed text-slate-700">' . e(setting('footer_about', 'Global Institute of Management & Technology (GIMT) offers industry-focused undergraduate, postgraduate, diploma and certificate programs in management, technology, commerce and computer applications.')) . '</p>'
             . '<ul class="mt-4 grid grid-cols-2 gap-3 text-center sm:grid-cols-4">';
-        foreach ([[sa_round_label($counts['students']), 'Students'], [sa_round_label($counts['faculty']), 'Faculty Members'], [(string) $counts['programs'], 'Programs'], [rtrim(rtrim(number_format($counts['satisfaction'], 1), '0'), '.') . '%', 'Student Satisfaction']] as [$v, $l]) {
+        $fourth = $counts['satisfaction'] !== null ? [rtrim(rtrim(number_format($counts['satisfaction'], 1), '0'), '.') . '%', 'Student Satisfaction']
+            : ($counts['established'] > 1900 ? [(string) max(1, (int) date('Y') - $counts['established']), 'Years of Excellence'] : [(string) $counts['departments'], 'Departments']);
+        foreach ([[sa_round_label($counts['students']), 'Students'], [sa_round_label($counts['faculty']), 'Faculty Members'], [(string) $counts['programs'], 'Programs'], $fourth] as [$v, $l]) {
             echo '<li class="rounded-xl border border-slate-200 p-3"><span class="block font-display text-xl font-extrabold text-brand-900">' . e($v) . '</span><span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">' . e($l) . '</span></li>';
         }
         echo '</ul></section>';

@@ -10,6 +10,9 @@ import { $$, bindOnce, clamp, easeOutExpo, finePointer, numAttr, rafThrottle, re
  * Legacy `.reveal` class is supported too. Elements receive `.is-visible`.
  */
 let revealObserver: IntersectionObserver | null = null;
+/* observed box → the reveal targets it stands for. A clip reveal starts fully clipped (clip-path: inset(100% 0 0 0)) and
+   Chrome reports a fully clipped target as never intersecting, so it is observed through its parent box instead */
+const revealBoxes = new WeakMap<Element, Element[]>();
 
 function show(el: Element) {
   el.classList.add('is-visible');
@@ -34,20 +37,29 @@ export function initReveal(root: ParentNode = document): void {
   });
 
   if (staticMode() || !('IntersectionObserver' in window)) {
-    targets.forEach(show);
+    // .reveal-static: no entrance motion at all (e.g. the data-reveal="wipe" block never plays)
+    targets.forEach((el) => {
+      show(el);
+      el.classList.add('reveal-static');
+    });
     return;
   }
   revealObserver ??= new IntersectionObserver(
     (entries) =>
       entries.forEach((en) => {
         if (en.isIntersecting) {
-          show(en.target);
+          (revealBoxes.get(en.target) ?? [en.target]).forEach(show);
+          revealBoxes.delete(en.target);
           revealObserver?.unobserve(en.target);
         }
       }),
     { rootMargin: '0px 0px -7% 0px', threshold: 0.08 },
   );
-  targets.forEach((el) => revealObserver!.observe(el));
+  targets.forEach((el) => {
+    const box = el.getAttribute('data-reveal') === 'clip' && el.parentElement ? el.parentElement : el;
+    revealBoxes.set(box, [...(revealBoxes.get(box) ?? []), el]);
+    revealObserver!.observe(box);
+  });
 }
 
 /* ------------------------------------------------------------------ Scribbles (hand-drawn ellipse around a word) */
@@ -56,11 +68,13 @@ export function initReveal(root: ParentNode = document): void {
  * <span class="scribble" data-draw>Word<svg class="scribble-svg">…</svg></span>  (scribble() in includes/components.php)
  * The ellipse draws itself (stroke-dashoffset) once the word scrolls into view; static mode shows it immediately.
  * Without JS the ellipse is simply visible (the hidden state only applies under html.js).
+ * Also drives the yellow-gold marker highlights: <span class="hl-gold" data-draw><span class="hl-gold-w">…</span></span>
+ * (gold_highlight() / <GoldMark>) — the marker bands are drawn in left → right when `.is-drawn` is added.
  */
 let scribbleObserver: IntersectionObserver | null = null;
 
 export function initScribbles(root: ParentNode = document): void {
-  const els = within('.scribble[data-draw]', root).filter((el) => !el.classList.contains('is-drawn'));
+  const els = within('.scribble[data-draw], .hl-gold[data-draw]', root).filter((el) => !el.classList.contains('is-drawn'));
   if (!els.length) return;
   if (staticMode() || !('IntersectionObserver' in window)) {
     els.forEach((el) => el.classList.add('is-drawn', 'is-static'));

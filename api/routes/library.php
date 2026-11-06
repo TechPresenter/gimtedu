@@ -105,7 +105,7 @@ route('PUT', '/library/rules', function () {
 
 route('GET', '/library/members/search', function () {
     api_require('library', 'view');
-    $q = trim((string) ($_GET['q'] ?? ''));
+    $q = trim(api_str($_GET['q'] ?? null));
     $where = [];
     $args = [];
     if ($q !== '') {
@@ -118,9 +118,10 @@ route('GET', '/library/members/search', function () {
             $where[] = '(' . implode(' OR ', $or) . ')';
         }
     }
-    if (!empty($_GET['type']) && isset(lib_member_types()[$_GET['type']])) {
+    $type = api_query('type');
+    if ($type !== '' && isset(lib_member_types()[$type])) {
         $where[] = 'lm.member_type = ?';
-        $args[] = $_GET['type'];
+        $args[] = $type;
     }
     $limit = max(1, min(20, (int) ($_GET['limit'] ?? 8)));
     $rows = db_all('SELECT lm.*, ' . lib_member_cols('lm') . ', md.name AS department_name,
@@ -134,8 +135,8 @@ route('GET', '/library/members/search', function () {
 
 route('GET', '/library/members/candidates', function () {
     api_require('library', 'view');
-    $type = (string) ($_GET['type'] ?? 'student');
-    $q = trim((string) ($_GET['q'] ?? ''));
+    $type = api_str($_GET['type'] ?? null, 'student');
+    $q = trim(api_str($_GET['q'] ?? null));
     $limit = max(1, min(50, (int) ($_GET['limit'] ?? 20)));
     $like = '%' . $q . '%';
     if ($type === 'faculty') {
@@ -153,7 +154,7 @@ route('GET', '/library/members/candidates', function () {
     }
     if (!empty($_GET['ids'])) {
         // Labels for already-selected values (Combobox initial options)
-        $ids = array_values(array_filter(array_map('intval', explode(',', (string) $_GET['ids']))));
+        $ids = array_values(array_filter(array_map('intval', explode(',', api_str($_GET['ids'])))));
         if (!$ids) {
             api_ok([]);
         }
@@ -172,7 +173,7 @@ route('GET', '/library/members/candidates', function () {
 route('GET', '/library/members/enroll-preview', function () {
     api_require('library', 'view');
     $in = $_GET;
-    $target = (string) ($in['target'] ?? '');
+    $target = api_str($in['target'] ?? null);
     if (!in_array($target, ['section', 'program', 'all_students', 'faculty', 'staff'], true)) {
         api_error('Choose who to enroll.', 422, ['target' => 'Choose who to enroll.']);
     }
@@ -185,7 +186,7 @@ route('GET', '/library/members/enroll-preview', function () {
 route('POST', '/library/members/enroll', function () {
     api_require('library', 'create');
     $in = api_input();
-    $target = (string) ($in['target'] ?? '');
+    $target = api_str($in['target'] ?? null);
     $errors = [];
     if (!in_array($target, ['section', 'program', 'all_students', 'faculty', 'staff'], true)) {
         $errors['target'] = 'Choose who to enroll.';
@@ -221,8 +222,8 @@ route('POST', '/library/members/status', function () {
     api_require('library', 'edit');
     $in = api_input();
     $ids = array_values(array_unique(array_filter(array_map('intval', (array) ($in['ids'] ?? [])))));
-    $status = (string) ($in['status'] ?? '');
-    $remarks = trim((string) ($in['remarks'] ?? ''));
+    $status = api_str($in['status'] ?? null);
+    $remarks = trim(api_str($in['remarks'] ?? null));
     $errors = [];
     if (!$ids) {
         api_error('Select at least one member.', 422);
@@ -233,7 +234,7 @@ route('POST', '/library/members/status', function () {
     if ($status === 'suspended' && mb_strlen($remarks) < 3) {
         $errors['remarks'] = 'Enter the reason for suspending the membership.';
     }
-    $validUntil = trim((string) ($in['valid_until'] ?? ''));
+    $validUntil = trim(api_str($in['valid_until'] ?? null));
     if ($validUntil !== '' && (!DateTime::createFromFormat('Y-m-d', $validUntil) || $validUntil <= date('Y-m-d'))) {
         $errors['valid_until'] = 'Validity must be a future date.';
     }
@@ -287,7 +288,7 @@ route('GET', '/library/members/{id:\d+}', function ($p) {
 
 route('GET', '/library/copies/lookup', function () {
     api_require('library', 'view');
-    $code = trim((string) ($_GET['code'] ?? ''));
+    $code = trim(api_str($_GET['code'] ?? null));
     if ($code === '') {
         api_error('Enter an accession number or barcode.', 422, ['code' => 'Enter an accession number or barcode.']);
     }
@@ -300,7 +301,7 @@ route('GET', '/library/copies/lookup', function () {
 
 route('GET', '/library/copies/available', function () {
     api_require('library', 'view');
-    $q = trim((string) ($_GET['q'] ?? ''));
+    $q = trim(api_str($_GET['q'] ?? null));
     $limit = max(1, min(30, (int) ($_GET['limit'] ?? 15)));
     $args = [];
     $where = "c.status = 'available' AND b.status = 'active' AND b.type <> 'reference'";
@@ -309,7 +310,7 @@ route('GET', '/library/copies/available', function () {
         $args = array_fill(0, 5, '%' . $q . '%');
     }
     if (!empty($_GET['ids'])) {
-        $codes = array_slice(array_values(array_filter(array_map('trim', explode(',', (string) $_GET['ids'])))), 0, 50);
+        $codes = array_slice(array_values(array_filter(array_map('trim', explode(',', api_str($_GET['ids']))))), 0, 50);
         if (!$codes) {
             api_ok([]);
         }
@@ -324,7 +325,7 @@ route('GET', '/library/copies/available', function () {
 route('POST', '/library/copies/status', function () {
     api_require('library', 'edit');
     $in = api_input();
-    $res = lib_set_copy_status((array) ($in['ids'] ?? []), (string) ($in['status'] ?? ''), isset($in['remarks']) ? trim((string) $in['remarks']) : null);
+    $res = lib_set_copy_status((array) ($in['ids'] ?? []), api_str($in['status'] ?? null), isset($in['remarks']) ? trim((string) $in['remarks']) : null);
     $msg = $res['changed'] . ' cop' . ($res['changed'] === 1 ? 'y' : 'ies') . ' marked ' . label_from_key((string) $in['status']) . '.';
     if ($res['skipped_issued']) {
         $msg .= ' ' . $res['skipped_issued'] . ' on loan skipped.';
@@ -377,7 +378,7 @@ route('GET', '/library/loans/{id:\d+}/preview', function ($p) {
         api_error('Loan not found.', 404);
     }
     $rules = lib_rules();
-    $date = trim((string) ($_GET['return_date'] ?? '')) ?: date('Y-m-d');
+    $date = trim(api_str($_GET['return_date'] ?? null)) ?: date('Y-m-d');
     $dt = DateTime::createFromFormat('Y-m-d', $date);
     if (!$dt || $dt->format('Y-m-d') !== $date) {
         $date = date('Y-m-d');
@@ -477,7 +478,7 @@ route('GET', '/library/fines/summary', function () {
 route('POST', '/library/fines/collect', function () {
     api_require('library', 'edit');
     $in = api_input();
-    $res = lib_collect_fines((array) ($in['ids'] ?? []), (string) ($in['payment_mode'] ?? ''), isset($in['remarks']) ? (string) $in['remarks'] : null);
+    $res = lib_collect_fines((array) ($in['ids'] ?? []), api_str($in['payment_mode'] ?? null), isset($in['remarks']) ? (string) $in['remarks'] : null);
     $total = array_sum(array_column($res['receipts'], 'amount'));
     $msg = 'Collected ' . money($total, 2) . ' · ' . count($res['receipts']) . ' receipt' . (count($res['receipts']) === 1 ? ' (' . $res['receipts'][0]['receipt_no'] . ')' : 's') . '.';
     if ($res['skipped']) {
@@ -489,7 +490,7 @@ route('POST', '/library/fines/collect', function () {
 route('POST', '/library/fines/waive', function () {
     api_require('library', 'manage');
     $in = api_input();
-    $res = lib_waive_fines((array) ($in['ids'] ?? []), (string) ($in['reason'] ?? ''));
+    $res = lib_waive_fines((array) ($in['ids'] ?? []), api_str($in['reason'] ?? null));
     api_ok($res, $res['waived'] . ' fine' . ($res['waived'] === 1 ? '' : 's') . ' waived (' . money($res['amount'], 2) . ').' . ($res['skipped'] ? ' ' . $res['skipped'] . ' already settled.' : ''));
 });
 
@@ -507,20 +508,20 @@ route('GET', '/library/print/cards', function () {
 
 route('GET', '/library/print/receipt', function () {
     lib_print_guard();
-    lib_print_fine_receipt(trim((string) ($_GET['no'] ?? '')), (int) ($_GET['fine_id'] ?? 0));
+    lib_print_fine_receipt(trim(api_str($_GET['no'] ?? null)), (int) ($_GET['fine_id'] ?? 0));
     exit;
 }, ['auth' => false]);
 
 route('GET', '/library/print/overdue', function () {
     lib_print_guard();
-    lib_print_overdue_report(['member_type' => (string) ($_GET['member_type'] ?? '')]);
+    lib_print_overdue_report(['member_type' => api_str($_GET['member_type'] ?? null)]);
     exit;
 }, ['auth' => false]);
 
 route('GET', '/library/print/labels', function () {
     lib_print_guard();
-    $ids = array_filter(array_map('intval', explode(',', (string) ($_GET['ids'] ?? ''))));
-    $codes = array_slice(array_values(array_filter(array_map('trim', explode(',', (string) ($_GET['codes'] ?? ''))))), 0, 400);
+    $ids = array_filter(array_map('intval', explode(',', api_str($_GET['ids'] ?? null))));
+    $codes = array_slice(array_values(array_filter(array_map('trim', explode(',', api_str($_GET['codes'] ?? null))))), 0, 400);
     if ($codes) {
         $ids = array_merge($ids, db_column('SELECT id FROM book_copies WHERE accession_no IN (' . implode(',', array_fill(0, count($codes), '?')) . ')', $codes));
         if (!$ids) {

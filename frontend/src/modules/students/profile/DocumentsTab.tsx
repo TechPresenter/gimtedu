@@ -97,7 +97,7 @@ export default function DocumentsTab({ profile, studentId, refresh }: TabProps) 
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-5 lg:grid-cols-3 [&>*]:min-w-0">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 [&>*]:min-w-0">
         <Reveal>
           <Card className="h-full">
             <CardHeader title="Document checklist" subtitle={`${required.filter((t) => docs.some((d) => d.doc_type === t && d.status === 'verified')).length} of ${required.length} required verified`} icon={ShieldCheck} />
@@ -144,7 +144,7 @@ export default function DocumentsTab({ profile, studentId, refresh }: TabProps) 
               <EmptyState icon={FileText} title="No documents uploaded" description="Upload marksheets, ID proof and certificates. Files are stored privately and only staff with access can open them."
                 action={canCreate ? <Button icon={Upload} onClick={() => setUpload({ open: true, id: null })}>Upload document</Button> : undefined} />
             ) : (
-              <ul className="grid gap-3 p-4 sm:grid-cols-2 [&>*]:min-w-0">
+              <ul className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 [&>*]:min-w-0">
                 {docs.map((d) => {
                   const isImg = String(d.mime ?? '').startsWith('image/');
                   return (

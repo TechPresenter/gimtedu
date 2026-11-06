@@ -1,13 +1,16 @@
 import clsx from 'clsx';
 import { ArrowRight, Search, X } from 'lucide-react';
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useDebounced, useStaticMode } from '../lib/hooks';
 import { Icon } from '../lib/Icon';
 import type { IslandBaseProps, LinkProp } from '../lib/types';
 
 export interface ProgramExplorerProps extends IslandBaseProps {
-  /** Filter categories; `key` is matched against each card's data-category tokens ('all' shows everything). */
-  categories: { key: string; label: string; icon?: string }[];
+  /**
+   * Filter categories; `key` is matched against each card's data-category tokens ('all' shows everything). A category
+   * with `href` is a plain link to another page (e.g. Certificate → /certifications) instead of a filter.
+   */
+  categories: { key: string; label: string; icon?: string; href?: string }[];
   /** Show the search box (matches data-search + card text). Default true. */
   search?: boolean;
   searchPlaceholder?: string;
@@ -16,12 +19,26 @@ export interface ProgramExplorerProps extends IslandBaseProps {
   initial?: string;
   /** Keep the selected category in the URL query string (?{syncParam}=mba), e.g. 'category'. */
   syncParam?: string;
+  /** Start with the search term from the URL (?{searchParam}=mba, e.g. 'q') and keep it there while the visitor types. */
+  searchParam?: string;
   /** 'pills' (homepage) or 'tiles' (programs page: icon tiles). */
   layout?: 'pills' | 'tiles';
   /** Grid column classes for the cards. */
   gridClass?: string;
+  /** Grid classes of the category tiles (layout 'tiles'); default by the number of categories (TILE_GRID). */
+  tileClass?: string;
+  /** Noun for the live count and the empty-state button, e.g. {one: 'course', many: 'courses'}. Default program(s). */
+  itemLabel?: { one: string; many: string };
   viewAll?: LinkProp;
 }
+
+/** Tile rows that never squeeze: one row only where there is room for every tile (literal classes for Tailwind). */
+export const TILE_GRID: Record<number, string> = {
+  1: 'grid grid-cols-2 gap-3', 2: 'grid grid-cols-2 gap-3', 3: 'grid grid-cols-3 gap-3', 4: 'grid grid-cols-2 gap-3 sm:grid-cols-4',
+  5: 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5', 6: 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6',
+  7: 'grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7', 8: 'grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8',
+};
+const tileGrid = (n: number) => TILE_GRID[n] ?? 'grid grid-cols-2 gap-3 sm:grid-cols-4';
 
 const norm = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^\w\s]/g, ' ');
 
@@ -37,8 +54,11 @@ export default function ProgramExplorer({
   emptyText = 'No programs match your selection.',
   initial,
   syncParam,
+  searchParam,
   layout = 'pills',
   gridClass = 'sm:grid-cols-2 lg:grid-cols-3',
+  tileClass,
+  itemLabel = { one: 'program', many: 'programs' },
   viewAll,
   slots,
 }: ProgramExplorerProps) {
@@ -51,9 +71,19 @@ export default function ProgramExplorer({
     [slots],
   );
   const fromUrl = syncParam ? new URLSearchParams(window.location.search).get(syncParam) : null;
-  const [cat, setCat] = useState(() => (fromUrl && categories.some((c) => c.key === fromUrl) ? fromUrl : initial || categories[0]?.key || 'all'));
-  const [query, setQuery] = useState('');
+  const [cat, setCat] = useState(() => (fromUrl && categories.some((c) => c.key === fromUrl && !c.href) ? fromUrl : initial || categories[0]?.key || 'all'));
+  const [query, setQuery] = useState(() => (searchParam ? (new URLSearchParams(window.location.search).get(searchParam) ?? '').slice(0, 100) : ''));
   const q = useDebounced(norm(query).trim(), 160);
+  // keep the search term in the URL (shareable, survives reload / back) — replaceState, no history entries
+  const qRaw = useDebounced(query.trim(), 400);
+  useEffect(() => {
+    if (!searchParam) return;
+    const url = new URL(window.location.href);
+    if ((url.searchParams.get(searchParam) ?? '') === qRaw) return;
+    if (qRaw) url.searchParams.set(searchParam, qRaw);
+    else url.searchParams.delete(searchParam);
+    window.history.replaceState(window.history.state, '', url);
+  }, [qRaw, searchParam]);
   const isStatic = useStaticMode();
 
   const counts = useMemo(() => {
@@ -113,9 +143,25 @@ export default function ProgramExplorer({
   return (
     <div className="program-explorer">
       <div className={clsx('mb-8 flex flex-col gap-4', layout === 'pills' && 'lg:flex-row lg:items-center lg:justify-between')}>
-        <div className={clsx(layout === 'tiles' ? 'grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8' : 'pill-row scrollbar-none')} role="toolbar" aria-label="Filter programs by category">
+        <div className={clsx(layout === 'tiles' ? tileClass || tileGrid(categories.length) : 'pill-row scrollbar-none')} role="toolbar" aria-label={`Filter ${itemLabel.many} by category`}>
           {categories.map((c) => {
             const active = c.key === cat;
+            if (c.href) {
+              return layout === 'tiles' ? (
+                <a key={c.key} href={c.href} className="filter-tile">
+                  {c.icon && (
+                    <span className="filter-tile-icon">
+                      <Icon name={c.icon} className="h-5 w-5" />
+                    </span>
+                  )}
+                  <span className="text-sm font-semibold">{c.label}</span>
+                </a>
+              ) : (
+                <a key={c.key} href={c.href} className="chip">
+                  {c.label}
+                </a>
+              );
+            }
             return layout === 'tiles' ? (
               <button key={c.key} type="button" onClick={() => select(c.key)} aria-pressed={active} className={clsx('filter-tile', active && 'is-active')}>
                 {c.icon && (
@@ -137,7 +183,7 @@ export default function ProgramExplorer({
             {search && (
               <label className="search-field">
                 <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
-                <span className="sr-only">Search programs</span>
+                <span className="sr-only">Search {itemLabel.many}</span>
                 <input
                   type="search"
                   value={query}
@@ -166,7 +212,7 @@ export default function ProgramExplorer({
       </div>
 
       <p className="sr-only" aria-live="polite">
-        {visible.length} {visible.length === 1 ? 'program' : 'programs'} shown
+        {visible.length} {visible.length === 1 ? itemLabel.one : itemLabel.many} shown
       </p>
       <div ref={gridRef} className={clsx('grid gap-6', gridClass)}>
         {visible.map((c) => (
@@ -187,7 +233,7 @@ export default function ProgramExplorer({
               select(categories[0]?.key ?? 'all');
             }}
           >
-            Show all programs
+            Show all {itemLabel.many}
           </button>
         </div>
       )}

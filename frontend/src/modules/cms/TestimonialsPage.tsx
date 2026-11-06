@@ -191,7 +191,7 @@ export default function TestimonialsPage() {
           {list.error ? (
             <Alert variant="error" title="Unable to load testimonials">{(list.error as ApiError).message}</Alert>
           ) : list.isLoading ? (
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-60 rounded-2xl" />)}</div>
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-60 rounded-2xl" />)}</div>
           ) : rows.length === 0 ? (
             <Card>
               <EmptyState
@@ -202,7 +202,7 @@ export default function TestimonialsPage() {
               />
             </Card>
           ) : (
-            <ul className="grid gap-5 md:grid-cols-2 xl:grid-cols-3" aria-label="Testimonials">
+            <ul className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3" aria-label="Testimonials">
               {reorder.items.map((r, idx) => {
                 const t = typeOf(r.type);
                 const featured = !!Number(r.is_featured);

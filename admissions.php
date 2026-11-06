@@ -24,7 +24,7 @@ $heroImage = 'assets/images/site/students-lawn.jpg';
 
 site_header([
     'title' => 'Admissions ' . $session . ' — Eligibility, Fees & How to Apply',
-    'description' => 'Admissions open for ' . $session . ' at Global Institute of Management & Technology (GIMT), Greater Noida. Check eligibility, fees, scholarships, documents required and important dates, then apply online or talk to a counsellor.',
+    'description' => 'Admissions open for ' . $session . ' at Global Institute of Management & Technology (GIMT), Noida. Check eligibility, fees, scholarships, documents required and important dates, then apply online or talk to a counsellor.',
     'active' => 'admissions', 'seo' => ['route', '/admissions'],
     'preload' => [asset($heroImage)],
     'schema' => [sf_breadcrumb_schema(['Home' => '', 'Admissions' => 'admissions']), sf_faq_schema($faqs)],
@@ -36,9 +36,9 @@ page_hero(
     ['Admissions'],
     $heroImage,
     'Industry-focused UG, PG, diploma and certificate programs with merit scholarships, experienced faculty and dedicated placement support. Apply online in minutes.',
-    [['icon' => 'award', 'label' => 'Scholarships up to 50%'], ['icon' => 'file-check', 'label' => 'Simple online application'], ['icon' => 'banknote', 'label' => 'Education loan assistance'], ['icon' => 'building-2', 'label' => 'Hostel & transport']],
-    ['eyebrow' => 'Shaping Future Leaders', 'size' => 'lg', 'image_alt' => 'GIMT students on the campus lawn',
-     'actions' => button_link('Apply Online', '/apply', 'accent', ['size' => 'lg', 'shine' => true, 'magnetic' => true]) . button_link('Talk to a Counsellor', '#enquiry', 'outline-light', ['size' => 'lg', 'icon' => '', 'icon_left' => 'phone'])]
+    [['icon' => 'award', 'label' => ($maxSch = site_max_scholarship()) ? 'Scholarships up to ' . $maxSch . '%' : 'Merit scholarships'], ['icon' => 'file-check', 'label' => 'Simple online application'], ['icon' => 'banknote', 'label' => 'Education loan assistance'], ['icon' => 'building-2', 'label' => 'Hostel & transport']],
+    ['eyebrow' => 'Shaping Future Leaders', 'size' => 'lg', 'image_alt' => 'GIMT students on the campus lawn', 'gold' => $session,
+     'actions' => button_link('Apply Online', '/apply', 'accent', ['size' => 'lg', 'gleam' => true, 'magnetic' => true]) . button_link('Talk to a Counsellor', '#enquiry', 'outline-light', ['size' => 'lg', 'icon' => '', 'icon_left' => 'phone'])]
 );
 ?>
 
@@ -160,12 +160,15 @@ page_hero(
 
   <div id="scholarships" class="mt-16 scroll-mt-28">
     <?= section_heading('Scholarships', 'Rewarding merit, talent and need — scholarships are adjusted directly against your tuition fee.', 'Financial Aid', 'left', '<a href="' . e(site_url('contact?type=scholarship#message')) . '" class="link-arrow">Ask about eligibility' . icon('arrow-right', 'h-4 w-4') . '</a>') ?>
+    <?php if (!$scholarships): ?>
+      <p class="rounded-2xl border border-dashed border-warm-line bg-white p-5 text-[15px] text-slate-600">Scholarship schemes for <?= e($session) ?> are announced by the admissions office. Ask our counsellors about merit, sports and need-based support for your program.</p>
+    <?php endif; ?>
     <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" data-stagger="70">
       <?php foreach ($scholarships as $i => $s): ?>
         <article class="card card-lift group flex gap-4 p-5">
           <span class="feature-tile-icon <?= ['tint-green', 'tint-blue', 'tint-rose', 'tint-amber', 'tint-violet', 'tint-cyan'][$i % 6] ?> !h-12 !w-12 shrink-0"><?= icon($s['icon'], 'h-6 w-6') ?></span>
           <div class="min-w-0">
-            <p class="font-display text-xl font-extrabold text-accent-700"><?= e($s['value']) ?></p>
+            <p class="font-display text-xl font-extrabold text-accent-700"><?= $i === 0 && str_contains((string) $s['value'], '%') ? gold_highlight((string) $s['value'], ['tall' => true]) : e($s['value']) ?></p>
             <h3 class="font-display text-base font-bold text-brand-900"><?= e($s['title']) ?></h3>
             <p class="mt-1 text-sm leading-relaxed text-slate-600"><?= e($s['text']) ?></p>
           </div>
@@ -229,7 +232,7 @@ page_hero(
           <?php if ($i < count($dates) - 1): ?><span class="absolute left-[22px] top-12 h-[calc(100%-1rem)] w-0.5 bg-slate-200" aria-hidden="true"></span><?php endif; ?>
           <span class="relative z-[1] inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full <?= $dot ?>"><?= icon($state === 'done' ? 'check' : $d['icon'], 'h-5 w-5') ?></span>
           <div class="min-w-0 flex-1 rounded-2xl border <?= $state === 'current' ? 'border-brand-200 bg-brand-50/60' : 'border-slate-100 bg-white' ?> p-4 shadow-sm">
-            <p class="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider <?= $state === 'done' ? 'text-slate-400' : 'text-accent-700' ?>">
+            <p class="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider <?= $state === 'done' ? 'text-slate-600' : 'text-accent-700' ?>">
               <?= e($d['when']) ?>
               <?php if ($state === 'current'): ?><span class="badge badge-blue normal-case tracking-normal">Ongoing</span><?php elseif ($state === 'done'): ?><span class="badge badge-slate normal-case tracking-normal">Completed</span><?php endif; ?>
             </p>
@@ -266,7 +269,6 @@ page_hero(
       </ul>
     </div>
     <div class="text-slate-700 lg:col-span-7 [&_.enquiry-title]:!text-brand-900">
-      <?= sf_flash_notice('enquiry') ?>
       <?= enquiry_form([
           'endpoint' => base_url('api/public/enquiry'), 'theme' => 'light', 'icon' => 'graduation-cap',
           'title' => 'Request a Call Back', 'subtitle' => 'Free, no-obligation guidance from our admission team.', 'submitLabel' => 'Get Free Counselling',
@@ -274,9 +276,10 @@ page_hero(
           'hidden' => ['source' => 'admissions-page', 'form' => 'counselling'],
           'fields' => [
               ['name' => 'name', 'label' => 'Full Name', 'required' => true, 'col' => 'half', 'maxLength' => 150, 'minLength' => 2, 'autocomplete' => 'name'],
-              ['name' => 'phone', 'label' => 'Phone Number', 'type' => 'tel', 'required' => true, 'col' => 'half', 'autocomplete' => 'tel', 'placeholder' => '+91 98765 43210'],
-              ['name' => 'email', 'label' => 'Email Address', 'type' => 'email', 'col' => 'half', 'autocomplete' => 'email', 'maxLength' => 190],
+              ['name' => 'phone', 'label' => 'Phone Number', 'type' => 'tel', 'required' => true, 'col' => 'half', 'autocomplete' => 'tel', 'country' => 'IN'],
+              ['name' => 'email', 'label' => 'Email Address', 'type' => 'email', 'autocomplete' => 'email', 'maxLength' => 190],
               ['name' => 'city', 'label' => 'City', 'col' => 'half', 'maxLength' => 80, 'autocomplete' => 'address-level2'],
+              ['name' => 'state', 'label' => 'State', 'type' => 'state', 'col' => 'half', 'placeholder' => 'Select your state'],
               ['name' => 'program_id', 'label' => 'Program of Interest', 'type' => 'select', 'options' => sf_program_select_options($programs), 'placeholder' => 'Select a program (optional)'],
               ['name' => 'message', 'label' => 'Your Question', 'type' => 'textarea', 'rows' => 3, 'maxLength' => 2000, 'placeholder' => 'e.g. I scored 82% in Class 12 — am I eligible for a scholarship?'],
           ],

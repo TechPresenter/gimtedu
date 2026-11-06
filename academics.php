@@ -42,7 +42,7 @@ $sessionRange = $session ? date('M Y', strtotime($session['start_date'])) . ' �
 $heroImg = 'assets/images/site/hero-campus-students.jpg';
 site_header([
     'title' => 'Academics — Departments, Calendar & Research',
-    'description' => 'Academic excellence at GIMT Greater Noida: ' . count($departments) . ' departments, ' . $counts['programs'] . ' programs, ' . $counts['faculty'] . ' faculty members, outcome-based teaching, the ' . ($session['name'] ?? '') . ' academic calendar, research and modern labs.',
+    'description' => 'Academic excellence at GIMT Noida: ' . count($departments) . ' departments, ' . $counts['programs'] . ' programs, ' . ($counts['faculty'] ? $counts['faculty'] . ' faculty members, ' : '') . 'outcome-based teaching, the ' . ($session['name'] ?? '') . ' academic calendar, research and modern labs.',
     'active' => 'academics',
     'seo' => ['route', '/academics'],
     'image' => $heroImg,
@@ -54,7 +54,7 @@ page_hero('Academic Excellence', 'Rigorous Learning. Real-World Impact.', ['Acad
     'An outcome-based curriculum, experienced faculty and industry-linked learning across management, technology, commerce and computer applications.',
     [
         ['icon' => 'book-open', 'label' => 'Outcome-Based Curriculum'],
-        ['icon' => 'users', 'label' => $counts['faculty'] . ' Faculty Members'],
+        ['icon' => 'users', 'label' => $counts['faculty'] ? $counts['faculty'] . ' Faculty Members' : 'Experienced Faculty'],
         ['icon' => 'microscope', 'label' => 'Research & Innovation'],
         ['icon' => 'handshake', 'label' => 'Industry Partnerships'],
     ],
@@ -76,12 +76,12 @@ page_hero('Academic Excellence', 'Rigorous Learning. Real-World Impact.', ['Acad
       ])), 'mt-6') ?>
     </div>
     <div class="lg:col-span-7"<?= reveal_attr('fade-up', 100) ?>>
-      <?= stat_counter([
+      <?= stat_counter(array_values(array_filter([
           ['value' => $counts['programs'], 'label' => 'Programs', 'icon' => 'graduation-cap'],
           ['value' => count($departments), 'label' => 'Departments', 'icon' => 'school'],
-          ['value' => sa_round($counts['faculty'])[0], 'suffix' => sa_round($counts['faculty'])[1], 'label' => 'Faculty Members', 'icon' => 'users'],
-          ['value' => sa_round($counts['publications'])[0], 'suffix' => sa_round($counts['publications'])[1], 'label' => 'Research Publications', 'icon' => 'book-open'],
-      ], ['variant' => 'cards', 'gridClass' => 'grid-cols-1 sm:grid-cols-2']) ?>
+          $counts['faculty'] ? ['value' => sa_round($counts['faculty'])[0], 'suffix' => sa_round($counts['faculty'])[1], 'label' => 'Faculty Members', 'icon' => 'users'] : null,
+          $counts['publications'] ? ['value' => sa_round($counts['publications'])[0], 'suffix' => sa_round($counts['publications'])[1], 'label' => 'Research Publications', 'icon' => 'book-open'] : null,
+      ])), ['variant' => 'cards', 'gridClass' => 'grid-cols-1 sm:grid-cols-2']) ?>
     </div>
   </div>
 <?= section_close() ?>
@@ -106,7 +106,7 @@ page_hero('Academic Excellence', 'Rigorous Learning. Real-World Impact.', ['Acad
             <?php if ($d['description']): ?><p class="mt-3 text-sm leading-relaxed text-slate-600"><?= e($d['description']) ?></p><?php endif; ?>
             <ul class="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
               <li class="rounded-full bg-brand-50 px-2.5 py-1 text-brand-800"><?= count($d['programs']) ?> program<?= count($d['programs']) === 1 ? '' : 's' ?></li>
-              <li class="rounded-full bg-accent-50 px-2.5 py-1 text-accent-800"><?= (int) $d['faculty_count'] ?> faculty</li>
+              <?php if ($d['faculty_count']): ?><li class="rounded-full bg-accent-50 px-2.5 py-1 text-accent-800"><?= (int) $d['faculty_count'] ?> faculty</li><?php endif; ?>
             </ul>
             <?php if ($d['programs']): ?>
               <ul class="mt-4 space-y-1.5 text-sm">
@@ -115,6 +115,7 @@ page_hero('Academic Excellence', 'Rigorous Learning. Real-World Impact.', ['Acad
                 <?php endforeach; ?>
               </ul>
             <?php endif; ?>
+            <?php if ($hn !== '' || $d['faculty_count']): ?>
             <div class="mt-auto flex items-center gap-3 border-t border-slate-100 pt-4">
               <?php if ($hn !== ''): ?>
                 <?= sa_avatar($d['hod_photo'], $hn, (int) $d['hod_id'], 'h-11 w-11 text-sm') ?>
@@ -124,6 +125,7 @@ page_hero('Academic Excellence', 'Rigorous Learning. Real-World Impact.', ['Acad
               <?php endif; ?>
               <a href="<?= e(site_url('faculty?department=' . strtolower($d['code'])) . '#directory') ?>" class="link-arrow shrink-0 text-sm">Faculty<span class="sr-only"> of <?= e($d['name']) ?></span><?= icon('arrow-right', 'h-4 w-4') ?></a>
             </div>
+            <?php endif; ?>
           </div>
         </article>
       <?php endforeach; ?>
@@ -170,7 +172,7 @@ page_hero('Academic Excellence', 'Rigorous Learning. Real-World Impact.', ['Acad
                 <li class="rounded-xl px-1 py-2 ring-1 <?= $g['is_pass'] ? 'bg-white/5 ring-white/10' : 'bg-rose-500/10 ring-rose-300/20' ?>" title="<?= e(($g['description'] ? $g['description'] . ': ' : '') . rtrim(rtrim((string) $g['min_percent'], '0'), '.') . '–' . rtrim(rtrim((string) $g['max_percent'], '0'), '.') . '%') ?>">
                   <span class="block font-display text-base font-extrabold leading-tight <?= $g['is_pass'] ? 'text-white' : 'text-rose-200' ?>"><?= e($g['grade']) ?></span>
                   <span class="block text-[11px] font-semibold text-white/60"><?= e(rtrim(rtrim((string) $g['grade_point'], '0'), '.')) ?> pts</span>
-                  <span class="block text-[10.5px] text-white/45"><?= (int) $g['min_percent'] ?>%+</span>
+                  <span class="block text-[10.5px] text-white/75"><?= (int) $g['min_percent'] ?>%+</span>
                 </li>
               <?php endforeach; ?>
             </ul>
@@ -206,13 +208,17 @@ page_hero('Academic Excellence', 'Rigorous Learning. Real-World Impact.', ['Acad
       <p class="eyebrow mb-2">Research &amp; Innovation</p>
       <h2 class="section-title !text-white">Ideas That Move Industry Forward</h2>
       <p class="section-lead !text-white/75">Our faculty publish in peer-reviewed journals and conferences, guide student research projects and work with industry on real problems — from analytics and AI to finance and organisational behaviour.</p>
+      <?php // faculty-derived figures; zero ones are left out until faculty profiles exist
+      $researchStats = array_values(array_filter([
+          ['value' => sa_round($counts['publications'])[0], 'suffix' => sa_round($counts['publications'])[1], 'label' => 'Publications'],
+          ['value' => $counts['phd'], 'label' => 'PhD Faculty'],
+          ['value' => count($research), 'label' => 'Research Areas'],
+      ], fn ($s) => $s['value'] > 0)); ?>
+      <?php if ($researchStats): ?>
       <div class="mt-8">
-        <?= stat_counter([
-            ['value' => sa_round($counts['publications'])[0], 'suffix' => sa_round($counts['publications'])[1], 'label' => 'Publications'],
-            ['value' => $counts['phd'], 'label' => 'PhD Faculty'],
-            ['value' => count($research), 'label' => 'Research Areas'],
-        ], ['variant' => 'inline', 'theme' => 'dark', 'gridClass' => 'grid-cols-3']) ?>
+        <?= stat_counter($researchStats, ['variant' => 'inline', 'theme' => 'dark', 'gridClass' => ['grid-cols-1', 'grid-cols-2', 'grid-cols-3'][count($researchStats) - 1]]) ?>
       </div>
+      <?php endif; ?>
     </div>
     <div class="lg:col-span-7"<?= reveal_attr('fade-up', 100) ?>>
       <?php if ($research): ?>
@@ -265,7 +271,7 @@ page_hero('Academic Excellence', 'Rigorous Learning. Real-World Impact.', ['Acad
             <li class="rounded-xl bg-slate-50 p-3"><span class="block font-display text-xl font-extrabold text-brand-900" data-count="<?= (int) $library['journals'] ?>"><?= number_format((int) $library['journals']) ?></span><span class="text-xs text-slate-500">Journals &amp; magazines</span></li>
           </ul>
           <?php if ($library['top_categories']): ?>
-            <h4 class="mt-6 font-sans text-xs font-bold uppercase tracking-wider text-slate-400"><?= (int) $library['categories'] ?> subject collections, including</h4>
+            <h4 class="mt-6 font-sans text-xs font-bold uppercase tracking-wider text-slate-500"><?= (int) $library['categories'] ?> subject collections, including</h4>
             <ul class="mt-3 flex flex-wrap gap-2">
               <?php foreach ($library['top_categories'] as $c): ?><li class="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-800"><?= e($c) ?></li><?php endforeach; ?>
             </ul>
@@ -301,14 +307,17 @@ page_hero('Academic Excellence', 'Rigorous Learning. Real-World Impact.', ['Acad
 <?= section_close() ?>
 
 <!-- Outcomes -->
+<?php $outcomes = array_values(array_filter([
+    $counts['faculty'] ? ['value' => $phdPct, 'suffix' => '%', 'label' => 'PhD-qualified faculty', 'caption' => $counts['phd'] . ' of ' . $counts['faculty'] . ' faculty members'] : null,
+    $attendance !== null ? ['value' => $attendance, 'decimals' => 1, 'suffix' => '%', 'label' => 'Average attendance', 'caption' => 'Session ' . ($session['name'] ?? '') . ' so far'] : null,
+    $counts['satisfaction'] !== null ? ['value' => $counts['satisfaction'], 'suffix' => '%', 'label' => 'Student satisfaction', 'caption' => 'Annual student feedback survey'] : null,
+])); ?>
+<?php if ($outcomes): ?>
 <?= section_open(['id' => 'outcomes']) ?>
   <?= section_heading('Academic Outcomes', 'Numbers we track every session to keep the quality of learning high.', 'Measured Every Semester', 'center') ?>
-  <?= stat_counter(array_values(array_filter([
-      ['value' => $phdPct, 'suffix' => '%', 'label' => 'PhD-qualified faculty', 'caption' => $counts['phd'] . ' of ' . $counts['faculty'] . ' faculty members'],
-      $attendance !== null ? ['value' => $attendance, 'decimals' => 1, 'suffix' => '%', 'label' => 'Average attendance', 'caption' => 'Session ' . ($session['name'] ?? '') . ' so far'] : null,
-      ['value' => $counts['satisfaction'], 'suffix' => '%', 'label' => 'Student satisfaction', 'caption' => 'Annual student feedback survey'],
-  ])), ['variant' => 'rings', 'gridClass' => 'mx-auto max-w-4xl grid-cols-1 sm:grid-cols-3']) ?>
+  <?= stat_counter($outcomes, ['variant' => 'rings', 'gridClass' => count($outcomes) >= 3 ? 'mx-auto max-w-4xl grid-cols-1 sm:grid-cols-3' : 'mx-auto max-w-2xl grid-cols-1 sm:grid-cols-2']) ?>
 <?= section_close() ?>
+<?php endif; ?>
 
 <?php site_footer([
     'cta_title' => 'Begin Your Academic Journey at GIMT',

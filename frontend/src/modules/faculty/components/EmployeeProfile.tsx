@@ -14,7 +14,7 @@ import { CrudFormModal } from '@/components/crud';
 import { api, type ApiError } from '@/lib/api';
 import { useApi, useCrudMeta } from '@/lib/queries';
 import { printUrl } from '@/lib/config';
-import { formatDate, formatNumber, labelize } from '@/lib/format';
+import { formatDate, formatNumber, formatPhone, labelize, telHref } from '@/lib/format';
 import { EMPLOYEE_LABEL, EMPLOYEE_STATUSES, STAFF_CATEGORIES, employeeRef, scrollActiveTabIntoView, type EmployeeType, type NewAccount, type ProfilePayload } from '../hr';
 import { CreateAccountModal, CredentialsModal } from './AccountModals';
 import { LeaveFormModal } from './LeaveFormModal';
@@ -211,7 +211,7 @@ export function EmployeeProfile({ type }: { type: EmployeeType }) {
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400">
                   <span className="inline-flex items-center gap-1.5"><IdCard className="h-3.5 w-3.5" /> {p.employee_id}</span>
                   {p.email && <a href={`mailto:${p.email}`} className="inline-flex items-center gap-1.5 hover:text-brand-700 dark:hover:text-white"><Mail className="h-3.5 w-3.5" /> {p.email}</a>}
-                  {p.phone && <a href={`tel:${p.phone.replace(/\s/g, '')}`} className="inline-flex items-center gap-1.5 hover:text-brand-700 dark:hover:text-white"><Phone className="h-3.5 w-3.5" /> {p.phone}</a>}
+                  {p.phone && <a href={telHref(p.phone)} className="inline-flex items-center gap-1.5 hover:text-brand-700 dark:hover:text-white"><Phone className="h-3.5 w-3.5" /> {formatPhone(p.phone)}</a>}
                   {p.joining_date && <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Joined {formatDate(p.joining_date)}</span>}
                   <span className="inline-flex items-center gap-1.5"><UserRound className="h-3.5 w-3.5" /> {data.account ? `Login: ${data.account.username}` : 'No login account'}</span>
                 </div>

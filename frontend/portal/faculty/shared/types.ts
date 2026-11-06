@@ -56,6 +56,8 @@ export interface TimetablePeriod {
   date: string | null;
   state: PeriodState;
   counts: SheetCounts | null;
+  /** period of the register that covers this cell (null = a register without a period / extra class) */
+  register_slot_id: number | null;
 }
 
 export interface TimetableData {
@@ -240,6 +242,31 @@ export interface SaveAttendanceResult {
   counts: SheetCounts | null;
   label: string;
   new_defaulters: { id: number; name: string; percent: number }[];
+}
+
+/** GET attendance/pending - held periods without a register + today's register status (keyed by timetable id). */
+export interface PendingRegister {
+  date: string;
+  slot: string;
+  start_time: string;
+  end_time: string;
+  time_slot_id: number;
+  subject_code: string;
+  subject: string;
+  program: string;
+  semester_no: number;
+  section: string;
+  section_id: number;
+  subject_id: number;
+  room_code: string | null;
+}
+
+export interface RegisterStatusData {
+  days: number;
+  from: string;
+  count: number;
+  items: PendingRegister[];
+  today: Record<string, { marked: boolean; present: number | null; total: number | null; time_slot_id: number | null }>;
 }
 
 export interface HistoryRow {

@@ -20,8 +20,9 @@ interface CardHeaderProps {
 
 export function CardHeader({ title, subtitle, icon: Icon, actions, className }: CardHeaderProps) {
   return (
-    <div className={clsx('card-header', className)}>
-      <div className="flex min-w-0 items-start gap-3">
+    // Wraps on narrow cards: the actions drop below the title instead of squeezing it into a sliver.
+    <div className={clsx('card-header', actions && 'flex-wrap gap-y-3', className)}>
+      <div className={clsx('flex min-w-0 items-start gap-3', actions && 'flex-1 basis-56')}>
         {Icon && (
           <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
             <Icon className="h-4 w-4" />
@@ -32,7 +33,7 @@ export function CardHeader({ title, subtitle, icon: Icon, actions, className }: 
           {subtitle && <p className="card-subtitle">{subtitle}</p>}
         </div>
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

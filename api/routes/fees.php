@@ -29,8 +29,63 @@
  *   POST /fees/refunds/{id}/{approve|reject|process}  workflow                                             fees.approve
  *   GET  /fees/reports/{collection|outstanding|defaulters|headwise|daybook}?from&to&mode&program_id&semester&collector&q&page&format=csv|xlsx|print
  *   GET  /fees/collectors                             users who have collected payments (report filter)
+ *   GET  /fees/verify?no=RCPT/…&h=<sig>               PUBLIC (no login): HTML "is this receipt genuine?" page opened by the
+ *                                                     receipt QR; signed link (fees_receipt_verify_url), rate limited, noindex
  */
 require_once APP_ROOT . '/app/services/fees.php';
+
+route('GET', '/fees/verify', function () {
+    header('Content-Type: text/html; charset=utf-8');
+    header('X-Robots-Tag: noindex, nofollow');
+    header('Cache-Control: no-store');
+    $no = mb_substr(trim(api_query('no')), 0, 60);
+    $sig = preg_replace('/[^a-f0-9]/', '', strtolower(api_query('h')));
+    // a phone scans this QR: small self-contained responsive page (inline CSS - print views are fixed A4 sheets)
+    $show = function (string $title, string $heading, string $tone, string $text, string $details, int $status) {
+        http_response_code($status);
+        $colors = ['ok' => '#047857', 'warn' => '#B45309', 'bad' => '#B91C1C'];
+        echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">'
+            . '<title>' . e($title . ' - ' . institute_name()) . '</title><link rel="icon" href="' . e(asset('assets/images/favicon.svg')) . '">'
+            . '<style>*{box-sizing:border-box}body{margin:0;background:#F5F2EE;color:#1e293b;font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}'
+            . '.wrap{max-width:520px;margin:0 auto;padding:24px 16px 40px}.card{background:#fff;border:1px solid #EDE8E2;border-radius:18px;padding:24px 20px;box-shadow:0 8px 24px rgba(11,42,91,.06)}'
+            . '.brand{display:flex;align-items:center;gap:12px;margin-bottom:20px}.brand img{height:44px;width:auto}.brand p{margin:0;font-weight:800;color:#0B2A5B;font-size:14px;line-height:1.3}'
+            . 'h1{margin:4px 0 6px;font-size:24px;line-height:1.25;font-weight:800}p.lead{margin:0;color:#4A5568}dl{margin:18px 0 0;border-top:1px solid #f1f5f9}'
+            . 'dl div{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid #f1f5f9}dt{color:#64748b}dd{margin:0;font-weight:600;text-align:right;word-break:break-word}'
+            . '.foot{margin-top:18px;font-size:13px;color:#64748b;text-align:center}</style></head><body><main class="wrap"><div class="card">'
+            . '<div class="brand"><img src="' . e(logo_url()) . '" alt=""><p>' . e(institute_name()) . '<br><span style="font-weight:500;color:#64748b">Fee receipt verification</span></p></div>'
+            . '<h1 style="color:' . ($colors[$tone] ?? '#0B2A5B') . '">' . e($heading) . '</h1><p class="lead">' . e($text) . '</p>' . $details . '</div>'
+            . '<p class="foot">Questions about a receipt? Accounts office: ' . e((string) setting('phone', '')) . ' · ' . e((string) setting('email', '')) . '</p></main></body></html>';
+        exit;
+    };
+    if (!rate_limit('rcpt-verify:' . client_ip(), 30, 600)) {
+        $show('Too many checks', 'Too many checks', 'warn', 'Please wait a few minutes and scan the receipt again.', '', 429);
+    }
+    if ($no === '' || $sig === '' || !hash_equals(fees_receipt_verify_sig($no), $sig)) {
+        $show('Receipt not verified', 'This receipt could not be verified', 'bad', 'The link is incomplete or was not issued by ' . institute_name()
+            . '. Scan the QR code printed on the receipt again, or contact the accounts office.', '', 404);
+    }
+    $p = db_row("SELECT p.receipt_no, p.payment_date, p.amount, p.fine_amount, p.status, p.mode, s.first_name, s.last_name, s.student_uid, pr.short_name AS program
+                 FROM payments p LEFT JOIN students s ON s.id = p.student_id LEFT JOIN programs pr ON pr.id = s.program_id WHERE p.receipt_no = ?", [$no]);
+    if (!$p) {
+        $show('Receipt not found', 'Receipt ' . $no . ' was not found', 'bad', 'It may have been withdrawn. Please contact the accounts office.', '', 404);
+    }
+    // just enough to match the paper in hand: first name + initial, a partly masked student ID, amount, date, status
+    $name = trim((string) $p['first_name'] . ' ' . mb_substr((string) $p['last_name'], 0, 1) . ((string) $p['last_name'] !== '' ? '.' : ''));
+    $uid = (string) $p['student_uid'];
+    $uidMasked = strlen($uid) > 6 ? substr($uid, 0, 6) . str_repeat('•', max(0, strlen($uid) - 8)) . substr($uid, -2) : $uid;
+    [$label, $tone, $note] = match ($p['status']) {
+        'success' => ['Genuine receipt', 'ok', 'This receipt was issued by ' . institute_name() . ' and the payment is recorded.'],
+        'refunded' => ['Genuine receipt - refunded', 'warn', 'This receipt was issued by ' . institute_name() . '; the amount has since been refunded.'],
+        'cancelled' => ['Receipt cancelled', 'bad', 'This receipt was issued but later cancelled (void). It is not valid as proof of payment.'],
+        default => ['Payment not completed', 'bad', 'This payment is not complete and the receipt is not valid as proof of payment.'],
+    };
+    $row = fn (string $k, string $v) => '<div><dt>' . e($k) . '</dt><dd>' . e($v) . '</dd></div>';
+    $show('Receipt ' . $p['receipt_no'], $label, $tone, $note, '<dl>'
+        . $row('Receipt No', (string) $p['receipt_no']) . $row('Payment date', format_date($p['payment_date']))
+        . $row('Amount', money((float) $p['amount'] + (float) $p['fine_amount'], 2)) . $row('Mode', fees_mode_label($p['mode']))
+        . ($name !== '' ? $row('Student', $name . ($p['program'] ? ' · ' . $p['program'] : '')) : '') . ($uid !== '' ? $row('Student ID', $uidMasked) : '')
+        . '</dl>', 200);
+}, ['auth' => false]);
 
 function fees_api_int_list($v): array
 {
@@ -204,7 +259,7 @@ route('POST', '/fees/invoices/late-fee', function () {
 
 route('POST', '/fees/invoices/{id:\d+}/cancel', function ($p) {
     api_require('fees', 'edit');
-    fees_cancel_invoice((int) $p['id'], (string) (api_param('reason') ?? ''));
+    fees_cancel_invoice((int) $p['id'], api_str(api_param('reason')));
     api_ok(fees_invoice_detail((int) $p['id']), 'Invoice cancelled.');
 });
 
@@ -221,8 +276,8 @@ route('POST', '/fees/reminders', function () {
 
 route('GET', '/fees/students/search', function () {
     api_require('fees', 'view');
-    $q = trim((string) ($_GET['q'] ?? ''));
-    $ids = trim((string) ($_GET['ids'] ?? ''));
+    $q = trim(api_str($_GET['q'] ?? null));
+    $ids = trim(api_str($_GET['ids'] ?? null));
     $where = ["s.status IN ('active', 'detained', 'suspended')"];
     $args = [];
     if ($ids !== '') {
@@ -264,7 +319,7 @@ route('POST', '/fees/collect', function () {
 
 route('GET', '/fees/payments/search', function () {
     api_require('fees', 'view');
-    $q = trim((string) ($_GET['q'] ?? ''));
+    $q = trim(api_str($_GET['q'] ?? null));
     $ids = fees_api_int_list($_GET['ids'] ?? '');
     $where = ["p.status = 'success'"];
     $args = [];
@@ -313,7 +368,7 @@ route('POST', '/fees/payments/{id:\d+}/email', function ($p) {
 
 route('POST', '/fees/payments/{id:\d+}/void', function ($p) {
     api_require('fees', 'approve');
-    $res = fees_void_payment((int) $p['id'], (string) (api_param('reason') ?? ''));
+    $res = fees_void_payment((int) $p['id'], api_str(api_param('reason')));
     api_ok(fees_payment_detail((int) $p['id']) + ['invoices_restored' => $res['invoices']], 'Receipt voided and invoice balances restored.');
 });
 
@@ -323,7 +378,7 @@ route('POST', '/fees/scholarships/{id:\d+}/award', function ($p) {
     $in = api_input();
     $preview = !empty($in['preview']);
     api_require('fees', $preview ? 'view' : 'edit');
-    $reason = trim((string) ($in['reason'] ?? ''));
+    $reason = trim(api_str($in['reason'] ?? null));
     if (mb_strlen($reason) > 255) {
         api_error('Please fix the highlighted fields and try again.', 422, ['reason' => 'Remarks may not be longer than 255 characters.']);
     }
@@ -343,7 +398,7 @@ route('POST', '/fees/scholarships/{id:\d+}/award', function ($p) {
 route('POST', '/fees/refunds', function () {
     api_require('fees', 'create');
     $in = api_input();
-    $id = fees_refund_request((int) ($in['payment_id'] ?? 0), (float) ($in['amount'] ?? 0), (string) ($in['reason'] ?? ''));
+    $id = fees_refund_request((int) ($in['payment_id'] ?? 0), (float) ($in['amount'] ?? 0), api_str($in['reason'] ?? null));
     api_ok(db_row('SELECT * FROM refunds WHERE id = ?', [$id]), 'Refund request submitted for approval.', 201);
 });
 
@@ -364,7 +419,7 @@ route('GET', '/fees/collectors', function () {
 route('GET', '/fees/reports/{tab:collection|outstanding|defaulters|headwise|daybook}', function ($p) {
     api_require('fees', 'view');
     $f = fees_report_filters($_GET);
-    $format = (string) ($_GET['format'] ?? '');
+    $format = api_str($_GET['format'] ?? null);
     if (in_array($format, ['csv', 'xlsx', 'print'], true)) {
         api_require('fees', 'export');
         fees_report_export($p['tab'], $f, $format);

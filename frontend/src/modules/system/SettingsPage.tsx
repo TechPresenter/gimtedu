@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { useQueryClient } from '@tanstack/react-query';
@@ -12,6 +12,7 @@ import { useAuth } from '@/lib/auth';
 import { useApi } from '@/lib/queries';
 import { formatDate, formatDateTime, timeAgo } from '@/lib/format';
 import { SettingInput, colSpan, type SettingField } from './settings/SettingInput';
+import { IntegrationsNavButton, IntegrationsTab } from './settings/IntegrationsTab';
 
 interface SettingSection {
   key: string;
@@ -86,7 +87,9 @@ export default function SettingsPage() {
     const a = active.getBoundingClientRect();
     list.scrollLeft += a.left - l.left - (l.width - a.width) / 2;
   }, [tab, data]);
-  const group = data?.groups.find((g) => g.key === tab) ?? data?.groups[0];
+  // "integrations" is a client-side tab (settings/IntegrationsTab, /api/integrations) next to the server-defined groups
+  const isIntegrations = tab === 'integrations';
+  const group = isIntegrations ? undefined : data?.groups.find((g) => g.key === tab) ?? data?.groups[0];
   const readOnly = !data?.can_edit;
   const val = (g: SettingGroup, k: string) => drafts[k] ?? g.values[k] ?? '';
   const sectionDirty = (g: SettingGroup, s: SettingSection) =>
@@ -116,6 +119,7 @@ export default function SettingsPage() {
     const clear: string[] = [];
     let hasFile = false;
     s.fields.forEach((f) => {
+      if (f.readonly) return;
       if (f.type === 'image') {
         if (files[f.key]) {
           payload[f.key] = files[f.key];
@@ -153,7 +157,7 @@ export default function SettingsPage() {
       <PageHeader
         title="System Settings"
         description="Configure the institute profile, website branding, academics, messaging, payments, security, backups and integrations."
-        breadcrumbs={[{ label: 'System' }, { label: 'Settings' }, ...(group ? [{ label: group.title }] : [])]}
+        breadcrumbs={[{ label: 'System' }, { label: 'Settings' }, ...(isIntegrations ? [{ label: 'Integrations' }] : group ? [{ label: group.title }] : [])]}
       />
       {error ? (
         <Alert variant="error" title="Unable to load settings" action={<Button size="sm" variant="secondary" onClick={() => refetch()}>Retry</Button>}>
@@ -173,6 +177,7 @@ export default function SettingsPage() {
                   </button>
                 );
               })}
+              {data && <IntegrationsNavButton variant="pill" active={isIntegrations} onClick={() => void goTab('integrations')} />}
             </div>
             <Card className="hidden p-2 lg:block">
               {isLoading && Array.from({ length: 9 }).map((_, i) => <Skeleton key={i} className="mb-1.5 h-14 w-full rounded-xl" />)}
@@ -201,12 +206,15 @@ export default function SettingsPage() {
                   </button>
                 );
               })}
+              {data && <IntegrationsNavButton variant="card" active={isIntegrations} onClick={() => void goTab('integrations')} />}
             </Card>
           </nav>
 
           {/* Content */}
           <div className="min-w-0 space-y-6">
-            {isLoading || !data || !group ? (
+            {isIntegrations ? (
+              <IntegrationsTab />
+            ) : isLoading || !data || !group ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <Card key={i} className="space-y-4 p-5">
                   <Skeleton className="h-5 w-1/3" />
@@ -264,7 +272,7 @@ export default function SettingsPage() {
                                   if (errors[f.key]) setErrors((x) => ({ ...x, [f.key]: '' }));
                                 }}
                                 invalid={!!errors[f.key]}
-                                disabled={readOnly}
+                                disabled={readOnly || !!f.readonly}
                                 secretStored={group.secrets[f.key]}
                                 secretEditing={secretEdit[f.key]}
                                 secretCleared={secretClear[f.key]}
@@ -287,7 +295,6 @@ export default function SettingsPage() {
                           ))}
                         </div>
                       )}
-                      {s.key === 'colors' && <BrandPreview primary={val(group, 'primary_color')} accent={val(group, 'accent_color')} secondary={val(group, 'secondary_color')} heading={val(group, 'heading_font')} />}
                     </SectionCard>
                   </Reveal>
                 ))}
@@ -514,32 +521,6 @@ function TestSmsPanel({ channel, enabled, disabled }: { channel: 'sms' | 'whatsa
           {result.message}
         </Alert>
       )}
-    </div>
-  );
-}
-
-/** Live preview of the website brand colours. */
-function BrandPreview({ primary, accent, secondary, heading }: { primary: string; accent: string; secondary: string; heading: string }) {
-  const ok = (c: string, f: string) => (/^#[0-9a-f]{6}$/i.test(c) ? c : f);
-  const p = ok(primary, '#0B2A5B');
-  const a = ok(accent, '#22943F');
-  const s = ok(secondary, '#1D4ED8');
-  const font = useMemo(() => `"${heading || 'Plus Jakarta Sans'}", Inter, sans-serif`, [heading]);
-  return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700" aria-label="Brand preview">
-      <div className="flex items-center justify-between px-4 py-2.5 text-white" style={{ background: p }}>
-        <span className="text-sm font-bold" style={{ fontFamily: font }}>GLOBAL IMT</span>
-        <span className="rounded-lg px-3 py-1 text-xs font-semibold text-white shadow-sm" style={{ background: a }}>Apply Now →</span>
-      </div>
-      <div className="bg-white px-4 py-4 dark:bg-slate-900">
-        <p className="text-base font-extrabold" style={{ color: p, fontFamily: font }}>Shaping Future Leaders</p>
-        <p className="mt-1 text-xs text-slate-500">Preview of headings, links and buttons with the selected colours.</p>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <span className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition hover:-translate-y-0.5" style={{ background: a }}>Apply for Admission</span>
-          <span className="rounded-lg border px-3 py-1.5 text-xs font-semibold" style={{ borderColor: p, color: p }}>Explore Programs</span>
-          <span className="text-xs font-semibold underline" style={{ color: s }}>View placement report</span>
-        </div>
-      </div>
     </div>
   );
 }
