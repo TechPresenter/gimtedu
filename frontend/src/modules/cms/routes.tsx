@@ -13,6 +13,7 @@ export const routes: RouteObject[] = [
   page('cms/banners', 'cms', () => import('./BannersPage')),
   page('cms/blog', 'blog', () => import('./BlogPage')),
   page('cms/media', 'media', () => import('./MediaPage')),
+  page('cms/site-photos', 'media', () => import('./SitePhotosPage')),
   page('cms/gallery', 'media', () => import('./GalleryPage')),
   page('cms/faqs', 'cms', () => import('./FaqsPage')),
   page('cms/testimonials', 'cms', () => import('./TestimonialsPage')),

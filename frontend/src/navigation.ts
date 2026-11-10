@@ -258,6 +258,7 @@ export const NAVIGATION: NavGroup[] = [
           { label: 'Blog / News', to: '/cms/blog', perm: 'blog' },
           { label: 'Blog Categories', to: '/cms/blog?tab=categories', perm: 'blog' },
           { label: 'Media Library', to: '/cms/media', perm: 'media' },
+          { label: 'Website Photos', to: '/cms/site-photos', perm: 'media' },
           { label: 'Gallery', to: '/cms/gallery', perm: 'media' },
           { label: 'FAQs', to: '/cms/faqs', perm: 'cms' },
           { label: 'Testimonials', to: '/cms/testimonials', perm: 'cms' },

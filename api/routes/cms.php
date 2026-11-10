@@ -471,3 +471,35 @@ route('POST', '/cms/upload', function () {
     log_activity('create', 'cms', $id ?: null, 'Uploaded image ' . ($res['original_name'] ?? basename($res['path'])) . ' (' . human_filesize((int) $res['size']) . ')');
     api_ok(['id' => $id, 'path' => $res['path'], 'title' => $res['original_name'], 'width' => $res['width'], 'height' => $res['height'], 'size' => $res['size'], 'source' => 'library'], 'Image uploaded.', 201);
 });
+
+/* ---------------------------------------------------------------------------------------------- Website photos
+ * The photos bundled with the website pages (assets/images/site): list, replace in place (same name / shape / size,
+ * compressed), undo. Admin › Website CMS › Website Photos. Logic: app/services/site_photos.php */
+
+route('GET', '/cms/site-photos', function () {
+    if (!can('cms', 'view') && !can('media', 'view')) {
+        api_error('You do not have permission to view the website photos.', 403);
+    }
+    require_once APP_ROOT . '/app/services/site_photos.php';
+    api_ok(['photos' => site_photo_list(), 'max_bytes' => site_photo_max_bytes(), 'can' => ['edit' => can('media', 'edit')]]);
+});
+
+route('POST', '/cms/site-photos/{name:[a-z0-9_.-]+}/replace', function ($p) {
+    cms_api_require('media', 'edit');
+    require_once APP_ROOT . '/app/services/site_photos.php';
+    $res = site_photo_replace((string) $p['name'], $_FILES['photo'] ?? null);
+    if (!$res['ok']) {
+        api_error($res['error'], 422, ['photo' => $res['error']]);
+    }
+    api_ok($res['photo'], 'Photo replaced. Every page that uses it now shows the new photo.');
+});
+
+route('POST', '/cms/site-photos/{name:[a-z0-9_.-]+}/undo', function ($p) {
+    cms_api_require('media', 'edit');
+    require_once APP_ROOT . '/app/services/site_photos.php';
+    $res = site_photo_undo((string) $p['name']);
+    if (!$res['ok']) {
+        api_error($res['error'], 422);
+    }
+    api_ok($res['photo'], 'The previous photo is back.');
+});

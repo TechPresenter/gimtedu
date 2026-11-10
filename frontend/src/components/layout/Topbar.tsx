@@ -110,7 +110,7 @@ export function Topbar({ collapsed, onToggleCollapse, onOpenMobile, onOpenSearch
           triggerClassName="btn-icon hidden md:inline-flex"
           trigger={<LayoutGrid className="h-5 w-5" />}
           items={[
-            { label: 'Visit website', icon: ExternalLink, href: appUrl(''), target: '_blank' },
+            { label: 'Visit website', icon: ExternalLink, href: appUrl('/'), target: '_blank' },
             can('reports') && { label: 'Reports & Analytics', icon: LayoutGrid, to: '/reports' },
             can('settings') && { label: 'System settings', icon: Settings, to: '/settings' },
             { label: 'Help & support', icon: CircleHelp, href: appUrl('contact'), target: '_blank' },

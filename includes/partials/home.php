@@ -822,8 +822,8 @@ function hm_faqs(array $c): array
 function hm_preload(array $sections): array
 {
     $hero = $sections['hero']['content'] ?? null;
-    if ($hero && ($hero['layout'] ?? 'layered') === 'split') {   // the split hero shows its photo from 1280 px only
-        return [['href' => site_image($hero['person_image'] ?? null, 'assets/images/site/hero-counsellor.webp'), 'media' => '(min-width: 1280px)']];
+    if ($hero && ($hero['layout'] ?? 'layered') === 'split') {   // the split hero shows its person photo on every screen size
+        return [site_image($hero['person_image'] ?? null, 'assets/images/site/hero-counsellor.webp')];
     }
     return $hero ? [site_image($hero['image'] ?? null, 'assets/images/site/hero-campus-students.jpg')] : [];
 }
@@ -1114,14 +1114,15 @@ function hm_render_hero_split(array $s): string
     }
     $h .= '</div>';
 
-    // ---- person photo (large screens; phones and tablets go straight from the copy to the form)
-    $h .= '<div class="relative hidden xl:col-span-3 xl:block">'
-        . '<div class="lp-photo clip-in absolute inset-x-0 bottom-6 top-20 bg-white"><img src="' . e($photo) . '" alt="' . e($alt) . '" class="object-[42%_50%]" fetchpriority="high" decoding="async" width="' . (int) $pw . '" height="' . (int) $ph . '"></div>'
-        . ($words ? '<span class="absolute left-3 top-24 z-[2]">' . sticker(implode(' · ', $words), ['color' => 'white', 'rotate' => -8, 'size' => 'sm']) . '</span>' : '')
+    // ---- person photo: phones / tablets between the copy and the form, 1024–1279 px under the copy (the form spans both
+    // rows on the right), from 1280 px its own middle column (owner request 2026-11-10: the photo on every screen size)
+    $h .= '<div class="relative mx-auto w-full max-w-[420px] lg:col-span-7 lg:col-start-1 lg:row-start-2 lg:mx-0 lg:max-w-[460px] xl:col-span-3 xl:col-start-6 xl:row-start-1 xl:max-w-none">'
+        . '<div class="lp-photo clip-in relative h-[400px] bg-white sm:h-[480px] lg:h-[420px] xl:absolute xl:inset-x-0 xl:bottom-6 xl:top-20 xl:h-auto"><img src="' . e($photo) . '" alt="' . e($alt) . '" class="object-[50%_20%] xl:object-[42%_50%]" fetchpriority="high" decoding="async" width="' . (int) $pw . '" height="' . (int) $ph . '"></div>'
+        . ($words ? '<span class="absolute left-3 top-5 z-[2] xl:top-24">' . sticker(implode(' · ', $words), ['color' => 'white', 'rotate' => -8, 'size' => 'sm']) . '</span>' : '')
         . '</div>';
 
-    // ---- lead card
-    $h .= '<div class="lg:col-span-5 xl:col-span-4" id="hero-enquiry">' . $form . '</div>';
+    // ---- lead card (from 1024 px the right column, beside the copy and the photo)
+    $h .= '<div class="lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1 xl:col-span-4 xl:col-start-9 xl:row-span-1" id="hero-enquiry">' . $form . '</div>';
     $h .= '</div></section>';
     return $h;
 }

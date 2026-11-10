@@ -548,7 +548,9 @@ function sa_fee_structures(array $p): array
  */
 function sa_program_hero(array $p, array $o = []): void
 {
-    $bg = site_image('assets/images/site/campus-building.jpg');
+    // banner background: the department's cover image (Academics › Departments › Cover image), else the campus photo
+    // (Website CMS › Website Photos › campus-building.jpg)
+    $bg = site_image(trim((string) ($p['department_image'] ?? '')) ?: null, 'assets/images/site/campus-building.jpg');
     $img = site_image($p['image'] ?? null, 'assets/images/site/campus-building.jpg');
     echo '<section class="page-hero">';
     echo '<div class="page-hero-media"><img src="' . e($bg) . '" alt="" class="parallax-media" data-parallax="0.12" fetchpriority="high" decoding="async"></div>';

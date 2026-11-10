@@ -38,7 +38,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ collapsed, mobileOpen, onCloseMobile }: SidebarProps) {
-  const { can, session } = useAuth();
+  const { can } = useAuth();
   const location = useLocation();
   const search = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const groups = useMemo(
@@ -93,9 +93,6 @@ export function Sidebar({ collapsed, mobileOpen, onCloseMobile }: SidebarProps) 
   }, [mobileOpen]);
 
   const mini = collapsed && !mobileOpen;
-  // the full-colour logo (Settings › Website › Logo) on a white card: readable on the navy sidebar whatever the uploaded
-  // logo looks like (a navy wordmark disappears on navy)
-  const logo = session?.app.logo ?? appUrl('assets/images/logo.svg');
 
   return (
     <>
@@ -109,20 +106,9 @@ export function Sidebar({ collapsed, mobileOpen, onCloseMobile }: SidebarProps) 
         )}
         aria-label="Main navigation"
       >
-        <div className={clsx('flex shrink-0 items-center gap-2 border-b border-white/10', mini ? 'h-16 justify-center px-2' : 'px-5 pb-4 pt-5')}>
-          <Link to="/" className={clsx('flex min-w-0 flex-col', !mini && 'flex-1')} aria-label="GIMT SmartCampus dashboard">
-            {mini ? (
-              <img src={session?.app.logo_icon ?? appUrl('assets/images/logo-icon.svg')} alt="GIMT" className="h-10 w-10 rounded-lg bg-white p-1" />
-            ) : (
-              <>
-                <span className="flex items-center justify-center rounded-xl bg-white px-3 py-2 shadow-sm ring-1 ring-white/20">
-                  <img src={logo} alt="Global IMT" className="h-14 w-auto max-w-full object-contain" />
-                </span>
-                <span className="mt-2 text-[10.5px] font-bold uppercase leading-tight tracking-wide text-white/90">Global Institute of<br />Management &amp; Technology</span>
-              </>
-            )}
-          </Link>
-          <button ref={closeRef} type="button" className="ml-auto rounded-lg p-1.5 text-white/70 hover:bg-white/10 lg:hidden" onClick={onCloseMobile} aria-label="Close menu">
+        {/* no logo or institute name in the sidebar (owner request 2026-11-10); phones / tablets keep the close button */}
+        <div className="flex h-14 shrink-0 items-center justify-end border-b border-white/10 px-3 lg:hidden">
+          <button ref={closeRef} type="button" className="rounded-lg p-1.5 text-white/70 hover:bg-white/10" onClick={onCloseMobile} aria-label="Close menu">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -196,7 +182,7 @@ export function Sidebar({ collapsed, mobileOpen, onCloseMobile }: SidebarProps) 
           <div className="m-3 rounded-2xl border border-white/10 bg-white/[.06] p-3.5">
             <p className="mb-2 text-xs font-semibold text-white">Quick Links</p>
             <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11.5px] text-white/75">
-              <a href={appUrl('')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-white"><Globe className="h-3.5 w-3.5" />Visit Website</a>
+              <a href={appUrl('/')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-white"><Globe className="h-3.5 w-3.5" />Visit Website</a>
               <a href={appUrl('portal/student/login')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-white"><GraduationCap className="h-3.5 w-3.5" />Student Portal</a>
               <a href={appUrl('portal/faculty/login')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-white"><UserRound className="h-3.5 w-3.5" />Faculty Portal</a>
               <a href={appUrl('contact')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-white"><LifeBuoy className="h-3.5 w-3.5" />Help &amp; Support</a>
@@ -204,7 +190,7 @@ export function Sidebar({ collapsed, mobileOpen, onCloseMobile }: SidebarProps) 
           </div>
         )}
         {mini && (
-          <a href={appUrl('')} target="_blank" rel="noreferrer" className="mx-auto mb-4 rounded-lg p-2 text-white/70 hover:bg-white/10" title="Visit website">
+          <a href={appUrl('/')} target="_blank" rel="noreferrer" className="mx-auto mb-4 rounded-lg p-2 text-white/70 hover:bg-white/10" title="Visit website">
             <ExternalLink className="h-4 w-4" />
           </a>
         )}

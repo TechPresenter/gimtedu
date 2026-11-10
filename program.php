@@ -12,7 +12,7 @@ require_once __DIR__ . '/includes/partials/certifications.php';
 $slug = strtolower((string) ($_GET['slug'] ?? ''));
 $program = null;
 if (preg_match('/^[a-z0-9-]{1,190}$/', $slug)) {
-    $program = sa_try(fn () => db_row("SELECT p.*, d.name AS department_name, d.code AS department_code, d.description AS department_description
+    $program = sa_try(fn () => db_row("SELECT p.*, d.name AS department_name, d.code AS department_code, d.description AS department_description, d.image AS department_image
         FROM programs p LEFT JOIN departments d ON d.id = p.department_id
         WHERE p.slug = ? AND p.status = 'active' AND p.show_on_website = 1", [$slug]));
 }
