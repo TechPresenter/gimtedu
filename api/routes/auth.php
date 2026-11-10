@@ -92,6 +92,11 @@ route('GET', '/auth/session', function () {
 }, ['auth' => false]);
 
 route('POST', '/auth/login', function () {
+    // private admin address (Settings › Security): the admin sign-in answers "not found" until it was opened
+    require_once APP_ROOT . '/app/services/admin_gate.php';
+    if (!admin_gate_open()) {
+        api_error('Not found.', 404);
+    }
     $in = api_input();
     $identifier = trim(api_str($in['identifier'] ?? $in['email'] ?? null));
     $password = api_str($in['password'] ?? null);

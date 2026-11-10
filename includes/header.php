@@ -82,6 +82,7 @@ $announceItems = is_string($announce) ? site_announcement_items($announce) : ($a
 <?= site_csp_tag(seo_sentry_head()) ?>
   <?= site_assets_head() ?>
 <?= seo_jsonld_html($page, $seo, $title, $httpStatus) ?>
+<?= site_custom_code('head') ?>
 </head>
 <body class="<?= e($bodyClass) ?>"<?= $cursor ? ' data-cursor' : '' ?>>
 <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[110] focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg">Skip to main content</a>

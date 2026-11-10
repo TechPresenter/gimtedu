@@ -741,6 +741,19 @@ function site_admin_preview(): bool
 }
 
 /**
+ * Custom code from Settings › Analytics › Custom code ('head' = before </head>, 'body' = before </body>), printed as
+ * pasted on every public page (a Super Admin sets it). Never in the admin preview frame (?preview=admin).
+ */
+function site_custom_code(string $where): string
+{
+    if (site_admin_preview()) {
+        return '';
+    }
+    $code = trim((string) setting($where === 'head' ? 'custom_head_code' : 'custom_body_code', ''));
+    return $code === '' ? '' : "\n<!-- custom code (Settings › Analytics) -->\n" . $code . "\n<!-- /custom code -->\n";
+}
+
+/**
  * Admin banner preview (?preview=admin&banner=<id>, Banners / Sliders › Preview): for a signed-in user who may view the
  * CMS, that banner shows in its placement ahead of the live ones, even when it is inactive, scheduled or expired.
  * Everyone else (and every other request) gets null, so unpublished banners never leak.

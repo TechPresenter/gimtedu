@@ -20,6 +20,16 @@ require_once __DIR__ . '/includes/errors.php';
 require_once __DIR__ . '/includes/partials/content.php';
 
 $slug = strtolower(trim(cp_query('slug', 200), '/'));
+
+// the private admin address (Settings › Security): remember this browser and open the admin panel
+require_once APP_ROOT . '/app/services/admin_gate.php';
+if ($slug !== '' && $slug === admin_gate_path()) {
+    admin_gate_remember();
+    header('Cache-Control: no-store');
+    header('X-Robots-Tag: noindex, nofollow');
+    header('Location: ' . base_url('admin/'), true, 302);
+    exit;
+}
 $reqPath = (string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
 $rel = '/' . trim(substr($reqPath, strlen(base_path())), '/');
 $notFound = function (): void {

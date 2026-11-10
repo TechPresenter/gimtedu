@@ -4,6 +4,19 @@
  * Serves the compiled React app from admin/build (see frontend/). All /admin/* routes resolve here.
  */
 require __DIR__ . '/../app/init.php';
+require_once APP_ROOT . '/app/services/admin_gate.php';
+
+// Private admin address (Settings › Security): browsers that have not opened it get the website's "page not found".
+// Password-reset links from e-mails stay open.
+$gatePath = (string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
+$gateReset = str_ends_with(rtrim($gatePath, '/'), '/admin/reset-password') && trim((string) ($_GET['token'] ?? '')) !== '';
+if (!$gateReset && !admin_gate_open()) {
+    http_response_code(404);
+    header('X-Robots-Tag: noindex, nofollow');
+    header('Cache-Control: no-store');
+    require APP_ROOT . '/404.php';
+    exit;
+}
 
 $manifestFile = __DIR__ . '/build/.vite/manifest.json';
 $nonce = base64_encode(random_bytes(16));

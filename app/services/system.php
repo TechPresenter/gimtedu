@@ -237,10 +237,11 @@ function settings_schema(): array
                 // public website colours + fonts (app/services/site_brand.php; client request 2026-10-26). The legacy keys
                 // primary_color / accent_color / heading_font / body_font stay hidden (settings_hidden_keys()).
                 ['key' => 'brand', 'title' => 'Brand colours & fonts', 'description' => 'Applied to the whole public website. Darker and lighter shades are generated automatically and keep text readable. The admin panel, portals and printed documents keep their own look.', 'fields' => [
-                    ['key' => 'site_brand_color', 'label' => 'Brand colour', 'type' => 'color', 'default' => '#0B2A5B', 'rules' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'], 'col' => 3, 'help' => 'Headings, navy bands, navy buttons. A deep shade of this colour is used where text must stay readable. Default #0B2A5B.'],
+                    ['key' => 'site_brand_color', 'label' => 'Brand colour', 'type' => 'color', 'default' => '#0B2A5B', 'rules' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'], 'col' => 3, 'help' => 'Headings, navy bands, navy buttons — exactly this colour when white text on it stays readable; a very light colour is darkened automatically. Default #0B2A5B.'],
                     ['key' => 'site_accent_color', 'label' => 'Accent colour', 'type' => 'color', 'default' => '#F05A28', 'rules' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'], 'col' => 3, 'help' => 'Apply buttons, highlights, icons. Button shades are generated for white text. Default #F05A28.'],
                     ['key' => 'site_font_heading', 'label' => 'Heading font', 'type' => 'select', 'options' => site_font_options(), 'default' => 'plus-jakarta-sans', 'rules' => 'required', 'col' => 3],
                     ['key' => 'site_font_body', 'label' => 'Body font', 'type' => 'select', 'options' => site_font_options(), 'default' => 'inter', 'rules' => 'required', 'col' => 3],
+                    ['key' => 'site_text_color', 'label' => 'Text colour', 'type' => 'color', 'default' => '#4A5568', 'rules' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'], 'col' => 3, 'help' => 'Paragraphs and other body text on light backgrounds (headings follow the brand colour). Keep it dark so it stays readable. Default #4A5568.'],
                 ]],
                 ['key' => 'header', 'title' => 'Header', 'description' => 'Top bar and call-to-action button.', 'fields' => [
                     ['key' => 'header_cta_text', 'label' => 'CTA button text', 'rules' => 'required|max:40', 'col' => 6],
@@ -453,6 +454,10 @@ function settings_schema(): array
                         'help' => 'Staff (admin panel and faculty portal) must sign in with a code from Google Authenticator or Microsoft Authenticator; accounts without it set it up at their next sign-in. Students are not affected. Turn it on for your own account first (My Profile › Security).'],
                     ['key' => 'trust_proxy_headers', 'label' => 'Trust X-Forwarded-For (behind a proxy / CDN)', 'type' => 'toggle', 'col' => 6, 'help' => 'Enable only when the site is behind exactly one trusted reverse proxy / CDN that appends the visitor address (the last X-Forwarded-For entry is used for login limits, lockouts and logs).'],
                 ]],
+                ['key' => 'admin_address', 'title' => 'Private admin address', 'description' => 'Hide the admin panel from people who do not know its address. When set, gimtedu.com/admin shows “page not found” in every browser that has not opened your private address once; after opening it, /admin works in that browser for about a year. Signed-in staff keep working and password-reset e-mails still work. Write the address down: without it, a new browser cannot reach the sign-in page.', 'fields' => [
+                    ['key' => 'admin_secret_path', 'label' => 'Private address', 'rules' => ['max:40', 'regex:/^$|^[a-z0-9][a-z0-9-]{5,39}$/'], 'col' => 6, 'prefix' => '/', 'placeholder' => 'e.g. gimt-team-4821',
+                        'help' => '6–40 small letters, numbers or hyphens; hard to guess. The admin panel then opens from https://gimtedu.com/<this address>. Blank = /admin works for everyone (as before).'],
+                ]],
                 ['key' => 'sessions', 'title' => 'Sessions', 'description' => 'Idle timeout and remember-me duration.', 'fields' => [
                     ['key' => 'session_timeout', 'label' => 'Idle session timeout', 'type' => 'number', 'rules' => 'required|integer|min:5|max:720', 'col' => 6, 'suffix' => 'min'],
                     ['key' => 'remember_me_days', 'label' => '"Remember me" duration', 'type' => 'number', 'rules' => 'required|integer|min:1|max:365', 'col' => 6, 'suffix' => 'days'],
@@ -480,6 +485,10 @@ function settings_schema(): array
                     ['key' => 'gtm_id', 'label' => 'Google Tag Manager ID', 'rules' => ['regex:/^GTM-[A-Z0-9]{4,12}$/'], 'col' => 6, 'placeholder' => 'GTM-XXXXXXX'],
                     ['key' => 'search_console_verification', 'label' => 'Search Console verification code', 'rules' => ['regex:/^[A-Za-z0-9_\-]{10,100}$/'], 'col' => 6, 'help' => 'Content value of the google-site-verification meta tag.'],
                     ['key' => 'meta_pixel_id', 'label' => 'Meta (Facebook) Pixel ID', 'rules' => ['regex:/^[0-9]{6,20}$/'], 'col' => 6],
+                ]],
+                ['key' => 'custom_code', 'title' => 'Custom code', 'description' => 'Paste tags or scripts from a service you trust (chat widget, extra verification tag, ad conversion tag). They are added to every public website page exactly as pasted and run for every visitor — not in the admin panel, the portals or the admin preview. Only a Super Admin can change them.', 'fields' => [
+                    ['key' => 'custom_head_code', 'label' => 'Code in the page header (<head>)', 'type' => 'textarea', 'rules' => 'max:20000', 'col' => 12, 'placeholder' => '<script src="https://example.com/widget.js" async></script>', 'help' => 'Goes just before </head>. Leave blank for none.'],
+                    ['key' => 'custom_body_code', 'label' => 'Code at the end of the page (before </body>)', 'type' => 'textarea', 'rules' => 'max:20000', 'col' => 12, 'help' => 'For scripts that must load after the page (most chat widgets).'],
                 ]],
             ],
         ],
@@ -821,6 +830,31 @@ function settings_save_group(string $group, array $input, array $files = []): ar
         && !(int) db_value('SELECT two_factor_enabled FROM users WHERE id = ?', [(int) user_id()])) {
         // never lock everybody out: whoever switches the policy on must already be able to sign in with a code
         $errors['two_factor_enabled'] = 'Set up two-factor authentication on your own account first (My Profile › Security).';
+    }
+    // private admin address: must not be a real page / route; whoever sets it keeps access from this browser
+    if ($group === 'security' && array_key_exists('admin_secret_path', $save) && !isset($errors['admin_secret_path'])) {
+        $gate = strtolower(trim((string) $save['admin_secret_path']));
+        $save['admin_secret_path'] = $gate;
+        if ($gate !== '' && $gate !== (string) setting('admin_secret_path', '')) {
+            require_once APP_ROOT . '/app/services/cms.php';
+            $reserved = ['admin', 'api', 'assets', 'portal', 'storage', 'page', 'login', 'apply', 'contact', 'programs', 'certifications', 'blog', 'events', 'notices', 'gallery', 'campus', 'about'];
+            if (in_array($gate, $reserved, true) || cms_page_is_route($gate) || (int) db_value('SELECT COUNT(*) FROM pages WHERE slug = ?', [$gate]) > 0 || is_file(APP_ROOT . '/' . $gate . '.php')) {
+                $errors['admin_secret_path'] = 'This address is already a page of the website. Choose another one.';
+            } elseif (!is_super_admin()) {
+                $errors['admin_secret_path'] = 'Only a Super Admin can change the private admin address.';
+            } else {
+                require_once APP_ROOT . '/app/services/admin_gate.php';
+                admin_gate_remember($gate);
+            }
+        } elseif ($gate === '' && (string) setting('admin_secret_path', '') !== '' && !is_super_admin()) {
+            $errors['admin_secret_path'] = 'Only a Super Admin can change the private admin address.';
+        }
+    }
+    // custom website code runs for every visitor: only a Super Admin may change it
+    foreach (['custom_head_code', 'custom_body_code'] as $ck) {
+        if ($group === 'analytics' && array_key_exists($ck, $save) && (string) $save[$ck] !== (string) setting($ck, '') && !is_super_admin()) {
+            $errors[$ck] = 'Only a Super Admin can change the custom website code.';
+        }
     }
     if ($group === 'academic' && isset($save['attendance_alert_threshold'], $save['min_attendance_percent']) && (float) $save['attendance_alert_threshold'] < (float) $save['min_attendance_percent']) {
         $errors['attendance_alert_threshold'] = 'Alert threshold should not be lower than the minimum attendance.';

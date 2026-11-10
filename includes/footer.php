@@ -198,5 +198,6 @@ $chatStyle = (string) ($opts['chat'] ?? setting('site_chat_style', 'tab'));
 <?= function_exists('consent_banner') ? consent_banner() : '' ?>
 <?= site_assets_footer() ?>
 <?php if (($opts['chatbot'] ?? true) !== false && is_file(__DIR__ . '/partials/chatbot.php')) { require_once __DIR__ . '/partials/chatbot.php'; if (function_exists('chatbot_widget')) { echo chatbot_widget(); } } ?>
+<?= site_custom_code('body') ?>
 </body>
 </html>

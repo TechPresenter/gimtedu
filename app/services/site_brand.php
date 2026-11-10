@@ -20,7 +20,8 @@
 /** Settings keys with the standard design's values (database/seed/09_theme.php). */
 function site_brand_defaults(): array
 {
-    return ['site_brand_color' => '#0B2A5B', 'site_accent_color' => '#F05A28', 'site_font_heading' => 'plus-jakarta-sans', 'site_font_body' => 'inter'];
+    return ['site_brand_color' => '#0B2A5B', 'site_accent_color' => '#F05A28', 'site_font_heading' => 'plus-jakarta-sans', 'site_font_body' => 'inter',
+        'site_text_color' => '#4A5568'];
 }
 
 /**
@@ -67,7 +68,7 @@ function site_brand_settings(): array
     $hex = fn (string $k) => preg_match('/^#?([0-9A-F]{6})$/i', trim((string) setting($k, $d[$k])), $m) ? '#' . strtoupper($m[1]) : $d[$k];
     $font = fn (string $k) => isset($fonts[$f = (string) setting($k, $d[$k])]) ? $f : $d[$k];
     return $s = ['site_brand_color' => $hex('site_brand_color'), 'site_accent_color' => $hex('site_accent_color'),
-        'site_font_heading' => $font('site_font_heading'), 'site_font_body' => $font('site_font_body')];
+        'site_font_heading' => $font('site_font_heading'), 'site_font_body' => $font('site_font_body'), 'site_text_color' => $hex('site_text_color')];
 }
 
 /* --------------------------------------------------------------------------------------------- colour maths */
@@ -173,6 +174,12 @@ function brand_scale(string $pick, array $defaults, int $anchor, array $minContr
     $exactAt = $closest[0];
     if (isset($minContrast[$exactAt]) && brand_contrast('#FFFFFF', $pick) < $minContrast[$exactAt]) {
         $exactAt = null;
+    }
+    // the brand colour itself must show where people look (headings, navy bands — shade 900): use the exact pick
+    // there whenever white text on it stays readable (WCAG AA 4.5:1). Before (2026-11-10) a mid-dark pick was moved to a
+    // lighter shade and 900 kept a default-dark generated tone, so a changed colour looked unchanged.
+    if ($anchor === 900 && isset($defaults[900]) && brand_contrast('#FFFFFF', $pick) >= 4.5) {
+        $exactAt = 900;
     }
     $out = [];
     foreach ($defaults as $k => $hex) {
@@ -334,10 +341,20 @@ function site_brand_style(): string
             $faces .= site_font_faces($s['site_font_body']);
         }
     }
+    // body text colour (Settings › Website › Text colour): paragraphs on light backgrounds — the --c-body token plus the
+    // grey text utilities the pages use; the dark theme keeps its own light text
+    $textCss = '';
+    if ($s['site_text_color'] !== $d['site_text_color']) {
+        $t = $s['site_text_color'];
+        $root['--c-body'] = $t;
+        $light = 'html:not([data-theme="dark"]) body.site-v2';
+        $textCss = $light . ' :is(.text-slate-600,.text-slate-700,.prose-site){color:' . $t . '}'
+            . $light . ' .text-slate-500{color:color-mix(in srgb,' . $t . ' 84%,#fff)}';
+    }
     if (!$root) {
         return $out = '';
     }
     $decl = fn (array $vars) => implode('', array_map(fn ($k, $v) => $k . ':' . $v . ';', array_keys($vars), $vars));
-    $css = $faces . ':root{' . $decl($root) . '}' . ($dark ? '@media screen{[data-theme="dark"]{' . $decl($dark) . '}}' : '');
+    $css = $faces . ':root{' . $decl($root) . '}' . $textCss . ($dark ? '@media screen{[data-theme="dark"]{' . $decl($dark) . '}}' : '');
     return $out = '<style id="site-brand">' . $css . '</style>';
 }
