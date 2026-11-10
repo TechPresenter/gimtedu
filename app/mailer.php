@@ -43,9 +43,111 @@ function email_contact(): array
     return [trim((string) setting('address', '')), trim((string) setting('phone', '')), absolute_url('')];
 }
 
+/**
+ * Social profiles for the e-mail signature: Settings › Social (real profile URLs only, like the website footer) plus
+ * WhatsApp (Settings › General WhatsApp number) — [key => [url, label]] in display order.
+ */
+function email_social_links(): array
+{
+    $out = [];
+    foreach (['facebook' => ['facebook_url', 'Facebook'], 'instagram' => ['instagram_url', 'Instagram'], 'linkedin' => ['linkedin_url', 'LinkedIn'],
+        'youtube' => ['youtube_url', 'YouTube'], 'x' => ['x_url', 'X']] as $k => [$key, $label]) {
+        $url = trim((string) setting($key, ''));
+        $p = $url !== '' ? parse_url($url) : false;
+        if ($p && !empty($p['host']) && in_array(strtolower($p['scheme'] ?? ''), ['http', 'https'], true) && (trim((string) ($p['path'] ?? ''), '/') !== '' || trim((string) ($p['query'] ?? '')) !== '')) {
+            $out[$k] = [$url, $label];
+        }
+    }
+    $wa = preg_replace('/\D+/', '', (string) setting('whatsapp_number', ''));
+    if (strlen((string) $wa) >= 10) {
+        $out['whatsapp'] = ['https://wa.me/' . (strlen($wa) === 10 ? '91' . $wa : $wa), 'WhatsApp'];
+    }
+    return $out;
+}
+
+/**
+ * The e-mail signature (Settings › Email & SMS › Email signature): logo, name + role, a short line, phone · e-mail ·
+ * website, an optional button and round social icons (PNG — mail clients do not show SVG). '' when switched off.
+ * Table layout + inline styles only, so Gmail, Outlook and phone mail apps show it the same way.
+ */
+function email_signature_html(): string
+{
+    if (setting('email_signature_enabled', '1') !== '1') {
+        return '';
+    }
+    $name = trim((string) setting('email_signature_name', '')) ?: 'Admissions Office';
+    $role = trim((string) setting('email_signature_role', '')) ?: institute_name();
+    $line = trim((string) setting('email_signature_text', ''));
+    $phone = trim((string) setting('email_signature_phone', '')) ?: trim((string) setting('phone', ''));
+    $mail = trim((string) setting('email_signature_email', ''));
+    if (!filter_var($mail, FILTER_VALIDATE_EMAIL)) {
+        $mail = filter_var(setting('admission_email', ''), FILTER_VALIDATE_EMAIL) ?: (filter_var(setting('email', ''), FILTER_VALIDATE_EMAIL) ?: '');
+    }
+    $site = absolute_url('');
+    $host = (string) parse_url($site, PHP_URL_HOST);
+    $icon = fn (string $file, int $size, string $alt) => '<img src="' . e(absolute_url('assets/images/email/' . $file . '.png')) . '" width="' . $size . '" height="' . $size . '" alt="' . e($alt) . '" style="display:inline-block;border:0;outline:none;vertical-align:middle;width:' . $size . 'px;height:' . $size . 'px">';
+    $rows = '';
+    $contact = [];
+    if ($phone !== '') {
+        $contact[] = $icon('contact-phone', 14, 'Phone') . '&nbsp;<a href="tel:' . e(preg_replace('/[^0-9+]/', '', $phone)) . '" style="color:#334155;text-decoration:none">' . e($phone) . '</a>';
+    }
+    if ($mail !== '') {
+        $contact[] = $icon('contact-mail', 14, 'E-mail') . '&nbsp;<a href="mailto:' . e($mail) . '" style="color:#334155;text-decoration:none">' . e($mail) . '</a>';
+    }
+    $contact[] = $icon('contact-globe', 14, 'Website') . '&nbsp;<a href="' . e($site) . '" style="color:#334155;text-decoration:none">' . e($host) . '</a>';
+    $rows .= '<tr><td style="padding-top:8px;font-size:13px;line-height:1.9;color:#334155">' . implode('<span style="color:#cbd5e1">&nbsp;&nbsp;|&nbsp;&nbsp;</span>', $contact) . '</td></tr>';
+    $address = trim((string) setting('address', ''));
+    if (setting('email_signature_address', '0') === '1' && $address !== '') {
+        $rows .= '<tr><td style="padding-top:2px;font-size:12.5px;line-height:1.6;color:#64748b">' . $icon('contact-pin', 14, 'Address') . '&nbsp;' . e($address) . '</td></tr>';
+    }
+    $ctaText = trim((string) setting('email_signature_cta_text', ''));
+    $ctaUrl = trim((string) setting('email_signature_cta_url', ''));
+    if ($ctaText !== '' && $ctaUrl !== '') {
+        $href = preg_match('#^https?://#i', $ctaUrl) ? $ctaUrl : absolute_url(ltrim($ctaUrl, '/'));
+        $rows .= '<tr><td style="padding-top:12px"><a href="' . e($href) . '" style="display:inline-block;background:#D03E16;color:#ffffff;font-size:13px;font-weight:700;line-height:1;text-decoration:none;padding:10px 18px;border-radius:999px">' . e($ctaText) . ' &rarr;</a></td></tr>';
+    }
+    $social = setting('email_signature_social', '1') === '1' ? email_social_links() : [];
+    if ($social) {
+        $links = '';
+        foreach ($social as $k => [$url, $label]) {
+            $links .= '<a href="' . e($url) . '" style="text-decoration:none;margin-right:6px" title="' . e($label) . '">' . $icon($k, 28, $label) . '</a>';
+        }
+        $rows .= '<tr><td style="padding-top:12px">' . $links . '</td></tr>';
+    }
+    $logoCell = '';
+    if (setting('email_signature_logo', '1') === '1') {
+        [$logoUrl, $logoW, $logoH] = email_logo();
+        $w = $logoW ? (int) round($logoW * 56 / max(1, $logoH)) : 0;
+        $logoCell = '<td valign="top" style="padding:4px 18px 0 0;border-right:3px solid #F05A28"><img src="' . e($logoUrl) . '" alt="' . e(institute_name()) . '"' . ($w ? ' width="' . $w . '"' : '') . ' height="56" style="display:block;border:0;outline:none;height:56px;max-width:140px"></td>';
+    }
+    return '<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:22px;border-top:1px solid #e2e8f0;width:100%"><tr><td style="padding-top:18px">'
+        . '<table role="presentation" cellpadding="0" cellspacing="0"><tr>' . $logoCell
+        . '<td valign="top" style="padding-left:' . ($logoCell !== '' ? '18' : '0') . 'px"><table role="presentation" cellpadding="0" cellspacing="0">'
+        . '<tr><td style="font-size:16px;font-weight:700;line-height:1.3;color:#0B2A5B">' . e($name) . '</td></tr>'
+        . '<tr><td style="padding-top:2px;font-size:13px;font-weight:600;line-height:1.4;color:#D03E16">' . e($role) . '</td></tr>'
+        . ($line !== '' ? '<tr><td style="padding-top:6px;font-size:13px;line-height:1.5;color:#475569">' . nl2br(e($line)) . '</td></tr>' : '')
+        . $rows
+        . '</table></td></tr></table></td></tr></table>';
+}
+
+/** Plain-text twin of the signature (for the text/plain part). */
+function email_signature_text(): string
+{
+    if (setting('email_signature_enabled', '1') !== '1') {
+        return '';
+    }
+    $lines = [trim((string) setting('email_signature_name', '')) ?: 'Admissions Office', trim((string) setting('email_signature_role', '')) ?: institute_name()];
+    $line = trim((string) setting('email_signature_text', ''));
+    if ($line !== '') {
+        $lines[] = $line;
+    }
+    return "\n\n" . implode("\n", $lines);
+}
+
 /** Wrap HTML body in the branded email layout. */
 function email_layout(string $html, string $subject = ''): string
 {
+    $signature = email_signature_html();
     $name = e(institute_name());
     [$logoUrl, $logoW, $logoH] = email_logo();
     $logo = '<img src="' . e($logoUrl) . '" alt="' . $name . '"' . ($logoW ? ' width="' . $logoW . '"' : '') . ' height="' . $logoH . '" style="display:block;border:0;outline:none;text-decoration:none;height:' . $logoH . 'px">';
@@ -60,7 +162,7 @@ function email_layout(string $html, string $subject = ''): string
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0"><tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e2e8f0">
 <tr><td style="background:#0B2A5B;padding:16px 28px"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border-radius:10px;padding:6px 12px">{$logo}</td></tr></table></td></tr>
-<tr><td style="padding:28px;font-size:15px;line-height:1.6">{$html}</td></tr>
+<tr><td style="padding:28px;font-size:15px;line-height:1.6">{$html}{$signature}</td></tr>
 <tr><td style="padding:16px 28px;background:#f8fafc;font-size:12px;line-height:1.6;color:#64748b;border-top:1px solid #e2e8f0">&copy; {$year} {$name}<br>{$addressLine}{$contact}<br>This is an automated message.{$reply}</td></tr>
 </table></td></tr></table></body></html>
 HTML;
@@ -84,7 +186,7 @@ function html_to_text(string $html): string
 function email_text_footer(): string
 {
     [$address, $phone, $site] = email_contact();
-    return "\n\n--\n" . implode("\n", array_filter([institute_name(), $address, $phone, $site]));
+    return email_signature_text() . "\n\n--\n" . implode("\n", array_filter([institute_name(), $address, $phone, $site]));
 }
 
 /** multipart/alternative message body (plain text + HTML, base64) and its Content-Type header value. */
