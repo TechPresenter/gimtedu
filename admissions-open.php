@@ -203,6 +203,14 @@ $heroPhotoSize = $heroPhotoFile !== '' && is_file($heroPhotoFile) ? @getimagesiz
 // (phones / tablets crop it from the top: object-top)
 [$heroPhotoUrl, $heroPhotoPos] = $heroPhotoSize ? [site_image($heroPhoto), 'xl:object-[50%_30%]'] : [site_image('assets/images/site/lp-hero-counsellor.webp'), 'xl:object-[70%_50%]'];
 $heroPhotoSize = $heroPhotoSize ?: [720, 1080];
+// Counsellor photo of the closing section: Settings › Website › Campaign landing pages › Counsellor photo when uploaded,
+// else the built-in one (shown whole; very tall uploads are capped and cropped from the top)
+$counsellorPhoto = trim((string) setting('landing_counsellor_image', ''));
+$counsellorFile = $counsellorPhoto === '' || str_contains($counsellorPhoto, '..') ? '' : APP_ROOT . '/' . ltrim(str_starts_with($counsellorPhoto, 'assets/') ? $counsellorPhoto : 'assets/uploads/' . ltrim($counsellorPhoto, '/'), '/');
+$counsellorSize = $counsellorFile !== '' && is_file($counsellorFile) ? @getimagesize($counsellorFile) : false;
+[$counsellorUrl, $counsellorW, $counsellorH] = $counsellorSize && $counsellorSize[0] > 0 && $counsellorSize[1] > 0
+    ? [site_image($counsellorPhoto), (int) $counsellorSize[0], (int) $counsellorSize[1]]
+    : [site_image('assets/images/site/lp-counsellor.webp'), 880, 804];
 $programOptions = site_program_select_options($programs);
 $leadFields = function (string $variant) use ($programOptions, $program) {
     $half = $variant === 'light' ? 'half' : 'full';
@@ -519,7 +527,7 @@ site_header([
     <div class="relative mx-auto w-full max-w-md lg:col-span-5 lg:mx-0 lg:max-w-none" data-reveal="fade-up">
       <span class="geo geo-dots -bottom-6 -left-6 hidden h-24 w-24 lg:block" aria-hidden="true"></span>
       <div class="relative overflow-hidden rounded-[28px] border border-warm-2 bg-white shadow-pop">
-        <img src="<?= e(site_image('assets/images/site/lp-counsellor.webp')) ?>" alt="GIMT admission counsellor ready to help you" loading="lazy" decoding="async" width="880" height="804" class="h-auto w-full">
+        <img src="<?= e($counsellorUrl) ?>" alt="GIMT admission counsellor ready to help you" loading="lazy" decoding="async" width="<?= $counsellorW ?>" height="<?= $counsellorH ?>" class="h-auto max-h-[620px] w-full object-cover object-top">
       </div>
       <a href="<?= e(site_tel($phone)) ?>" class="absolute -bottom-5 left-1/2 inline-flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full bg-brand-900 px-5 py-3 text-sm font-bold text-white shadow-pop transition hover:bg-accent-600"><?= icon('phone', 'h-4 w-4') ?><span class="hidden min-[400px]:inline">Talk to a counsellor:</span><span class="min-[400px]:hidden">Call</span> <?= e($phone) ?></a>
     </div>

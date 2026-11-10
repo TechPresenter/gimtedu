@@ -301,6 +301,8 @@ function settings_schema(): array
                     ['key' => 'landing_hero_pill', 'label' => 'Hero highlighted phrase', 'rules' => 'max:120', 'col' => 6, 'placeholder' => 'Global Institute of Management & Technology', 'help' => 'Second line of the headline, on a pill. Blank = the institute name.'],
                     ['key' => 'landing_hero_image', 'label' => 'Hero photo', 'type' => 'image', 'col' => 6, 'default_preview' => 'assets/images/site/lp-hero-counsellor.webp',
                         'help' => 'Tall portrait (about 720×1080 px) beside the form on wide screens. Blank = the built-in admission counsellor photo.'],
+                    ['key' => 'landing_counsellor_image', 'label' => 'Counsellor photo', 'type' => 'image', 'col' => 6, 'default_preview' => 'assets/images/site/lp-counsellor.webp',
+                        'help' => 'White card beside the enquiry form at the bottom of the page, shown whole (about 1100×1000 px; keep the lower edge plain, the Call button sits there). Blank = the built-in counsellor photo.'],
                     ['key' => 'landing_strip_text', 'label' => 'Top strip messages', 'rules' => 'max:500', 'col' => 12, 'placeholder' => 'Admissions open for 2026-27 | Last date to apply: 30 Nov 2026 | Free career counselling',
                         'help' => 'Separate messages with a vertical bar ( | ). Blank = admissions session, deadline, scholarship line and helpline.'],
                     ['key' => 'landing_form_title', 'label' => 'Enquiry form heading', 'rules' => 'max:80', 'col' => 4, 'placeholder' => 'Talk to an Admission Expert'],
