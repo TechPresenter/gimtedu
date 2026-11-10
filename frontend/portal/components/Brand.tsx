@@ -1,8 +1,9 @@
 import clsx from 'clsx';
-import { appUrl } from '@/lib/config';
+import { appUrl, BRAND_LOGO, BRAND_LOGO_WHITE } from '@/lib/config';
 
-const COLOR = appUrl('assets/images/logo.svg');
-const WHITE = appUrl('assets/images/logo-white.svg');
+// the uploaded logos (Settings › Website, injected by portal/index.php), else the bundled ones
+const COLOR = BRAND_LOGO;
+const WHITE = BRAND_LOGO_WHITE;
 const ICON = appUrl('assets/images/logo-icon.svg');
 
 interface LogoProps {

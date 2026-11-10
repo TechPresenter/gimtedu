@@ -582,12 +582,14 @@ function sa_program_hero(array $p, array $o = []): void
     echo '<div class="relative mx-auto w-full max-w-lg lg:col-span-5 animate-zoom-in delay-2">';
     // the program's course thumbnail (16:9, title baked in): shown whole — no crop, no hover zoom
     echo '<div class="overflow-hidden rounded-3xl bg-brand-900 shadow-pop ring-4 ring-white/15"><img src="' . e($img) . '" alt="' . e($o['image_alt'] ?? $p['name']) . '" width="1422" height="800" class="course-thumb aspect-video w-full object-contain" fetchpriority="high" decoding="async"></div>';
-    $chips = $o['chips'] ?? [];
-    if (!empty($chips[0])) {
-        echo '<span class="float-slow absolute -bottom-5 left-4">' . glass_chip($chips[0][0], $chips[0][1], 'white', 'shadow-soft') . '</span>';
-    }
-    if (!empty($chips[1])) {
-        echo '<span class="float-delayed absolute -top-5 right-4 hidden sm:block">' . glass_chip($chips[1][0], $chips[1][1], 'white', 'shadow-soft') . '</span>';
+    // duration / seats chips in a row under the thumbnail, never over its corners (owner request 2026-11-10)
+    $chips = array_values(array_filter($o['chips'] ?? []));
+    if ($chips) {
+        echo '<div class="mt-4 flex flex-wrap justify-center gap-2">';
+        foreach (array_slice($chips, 0, 2) as $c) {
+            echo glass_chip($c[0], $c[1], 'white', 'shadow-soft');
+        }
+        echo '</div>';
     }
     echo '</div></div></section>';
 }

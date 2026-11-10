@@ -5,6 +5,9 @@
 interface GimtWindowConfig {
   basePath?: string;
   apiBase?: string;
+  /** Settings › Website › Logo / Logo (dark backgrounds) — for screens shown before the session loads */
+  logo?: string;
+  logoWhite?: string;
 }
 
 declare global {
@@ -21,6 +24,9 @@ export const BASE_PATH = (injected.basePath ?? '').replace(/\/$/, '');
 export const API_BASE = (injected.apiBase ?? `${BASE_PATH}/api`).replace(/\/$/, '');
 /** React Router basename. */
 export const ROUTER_BASE = `${BASE_PATH}/admin`;
+/** The institute logo (admin upload, else the bundled one) — injected so loading screens never show an old logo. */
+export const BRAND_LOGO = injected.logo || `${BASE_PATH}/assets/images/logo.svg`;
+export const BRAND_LOGO_WHITE = injected.logoWhite || `${BASE_PATH}/assets/images/logo-white.svg`;
 
 /** URL for a file inside the PHP app (uploads, print pages, website). */
 export function appUrl(path: string): string {

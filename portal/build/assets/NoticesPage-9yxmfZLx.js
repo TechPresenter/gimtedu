@@ -1,1 +1,0 @@
-import{j as t}from"./query-BikGTTx8.js";import{N as r}from"./Screens-CdyptMg4.js";import"./react-DRvcW4Ky.js";import"./ui-D16u3gJI.js";import"./index-Dt6PfLWl.js";import"./chevron-left-XcACVDF9.js";import"./lock-keyhole-D-qoY9lH.js";import"./smartphone-CXUOBNI3.js";function f(){return t.jsx(r,{area:"faculty"})}export{f as default};

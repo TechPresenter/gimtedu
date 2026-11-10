@@ -3,12 +3,21 @@ import { Spinner } from '@/components/ui';
 import { BASE_PATH } from '@/lib/config';
 
 /**
- * The real website home page in a frame (saved version, exactly as visitors see it), at a desktop (1366 px) or phone
- * (390 px) width scaled down to fit the pane; it scrolls inside. `?preview=admin` keeps popups, the cookie banner and
- * analytics tags out of the frame (includes/config.php site_admin_preview()). `version` reloads it after a save.
- * Same origin as the admin panel (the website allows framing only by itself).
+ * A real website page in a frame (saved version, exactly as visitors see it), at a desktop (1366 px) or phone (390 px)
+ * width scaled down to fit the pane; it scrolls inside. `?preview=admin` keeps self-opening popups, the cookie banner and
+ * analytics tags out of the frame (includes/config.php site_admin_preview()); `params` adds query values (e.g.
+ * banner=<id> = Banners › Preview, site_banner_preview()). `scrollTo` = CSS selector scrolled into view once loaded.
+ * `version` reloads it after a save. Same origin as the admin panel (the website allows framing only by itself).
  */
-export function RealSitePreview({ device, version, height }: { device: 'desktop' | 'mobile'; version: number; height: number }) {
+export function RealSitePreview({ device, version, height, path = '/', params, scrollTo, title = 'Website page — real preview' }: {
+  device: 'desktop' | 'mobile';
+  version: number;
+  height: number;
+  path?: string;
+  params?: Record<string, string | number>;
+  scrollTo?: string;
+  title?: string;
+}) {
   const outer = useRef<HTMLDivElement>(null);
   const [avail, setAvail] = useState(0);
   const [loadedSrc, setLoadedSrc] = useState('');
@@ -26,8 +35,22 @@ export function RealSitePreview({ device, version, height }: { device: 'desktop'
   }, []);
 
   const scale = avail ? Math.min(1, avail / width) : 1;
-  const src = `${BASE_PATH}/?preview=admin&v=${version}`;
+  const qs = new URLSearchParams({ preview: 'admin', ...Object.fromEntries(Object.entries(params ?? {}).map(([k, v]) => [k, String(v)])), v: String(version) });
+  const src = `${BASE_PATH}/${path.replace(/^\/+/, '')}?${qs.toString()}`;
   const loading = loadedSrc !== src;
+
+  const onLoad = (e: React.SyntheticEvent<HTMLIFrameElement>) => {
+    setLoadedSrc(src);
+    if (!scrollTo) return;
+    try {
+      const doc = e.currentTarget.contentDocument;
+      const el = doc?.querySelector(scrollTo);
+      const win = e.currentTarget.contentWindow;
+      if (el && win) win.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + win.scrollY - 120) });
+    } catch {
+      /* another origin: leave it at the top */
+    }
+  };
 
   return (
     <div ref={outer} className="relative w-full overflow-hidden bg-[#E9E4DE]" style={{ height }}>
@@ -35,8 +58,8 @@ export function RealSitePreview({ device, version, height }: { device: 'desktop'
         <iframe
           key={src}
           src={src}
-          title="Website home page — real preview"
-          onLoad={() => setLoadedSrc(src)}
+          title={title}
+          onLoad={onLoad}
           className="block border-0 bg-white"
           style={{
             width,

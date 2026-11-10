@@ -124,10 +124,16 @@ function site_section(string $key): ?array
 function site_banners(string $placement = 'home_hero'): array
 {
     try {
-        return db_all("SELECT * FROM banners WHERE placement = ? AND status = 'active' AND (starts_at IS NULL OR starts_at <= NOW()) AND (ends_at IS NULL OR ends_at >= NOW()) ORDER BY sort_order, id", [$placement]);
+        $rows = db_all("SELECT * FROM banners WHERE placement = ? AND status = 'active' AND (starts_at IS NULL OR starts_at <= NOW()) AND (ends_at IS NULL OR ends_at >= NOW()) ORDER BY sort_order, id", [$placement]);
     } catch (Throwable $e) {
-        return [];
+        $rows = [];
     }
+    // admin preview of one banner: it comes first in its own placement (site_banner_preview())
+    $preview = function_exists('site_banner_preview') ? site_banner_preview() : null;
+    if ($preview && ($preview['placement'] ?? '') === $placement) {
+        $rows = array_merge([$preview], array_values(array_filter($rows, fn ($r) => (int) $r['id'] !== (int) $preview['id'])));
+    }
+    return $rows;
 }
 
 function site_announcements(string $type = 'ticker'): array
@@ -732,6 +738,34 @@ function island(string $name, array $props = [], string $fallback = '', array $a
 function site_admin_preview(): bool
 {
     return ($_GET['preview'] ?? '') === 'admin';
+}
+
+/**
+ * Admin banner preview (?preview=admin&banner=<id>, Banners / Sliders › Preview): for a signed-in user who may view the
+ * CMS, that banner shows in its placement ahead of the live ones, even when it is inactive, scheduled or expired.
+ * Everyone else (and every other request) gets null, so unpublished banners never leak.
+ */
+function site_banner_preview(): ?array
+{
+    static $row = false;
+    if ($row !== false) {
+        return $row;
+    }
+    $row = null;
+    $id = (int) ($_GET['banner'] ?? 0);
+    if ($id < 1 || !site_admin_preview()) {
+        return $row;
+    }
+    require_once APP_ROOT . '/app/auth.php';
+    if (!is_logged_in() || !can('cms', 'view')) {
+        return $row;
+    }
+    try {
+        $row = db_row('SELECT * FROM banners WHERE id = ?', [$id]) ?: null;
+    } catch (Throwable $e) {
+        $row = null;
+    }
+    return $row;
 }
 
 function site_header(array $page = []): void

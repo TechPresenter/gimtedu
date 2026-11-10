@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Award, Building2, GraduationCap, ShieldCheck } from 'lucide-react';
-import { appUrl } from '@/lib/config';
+import { appUrl, BRAND_LOGO } from '@/lib/config';
 import { useAuth } from '@/lib/auth';
 
 /** Split-screen layout for login / forgot / reset pages. */
@@ -12,7 +12,10 @@ export function AuthLayout({ children, title, subtitle }: { children: ReactNode;
         <img src={appUrl('assets/images/site/hero-campus-students.jpg')} alt="" className="absolute inset-0 h-full w-full object-cover opacity-30" />
         <div className="absolute inset-0 bg-gradient-to-br from-[#0B2A5B]/95 via-[#0B2A5B]/80 to-[#0E5A3A]/70" />
         <div className="relative z-10 flex flex-1 flex-col justify-between p-12 text-white">
-          <img src={session?.app.logo_white ?? appUrl('assets/images/logo-white.svg')} alt="Global IMT" className="h-16 w-auto self-start" />
+          {/* full-colour logo on a white card: readable on the navy panel whatever logo is uploaded */}
+          <span className="self-start rounded-2xl bg-white px-4 py-2.5 shadow-sm">
+            <img src={session?.app.logo ?? BRAND_LOGO} alt="Global IMT" className="h-14 w-auto" />
+          </span>
           <div className="max-w-lg">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-300">GIMT SmartCampus</p>
             <h1 className="mt-3 font-display text-4xl font-extrabold leading-tight xl:text-5xl">
@@ -41,8 +44,9 @@ export function AuthLayout({ children, title, subtitle }: { children: ReactNode;
       </div>
       <div className="flex flex-1 flex-col justify-center px-6 py-12 sm:px-12">
         <div className="mx-auto w-full max-w-sm">
-          <img src={session?.app.logo ?? appUrl('assets/images/logo.svg')} alt="Global IMT" className="mb-8 h-14 w-auto lg:hidden dark:hidden" />
-          <img src={session?.app.logo_white ?? appUrl('assets/images/logo-white.svg')} alt="Global IMT" className="mb-8 hidden h-14 w-auto dark:block lg:!hidden" />
+          <span className="mb-8 inline-flex rounded-2xl dark:bg-white dark:px-3 dark:py-2 lg:hidden">
+            <img src={session?.app.logo ?? BRAND_LOGO} alt="Global IMT" className="h-14 w-auto" />
+          </span>
           <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">{title}</h2>
           {subtitle && <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
           <div className="mt-8">{children}</div>

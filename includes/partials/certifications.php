@@ -42,15 +42,18 @@ function cert_facts(array $p): array
 }
 
 /**
- * Compact certificate course card (no photo — icon + group colour): group label, title, two-line summary, duration ·
- * modules · fee, Apply Now + Details. $o: heading (h2|h3), summary (bool, default true).
+ * Certificate course card: the course thumbnail (16:9, shown whole, nothing on top of it — when the course has one),
+ * group label with icon + group colour, title, two-line summary, duration · modules · fee, Apply Now + Details.
+ * $o: heading (h2|h3), summary (bool, default true), image (bool, default true).
  */
 function cert_card(array $p, array $o = []): string
 {
     $g = cert_group_meta($p);
     $url = site_url('programs/' . $p['slug']);
     $h = $o['heading'] ?? 'h3';
-    $html = '<article class="cert-card hue-' . e($g['hue']) . '">'
+    $thumb = ($o['image'] ?? true) ? trim((string) ($p['image'] ?? '')) : '';
+    $html = '<article class="cert-card hue-' . e($g['hue']) . ($thumb !== '' ? ' cert-card-has-media' : '') . '">'
+        . ($thumb !== '' ? '<a href="' . e($url) . '" class="cert-card-media" tabindex="-1" aria-hidden="true"><img src="' . e(site_image($thumb)) . '" alt="" class="course-thumb" loading="lazy" decoding="async" width="640" height="360"></a>' : '')
         . '<div class="cert-card-head"><span class="cert-card-icon">' . icon($g['icon'], 'h-5 w-5') . '</span><span class="cert-card-group">' . e($g['label']) . '</span></div>'
         . '<' . $h . ' class="cert-card-title"><a href="' . e($url) . '">' . e($p['name']) . '</a></' . $h . '>';
     if (($o['summary'] ?? true) && trim((string) $p['overview']) !== '') {

@@ -1222,15 +1222,14 @@ function hm_program_card(array $p, bool $lazy = true): string
     $h = '<article class="group relative flex h-full flex-col overflow-hidden rounded-[22px] border border-warm-2 bg-white transition duration-300 hover:-translate-y-1 hover:border-[#E2DAD0] hover:shadow-[0_26px_50px_-30px_rgba(7,26,59,.45)]">';
     $h .= '<a href="' . e($url) . '" class="relative block aspect-video overflow-hidden bg-warm" tabindex="-1" aria-hidden="true">'
         . '<img src="' . e(site_image($p['image'] ?? null)) . '" alt="" class="course-thumb h-full w-full object-contain"' . ($lazy ? ' loading="lazy"' : '') . ' decoding="async" width="640" height="360">'
-        . '<span class="absolute inset-0 bg-gradient-to-t from-brand-950/60 via-brand-950/0 to-brand-950/10"></span>'
-        . '<span class="absolute inset-x-3 top-3 flex items-start justify-between gap-2">' . ($ribbon !== '' ? '<span class="pill-gold !px-2.5 !py-1 !text-[11px] uppercase tracking-wide shadow-sm">' . e($ribbon) . '</span>' : '<span></span>')
-        . '<span class="rounded-full bg-white/90 px-2.5 py-1 text-[11.5px] font-bold text-brand-900">' . e(program_level_label($p['level'] ?? '')) . '</span></span>'
-        . (($p['short_name'] ?? '') !== '' ? '<span class="absolute bottom-3 left-3.5 font-display text-[15px] font-extrabold tracking-tight text-white drop-shadow">' . e($p['short_name']) . '</span>' : '')
         . '</a>';
+    // tags under the thumbnail, never on top of it (the thumbnail is a finished graphic — owner request 2026-11-10)
     $h .= '<div class="flex flex-1 flex-col p-5">';
-    if (($p['department_label'] ?? '') !== '') {
-        $h .= '<span class="dept-chip dept-' . (int) ($p['dept_index'] ?? 0) . ' w-fit">' . e($p['department_label']) . '</span>';
-    }
+    $h .= '<div class="flex flex-wrap items-center gap-1.5">'
+        . ($ribbon !== '' ? '<span class="pill-gold !px-2.5 !py-1 !text-[11px] uppercase tracking-wide">' . e($ribbon) . '</span>' : '')
+        . '<span class="program-level">' . e(program_level_label($p['level'] ?? '')) . '</span>'
+        . (($p['department_label'] ?? '') !== '' ? '<span class="dept-chip dept-' . (int) ($p['dept_index'] ?? 0) . ' w-fit max-w-full truncate">' . e($p['department_label']) . '</span>' : '')
+        . '</div>';
     $h .= '<h3 class="mt-3 font-display text-[17px] font-extrabold leading-snug tracking-tight text-brand-900"><a href="' . e($url) . '" class="transition-colors hover:text-accent-700">' . e($name)
         . ($suffix !== '' ? ' <span class="whitespace-nowrap">(' . e($suffix) . ')</span>' : '') . '</a></h3>';
     $h .= '<dl class="mt-4 grid grid-cols-3 divide-x divide-warm-2 rounded-2xl bg-[#FAF8F5] py-2.5 text-center ring-1 ring-inset ring-warm-2">'

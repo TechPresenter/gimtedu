@@ -204,11 +204,11 @@ function program_card(array $p, array $o = []): string
     $reveal = ($o['reveal'] ?? false) ? reveal_attr((string) $o['reveal'], (int) ($o['delay'] ?? 0)) : '';
     $short = (string) ($p['short_name'] ?? '');
     $html = '<article class="program-card group ' . dept_hue($p) . ($variant === 'landing' ? ' program-card-landing' : '') . '" data-tilt="4"' . $reveal . '>';
+    // the thumbnail is a finished 16:9 graphic: nothing on top of it — the tags sit in a row under it (owner request 2026-11-10)
     $html .= '<a href="' . e($url) . '" class="program-card-media" tabindex="-1" aria-hidden="true">'
-        . '<img src="' . e(site_image($p['image'] ?? null)) . '" alt="" loading="lazy" decoding="async" width="640" height="360">'
-        . '<span class="program-tags">' . ($ribbon !== '' ? '<span class="program-ribbon">' . e($ribbon) . '</span>' : '')
-        . '<span class="program-level">' . e(program_level_label($p['level'] ?? '')) . '</span></span></a>';
-    $html .= dept_chip($p, 'program-chip');
+        . '<img src="' . e(site_image($p['image'] ?? null)) . '" alt="" loading="lazy" decoding="async" width="640" height="360"></a>';
+    $html .= '<div class="program-tags">' . ($ribbon !== '' ? '<span class="program-ribbon">' . e($ribbon) . '</span>' : '')
+        . '<span class="program-level">' . e(program_level_label($p['level'] ?? '')) . '</span>' . dept_chip($p, 'program-chip') . '</div>';
     $html .= '<div class="program-card-body">';
     $html .= '<' . $h . ' class="program-card-title"><a href="' . e($url) . '" class="hover:text-accent-700">' . e($p['name'] ?? '') . (program_title_suffix($p) !== '' ? ' <span class="whitespace-nowrap">(' . e(program_title_suffix($p)) . ')</span>' : '') . '</a></' . $h . '>';
     $html .= '<ul class="program-meta">';
@@ -1896,7 +1896,9 @@ function site_notice_popup_data(): ?array
     $sig = $kind === 'banner'
         ? $row['title'] . '|' . ($row['subheading'] ?? '') . '|' . ($row['cta_url'] ?? '') . '|' . ($row['desktop_image'] ?? '')
         : $row['title'] . '|' . ($row['content'] ?? '') . '|' . ($row['link'] ?? '');
-    return ['kind' => $kind, 'row' => $row, 'key' => 'gimt.notice.' . ($kind === 'banner' ? 'b' : 'a') . (int) $row['id'] . '.' . substr(md5($sig), 0, 6)];
+    // admin banner preview: a fresh key every time, so the popup opens even after it was closed before
+    $previewing = $kind === 'banner' && function_exists('site_banner_preview') && (int) (site_banner_preview()['id'] ?? 0) === (int) $row['id'];
+    return ['kind' => $kind, 'row' => $row, 'key' => 'gimt.notice.' . ($kind === 'banner' ? 'b' : 'a') . (int) $row['id'] . '.' . substr(md5($sig), 0, 6) . ($previewing ? '.p' . bin2hex(random_bytes(3)) : '')];
 }
 
 /**

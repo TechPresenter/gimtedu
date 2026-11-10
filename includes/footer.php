@@ -189,7 +189,7 @@ $chatStyle = (string) ($opts['chat'] ?? setting('site_chat_style', 'tab'));
 <?= enquiry_modal(['source' => ($popupAuto > 0 ? 'enquiry-popup-' : 'enquiry-tab-') . preg_replace('/[^a-z0-9-]+/', '-', strtolower((string) $active)), 'auto' => $popupAuto]) ?>
 <?php endif; ?>
 <?php /* CMS › Banners "Home popup" (homepage) / Announcements "Popup" (other pages): once per visit, core/popup.ts */ ?>
-<?= function_exists('notice_modal') && !$adminPreview ? notice_modal() : '' ?>
+<?= function_exists('notice_modal') && (!$adminPreview || (function_exists('site_banner_preview') && (site_banner_preview()['placement'] ?? '') === 'popup')) ? notice_modal() : '' ?>
 <?php if ($mcta): ?>
 <?= mobile_cta_bar(is_array($mcta) ? $mcta : []) ?>
 <?php endif; ?>

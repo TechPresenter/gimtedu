@@ -25,7 +25,7 @@ if (is_file($manifestFile)) {
         }
     }
 }
-$boot = ['basePath' => $base, 'apiBase' => $base . '/api'];
+$boot = ['basePath' => $base, 'apiBase' => $base . '/api', 'logo' => logo_url(), 'logoWhite' => logo_url(true)];
 ?><!doctype html>
 <html lang="en">
 <head>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ArrowDown, ArrowUp, CalendarClock, ExternalLink, GripVertical, ImageIcon, Images, Monitor, Pencil, Plus, Radio, Save, Smartphone, TimerOff, Undo2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarClock, ExternalLink, Eye, FileText, GripVertical, ImageIcon, Images, LayoutTemplate, Monitor, Pencil, Plus, Radio, RefreshCw, Save, Smartphone, TimerOff, Undo2 } from 'lucide-react';
 import { Alert, Badge, Button, Card, CardHeader, EmptyState, IconButton, Modal, PageHeader, PageLoader, Skeleton, Stagger, StatCard, StatusBadge, useToast } from '@/components/ui';
 import { CrudTable, useCrudForm } from '@/components/crud';
 import { api, ApiError } from '@/lib/api';
@@ -15,9 +15,19 @@ import { PickerFormFields } from './site/PickerFormFields';
 import { moveItem, useSortable } from './site/sortable';
 import { BrowserChrome, PreviewCtx, ScaledFrame, spotlightSkipReason } from './site/preview/kit';
 import { SectionPreview } from './site/preview/SectionPreview';
+import { RealSitePreview } from './site/preview/RealSitePreview';
 import type { HomeSection, PreviewData } from './site/types';
 
 const STATE_COLORS = { live: 'green', scheduled: 'amber', expired: 'slate', inactive: 'red' } as const;
+
+/** What the preview window shows: a real website page (saved version), optionally with one banner forced into its placement. */
+interface Peek {
+  title: string;
+  path: string;
+  params?: Record<string, string | number>;
+  scrollTo?: string;
+  note?: string;
+}
 const IMAGE_FIELDS = ['desktop_image', 'mobile_image'];
 
 type Banner = PreviewData['banners'][number];
@@ -42,6 +52,30 @@ export default function BannersPage() {
   const [mobile, setMobile] = useState(false);
   const [form, setForm] = useState<{ id: number | null } | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
+  const [peek, setPeek] = useState<Peek | null>(null);
+  const pages = useCrudList('pages', { per_page: 100, sort: 'title', dir: 'asc' });
+  const splitHero = (heroSection?.content?.layout ?? 'layered') === 'split';
+
+  /** Preview of one banner on the real page where its placement shows (Banners › Preview; site_banner_preview()). */
+  const bannerPeek = (r: Row): Peek => {
+    const base = { title: `Preview · ${r.title}`, params: { banner: Number(r.id) } };
+    const notLive = r.live_state !== 'live' ? ' It is not live yet, so visitors do not see it — only you, in this preview.' : '';
+    switch (r.placement) {
+      case 'page_header':
+        return { ...base, path: '/programs', scrollTo: '.promo-card-wrap', note: `Shown as the promotion card under the banner of inner pages (Programs, Admissions, Campus…).${notLive}` };
+      case 'strip':
+        return { ...base, path: '/', scrollTo: '.promo-strip-wrap', note: `Shown as the slim promo bar on the home page, after the programs.${notLive}` };
+      case 'popup':
+        return { ...base, path: '/', note: `Opens as a popup on the home page after 3 seconds (once per visit for visitors).${notLive}` };
+      default:
+        return splitHero
+          ? { ...base, path: '/', note: 'The home page banner uses the “Split” layout, which does not show Home hero slider banners — this slide is not on the website. To show it, set Home Page Sections › Hero › Layout to “Light layered photos” (the slide then rotates in the spotlight card of the banner).' }
+          : { ...base, path: '/', note: `Rotates in the spotlight card of the home page banner.${notLive}` };
+    }
+  };
+  const heroThumb = heroSection ? String(heroSection.content?.[splitHero ? 'person_image' : 'image'] ?? '') : '';
+  // pages whose banner has a photo (legal / text pages only have a title band)
+  const pageRows = (pages.data?.rows ?? []).filter((p) => p.status !== 'archived' && String(p.banner_image ?? '').trim() !== '');
 
   const slides = useMemo(() => (order ? (order.map((id) => hero.find((h) => Number(h.id) === id)).filter(Boolean) as Row[]) : hero), [order, hero]);
   const dirty = !!order && order.join() !== hero.map((h) => Number(h.id)).join();
@@ -108,6 +142,49 @@ export default function BannersPage() {
         ]}
       </Stagger>
 
+      {/* Banners that are part of the website pages (not rows of this table): where to edit them + real preview */}
+      <Card className="mb-6 overflow-hidden">
+        <CardHeader
+          icon={LayoutTemplate}
+          title="Banners already on the website"
+          subtitle="The banner at the top of the home page and of every page — edit them where they live; Preview shows the real page."
+        />
+        <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+          <BuiltInRow
+            thumb={heroThumb}
+            title="Home page banner"
+            sub={heroSection ? `${heroSection.title || 'Home hero'} · ${splitHero ? 'Split layout (photo beside the form)' : 'Layered layout'}` : 'Home Page Sections › Hero'}
+            editTo="/cms/homepage?section=hero"
+            canEdit={can('cms', 'edit')}
+            onPreview={() => setPeek({ title: 'Preview · Home page banner', path: '/' })}
+          />
+          {pages.isLoading && (
+            <li className="p-4"><Skeleton className="h-12 w-full rounded-xl" /></li>
+          )}
+          {pageRows.map((p) => (
+            <BuiltInRow
+              key={p.id}
+              thumb={String(p.banner_image ?? '')}
+              title={`${p.title} page banner`}
+              sub={`${p.url ?? ''} · Pages & Page Builder${p.status !== 'published' ? ` · ${p.status}` : ''}`}
+              editTo={`/cms/pages/${p.id}/builder`}
+              canEdit={can('cms', 'edit')}
+              onPreview={() => setPeek({ title: `Preview · ${p.title}`, path: String(p.url || '/') })}
+            />
+          ))}
+          <li className="flex flex-col gap-2 px-5 py-3.5 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between dark:text-slate-300">
+            <span className="flex items-start gap-2">
+              <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+              <span>Programs, Admissions, Campus, Events, Faculty and the other built-in pages: their banner photos are changed in <strong>Website Photos</strong>; course pages take the department’s cover image; pages without a photo (policies, help pages) in <strong>Pages &amp; Page Builder</strong>.</span>
+            </span>
+            <span className="flex shrink-0 flex-wrap gap-2">
+              <Button size="sm" variant="secondary" icon={Images} to="/cms/site-photos">Website Photos</Button>
+              <Button size="sm" variant="secondary" icon={FileText} to="/cms/pages">All pages</Button>
+            </span>
+          </li>
+        </ul>
+      </Card>
+
       {/* Hero slider manager */}
       <Card className="mb-6 overflow-hidden">
         <CardHeader
@@ -153,6 +230,7 @@ export default function BannersPage() {
                       </span>
                     </button>
                     <div className="flex shrink-0 items-center">
+                      <IconButton size="sm" icon={Eye} label="Preview on the website" onClick={() => setPeek(bannerPeek(s))} />
                       {can('cms', 'edit') && <IconButton size="sm" icon={ArrowUp} label="Move up" disabled={i === 0} onClick={() => move(i, i - 1)} />}
                       {can('cms', 'edit') && <IconButton size="sm" icon={ArrowDown} label="Move down" disabled={i === slides.length - 1} onClick={() => move(i, i + 1)} />}
                       {can('cms', 'edit') && <IconButton size="sm" icon={Pencil} label="Edit slide" tone="primary" onClick={() => setForm({ id: Number(s.id) })} />}
@@ -202,6 +280,7 @@ export default function BannersPage() {
         addLabel="Add banner"
         onCreate={() => setForm({ id: null })}
         onEdit={(r) => setForm({ id: Number(r.id) })}
+        rowMenu={(r) => [{ label: 'Preview on the website', icon: Eye, onClick: () => setPeek(bannerPeek(r)) }]}
         emptyTitle="No banners yet"
         emptyText="Add hero slides, page promotions, a popup or a promo strip."
         renderers={{
@@ -210,7 +289,62 @@ export default function BannersPage() {
       />
 
       <BannerFormModal state={form} onClose={() => setForm(null)} onSaved={refresh} />
+      <PreviewModal peek={peek} onClose={() => setPeek(null)} />
     </>
+  );
+}
+
+/** One built-in website banner: thumbnail, where it is, Preview + Edit (in the screen that owns it). */
+function BuiltInRow({ thumb, title, sub, editTo, canEdit, onPreview }: { thumb: string; title: string; sub: string; editTo: string; canEdit: boolean; onPreview: () => void }) {
+  return (
+    <li className="flex flex-wrap items-center gap-3 px-5 py-3">
+      {thumb ? (
+        <img src={appUrl(thumb)} alt="" loading="lazy" className="h-11 w-[72px] shrink-0 rounded-lg bg-slate-100 object-cover ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700" />
+      ) : (
+        <span className="flex h-11 w-[72px] shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800"><ImageIcon className="h-4 w-4 text-slate-400" /></span>
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-slate-900 dark:text-white">{title}</span>
+        <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{sub}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-2">
+        <Button size="sm" variant="secondary" icon={Eye} onClick={onPreview}>Preview</Button>
+        {canEdit && <Button size="sm" icon={Pencil} to={editTo}>Edit</Button>}
+      </span>
+    </li>
+  );
+}
+
+/** Real website page in a frame (desktop / mobile), optionally with one banner forced into its placement. */
+function PreviewModal({ peek, onClose }: { peek: Peek | null; onClose: () => void }) {
+  const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
+  const [version, setVersion] = useState(() => Date.now());
+  const height = typeof window !== 'undefined' ? Math.max(380, Math.min(680, window.innerHeight - 280)) : 600;
+  return (
+    <Modal open={!!peek} onClose={onClose} size="xl" title={peek?.title ?? 'Preview'} description="The saved version on the real website — click links inside to move around.">
+      {peek && (
+        <div className="space-y-3">
+          {peek.note && <Alert variant={peek.note.includes('not on the website') ? 'warning' : 'info'}>{peek.note}</Alert>}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="inline-flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800" role="tablist" aria-label="Preview device">
+              {([['desktop', Monitor, 'Desktop'], ['mobile', Smartphone, 'Mobile']] as const).map(([d, Icon, label]) => (
+                <button key={d} type="button" role="tab" aria-selected={device === d} onClick={() => setDevice(d)}
+                  className={clsx('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold', device === d ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500')}>
+                  <Icon className="h-3.5 w-3.5" />{label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1">
+              <IconButton size="sm" icon={RefreshCw} label="Reload the preview" onClick={() => setVersion(Date.now())} />
+              <Button size="sm" variant="ghost" icon={ExternalLink} href={appUrl(peek.path)} target="_blank">Open page</Button>
+            </div>
+          </div>
+          <BrowserChrome url={appUrl(peek.path)}>
+            <RealSitePreview device={device} version={version} height={height} path={peek.path} params={peek.params} scrollTo={peek.scrollTo} title={peek.title} />
+          </BrowserChrome>
+        </div>
+      )}
+    </Modal>
   );
 }
 

@@ -38,7 +38,7 @@ if (is_file($manifestFile)) {
 $path = (string) (parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '');
 $area = preg_match('#/portal/faculty(/|$)#', $path) ? 'Faculty Portal' : (preg_match('#/portal/student(/|$)#', $path) ? 'Student Portal' : 'Student & Faculty Portal');
 $short = setting('institute_short_name', 'GIMT');
-$boot = ['basePath' => $base, 'apiBase' => $base . '/api'];
+$boot = ['basePath' => $base, 'apiBase' => $base . '/api', 'logo' => logo_url(), 'logoWhite' => logo_url(true)];
 ?><!doctype html>
 <html lang="en">
 <head>

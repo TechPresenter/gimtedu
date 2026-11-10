@@ -2,6 +2,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '@/lib/auth';
+import { BRAND_LOGO } from '@/lib/config';
 import { useHotkey, useLocalStorage } from '@/lib/hooks';
 import { PageLoader } from '@/components/ui';
 import { Sidebar } from './Sidebar';
@@ -91,8 +92,10 @@ export function AdminLayout() {
 export function Splash() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-950">
-      <img src={`${(window.__GIMT__?.basePath ?? '')}/assets/images/logo.svg`} alt="Global IMT" className="h-16 w-auto animate-pulse dark:hidden" />
-      <img src={`${(window.__GIMT__?.basePath ?? '')}/assets/images/logo-white.svg`} alt="Global IMT" className="hidden h-16 w-auto animate-pulse dark:block" />
+      {/* the uploaded logo (Settings › Website › Logo), on a white card in dark mode so a navy logo stays readable */}
+      <span className="rounded-2xl dark:bg-white dark:px-4 dark:py-3">
+        <img src={BRAND_LOGO} alt="Global IMT" className="h-16 w-auto animate-pulse" />
+      </span>
       <p className="text-sm text-slate-500">Loading SmartCampus…</p>
     </div>
   );
