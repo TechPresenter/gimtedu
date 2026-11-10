@@ -887,7 +887,11 @@ function portal_faculty_attempt(string $identifier, string $password, bool $reme
         record_login_event((int) $u['id'], $identifier, 'failed', 'Faculty portal: not linked to an active faculty profile');
         return ['ok' => false, 'status' => 403, 'message' => 'This account is not linked to an active faculty profile. Administrators and staff sign in at the admin panel.'];
     }
-    $result = attempt_login($identifier, $password, $remember);
+    $result = attempt_login($identifier, $password, $remember, 'faculty');
+    if (!empty($result['two_factor'])) {
+        // password right, the authenticator code is still needed: /api/auth/2fa/* finish the sign-in (and set portal_area)
+        return ['ok' => true, 'status' => 200, 'message' => $result['message'], 'two_factor' => $result['two_factor']];
+    }
     if (!$result['ok']) {
         $status = 422;
         if (str_starts_with($result['message'], 'Too many login attempts')) {

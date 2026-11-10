@@ -340,6 +340,9 @@ route('POST', '/portal/faculty/login', function () {
     if (!$r['ok']) {
         api_error($r['message'], $r['status']);
     }
+    if (!empty($r['two_factor'])) {
+        api_ok(['two_factor' => $r['two_factor'], 'csrf_token' => csrf_token()], $r['message']);
+    }
     if (!can('faculty_portal', 'view')) {
         logout_user();
         session_start_secure();

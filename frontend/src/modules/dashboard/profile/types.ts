@@ -17,6 +17,10 @@ export interface ProfileUser {
   last_login_ip: string | null;
   password_changed_at: string | null;
   two_factor_enabled: boolean;
+  /** the institute requires two-factor authentication for every staff account */
+  two_factor_required: boolean;
+  two_factor_enabled_at: string | null;
+  recovery_codes_left: number;
   must_change_password: boolean;
 }
 

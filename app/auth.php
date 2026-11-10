@@ -179,10 +179,12 @@ function record_login_event(?int $userId, string $identifier, string $status, st
 }
 
 /**
- * Attempt to authenticate. Returns ['ok' => bool, 'message' => string].
+ * Attempt to authenticate. Returns ['ok' => bool, 'message' => string] — plus 'two_factor' => {step, …} when the password
+ * was right but the account needs its authenticator code (or has to set two-factor up first): nobody is signed in yet,
+ * see app/services/two_factor.php. $area = where the sign-in started (admin | faculty).
  * Applies IP blocking, IP rate limiting, per-account lockout and password re-hashing.
  */
-function attempt_login(string $identifier, string $password, bool $remember = false): array
+function attempt_login(string $identifier, string $password, bool $remember = false, string $area = 'admin'): array
 {
     $ip = client_ip();
     $generic = 'Invalid credentials. Please check your email/username and password.';
@@ -239,6 +241,12 @@ function attempt_login(string $identifier, string $password, bool $remember = fa
     }
     if (password_needs_rehash($user['password_hash'], PASSWORD_DEFAULT)) {
         db_update('users', ['password_hash' => password_hash($password, PASSWORD_DEFAULT)], 'id = ?', [$user['id']]);
+    }
+    require_once APP_ROOT . '/app/services/two_factor.php';
+    if ($challenge = tf_login_challenge($user, $remember, $area)) {
+        return ['ok' => true, 'two_factor' => $challenge, 'message' => $challenge['step'] === 'verify'
+            ? 'Enter the 6-digit code from your authenticator app to finish signing in.'
+            : 'Your institute requires two-factor authentication. Set it up to continue.'];
     }
     login_user($user, $remember);
     return ['ok' => true, 'message' => 'Welcome back, ' . $user['name'] . '!'];

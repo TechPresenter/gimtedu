@@ -535,8 +535,8 @@ const policyToggles: { key: string; label: string; help: string; unavailable?: b
   { key: 'password_require_uppercase', label: 'Require an uppercase letter', help: 'A–Z' },
   { key: 'password_require_number', label: 'Require a number', help: '0–9' },
   { key: 'password_require_special', label: 'Require a special character', help: 'e.g. @ # $ %' },
-  // not in this release: the server refuses to switch it on (app/services/system.php), so the switch is shown read-only
-  { key: 'two_factor_enabled', label: 'Two-factor authentication (coming soon)', help: 'Authenticator-app sign-in is planned for a later release.', unavailable: true },
+  // the server refuses to switch it on until your own account uses two-factor (app/services/system.php settings_save_group)
+  { key: 'two_factor_enabled', label: 'Require two-factor authentication for every staff account', help: 'Admin panel and faculty portal sign-in asks for an authenticator-app code; staff without it set it up at their next sign-in. Students are not affected. Turn it on for your own account first (My Profile › Security).' },
 ];
 
 function PolicyPanel({ ov, onSaved }: { ov?: Overview; onSaved: () => void }) {

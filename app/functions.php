@@ -197,7 +197,13 @@ function api_query(string $key, string $default = ''): string
 function json_response(array $data, int $status = 200): void
 {
     if (!headers_sent()) {
-        http_response_code($status);
+        if ($status === 419) {
+            // 419 has no reason phrase in Apache: with only http_response_code() it reaches the browser as 500, which
+            // breaks the SPA's refresh-the-token-and-retry. An explicit status line keeps it a 419.
+            header(($_SERVER['SERVER_PROTOCOL'] ?? 'HTTP/1.1') . ' 419 Page Expired', true, 419);
+        } else {
+            http_response_code($status);
+        }
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-store');
     }

@@ -447,9 +447,8 @@ function settings_schema(): array
                     ['key' => 'max_login_attempts', 'label' => 'Failed attempts before lockout', 'type' => 'number', 'rules' => 'required|integer|min:1|max:20', 'col' => 4],
                     ['key' => 'lockout_minutes', 'label' => 'Lockout duration', 'type' => 'number', 'rules' => 'required|integer|min:1|max:1440', 'col' => 4, 'suffix' => 'min'],
                     ['key' => 'max_ip_attempts', 'label' => 'Max failed attempts per IP', 'type' => 'number', 'rules' => 'required|integer|min:3|max:500', 'col' => 4],
-                    // read-only: shown for information, never saved (settings_save_group skips 'readonly' fields)
-                    ['key' => 'two_factor_enabled', 'label' => 'Two-factor authentication (coming soon)', 'type' => 'toggle', 'col' => 6, 'readonly' => true,
-                        'help' => 'Authenticator-app (TOTP) sign-in is not part of this release, so this switch cannot be turned on yet. Until then accounts are protected by the password policy, lockout and session timeout.'],
+                    ['key' => 'two_factor_enabled', 'label' => 'Require two-factor authentication for every staff account', 'type' => 'toggle', 'col' => 6,
+                        'help' => 'Staff (admin panel and faculty portal) must sign in with a code from Google Authenticator or Microsoft Authenticator; accounts without it set it up at their next sign-in. Students are not affected. Turn it on for your own account first (My Profile › Security).'],
                     ['key' => 'trust_proxy_headers', 'label' => 'Trust X-Forwarded-For (behind a proxy / CDN)', 'type' => 'toggle', 'col' => 6, 'help' => 'Enable only when the site is behind exactly one trusted reverse proxy / CDN that appends the visitor address (the last X-Forwarded-For entry is used for login limits, lockouts and logs).'],
                 ]],
                 ['key' => 'sessions', 'title' => 'Sessions', 'description' => 'Idle timeout and remember-me duration.', 'fields' => [
@@ -816,6 +815,11 @@ function settings_save_group(string $group, array $input, array $files = []): ar
             $errors[$ch . '_api_url'] = 'API URL is required when the gateway is enabled.';
         }
     }
+    if ($group === 'security' && ($save['two_factor_enabled'] ?? null) === '1' && (string) setting('two_factor_enabled', '0') !== '1'
+        && !(int) db_value('SELECT two_factor_enabled FROM users WHERE id = ?', [(int) user_id()])) {
+        // never lock everybody out: whoever switches the policy on must already be able to sign in with a code
+        $errors['two_factor_enabled'] = 'Set up two-factor authentication on your own account first (My Profile › Security).';
+    }
     if ($group === 'academic' && isset($save['attendance_alert_threshold'], $save['min_attendance_percent']) && (float) $save['attendance_alert_threshold'] < (float) $save['min_attendance_percent']) {
         $errors['attendance_alert_threshold'] = 'Alert threshold should not be lower than the minimum attendance.';
     }
@@ -1013,10 +1017,12 @@ function security_checklist(): array
 
     $add('php_version', 'Supported PHP version', version_compare(PHP_VERSION, '8.1', '>=') ? 'pass' : 'warn', 'PHP ' . PHP_VERSION . (version_compare(PHP_VERSION, '8.1', '>=') ? ' is supported.' : ' is end-of-life — upgrade to 8.1 or newer.'));
 
-    // Authenticator-app (TOTP) sign-in is not part of this release: report it honestly instead of a "ready" state.
-    $add('two_factor', 'Two-factor authentication (coming soon)', 'info',
-        'Two-factor sign-in with an authenticator app is planned but not available in this release. Accounts are protected by the password policy, lockout after failed attempts and the idle session timeout.',
-        ['label' => 'Password & lockout settings', 'to' => '/settings?tab=security']);
+    $tfUsers = (int) db_value("SELECT COUNT(*) FROM users WHERE status = 'active'");
+    $tfOn = (int) db_value("SELECT COUNT(*) FROM users WHERE status = 'active' AND two_factor_enabled = 1");
+    $tfReq = (string) setting('two_factor_enabled', '0') === '1';
+    $add('two_factor', 'Two-factor authentication', $tfReq ? 'pass' : 'warn',
+        $tfReq ? "Required for every staff account ($tfOn of $tfUsers active accounts have set it up)." : "Optional: $tfOn of $tfUsers active accounts use an authenticator app. Turn on \"Require two-factor authentication\" to make it mandatory.",
+        ['label' => 'Security settings', 'to' => '/settings?tab=security']);
 
     $failed = (int) db_value("SELECT COUNT(*) FROM login_logs WHERE status = 'failed' AND created_at >= NOW() - INTERVAL 1 DAY");
     $add('failed_logins', 'No brute-force activity (24 h)', $failed > 50 ? 'warn' : 'pass', "$failed failed login attempt(s) in the last 24 hours.", $failed > 50 ? ['label' => 'Review', 'to' => '/security?tab=logins'] : null);

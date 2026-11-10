@@ -25,7 +25,7 @@ export interface UserRow {
   last_login_ip: string | null;
   password_changed_at: string | null;
   must_change_password: boolean;
-  two_factor_enabled: number;
+  two_factor_enabled: number | boolean;
   created_at: string;
   created_by_name: string | null;
   role_names: string | null;

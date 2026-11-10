@@ -8,6 +8,7 @@
  *   POST /api/users/{id}/unlock
  *   POST /api/users/{id}/reset-password         {mode: temporary|link, password?, must_change?}
  *   POST /api/users/{id}/revoke-sessions        sign out remembered devices
+ *   POST /api/users/{id}/2fa/reset              clear a user's two-factor authentication (lost phone)
  *   GET  /api/users/{id}/print                  printable access profile
  */
 require_once APP_ROOT . '/app/services/system.php';
@@ -257,6 +258,24 @@ route('POST', '/users/{id:\d+}/revoke-sessions', function ($p) {
     $n = db_exec("DELETE FROM user_tokens WHERE user_id = ? AND type = 'remember'", [$u['id']]);
     log_activity('revoke', 'security', $u['id'], "Signed {$u['name']} out of $n remembered device(s)");
     api_ok(['revoked' => $n], $n ? "$n remembered device(s) signed out." : 'No remembered devices to sign out.');
+});
+
+// Two-factor reset (lost phone): the user signs in with the password again and can set up a new authenticator
+route('POST', '/users/{id:\d+}/2fa/reset', function ($p) {
+    api_require('users', 'edit');
+    require_once APP_ROOT . '/app/services/two_factor.php';
+    $u = users_target((int) $p['id']);
+    users_guard_super($u);
+    if ((int) $u['id'] === user_id()) {
+        api_error('You cannot reset your own two-factor authentication here. Use My Profile › Security.', 422);
+    }
+    if (!tf_user_enabled($u)) {
+        api_error("{$u['name']} does not use two-factor authentication.", 422);
+    }
+    tf_disable((int) $u['id']);
+    log_activity('two_factor_reset', 'users', $u['id'], 'Reset two-factor authentication for ' . $u['name']);
+    notify((int) $u['id'], 'security', 'Two-factor authentication reset', 'An administrator reset two-factor authentication for your account.' . (tf_required() ? ' Set it up again at your next sign-in.' : ' Turn it on again from My Profile › Security.'), 'admin/profile?tab=security', 'shield-alert');
+    api_ok(null, "Two-factor authentication was reset for {$u['name']}." . (tf_required() ? ' They will set it up again at their next sign-in.' : ''));
 });
 
 route('GET', '/users/{id:\d+}/print', function ($p) {

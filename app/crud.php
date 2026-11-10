@@ -367,7 +367,7 @@ function crud_public_row(array $m, array $row): array
             unset($row[$f['name']]);
         }
     }
-    foreach (['password_hash', 'two_factor_secret', 'token_hash'] as $secret) {
+    foreach (['password_hash', 'two_factor_secret', 'two_factor_recovery', 'two_factor_last_step', 'token_hash'] as $secret) {
         unset($row[$secret]);
     }
     foreach ($m['hidden_columns'] ?? [] as $h) {

@@ -7,11 +7,13 @@ import { useApi } from '@/lib/queries';
 import { useAuth } from '@/lib/auth';
 import { formatDateTime, timeAgo } from '@/lib/format';
 import type { DeviceSession, LoginRow, PageOf, ProfileData } from './types';
+import { TwoFactorCard } from './TwoFactorCard';
 
 export function SecurityTab({ data, onChanged }: { data: ProfileData; onChanged: () => void }) {
   return (
     <div className="space-y-6">
       <PasswordCard onChanged={onChanged} passwordAge={data.security.password_age_days} />
+      <TwoFactorCard user={data.user} onChanged={onChanged} />
       <ChecklistCard data={data} />
       <DevicesCard sessions={data.sessions} onChanged={onChanged} />
       <LoginHistoryCard />

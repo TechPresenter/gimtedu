@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Eye, EyeOff, GraduationCap, LockKeyhole, LogIn, Mail, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, EyeOff, GraduationCap, LockKeyhole, LogIn, Mail, UserRound } from 'lucide-react';
 import { Alert, Button, Checkbox, Field, Input, useToast } from '@/components/ui';
-import { useAuth } from '@/lib/auth';
-import { ApiError } from '@/lib/api';
+import { RecoveryCodes, TwoFactorSetup, TwoFactorStep } from '@/components/auth';
+import { useAuth, type TwoFactorChallenge } from '@/lib/auth';
+import { api, ApiError } from '@/lib/api';
+import type { SessionPayload } from '@/lib/types';
 import { useDocumentTitle } from '@/lib/hooks';
 import { appUrl } from '@/lib/config';
 import { AuthLayout } from './AuthLayout';
@@ -13,7 +15,7 @@ const STUDENT_ID = /^(GIMT\d{2}[A-Z]{2,}\d{3,}|ADM\/\d{4}\/\d+)$/i;
 
 export default function LoginPage() {
   useDocumentTitle('Sign in');
-  const { session, login } = useAuth();
+  const { session, login, completeLogin } = useAuth();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const toast = useToast();
@@ -26,10 +28,28 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   // a failed sign-in with a Student ID: point the student to the Student Portal
   const [studentHint, setStudentHint] = useState(false);
+  /** second sign-in step (accounts with two-factor authentication, or required to set it up) */
+  const [challenge, setChallenge] = useState<TwoFactorChallenge | null>(null);
+  /** forced setup finished: show the recovery codes before entering the app */
+  const [enrolled, setEnrolled] = useState<{ payload: SessionPayload; codes: string[] } | null>(null);
+  const [saved, setSaved] = useState(false);
   const redirect = params.get('redirect');
   const target = redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/';
 
   if (session?.authenticated) return <Navigate to={target} replace />;
+
+  /** Back to the password form (cancelled, expired, too many wrong codes). */
+  const restart = (message?: string) => {
+    setChallenge(null);
+    setEnrolled(null);
+    setPassword('');
+    setError(message ?? null);
+  };
+  const enter = (payload: SessionPayload, message: string) => {
+    completeLogin(payload);
+    toast.success(message || 'Signed in successfully.');
+    navigate(target, { replace: true });
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -42,8 +62,13 @@ export default function LoginPage() {
     }
     setBusy(true);
     try {
-      const msg = await login(identifier.trim(), password, remember);
-      toast.success(msg || 'Signed in successfully.');
+      const res = await login(identifier.trim(), password, remember);
+      if (res.status === 'two_factor') {
+        setPassword('');
+        setChallenge(res.challenge);
+        return;
+      }
+      toast.success(res.message || 'Signed in successfully.');
       navigate(target, { replace: true });
     } catch (err) {
       const e2 = err as ApiError;
@@ -54,6 +79,73 @@ export default function LoginPage() {
       setBusy(false);
     }
   };
+
+  if (enrolled) {
+    return (
+      <AuthLayout title="Save your recovery codes" subtitle="Two-factor authentication is on. Keep these codes somewhere safe — each one signs you in once if you lose your phone.">
+        <RecoveryCodes codes={enrolled.codes} account={enrolled.payload.user?.email} acknowledged={saved} onAcknowledge={setSaved} />
+        <Button className="mt-5 w-full" size="lg" iconRight={ArrowRight} disabled={!saved} onClick={() => enter(enrolled.payload, 'Two-factor authentication is on.')}>
+          Continue to the dashboard
+        </Button>
+      </AuthLayout>
+    );
+  }
+
+  if (challenge?.step === 'verify') {
+    return (
+      <AuthLayout title="Two-step verification" subtitle="Your password was right. Enter the code from your authenticator app to finish signing in.">
+        <TwoFactorStep
+          challenge={challenge}
+          onSuccess={(payload, message) => {
+            const left = payload.recovery_codes_left;
+            if (typeof left === 'number') toast.warning(left === 0 ? 'That was your last recovery code. Generate new codes in My Profile › Security.' : `You used a recovery code. ${left} left.`);
+            enter(payload, message);
+          }}
+          onRestart={restart}
+          onCancel={() => restart()}
+        />
+      </AuthLayout>
+    );
+  }
+
+  if (challenge?.step === 'setup') {
+    const back = async () => {
+      try {
+        await api.post('auth/2fa/cancel');
+      } catch {
+        /* expires on its own */
+      }
+      restart();
+    };
+    return (
+      <AuthLayout title="Set up two-factor authentication" subtitle="Your institute requires a code from an authenticator app at every sign-in. It takes about a minute.">
+        <TwoFactorSetup<SessionPayload & { recovery_codes?: string[] }>
+          setupPath="auth/2fa/setup"
+          confirmPath="auth/2fa/setup/confirm"
+          submitLabel="Verify and continue"
+          onEnrolled={(data) => {
+            const { recovery_codes: codes = [], ...payload } = data;
+            setSaved(false);
+            setEnrolled({ payload: payload as SessionPayload, codes });
+          }}
+          onFatal={(err) => {
+            if (err.status === 401 || err.status === 429) {
+              restart(err.message);
+              return true;
+            }
+            return false;
+          }}
+          footer={
+            <div className="flex justify-center">
+              <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={() => void back()}>
+                Back to sign in
+              </Button>
+            </div>
+          }
+        />
+      </AuthLayout>
+    );
+  }
 
   return (
     <AuthLayout title="Welcome back" subtitle="Sign in to GIMT SmartCampus Admin to continue.">

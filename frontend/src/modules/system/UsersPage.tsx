@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
-import { Ban, KeyRound, Lock, LockOpen, LogIn, Printer, ShieldCheck, UserCheck, UserPlus, Users, UserX } from 'lucide-react';
+import { Ban, KeyRound, Lock, LockOpen, LogIn, Printer, ShieldCheck, ShieldOff, UserCheck, UserPlus, Users, UserX } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { CrudTable } from '@/components/crud';
 import { Avatar, Badge, Button, Card, PageHeader, Skeleton, StatCard, Stagger, StatusBadge, useConfirm, useToast } from '@/components/ui';
@@ -15,6 +15,9 @@ import { UserFormModal } from './users/UserFormModal';
 import { UserDrawer } from './users/UserDrawer';
 import { ResetPasswordModal } from './users/ResetPasswordModal';
 import type { UserRow, UserStats } from './types';
+
+/** users.two_factor_enabled comes back as 1 / "1" / true depending on the driver */
+const hasTwoFactor = (r: Row) => r.two_factor_enabled === true || Number(r.two_factor_enabled) === 1;
 
 export default function UsersPage() {
   const { can, session } = useAuth();
@@ -159,6 +162,11 @@ export default function UsersPage() {
                 </Badge>
               )}
               {r.must_change_password && <Badge color="amber" className="!px-1.5" dot={false}><KeyRound className="h-3 w-3" /></Badge>}
+              {hasTwoFactor(r) && (
+                <Badge color="green" className="!px-1.5">
+                  <ShieldCheck className="h-3 w-3" aria-hidden /> 2FA
+                </Badge>
+              )}
             </div>
           ),
           last_login_at: (r) =>
@@ -178,6 +186,22 @@ export default function UsersPage() {
             manage && r.status === 'inactive' && { label: 'Activate', icon: UserCheck, onClick: () => setStatus(r, 'active') },
             manage && r.is_locked && { label: 'Unlock account', icon: LockOpen, onClick: () => run(() => api.post(`users/${r.id}/unlock`)) },
             manage && { label: 'Reset password', icon: KeyRound, onClick: () => setResetUser(r as UserRow) },
+            manage && !r.is_self && hasTwoFactor(r) && {
+              label: 'Reset 2FA',
+              icon: ShieldOff,
+              onClick: async () => {
+                if (
+                  await confirm({
+                    title: 'Reset two-factor authentication?',
+                    message: `Use this when ${r.name} has lost their phone. Their authenticator app and recovery codes stop working; they sign in with the password and can set up a new authenticator.`,
+                    confirmText: 'Reset 2FA',
+                    danger: true,
+                  })
+                ) {
+                  await run(() => api.post(`users/${r.id}/2fa/reset`));
+                }
+              },
+            },
             manage && {
               label: 'Sign out devices',
               icon: Ban,

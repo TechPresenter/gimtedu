@@ -4,6 +4,22 @@ import type { SessionPayload } from './types';
 
 export type PermissionAction = 'view' | 'create' | 'edit' | 'delete' | 'export' | 'import' | 'approve' | 'publish' | 'manage';
 
+/**
+ * Second sign-in step asked for by POST /auth/login when the password was right but the account uses (or has to set up)
+ * two-factor authentication. Nobody is signed in yet: the server keeps the pending sign-in for `expires_in` seconds.
+ */
+export interface TwoFactorChallenge {
+  /** verify = enter a code from the authenticator app; setup = the institute requires 2FA and the account must enrol first */
+  step: 'verify' | 'setup';
+  methods?: Array<'totp' | 'recovery'>;
+  expires_in: number;
+  /** Masked email, e.g. a***n@gimt.ac.in */
+  account?: string;
+}
+
+/** What login() ended with: signed in straight away, or a second factor is needed first. */
+export type LoginResult = { status: 'signed_in'; message: string } | { status: 'two_factor'; challenge: TwoFactorChallenge; message: string };
+
 interface AuthContextValue {
   session: SessionPayload | null;
   loading: boolean;
@@ -11,7 +27,9 @@ interface AuthContextValue {
   can: (module: string, action?: PermissionAction) => boolean;
   canAny: (modules: string[], action?: PermissionAction) => boolean;
   refresh: () => Promise<SessionPayload | null>;
-  login: (identifier: string, password: string, remember: boolean) => Promise<string>;
+  login: (identifier: string, password: string, remember: boolean) => Promise<LoginResult>;
+  /** Finish a two-step sign-in with the session payload returned by /auth/2fa/verify or /auth/2fa/setup/confirm. */
+  completeLogin: (payload: SessionPayload) => void;
   logout: () => Promise<void>;
   setAcademicSession: (id: number) => Promise<void>;
   /** Shallow-update session (e.g. after profile edit). */
@@ -81,9 +99,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canAny: (modules, action = 'view') => modules.some((m) => can(m, action)),
       refresh,
       login: async (identifier, password, remember) => {
-        const res = await api.post<SessionPayload>('auth/login', { identifier, password, remember });
-        apply(res.data);
-        return res.message;
+        const res = await api.post<SessionPayload | { two_factor: TwoFactorChallenge; csrf_token?: string }>('auth/login', { identifier, password, remember });
+        if (res.data && 'two_factor' in res.data && res.data.two_factor) {
+          setCsrfToken(res.data.csrf_token);
+          return { status: 'two_factor', challenge: res.data.two_factor, message: res.message };
+        }
+        apply(res.data as SessionPayload);
+        return { status: 'signed_in', message: res.message };
+      },
+      completeLogin: (payload) => {
+        apply(payload);
       },
       logout: async () => {
         try {

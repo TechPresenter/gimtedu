@@ -7,9 +7,14 @@
  *   GET    /api/profile/activity?page=&include_logins=1   my audit-trail entries (paginated; sign-ins excluded unless asked)
  *   DELETE /api/profile/sessions/{id}          revoke one remembered device
  *   DELETE /api/profile/sessions               revoke every remembered device except this browser
+ *   POST   /api/profile/2fa/setup              new authenticator secret {secret, otpauth_uri, issuer, account} (kept 10 min)
+ *   POST   /api/profile/2fa/enable             {code} → {recovery_codes[10]}
+ *   POST   /api/profile/2fa/disable            {password, code} (refused while the institute requires two-factor)
+ *   POST   /api/profile/2fa/recovery-codes     {password} → 10 new codes (the old ones stop working)
  * Password change: POST /api/auth/password · Theme: POST /api/auth/prefs.
  */
 require_once APP_ROOT . '/app/services/system.php';
+require_once APP_ROOT . '/app/services/two_factor.php';
 require_once APP_ROOT . '/app/upload.php';
 
 /** Selector of the remember-me cookie of this browser (to flag / keep the current device). */
@@ -36,8 +41,8 @@ function profile_public(array $u): array
         'avatar' => $u['avatar'] ? upload_url($u['avatar']) : null, 'department' => $u['department_name'] ?? null, 'theme' => $u['theme'], 'status' => $u['status'],
         'roles' => array_map(fn ($r) => ['id' => (int) $r['id'], 'name' => $r['name'], 'slug' => $r['slug'], 'color' => $r['color'], 'is_super' => (bool) $r['is_super']], $roles),
         'created_at' => $u['created_at'], 'last_login_at' => $u['last_login_at'], 'last_login_ip' => $u['last_login_ip'],
-        'password_changed_at' => $u['password_changed_at'], 'two_factor_enabled' => (bool) $u['two_factor_enabled'], 'must_change_password' => (bool) $u['must_change_password'],
-    ];
+        'password_changed_at' => $u['password_changed_at'], 'must_change_password' => (bool) $u['must_change_password'],
+    ] + tf_profile_fields($u);
 }
 
 function profile_sessions(int $userId): array
@@ -81,7 +86,8 @@ route('GET', '/profile', function () {
             'detail' => (int) $stats['failed'] ? $stats['failed'] . ' failed attempt' . ((int) $stats['failed'] === 1 ? '' : 's') . ($lastFailed ? ', last from ' . $lastFailed['ip_address'] : '') : 'All recent sign-ins succeeded'],
         ['key' => 'devices', 'label' => 'Few remembered devices', 'ok' => count($sessions) <= 3, 'detail' => count($sessions) . ' device' . (count($sessions) === 1 ? '' : 's') . ' stay signed in with "Remember me"'],
         ['key' => 'phone', 'label' => 'Recovery phone number on file', 'ok' => !empty($u['phone']), 'detail' => $u['phone'] ? 'Used by administrators to verify you' : 'Add a phone number on the Account tab'],
-        ['key' => 'two_factor', 'label' => 'Two-factor authentication', 'ok' => false, 'info' => true, 'detail' => 'Coming soon: authenticator-app sign-in is not available in this release'],
+        ['key' => 'two_factor', 'label' => 'Two-factor authentication', 'ok' => tf_user_enabled($u),
+            'detail' => tf_user_enabled($u) ? 'On — sign-in asks for a code from your authenticator app (' . tf_recovery_left($u) . ' recovery code' . (tf_recovery_left($u) === 1 ? '' : 's') . ' left)' : 'Off — turn it on below with Google or Microsoft Authenticator'],
     ];
     $scored = array_filter($checks, fn ($c) => empty($c['info']));
     $score = (int) round(count(array_filter($scored, fn ($c) => $c['ok'])) * 100 / max(1, count($scored)));
@@ -220,4 +226,81 @@ route('DELETE', '/profile/sessions', function () {
         : db_exec("DELETE FROM user_tokens WHERE user_id = ? AND type = 'remember'", [user_id()]);
     log_activity('revoke', 'profile', user_id(), "Signed out $n other remembered device" . ($n === 1 ? '' : 's'));
     api_ok(['revoked' => $n, 'sessions' => profile_sessions((int) user_id())], $n ? "Signed out $n other device" . ($n === 1 ? '' : 's') . '.' : 'No other devices were signed in.');
+});
+
+/* ------------------------------------------------------------------ two-factor authentication (app/services/two_factor.php) */
+
+/** Per-user throttle for the 2FA profile actions + a password check for the sensitive ones. */
+function profile_tf_guard(array $u, ?string $password = null): void
+{
+    if (!rate_limit('tf-profile:' . (int) $u['id'], 15, 900)) {
+        api_error('Too many attempts. Please wait 15 minutes and try again.', 429);
+    }
+    if ($password !== null && !password_verify($password, (string) $u['password_hash'])) {
+        api_error('Your password is incorrect.', 422, ['password' => 'Your password is incorrect.']);
+    }
+}
+
+route('POST', '/profile/2fa/setup', function () {
+    $u = profile_user();
+    profile_tf_guard($u);
+    if (tf_user_enabled($u)) {
+        api_error('Two-factor authentication is already on for your account.', 422);
+    }
+    $secret = tf_new_secret();
+    $_SESSION['tf_enrol'] = ['secret' => chatbot_encrypt($secret), 'expires' => time() + 600];
+    api_ok(tf_setup_payload($secret, $u));
+});
+
+route('POST', '/profile/2fa/enable', function () {
+    $u = profile_user();
+    profile_tf_guard($u);
+    if (tf_user_enabled($u)) {
+        api_error('Two-factor authentication is already on for your account.', 422);
+    }
+    $enrol = $_SESSION['tf_enrol'] ?? null;
+    $secret = is_array($enrol) && ($enrol['expires'] ?? 0) >= time() ? chatbot_decrypt((string) $enrol['secret']) : '';
+    if ($secret === '') {
+        api_error('The setup expired. Start again and scan the new QR code.', 422, ['code' => 'The setup expired. Start again and scan the new QR code.']);
+    }
+    $step = tf_match_code($secret, api_str(api_param('code')));
+    if ($step === null) {
+        api_error('That code is not correct. Enter the code your authenticator app shows now.', 422, ['code' => 'That code is not correct. Enter the code your authenticator app shows now.']);
+    }
+    unset($_SESSION['tf_enrol']);
+    $codes = tf_enable((int) $u['id'], $secret, $step);
+    log_activity('two_factor_enabled', 'auth', (int) $u['id'], 'Turned on two-factor authentication');
+    api_ok(['recovery_codes' => $codes], 'Two-factor authentication is on. Save your recovery codes.');
+});
+
+route('POST', '/profile/2fa/disable', function () {
+    $u = profile_user();
+    $in = api_input();
+    profile_tf_guard($u, api_str($in['password'] ?? null));
+    if (!tf_user_enabled($u)) {
+        api_error('Two-factor authentication is already off.', 422);
+    }
+    if (tf_required()) {
+        api_error('Your institute requires two-factor authentication, so it cannot be turned off.', 422);
+    }
+    $code = api_str($in['code'] ?? null);
+    if (!tf_check_code($u, $code, preg_match('/^\d{6}$/', preg_replace('/\s+/', '', $code)) ? 'totp' : 'recovery')['ok']) {
+        api_error('That code is not correct.', 422, ['code' => 'Enter the current code from your authenticator app (or a recovery code).']);
+    }
+    tf_disable((int) $u['id']);
+    log_activity('two_factor_disabled', 'auth', (int) $u['id'], 'Turned off two-factor authentication');
+    notify((int) $u['id'], 'security', 'Two-factor authentication turned off', 'Two-factor authentication was turned off for your account from ' . client_ip() . '. If this was not you, change your password now.', 'admin/profile?tab=security', 'shield-alert');
+    api_ok(null, 'Two-factor authentication is off.');
+});
+
+route('POST', '/profile/2fa/recovery-codes', function () {
+    $u = profile_user();
+    profile_tf_guard($u, api_str(api_param('password')));
+    if (!tf_user_enabled($u)) {
+        api_error('Turn on two-factor authentication first.', 422);
+    }
+    [$codes, $json] = tf_recovery_generate();
+    db_update('users', ['two_factor_recovery' => $json], 'id = ?', [(int) $u['id']]);
+    log_activity('two_factor_recovery_regenerated', 'auth', (int) $u['id'], 'Generated new two-factor recovery codes');
+    api_ok(['recovery_codes' => $codes], 'New recovery codes generated. The old ones no longer work.');
 });

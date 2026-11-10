@@ -3,6 +3,13 @@
  * Authentication & session endpoints.
  *   GET  /api/auth/session            current session (user, permissions, csrf token, boot settings)
  *   POST /api/auth/login              {identifier, password, remember}
+ *                                     → session payload, or {two_factor: {step: verify|setup, methods, expires_in, account}, csrf_token}
+ *                                     when the account needs its authenticator code / has to set two-factor up (nobody is
+ *                                     signed in yet — finish with the /auth/2fa/* calls below)
+ *   POST /api/auth/2fa/verify         {code, method: totp|recovery} → session payload (+ recovery_codes_left after a recovery code)
+ *   POST /api/auth/2fa/setup          (pending "setup" sign-in) → {secret, otpauth_uri, issuer, account}
+ *   POST /api/auth/2fa/setup/confirm  {code} → turns two-factor on and signs in: session payload + recovery_codes[10]
+ *   POST /api/auth/2fa/cancel         drop the pending sign-in
  *   POST /api/auth/logout
  *   POST /api/auth/forgot             {email}
  *   GET  /api/auth/reset/{selector}?token=...   validate reset link
@@ -102,7 +109,88 @@ route('POST', '/auth/login', function () {
     if (!$result['ok']) {
         api_error($result['message'], 401);
     }
+    if (!empty($result['two_factor'])) {
+        api_ok(['two_factor' => $result['two_factor'], 'csrf_token' => csrf_token()], $result['message']);
+    }
     api_ok(auth_session_payload(), $result['message']);
+}, ['auth' => false]);
+
+/* ------------------------------------------------------------------ two-factor sign-in step (app/services/two_factor.php) */
+
+/** The pending sign-in or a 401 that sends the browser back to the password form. */
+function auth_tf_pending(?string $step = null): array
+{
+    require_once APP_ROOT . '/app/services/two_factor.php';
+    if (!rate_limit('tf-signin:' . client_ip(), 120, 900)) { // per IP: a whole campus may share one address; wrong codes are capped per sign-in (TF_MAX_WRONG)
+        api_error('Too many attempts. Please wait 15 minutes and sign in again.', 429);
+    }
+    $p = tf_pending();
+    if (!$p || ($step !== null && $p['pending']['step'] !== $step)) {
+        api_error('Your sign-in expired. Enter your password again.', 401);
+    }
+    return $p;
+}
+
+/** Wrong code during sign-in: 422 on the field, or 429 (pending sign-in dropped) after too many. */
+function auth_tf_wrong(array $user, string $what, string $message): void
+{
+    if (tf_pending_wrong($user, $what)) {
+        api_error('Too many wrong codes. Sign in again with your password.', 429);
+    }
+    api_error($message, 422, ['code' => $message]);
+}
+
+route('POST', '/auth/2fa/verify', function () {
+    ['pending' => $pending, 'user' => $user] = auth_tf_pending('verify');
+    $method = api_str(api_param('method')) === 'recovery' ? 'recovery' : 'totp';
+    $code = api_str(api_param('code'));
+    if (!tf_user_enabled($user)) {
+        tf_pending_clear();
+        api_error('Your sign-in expired. Enter your password again.', 401);
+    }
+    $r = tf_check_code($user, $code, $method);
+    if (!$r['ok']) {
+        auth_tf_wrong($user, $method === 'recovery' ? 'recovery code' : 'two-factor code', $method === 'recovery'
+            ? 'That recovery code is not valid or was already used.'
+            : 'That code is not correct or was already used. Enter the newest code from your authenticator app.');
+    }
+    tf_finish_login($user, $pending, $method === 'recovery' ? 'recovery_code' : 'two_factor');
+    $out = auth_session_payload();
+    if ($method === 'recovery') {
+        log_activity('two_factor_recovery_used', 'auth', (int) $user['id'], 'Signed in with a recovery code (' . $r['left'] . ' left)');
+        notify((int) $user['id'], 'security', 'Recovery code used', 'A recovery code was used to sign in to your account from ' . client_ip() . '. ' . $r['left'] . ' code' . ($r['left'] === 1 ? '' : 's') . ' left. If this was not you, change your password now.', 'admin/profile?tab=security', 'shield-alert');
+        $out['recovery_codes_left'] = $r['left'];
+    }
+    api_ok($out, 'Welcome back, ' . $user['name'] . '!');
+}, ['auth' => false]);
+
+route('POST', '/auth/2fa/setup', function () {
+    ['user' => $user] = auth_tf_pending('setup');
+    $secret = tf_new_secret();
+    $_SESSION['tf_pending']['setup_secret'] = chatbot_encrypt($secret);
+    api_ok(tf_setup_payload($secret, $user));
+}, ['auth' => false]);
+
+route('POST', '/auth/2fa/setup/confirm', function () {
+    ['pending' => $pending, 'user' => $user] = auth_tf_pending('setup');
+    $secret = chatbot_decrypt((string) ($pending['setup_secret'] ?? ''));
+    if ($secret === '') {
+        api_error('Start the setup again: scan the new QR code.', 422, ['code' => 'Start the setup again: scan the new QR code.']);
+    }
+    $step = tf_match_code($secret, api_str(api_param('code')));
+    if ($step === null) {
+        auth_tf_wrong($user, 'two-factor setup code', 'That code is not correct. Enter the code your authenticator app shows now.');
+    }
+    $codes = tf_enable((int) $user['id'], $secret, $step);
+    log_activity('two_factor_enabled', 'auth', (int) $user['id'], 'Turned on two-factor authentication at sign-in (required by the institute)');
+    tf_finish_login(db_row('SELECT * FROM users WHERE id = ?', [(int) $user['id']]), $pending, 'two_factor');
+    api_ok(auth_session_payload() + ['recovery_codes' => $codes], 'Two-factor authentication is on. Save your recovery codes.');
+}, ['auth' => false]);
+
+route('POST', '/auth/2fa/cancel', function () {
+    require_once APP_ROOT . '/app/services/two_factor.php';
+    tf_pending_clear();
+    api_ok(['csrf_token' => csrf_token()], 'Sign-in cancelled.');
 }, ['auth' => false]);
 
 route('POST', '/auth/logout', function () {

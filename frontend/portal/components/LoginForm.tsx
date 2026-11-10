@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Clock3, Info, LockKeyhole, UserRound } from 'lucide-react';
 import { Alert, Button, Checkbox, Field } from '@/components/ui';
@@ -9,6 +9,7 @@ import { useApplySession, useSession } from '../lib/session';
 import type { AnySession } from '../lib/types';
 import { AuthHeading, AuthLink } from './AuthLayout';
 import { PasswordInput } from './PasswordFields';
+import { readTwoFactorChallenge, TwoFactorSignIn, type AuthNotice, type TwoFactorChallenge } from './TwoFactor';
 
 interface LoginFormProps {
   area: Area;
@@ -41,7 +42,10 @@ export function LoginForm({ area, title, subtitle, identifierLabel, identifierPl
   const [remember, setRemember] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [error, setError] = useState<{ message: string; tone: 'warning' | 'error' } | null>(null);
+  const [error, setError] = useState<{ message: string; tone: AuthNotice['tone']; title?: string } | null>(null);
+  /** second sign-in step (faculty accounts with two-factor authentication) */
+  const [challenge, setChallenge] = useState<{ data: TwoFactorChallenge; message: string } | null>(null);
+  const backFromChallenge = useRef(false);
   const idRef = useRef<HTMLInputElement>(null);
   const pwRef = useRef<HTMLInputElement>(null);
 
@@ -52,6 +56,40 @@ export function LoginForm({ area, title, subtitle, identifierLabel, identifierPl
   useEffect(() => {
     (identifier ? pwRef : idRef).current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // back from the two-factor step: the password form is mounted again
+  useEffect(() => {
+    if (!challenge && backFromChallenge.current) {
+      backFromChallenge.current = false;
+      (identifier ? pwRef : idRef).current?.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [challenge]);
+
+  /** Signed in (directly or after the second step): store the session and enter the area. */
+  const finish = useCallback(
+    (s: AnySession) => {
+      try {
+        // remember the ID only on a device the user marked as personal
+        if (remember) localStorage.setItem(`gimt.portal.${area}.id`, identifier.trim());
+        else localStorage.removeItem(`gimt.portal.${area}.id`);
+      } catch {
+        /* private mode */
+      }
+      applySession(area, s);
+      const next = params.get('next') ?? '';
+      navigate(next.startsWith(`/${area}`) && !next.startsWith('//') ? next : areaPath(area), { replace: true });
+    },
+    [applySession, area, identifier, navigate, params, remember],
+  );
+
+  const leaveChallenge = useCallback((notice?: AuthNotice) => {
+    backFromChallenge.current = true;
+    setChallenge(null);
+    setPassword('');
+    setErrors({});
+    setError(notice ? { message: notice.message, tone: notice.tone } : null);
   }, []);
 
   const submit = async (e: FormEvent) => {
@@ -68,25 +106,28 @@ export function LoginForm({ area, title, subtitle, identifierLabel, identifierPl
     setBusy(true);
     try {
       const res = await api.post<AnySession>(`portal/${area}/login`, { identifier: identifier.trim(), password, remember });
-      try {
-        // remember the ID only on a device the user marked as personal
-        if (remember) localStorage.setItem(`gimt.portal.${area}.id`, identifier.trim());
-        else localStorage.removeItem(`gimt.portal.${area}.id`);
-      } catch {
-        /* private mode */
+      // Password accepted but a second factor is needed (faculty accounts only; student sign-in never answers this).
+      const tf = area === 'faculty' ? readTwoFactorChallenge(res.data) : null;
+      if (tf) {
+        setPassword('');
+        setChallenge({ data: tf, message: res.message });
+        return;
       }
-      applySession(area, res.data);
-      const next = params.get('next') ?? '';
-      navigate(next.startsWith(`/${area}`) && !next.startsWith('//') ? next : areaPath(area), { replace: true });
+      finish(res.data);
     } catch (err) {
+      const tone = authErrorTone(err);
       setErrors(fieldErrors(err));
-      setError({ message: errorMessage(err), tone: authErrorTone(err) });
+      setError({ message: errorMessage(err), tone, title: tone === 'warning' ? 'Sign-in paused' : undefined });
       setPassword('');
       pwRef.current?.focus();
     } finally {
       setBusy(false);
     }
   };
+
+  if (challenge) {
+    return <TwoFactorSignIn challenge={challenge.data} message={challenge.message} onBack={leaveChallenge} onSignedIn={finish} />;
+  }
 
   return (
     <>
@@ -109,7 +150,7 @@ export function LoginForm({ area, title, subtitle, identifierLabel, identifierPl
           </Alert>
         )}
         {error && (
-          <Alert variant={error.tone} title={error.tone === 'warning' ? 'Sign-in paused' : undefined}>
+          <Alert variant={error.tone} title={error.title}>
             {error.message}
           </Alert>
         )}
