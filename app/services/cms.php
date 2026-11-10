@@ -302,6 +302,7 @@ function cms_section_types(): array
                     cms_fd('text', 'title', 'Title', ['required' => true, 'max' => 80, 'col' => 6]), cms_fd('image', 'image', 'Photo', ['required' => true, 'col' => 6]),
                     cms_fd('textarea', 'text', 'Text', ['max' => 200, 'rows' => 2]),
                     cms_fd('url', 'url', 'Link', ['col' => 6]), cms_fd('text', 'link_label', 'Link label', ['max' => 40, 'col' => 6])]]),
+                cms_fd('toggle', 'show_map', 'Show the campus map', ['col' => 6, 'default' => false, 'help' => 'The interactive "Take a walk around the campus" map below the photo slider.']),
             ]],
         'placements' => ['label' => 'Placement highlights', 'icon' => 'briefcase-business', 'description' => 'Placement statistics, text and the latest top offers.',
             'title_label' => 'Heading', 'subtitle_label' => 'Intro', 'title_required' => true, 'fields' => [
@@ -370,6 +371,7 @@ function cms_block_types(): array
             cms_fd('select', 'size', 'Size', ['col' => 6, 'default' => 'md', 'options' => cms_opts(['md' => 'Medium', 'lg' => 'Large'])]),
             cms_fd('textarea', 'text', 'Text', ['max' => 600, 'rows' => 3]),
             cms_fd('image', 'image', 'Photo', ['col' => 6]), cms_fd('text', 'image_alt', 'Photo description', ['max' => 190, 'col' => 6]),
+            cms_fd('image', 'image2', 'Small photo', ['col' => 6, 'help' => 'Small square photo on the corner of the main photo, when this block is the banner at the top of the page (about 600×600 px). Blank = a campus photo picked automatically.']),
             cms_link_fd('primary_cta', 'Primary button'), cms_link_fd('secondary_cta', 'Secondary button'),
             cms_fd('repeater', 'chips', 'Feature chips', ['max_items' => 6, 'item_label' => 'label', 'fields' => [
                 cms_fd('icon', 'icon', 'Icon', ['col' => 5]), cms_fd('text', 'label', 'Label', ['required' => true, 'max' => 40, 'col' => 7])]]),

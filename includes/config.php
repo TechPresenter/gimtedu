@@ -725,10 +725,22 @@ function island(string $name, array $props = [], string $fallback = '', array $a
  *             marquee above the header; default setting show_topbar = 1 — or a "A | B | C" string of items),
  *             chat (bool — floating WhatsApp "Chat" tab + round call button; default on when whatsapp_number is set)
  */
+/**
+ * Admin "Real website" preview (?preview=admin — the page inside the Home Page Sections preview frame): no popups that
+ * open by themselves, no cookie banner, no analytics / ad tags, never indexed. Everything else renders as for a visitor.
+ */
+function site_admin_preview(): bool
+{
+    return ($_GET['preview'] ?? '') === 'admin';
+}
+
 function site_header(array $page = []): void
 {
     $GLOBALS['__site_page'] = $page;
     site_csp_header();
+    if (site_admin_preview() && !headers_sent()) {
+        header('X-Robots-Tag: noindex, nofollow');
+    }
     include __DIR__ . '/header.php';
 }
 

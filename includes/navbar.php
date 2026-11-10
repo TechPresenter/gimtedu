@@ -36,8 +36,8 @@ $logoText = '<span class="slt-1">' . e($nameLines[0]) . '</span>' . ($nameLines[
 // light + white logo; the theme shows one of them (.logo-on-light / .logo-on-dark). The white one is lazy, so the light
 // theme never downloads it; with the theme toggle switched off and a light default it is not rendered at all.
 $darkLogo = function_exists('site_theme_toggle_enabled') && (site_theme_toggle_enabled() || site_theme_default() !== 'light');
-$logo = '<img src="' . e(logo_url()) . '" alt="' . $logoAlt . '" class="logo-on-light h-10 w-auto lg:h-12" width="100" height="48">'
-    . ($darkLogo ? '<img src="' . e(logo_url(true)) . '" alt="' . $logoAlt . '" class="logo-on-dark h-10 w-auto lg:h-12" width="100" height="48" loading="lazy" decoding="async">' : '');
+$logo = '<img src="' . e(logo_url()) . '" alt="' . $logoAlt . '" class="logo-on-light h-12 w-auto lg:h-14 xl:h-[60px]" width="120" height="60">'
+    . ($darkLogo ? '<img src="' . e(logo_url(true)) . '" alt="' . $logoAlt . '" class="logo-on-dark h-12 w-auto lg:h-14 xl:h-[60px]" width="120" height="60" loading="lazy" decoding="async">' : '');
 
 if ($headerVariant === 'minimal'): ?>
 <header id="site-header" class="site-header" data-autohide="off">

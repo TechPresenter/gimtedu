@@ -36,6 +36,10 @@ function consent_config(): array
     $px = trim((string) seo_integration_value('meta_pixel_id', ''));
     $mode = (string) seo_integration_value('consent_banner', 'auto');
     $mode = in_array($mode, ['auto', 'always', 'off'], true) ? $mode : 'auto';
+    if (function_exists('site_admin_preview') && site_admin_preview()) {
+        // admin preview frame: no tags (no fake visits / ad events) and no banner over the page
+        [$ga, $gtm, $px, $mode] = ['', '', '', 'off'];
+    }
     $preview = isset($_GET['consent_preview']) && function_exists('is_logged_in') && is_logged_in() && can('settings', 'view');
     $policy = trim((string) seo_integration_value('consent_policy_url', '/cookie-policy')) ?: '/cookie-policy';
     $cfg = [

@@ -36,6 +36,10 @@ $enquiryTab = ($opts['enquiry_tab'] ?? (setting('site_enquiry_tab', '1') === '1'
 // (previews / screenshots). Never auto-opens on /apply or /contact.
 $popupPreview = ($_GET['popup'] ?? '') === '1';
 $popupAuto = ($opts['popup_auto'] ?? ($active === 'home' && setting('enquiry_popup_auto', '1') === '1')) ? max(3, min(60, (int) setting('enquiry_popup_delay', '8'))) : 0;
+$adminPreview = function_exists('site_admin_preview') && site_admin_preview(); // admin "Real website" frame: nothing opens by itself
+if ($adminPreview) {
+    $popupAuto = 0;
+}
 $renderModal = ($enquiryTab || $popupAuto > 0 || $popupPreview) && ($page['header'] ?? '') !== 'minimal' && !in_array($active, ['apply'], true);
 $chatStyle = (string) ($opts['chat'] ?? setting('site_chat_style', 'tab'));
 ?>
@@ -185,7 +189,7 @@ $chatStyle = (string) ($opts['chat'] ?? setting('site_chat_style', 'tab'));
 <?= enquiry_modal(['source' => ($popupAuto > 0 ? 'enquiry-popup-' : 'enquiry-tab-') . preg_replace('/[^a-z0-9-]+/', '-', strtolower((string) $active)), 'auto' => $popupAuto]) ?>
 <?php endif; ?>
 <?php /* CMS › Banners "Home popup" (homepage) / Announcements "Popup" (other pages): once per visit, core/popup.ts */ ?>
-<?= function_exists('notice_modal') ? notice_modal() : '' ?>
+<?= function_exists('notice_modal') && !$adminPreview ? notice_modal() : '' ?>
 <?php if ($mcta): ?>
 <?= mobile_cta_bar(is_array($mcta) ? $mcta : []) ?>
 <?php endif; ?>

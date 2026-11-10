@@ -520,6 +520,13 @@ function cp_hero_from_block(array $d, array $crumbs, string $fallbackTitle): voi
             $chips[] = ['icon' => (string) ($c['icon'] ?? '') ?: 'check', 'label' => (string) $c['label']];
         }
     }
+    $opts = ['eyebrow' => trim((string) ($d['eyebrow'] ?? '')) ?: null, 'actions' => $actions, 'image_alt' => (string) ($d['image_alt'] ?? ''),
+        'size' => ($d['size'] ?? 'md') === 'lg' ? 'lg' : 'md', 'align' => ($d['align'] ?? 'left') === 'center' ? 'center' : 'left'];
+    // "Small photo" of the block = the inset on the corner of the banner photo (blank: page_hero() picks a campus photo)
+    $inset = trim((string) ($d['image2'] ?? ''));
+    if ($inset !== '') {
+        $opts['image2'] = $inset;
+    }
     page_hero(
         trim((string) ($d['title'] ?? '')) ?: $fallbackTitle,
         trim((string) ($d['highlight'] ?? '')),
@@ -527,8 +534,7 @@ function cp_hero_from_block(array $d, array $crumbs, string $fallbackTitle): voi
         trim((string) ($d['image'] ?? '')),
         trim((string) ($d['text'] ?? '')),
         $chips,
-        ['eyebrow' => trim((string) ($d['eyebrow'] ?? '')) ?: null, 'actions' => $actions, 'image_alt' => (string) ($d['image_alt'] ?? ''),
-         'size' => ($d['size'] ?? 'md') === 'lg' ? 'lg' : 'md', 'align' => ($d['align'] ?? 'left') === 'center' ? 'center' : 'left']
+        $opts
     );
 }
 

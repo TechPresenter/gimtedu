@@ -93,7 +93,9 @@ export function Sidebar({ collapsed, mobileOpen, onCloseMobile }: SidebarProps) 
   }, [mobileOpen]);
 
   const mini = collapsed && !mobileOpen;
-  const logo = session?.app.logo_white ?? appUrl('assets/images/logo-white.svg');
+  // the full-colour logo (Settings › Website › Logo) on a white card: readable on the navy sidebar whatever the uploaded
+  // logo looks like (a navy wordmark disappears on navy)
+  const logo = session?.app.logo ?? appUrl('assets/images/logo.svg');
 
   return (
     <>
@@ -108,12 +110,14 @@ export function Sidebar({ collapsed, mobileOpen, onCloseMobile }: SidebarProps) 
         aria-label="Main navigation"
       >
         <div className={clsx('flex shrink-0 items-center gap-2 border-b border-white/10', mini ? 'h-16 justify-center px-2' : 'px-5 pb-4 pt-5')}>
-          <Link to="/" className="flex min-w-0 flex-col" aria-label="GIMT SmartCampus dashboard">
+          <Link to="/" className={clsx('flex min-w-0 flex-col', !mini && 'flex-1')} aria-label="GIMT SmartCampus dashboard">
             {mini ? (
               <img src={session?.app.logo_icon ?? appUrl('assets/images/logo-icon.svg')} alt="GIMT" className="h-10 w-10 rounded-lg bg-white p-1" />
             ) : (
               <>
-                <img src={logo} alt="Global IMT" className="h-12 w-auto self-start" />
+                <span className="flex items-center justify-center rounded-xl bg-white px-3 py-2 shadow-sm ring-1 ring-white/20">
+                  <img src={logo} alt="Global IMT" className="h-14 w-auto max-w-full object-contain" />
+                </span>
                 <span className="mt-2 text-[10.5px] font-bold uppercase leading-tight tracking-wide text-white/90">Global Institute of<br />Management &amp; Technology</span>
               </>
             )}

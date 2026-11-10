@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ArrowDown, ArrowUp, ExternalLink, Eye, EyeOff, GripVertical, LayoutTemplate, Monitor, Pencil, RotateCcw, Save, Smartphone, Undo2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ExternalLink, Eye, EyeOff, Globe, GripVertical, LayoutTemplate, Monitor, Pencil, RefreshCw, RotateCcw, Save, Smartphone, Undo2, Zap } from 'lucide-react';
 import { Alert, Badge, Button, Card, CardHeader, Field, IconButton, Input, Modal, PageHeader, Skeleton, Stagger, StatCard, Textarea, Toggle, useConfirm, useToast } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useApi } from '@/lib/queries';
@@ -13,7 +13,19 @@ import { ShapeForm } from './site/ShapeForm';
 import { moveItem, useSortable } from './site/sortable';
 import { BrowserChrome, PreviewCtx, ScaledFrame, spotlightSlides } from './site/preview/kit';
 import { SectionPreview } from './site/preview/SectionPreview';
+import { RealSitePreview } from './site/preview/RealSitePreview';
 import type { CmsSchema, HomeSection, PreviewData, SectionDef } from './site/types';
+
+/** Preview pane: the real website (saved version, in a frame) or the quick drawing of the sections (instant, approximate). */
+type PreviewView = 'real' | 'quick';
+const VIEW_KEY = 'gimt.cms.homePreview';
+const readView = (): PreviewView => {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'quick' ? 'quick' : 'real';
+  } catch {
+    return 'real';
+  }
+};
 
 interface Payload {
   sections: HomeSection[];
@@ -32,8 +44,21 @@ export default function HomepageSectionsPage() {
   const [savingOrder, setSavingOrder] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
+  const [view, setView] = useState<PreviewView>(readView);
+  /** bumped after every save so the real-website frame reloads */
+  const [siteVersion, setSiteVersion] = useState(() => Date.now());
+  const reloadSite = () => setSiteVersion(Date.now());
+  const chooseView = (v: PreviewView) => {
+    setView(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* private window: the choice is just not remembered */
+    }
+  };
   const [busy, setBusy] = useState<string | null>(null);
   const canEdit = data?.can.edit ?? false;
+  const previewHeight = typeof window !== 'undefined' ? Math.max(420, window.innerHeight - 220) : 700;
 
   useEffect(() => {
     const s = params.get('section');
@@ -65,6 +90,7 @@ export default function HomepageSectionsPage() {
       const res = await api.post<{ sections: HomeSection[] }>('cms/homepage/reorder', { keys: sections.map((s) => s.key) });
       qc.setQueryData(['cms', 'homepage'], { ...data, sections: res.data.sections });
       setOrder(null);
+      reloadSite();
       toast.success(res.message);
     } catch (e) {
       toast.error((e as ApiError).message);
@@ -77,6 +103,7 @@ export default function HomepageSectionsPage() {
     try {
       const res = await api.post(`cms/homepage/${s.key}/toggle`, { enabled: !s.is_enabled });
       toast.success(res.message);
+      reloadSite();
       await refetch();
     } catch (e) {
       toast.error((e as ApiError).message);
@@ -151,16 +178,32 @@ export default function HomepageSectionsPage() {
 
         <div className="min-w-0">
           <div className="xl:sticky xl:top-20">
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Home page preview</h2>
-              <DeviceToggle device={device} onChange={setDevice} />
+              <div className="flex flex-wrap items-center gap-2">
+                <PillToggle
+                  label="Preview type"
+                  value={view}
+                  onChange={chooseView}
+                  options={[
+                    { value: 'real', label: 'Real website', icon: Globe },
+                    { value: 'quick', label: 'Quick', icon: Zap },
+                  ]}
+                />
+                <DeviceToggle device={device} onChange={setDevice} />
+                {view === 'real' && <IconButton size="sm" icon={RefreshCw} label="Reload the website preview" onClick={reloadSite} />}
+              </div>
             </div>
             {isLoading || !schema.data ? (
               <Skeleton className="h-[520px] w-full rounded-2xl" />
+            ) : view === 'real' ? (
+              <BrowserChrome url={data?.site_url ?? '/'}>
+                <RealSitePreview device={device} version={siteVersion} height={previewHeight} />
+              </BrowserChrome>
             ) : (
               <BrowserChrome url={data?.site_url ?? '/'}>
                 <PreviewCtx.Provider value={{ mobile: device === 'mobile', data: preview.data }}>
-                  <ScaledFrame width={device === 'mobile' ? 390 : 1280} maxHeight={typeof window !== 'undefined' ? Math.max(420, window.innerHeight - 220) : 700}>
+                  <ScaledFrame width={device === 'mobile' ? 390 : 1280} maxHeight={previewHeight}>
                     {enabled.map((s) => (
                       <div key={s.key} onClick={() => setEditing(s.key)} className="cursor-pointer hover:outline hover:outline-2 hover:outline-offset-[-2px] hover:outline-[#D03E16]/50">
                         <SectionPreview section={s} />
@@ -171,7 +214,11 @@ export default function HomepageSectionsPage() {
                 </PreviewCtx.Provider>
               </BrowserChrome>
             )}
-            <p className="mt-2 text-center text-xs text-slate-400">Approximate preview of the enabled sections in the current order · click a section to edit it</p>
+            <p className="mt-2 text-center text-xs text-slate-400">
+              {view === 'real'
+                ? 'The live website as visitors see it (saved changes only) · it reloads after every save'
+                : 'Quick, approximate drawing of the enabled sections in the current order · click a section to edit it'}
+            </p>
           </div>
         </div>
       </div>
@@ -184,10 +231,26 @@ export default function HomepageSectionsPage() {
           preview={preview.data}
           canEdit={canEdit}
           onClose={() => setEditing(null)}
-          onSaved={(saved) => qc.setQueryData(['cms', 'homepage'], { ...data, sections: data.sections.map((s) => (s.key === saved.key ? saved : s)) })}
+          onSaved={(saved) => {
+            qc.setQueryData(['cms', 'homepage'], { ...data, sections: data.sections.map((s) => (s.key === saved.key ? saved : s)) });
+            reloadSite();
+          }}
         />
       )}
     </>
+  );
+}
+
+function PillToggle<T extends string>({ label, value, onChange, options }: { label: string; value: T; onChange: (v: T) => void; options: { value: T; label: string; icon: typeof Monitor }[] }) {
+  return (
+    <div className="inline-flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800" role="tablist" aria-label={label}>
+      {options.map(({ value: v, label: l, icon: Icon }) => (
+        <button key={v} type="button" role="tab" aria-selected={value === v} onClick={() => onChange(v)}
+          className={clsx('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold', value === v ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500')}>
+          <Icon className="h-3.5 w-3.5" />{l}
+        </button>
+      ))}
+    </div>
   );
 }
 

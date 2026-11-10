@@ -1809,9 +1809,11 @@ function hm_render_campus_life(array $s): string
         $h .= '<div class="mt-2">' . island('StudentLifeSlider', ['items' => $slides, 'ariaLabel' => 'Student life at GIMT', 'interval' => 5500], $fb, ['class' => 'block']) . '</div>';
     }
 
-    // Campus Explorer (illustrated map)
-    $map = hm_campus_map();
-    $h .= hm_render_campus_explorer($map);
+    // Campus Explorer (illustrated map): only when switched on (Home Page Sections › Campus life cards › Show the campus map;
+    // off by default — owner request 2026-11-10)
+    if (!empty($c['show_map'])) {
+        $h .= hm_render_campus_explorer(hm_campus_map());
+    }
 
     // CMS overlay cards (Campus Life / Placements / News & Events)
     $cards = [];
