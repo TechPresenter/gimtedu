@@ -1219,8 +1219,8 @@ function hm_program_card(array $p, bool $lazy = true): string
     $elig = trim(strip_tags((string) ($p['eligibility'] ?? '')));
     $ribbon = !empty($p['is_popular']) ? 'Most Popular' : (!empty($p['is_featured']) ? 'Featured' : '');
     $h = '<article class="group relative flex h-full flex-col overflow-hidden rounded-[22px] border border-warm-2 bg-white transition duration-300 hover:-translate-y-1 hover:border-[#E2DAD0] hover:shadow-[0_26px_50px_-30px_rgba(7,26,59,.45)]">';
-    $h .= '<a href="' . e($url) . '" class="relative block aspect-[16/10] overflow-hidden bg-warm" tabindex="-1" aria-hidden="true">'
-        . '<img src="' . e(site_image($p['image'] ?? null)) . '" alt="" class="h-full w-full object-cover transition duration-700 group-hover:scale-[1.05]"' . ($lazy ? ' loading="lazy"' : '') . ' decoding="async" width="640" height="400">'
+    $h .= '<a href="' . e($url) . '" class="relative block aspect-video overflow-hidden bg-warm" tabindex="-1" aria-hidden="true">'
+        . '<img src="' . e(site_image($p['image'] ?? null)) . '" alt="" class="course-thumb h-full w-full object-contain"' . ($lazy ? ' loading="lazy"' : '') . ' decoding="async" width="640" height="360">'
         . '<span class="absolute inset-0 bg-gradient-to-t from-brand-950/60 via-brand-950/0 to-brand-950/10"></span>'
         . '<span class="absolute inset-x-3 top-3 flex items-start justify-between gap-2">' . ($ribbon !== '' ? '<span class="pill-gold !px-2.5 !py-1 !text-[11px] uppercase tracking-wide shadow-sm">' . e($ribbon) . '</span>' : '<span></span>')
         . '<span class="rounded-full bg-white/90 px-2.5 py-1 text-[11.5px] font-bold text-brand-900">' . e(program_level_label($p['level'] ?? '')) . '</span></span>'

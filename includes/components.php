@@ -204,8 +204,8 @@ function program_card(array $p, array $o = []): string
     $reveal = ($o['reveal'] ?? false) ? reveal_attr((string) $o['reveal'], (int) ($o['delay'] ?? 0)) : '';
     $short = (string) ($p['short_name'] ?? '');
     $html = '<article class="program-card group ' . dept_hue($p) . ($variant === 'landing' ? ' program-card-landing' : '') . '" data-tilt="4"' . $reveal . '>';
-    $html .= '<a href="' . e($url) . '" class="program-card-media img-zoom" tabindex="-1" aria-hidden="true">'
-        . '<img src="' . e(site_image($p['image'] ?? null)) . '" alt="" loading="lazy" decoding="async" width="640" height="400">'
+    $html .= '<a href="' . e($url) . '" class="program-card-media" tabindex="-1" aria-hidden="true">'
+        . '<img src="' . e(site_image($p['image'] ?? null)) . '" alt="" loading="lazy" decoding="async" width="640" height="360">'
         . '<span class="program-tags">' . ($ribbon !== '' ? '<span class="program-ribbon">' . e($ribbon) . '</span>' : '')
         . '<span class="program-level">' . e(program_level_label($p['level'] ?? '')) . '</span></span></a>';
     $html .= dept_chip($p, 'program-chip');

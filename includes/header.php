@@ -86,7 +86,7 @@ $announceItems = is_string($announce) ? site_announcement_items($announce) : ($a
 <body class="<?= e($bodyClass) ?>"<?= $cursor ? ' data-cursor' : '' ?>>
 <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[110] focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg">Skip to main content</a>
 
-<?php if (($page['loader'] ?? true) !== false): ?>
+<?php if (($page['loader'] ?? false) !== false): ?>
 <div id="site-loader" aria-hidden="true">
   <img src="<?= e(logo_url()) ?>" alt="" class="loader-logo h-16 w-auto" width="134" height="64">
   <span class="loader-bar"><span></span></span>

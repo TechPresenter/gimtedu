@@ -578,7 +578,8 @@ function sa_program_hero(array $p, array $o = []): void
     }
     echo '</div>';
     echo '<div class="relative mx-auto w-full max-w-lg lg:col-span-5 animate-zoom-in delay-2">';
-    echo '<div class="img-zoom overflow-hidden rounded-3xl shadow-pop ring-4 ring-white/15"><img src="' . e($img) . '" alt="' . e($o['image_alt'] ?? $p['name']) . '" width="684" height="342" class="aspect-[2/1] w-full object-cover" fetchpriority="high" decoding="async"></div>';
+    // the program's course thumbnail (16:9, title baked in): shown whole — no crop, no hover zoom
+    echo '<div class="overflow-hidden rounded-3xl bg-brand-900 shadow-pop ring-4 ring-white/15"><img src="' . e($img) . '" alt="' . e($o['image_alt'] ?? $p['name']) . '" width="1422" height="800" class="course-thumb aspect-video w-full object-contain" fetchpriority="high" decoding="async"></div>';
     $chips = $o['chips'] ?? [];
     if (!empty($chips[0])) {
         echo '<span class="float-slow absolute -bottom-5 left-4">' . glass_chip($chips[0][0], $chips[0][1], 'white', 'shadow-soft') . '</span>';
