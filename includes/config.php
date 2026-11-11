@@ -74,6 +74,31 @@ function site_image(?string $path, string $fallback = 'assets/images/site/campus
 /* ------------------------------------------------------------------ CMS data */
 
 /** Menu tree for a location (header, footer_quick, footer_academics, footer_support, legal, topbar). */
+/** True for a link to the approvals / affiliations section (/about#approvals, /approvals…). */
+function site_is_approvals_link(string $url): bool
+{
+    return (bool) preg_match('~(?:#|/)(?:approvals|affiliations|approvals-affiliations|approvals-and-affiliations)(?:$|[/?#])~i', $url);
+}
+
+/** Built-in menu arrays (fallbacks): drop the approvals links while approvals are switched off. */
+function site_menu_without_approvals(array $items): array
+{
+    if ((string) setting('site_show_approvals', '0') === '1') {
+        return $items;
+    }
+    $out = [];
+    foreach ($items as $k => $it) {
+        if (is_array($it) && site_is_approvals_link((string) ($it['url'] ?? ''))) {
+            continue;
+        }
+        if (is_array($it) && !empty($it['children']) && is_array($it['children'])) {
+            $it['children'] = site_menu_without_approvals($it['children']);
+        }
+        $out[$k] = $it;
+    }
+    return array_is_list($items) ? array_values($out) : $out;
+}
+
 function site_menu(string $location): array
 {
     static $cache = [];
@@ -88,9 +113,14 @@ function site_menu(string $location): array
         foreach ($rows as $r) {
             $byParent[(int) $r['parent_id']][] = $r;
         }
-        $build = function ($parentId) use (&$build, $byParent) {
+        // approvals switched off (Settings › Website › Approvals & affiliations): no menu link to the approvals section
+        $noApprovals = (string) setting('site_show_approvals', '0') !== '1';
+        $build = function ($parentId) use (&$build, $byParent, $noApprovals) {
             $out = [];
             foreach ($byParent[$parentId] ?? [] as $r) {
+                if ($noApprovals && site_is_approvals_link((string) ($r['url'] ?? ''))) {
+                    continue;
+                }
                 $r['children'] = $build((int) $r['id']);
                 $out[] = $r;
             }
@@ -364,6 +394,10 @@ function site_approvals(): array
         return $list;
     }
     $list = [];
+    // master switch (Settings › Website › Approvals & affiliations): off = nothing anywhere on the website
+    if ((string) setting('site_show_approvals', '0') !== '1') {
+        return $list;
+    }
     $json = json_decode((string) setting('approvals_list', ''), true);
     if (is_array($json)) {
         foreach ($json as $i => $a) {

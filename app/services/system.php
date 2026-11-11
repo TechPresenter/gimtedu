@@ -315,6 +315,7 @@ function settings_schema(): array
                     ['key' => 'landing_indexable', 'label' => 'Let search engines index these pages', 'type' => 'toggle', 'col' => 6, 'help' => 'Off (recommended for paid-ad pages) = noindex, follow.'],
                 ]],
                 ['key' => 'approvals', 'title' => 'Approvals & affiliations', 'description' => 'Shown as generic emblems (never official logos) on the homepage, Academics and campaign pages. List only approvals GIMT actually holds. Blank = the “Affiliation / approvals” text from General settings.', 'fields' => [
+                    ['key' => 'site_show_approvals', 'label' => 'Show approvals & affiliations on the website', 'type' => 'toggle', 'default' => '0', 'col' => 12, 'help' => 'Off (owner request 2026-11-11) = no approvals, affiliations or “Recognitions” section anywhere on the website, and the chatbots do not mention them. The list below is kept for later.'],
                     ['key' => 'approvals_list', 'label' => 'Approvals', 'type' => 'textarea', 'format' => 'approvals', 'rules' => 'max:5000', 'col' => 12,
                         'placeholder' => 'AICTE | Approved by AICTE | Technical & management programs approved by AICTE | seal',
                         'help' => 'One approval per line: Short label | Full title | Description (optional) | Emblem (optional: seal, laurel, shield, pillars, globe, book or medal).'],

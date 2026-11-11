@@ -102,6 +102,7 @@ if (!$menu) {
         ]],
         ['title' => 'Contact', 'url' => '/contact', 'children' => []],
     ];
+    $menu = site_menu_without_approvals($menu);
 }
 $programs = site_programs();
 $levels = site_program_levels();

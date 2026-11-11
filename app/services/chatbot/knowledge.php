@@ -98,7 +98,8 @@ function chatbot_facts(): array
         'email' => (string) setting('email', ''),
         'admission_email' => (string) setting('admission_email', ''),
         'office_hours' => (string) setting('office_hours', ''),
-        'affiliation' => (string) setting('affiliation', ''),
+        // only when approvals are shown on the website (Settings › Website › Approvals & affiliations)
+        'affiliation' => (string) setting('site_show_approvals', '0') === '1' ? (string) setting('affiliation', '') : '',
         'website' => (string) setting('website', ''),
         'admissions_open_text' => (string) setting('admissions_open_text', ''),
         'session' => (string) ($session['name'] ?? ''),

@@ -216,6 +216,9 @@ function sa_leaders(): array
 /** Approvals & affiliations (setting approvals_json = [{title, subtitle, icon}] overrides). Generic emblems only, verified data only. */
 function sa_approvals(): array
 {
+    if ((string) setting('site_show_approvals', '0') !== '1') {
+        return []; // switched off (Settings › Website › Approvals & affiliations)
+    }
     $json = json_decode((string) setting('approvals_json', ''), true);
     if (is_array($json) && $json) {
         return array_values(array_filter(array_map(fn ($a) => is_array($a) && !empty($a['title']) ? ['title' => (string) $a['title'], 'subtitle' => (string) ($a['subtitle'] ?? ''), 'icon' => (string) ($a['icon'] ?? 'badge-check')] : null, $json)));
