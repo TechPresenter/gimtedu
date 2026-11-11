@@ -1,6 +1,44 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import clsx from 'clsx';
+import { Globe, Zap } from 'lucide-react';
 import { Spinner } from '@/components/ui';
 import { BASE_PATH } from '@/lib/config';
+
+export type PreviewView = 'real' | 'quick';
+
+/** Remembered choice between the real website frame and the quick drawing (per screen, `storageKey`). Default: real. */
+export function usePreviewView(storageKey: string): [PreviewView, (v: PreviewView) => void] {
+  const [view, setView] = useState<PreviewView>(() => {
+    try {
+      return localStorage.getItem(storageKey) === 'quick' ? 'quick' : 'real';
+    } catch {
+      return 'real';
+    }
+  });
+  const choose = (v: PreviewView) => {
+    setView(v);
+    try {
+      localStorage.setItem(storageKey, v);
+    } catch {
+      /* private window: not remembered */
+    }
+  };
+  return [view, choose];
+}
+
+/** "Real website | Quick" pill switch. */
+export function PreviewViewToggle({ value, onChange }: { value: PreviewView; onChange: (v: PreviewView) => void }) {
+  return (
+    <div className="inline-flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800" role="tablist" aria-label="Preview type">
+      {([['real', Globe, 'Real website'], ['quick', Zap, 'Quick']] as const).map(([v, Icon, label]) => (
+        <button key={v} type="button" role="tab" aria-selected={value === v} onClick={() => onChange(v)}
+          className={clsx('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold', value === v ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500')}>
+          <Icon className="h-3.5 w-3.5" />{label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /**
  * A real website page in a frame (saved version, exactly as visitors see it), at a desktop (1366 px) or phone (390 px)

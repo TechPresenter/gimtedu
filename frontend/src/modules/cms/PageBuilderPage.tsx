@@ -3,8 +3,8 @@ import { Link, useBlocker, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
-  ArrowDown, ArrowLeft, ArrowUp, ChevronDown, CircleAlert, Copy, ExternalLink, Eye, EyeOff, FileText, GripVertical, LayoutTemplate, Monitor, PanelsTopLeft, Pencil, Plus, Rocket,
-  Save, SearchCheck, Smartphone, Trash2, Undo2,
+  ArrowDown, ArrowLeft, ArrowUp, ChevronDown, CircleAlert, Copy, ExternalLink, Eye, EyeOff, FileText, Globe, GripVertical, LayoutTemplate, Monitor, PanelsTopLeft, Pencil, Plus, RefreshCw, Rocket,
+  Save, SearchCheck, Smartphone, Trash2, Undo2, Zap,
 } from 'lucide-react';
 import { Alert, Badge, Button, Card, EmptyState, Field, IconButton, Input, Modal, PageHeader, Select, Skeleton, StatusBadge, Tabs, useConfirm, useToast } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -18,6 +18,18 @@ import { SeoEditor, type SeoTarget } from './site/SeoEditor';
 import { moveItem, useSortable } from './site/sortable';
 import { BlockPreview } from './site/preview/BlockPreview';
 import { BrowserChrome, Img, PreviewCtx, ScaledFrame } from './site/preview/kit';
+import { RealSitePreview } from './site/preview/RealSitePreview';
+
+/** Preview column: the real website page (saved version, in a frame) or the quick drawing of the blocks (instant). */
+type PreviewView = 'real' | 'quick';
+const PREVIEW_KEY = 'gimt.cms.pagePreview';
+const readPreviewView = (): PreviewView => {
+  try {
+    return localStorage.getItem(PREVIEW_KEY) === 'quick' ? 'quick' : 'real';
+  } catch {
+    return 'real';
+  }
+};
 import type { Block, BlockDef, CmsPage, CmsSchema } from './site/types';
 
 interface BuilderPayload {
@@ -79,6 +91,17 @@ function Builder({ initial, schema }: { initial: BuilderPayload; schema: CmsSche
   const [errors, setErrors] = useState<BlockErrors>({});
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
+  const [view, setView] = useState<PreviewView>(readPreviewView);
+  /** bumped after every save so the real-website frame reloads */
+  const [siteVersion, setSiteVersion] = useState(() => Date.now());
+  const chooseView = (v: PreviewView) => {
+    setView(v);
+    try {
+      localStorage.setItem(PREVIEW_KEY, v);
+    } catch {
+      /* private window: not remembered */
+    }
+  };
   const [pane, setPane] = useState<'editor' | 'preview'>('editor');
   const [saving, setSaving] = useState<null | 'save' | 'publish'>(null);
   const [seo, setSeo] = useState<SeoTarget | null>(null);
@@ -158,6 +181,7 @@ function Builder({ initial, schema }: { initial: BuilderPayload; schema: CmsSche
       setBlocks(res.data.blocks);
       setSnapshot(JSON.stringify(res.data.blocks));
       setErrors({});
+      setSiteVersion(Date.now());
       toast.success(res.message || 'Page saved.');
       void qc.invalidateQueries({ queryKey: ['crud', 'pages'] });
       void qc.invalidateQueries({ queryKey: ['cms', 'overview'] });
@@ -378,17 +402,36 @@ function Builder({ initial, schema }: { initial: BuilderPayload; schema: CmsSche
         {/* ------------------------------------------------ Live preview column */}
         <div className={clsx('min-w-0', pane === 'editor' && 'hidden xl:block')}>
           <div className="xl:sticky xl:top-20">
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Live preview</h2>
-              <div className="inline-flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800" role="tablist" aria-label="Preview device">
-                {([['desktop', Monitor], ['mobile', Smartphone]] as const).map(([d, Icon]) => (
-                  <button key={d} type="button" role="tab" aria-selected={device === d} onClick={() => setDevice(d)}
-                    className={clsx('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold capitalize', device === d ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500')}>
-                    <Icon className="h-3.5 w-3.5" />{d}
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800" role="tablist" aria-label="Preview type">
+                  {([['real', Globe, 'Real website'], ['quick', Zap, 'Quick']] as const).map(([v, Icon, label]) => (
+                    <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => chooseView(v)}
+                      className={clsx('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold', view === v ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500')}>
+                      <Icon className="h-3.5 w-3.5" />{label}
+                    </button>
+                  ))}
+                </div>
+                <div className="inline-flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800" role="tablist" aria-label="Preview device">
+                  {([['desktop', Monitor], ['mobile', Smartphone]] as const).map(([d, Icon]) => (
+                    <button key={d} type="button" role="tab" aria-selected={device === d} onClick={() => setDevice(d)}
+                      className={clsx('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold capitalize', device === d ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500')}>
+                      <Icon className="h-3.5 w-3.5" />{d}
+                    </button>
+                  ))}
+                </div>
+                {view === 'real' && <IconButton size="sm" icon={RefreshCw} label="Reload the website preview" onClick={() => setSiteVersion(Date.now())} />}
               </div>
             </div>
+            {view === 'real' && dirty && (
+              <Alert variant="info" className="mb-2">You have unsaved changes — the real website shows the saved version. Save to see them here.</Alert>
+            )}
+            {view === 'real' ? (
+              <BrowserChrome url={page.absolute_url}>
+                <RealSitePreview device={device} version={siteVersion} height={typeof window !== 'undefined' ? Math.max(420, window.innerHeight - 230) : 700} path={page.url || '/'} title={`${page.title} — real preview`} />
+              </BrowserChrome>
+            ) : (
             <BrowserChrome url={page.absolute_url}>
               <PreviewCtx.Provider value={{ mobile: device === 'mobile', data: preview.data }}>
                 <ScaledFrame width={device === 'mobile' ? 390 : 1280} maxHeight={typeof window !== 'undefined' ? Math.max(420, window.innerHeight - 230) : 700}>
@@ -424,7 +467,10 @@ function Builder({ initial, schema }: { initial: BuilderPayload; schema: CmsSche
                 </ScaledFrame>
               </PreviewCtx.Provider>
             </BrowserChrome>
-            <p className="mt-2 text-center text-xs text-slate-400">Approximate preview · click a section to edit it · <Link className="link" to="/cms/pages">All pages</Link></p>
+            )}
+            <p className="mt-2 text-center text-xs text-slate-400">
+              {view === 'real' ? 'The real page as visitors see it (saved version; drafts are shown to you only) · it reloads after every save' : 'Approximate preview · click a section to edit it'} · <Link className="link" to="/cms/pages">All pages</Link>
+            </p>
           </div>
         </div>
       </div>

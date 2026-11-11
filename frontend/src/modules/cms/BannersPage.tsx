@@ -15,7 +15,7 @@ import { PickerFormFields } from './site/PickerFormFields';
 import { moveItem, useSortable } from './site/sortable';
 import { BrowserChrome, PreviewCtx, ScaledFrame, spotlightSkipReason } from './site/preview/kit';
 import { SectionPreview } from './site/preview/SectionPreview';
-import { RealSitePreview } from './site/preview/RealSitePreview';
+import { PreviewViewToggle, RealSitePreview, usePreviewView } from './site/preview/RealSitePreview';
 import type { HomeSection, PreviewData } from './site/types';
 
 const STATE_COLORS = { live: 'green', scheduled: 'amber', expired: 'slate', inactive: 'red' } as const;
@@ -50,6 +50,8 @@ export default function BannersPage() {
   const [order, setOrder] = useState<number[] | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [mobile, setMobile] = useState(false);
+  const [slideView, setSlideView] = usePreviewView('gimt.cms.slidePreview');
+  const [slideVersion, setSlideVersion] = useState(() => Date.now());
   const [form, setForm] = useState<{ id: number | null } | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const [peek, setPeek] = useState<Peek | null>(null);
@@ -101,6 +103,7 @@ export default function BannersPage() {
       const res = await api.post('cms/banners/reorder', { ids: slides.map((s) => Number(s.id)) });
       toast.success(res.message || 'Slide order saved.');
       setOrder(null);
+      setSlideVersion(Date.now());
       await qc.invalidateQueries({ queryKey: ['crud', 'banners'] });
       void qc.invalidateQueries({ queryKey: ['cms', 'preview-data'] });
     } catch (e) {
@@ -110,6 +113,7 @@ export default function BannersPage() {
     }
   };
   const refresh = () => {
+    setSlideVersion(Date.now());
     void qc.invalidateQueries({ queryKey: ['crud', 'banners'] });
     void qc.invalidateQueries({ queryKey: ['cms', 'preview-data'] });
     void qc.invalidateQueries({ queryKey: ['cms', 'overview'] });
@@ -245,16 +249,24 @@ export default function BannersPage() {
                   Slide {Math.max(1, slides.findIndex((s) => Number(s.id) === Number(current?.id)) + 1)} of {slides.length}
                   {current?.live_state !== 'live' && <Badge color="amber" className="ml-2">Not live</Badge>}
                 </p>
-                <div className="inline-flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800" role="tablist" aria-label="Preview device">
-                  {([[false, Monitor, 'Desktop'], [true, Smartphone, 'Mobile']] as const).map(([m, Icon, label]) => (
-                    <button key={label} type="button" role="tab" aria-selected={mobile === m} onClick={() => setMobile(m)} className={clsx('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold', mobile === m ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500')}>
-                      <Icon className="h-3.5 w-3.5" />{label}
-                    </button>
-                  ))}
+                <div className="flex flex-wrap items-center gap-2">
+                  <PreviewViewToggle value={slideView} onChange={setSlideView} />
+                  <div className="inline-flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800" role="tablist" aria-label="Preview device">
+                    {([[false, Monitor, 'Desktop'], [true, Smartphone, 'Mobile']] as const).map(([m, Icon, label]) => (
+                      <button key={label} type="button" role="tab" aria-selected={mobile === m} onClick={() => setMobile(m)} className={clsx('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold', mobile === m ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500')}>
+                        <Icon className="h-3.5 w-3.5" />{label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
+              {slideView === 'real' && splitHero && <Alert variant="warning" className="mb-3">The home page banner uses the “Split” layout, which does not show these slides — the real home page below has no spotlight card. Set Home Page Sections › Hero › Layout to “Light layered photos” to show them.</Alert>}
               {currentReason && <Alert variant="warning" className="mb-3">{currentReason}</Alert>}
-              {current && heroPreview && previewData ? (
+              {current && slideView === 'real' ? (
+                <BrowserChrome url={appUrl('/')}>
+                  <RealSitePreview device={mobile ? 'mobile' : 'desktop'} version={slideVersion} height={420} path="/" params={{ banner: Number(current.id) }} title={`Preview · ${current.title}`} />
+                </BrowserChrome>
+              ) : current && heroPreview && previewData ? (
                 <BrowserChrome url={appUrl('/')}>
                   <PreviewCtx.Provider value={{ mobile, data: previewData }}>
                     <ScaledFrame width={mobile ? 390 : 1280}>

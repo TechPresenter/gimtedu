@@ -1,7 +1,7 @@
 <?php
 /**
  * About GIMT (/about) — story + live stats, vision/mission/values, journey (department milestones), why GIMT,
- * campus photo tiles (GalleryLightbox), leadership (+ heads of department), approvals & affiliations, CTA.
+ * campus photo tiles (GalleryLightbox), approvals & affiliations, CTA (the leadership team is on /leadership).
  * Content: CMS page "about" (subtitle, banner, rich text) and "leadership" (people blocks) when published; settings
  * vision / mission / core_values / student_satisfaction; live counts from students, faculty, programs, departments.
  */
@@ -11,7 +11,6 @@ require_once __DIR__ . '/includes/partials/site_academic.php';
 $cms = sa_cms_page('about');
 $counts = sa_counts();
 $departments = sa_departments();
-$leaders = sa_leaders();
 $heroImage = $cms['banner_image'] ?? null ?: 'assets/images/site/campus-building.jpg';
 $story = sa_page_html($cms);
 $tour = trim((string) setting('campus_tour_video_url', ''));
@@ -59,7 +58,6 @@ $why = [
     ['rocket', 'Career Development', 'amber'], ['globe', 'Global Exposure', 'blue'],
     ['shield-check', 'Student Support', 'rose'], ['lightbulb', 'Innovation & Research', 'green'],
 ];
-$hods = array_values(array_filter($departments, fn ($d) => !empty($d['hod_id'])));
 
 $heroText = $cms['excerpt'] ?? '' ?: 'Global Institute of Management & Technology (GIMT) is committed to providing high-quality, industry-oriented education with a focus on innovation, research and holistic development.';
 site_header([
@@ -192,56 +190,7 @@ page_hero('About GIMT', $cms['subtitle'] ?? '' ?: 'Empowering Minds. Shaping Fut
   </div>
 <?= section_close() ?>
 
-<!-- Leadership -->
-<?= section_open(['id' => 'leadership', 'bg' => 'light', 'class' => 'scroll-mt-24']) ?>
-  <div class="grid gap-10 lg:grid-cols-12">
-    <div class="lg:col-span-4"<?= reveal_attr('slide-left') ?>>
-      <p class="eyebrow mb-2">Our Leadership</p>
-      <h2 class="section-title">Guiding Towards a Brighter Future</h2>
-      <p class="section-lead">Our leadership team is committed to academic excellence, innovation and the holistic development of our students.</p>
-      <div class="mt-7"><?= button_link('View All Members', '/faculty', 'outline') ?></div>
-    </div>
-    <div class="grid gap-5 sm:grid-cols-3 lg:col-span-8" data-stagger="90">
-      <?php foreach (array_slice($leaders, 0, 3) as $l): ?>
-        <article class="group overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-card transition duration-300 hover:-translate-y-1 hover:shadow-soft">
-          <div class="img-zoom aspect-[2/1] overflow-hidden bg-slate-100 sm:aspect-[4/3] lg:aspect-[16/10]"><img src="<?= e($l['image']) ?>" alt="<?= e($l['name'] . ', ' . $l['role']) ?>" loading="lazy" decoding="async" class="h-full w-full object-cover object-top"></div>
-          <div class="p-5">
-            <h3 class="font-display text-base font-extrabold text-brand-900"><?= e($l['name']) ?></h3>
-            <p class="text-sm font-semibold text-accent-800"><?= e($l['role']) ?></p>
-            <?php if ($l['bio'] !== ''): ?><p class="mt-2 text-sm leading-relaxed text-slate-600"><?= e(str_limit($l['bio'], 140)) ?></p><?php endif; ?>
-          </div>
-        </article>
-      <?php endforeach; ?>
-    </div>
-  </div>
-  <?php if (count($leaders) > 3): ?>
-    <div class="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4" data-stagger="70">
-      <?php foreach (array_slice($leaders, 3) as $l): ?>
-        <article class="flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-          <img src="<?= e($l['image']) ?>" alt="<?= e($l['name']) ?>" loading="lazy" class="h-14 w-14 shrink-0 rounded-full object-cover">
-          <div class="min-w-0"><h3 class="font-display text-sm font-bold text-brand-900"><?= e($l['name']) ?></h3><p class="text-xs font-semibold text-accent-800"><?= e($l['role']) ?></p></div>
-        </article>
-      <?php endforeach; ?>
-    </div>
-  <?php endif; ?>
-  <?php if ($hods): ?>
-    <div class="mt-14"<?= reveal_attr() ?>>
-      <h3 class="flex items-center gap-2 font-display text-lg font-extrabold text-brand-900"><?= icon('school', 'h-5 w-5 text-accent-600') ?>Academic Leadership — Heads of Department</h3>
-      <ul class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-stagger="60">
-        <?php foreach ($hods as $d): $hn = sa_person_name($d, 'hod_'); ?>
-          <li class="group relative flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-card">
-            <?= sa_avatar($d['hod_photo'], $hn, (int) $d['hod_id'], 'h-14 w-14 text-base') ?>
-            <div class="min-w-0">
-              <p class="font-display text-[15px] font-bold leading-snug text-brand-900"><?= e($hn) ?></p>
-              <p class="text-xs font-semibold text-accent-800"><?= e($d['hod_designation']) ?></p>
-              <a href="<?= e(site_url('academics#dept-' . strtolower($d['code']))) ?>" class="stretched-link mt-0.5 block truncate text-xs text-slate-500 group-hover:text-brand-700"><?= e($d['name']) ?></a>
-            </div>
-          </li>
-        <?php endforeach; ?>
-      </ul>
-    </div>
-  <?php endif; ?>
-<?= section_close() ?>
+<!-- Leadership: removed from the About page (owner request 2026-11-11); the leadership team is on /leadership -->
 
 <!-- Approvals & affiliations (verified list from settings — the section is left out when none is entered) -->
 <?php $approvals = sa_approvals(); $nAppr = count($approvals);

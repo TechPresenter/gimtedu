@@ -1204,7 +1204,7 @@ function cms_menu_fallback(string $location): array
             ]]),
             $l('Contact', '/contact'),
         ],
-        'footer_quick' => [$l('About GIMT', '/about'), $l('Vision & Mission', '/about#vision'), $l('Leadership', '/about#leadership'), $l('Our Faculty', '/faculty'),
+        'footer_quick' => [$l('About GIMT', '/about'), $l('Vision & Mission', '/about#vision'), $l('Leadership', '/leadership'), $l('Our Faculty', '/faculty'),
             $l('Approvals', '/about#approvals'), $l('Contact Us', '/contact')],
         'footer_academics' => [$l('All Programs', '/programs'), $l('Undergraduate', '/programs?category=ug'), $l('Postgraduate', '/programs?category=pg'),
             $l('Diploma', '/programs?category=diploma'), $l('Certificate Courses', '/certifications'), $l('Academics', '/academics')],

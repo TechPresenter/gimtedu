@@ -15,6 +15,7 @@ import { CmsIcon } from './site/icons';
 import { DrawerPreview, FooterPreview, HeaderPreview, TopbarPreview } from './site/MenuPreview';
 import { IconPicker } from './site/ShapeForm';
 import { ScaledFrame } from './site/preview/kit';
+import { PreviewViewToggle, RealSitePreview, usePreviewView } from './site/preview/RealSitePreview';
 import { moveItem, useSortable } from './site/sortable';
 import type { MenuItemNode, MenuLocation } from './site/types';
 
@@ -72,6 +73,9 @@ export default function MenusPage() {
   const preview = usePreviewData();
   const { data: locData, isLoading: locLoading, error: locError } = useApi<{ locations: LocationRow[]; can: { edit: boolean } }>(['cms', 'menus'], 'menus');
   const location = params.get('location') ?? 'header';
+  const [view, setView] = usePreviewView('gimt.cms.menuPreview');
+  const [siteVersion, setSiteVersion] = useState(() => Date.now());
+  const footerMenu = ['footer_quick', 'footer_academics', 'footer_admissions', 'footer_support', 'legal'].includes(location);
   const { data, isLoading, error } = useApi<MenuPayload>(['cms', 'menu', location], `menus/${location}`, undefined, { refetchOnWindowFocus: false });
   const [tree, setTree] = useState<MenuItemNode[]>([]);
   const [meta, setMeta] = useState({ name: '', status: 'active' });
@@ -185,6 +189,7 @@ export default function MenusPage() {
       void qc.invalidateQueries({ queryKey: ['cms', 'menus'] });
       void qc.invalidateQueries({ queryKey: ['cms', 'overview'] });
       toast.success(res.message);
+      setSiteVersion(Date.now());
     } catch (e) {
       const err = e as ApiError;
       setErrors(err.errors ?? {});
@@ -205,6 +210,7 @@ export default function MenusPage() {
       qc.setQueryData(['cms', 'menu', location], { ...data, items: res.data.items });
       void qc.invalidateQueries({ queryKey: ['cms', 'menus'] });
       toast.success(res.message);
+      setSiteVersion(Date.now());
     } catch (e) {
       toast.error((e as ApiError).message);
     } finally {
@@ -268,13 +274,20 @@ export default function MenusPage() {
         <div className="min-w-0 space-y-6">
           {/* Preview */}
           <Card className="overflow-hidden">
-            <CardHeader icon={LayoutGrid} title="Live preview" subtitle="How this menu looks on the website (Design v3 — approximate)" />
+            <CardHeader icon={LayoutGrid} title="Live preview" subtitle={view === 'real' ? 'The real website (saved menu) — it reloads after every save' : 'How this menu looks on the website (approximate)'} actions={<PreviewViewToggle value={view} onChange={setView} />} />
+            {view === 'real' ? (
+              <div className="border-t border-slate-100 dark:border-slate-800">
+                {location === 'mobile' && <p className="px-4 pt-3 text-xs text-slate-500">Phone view — open the menu (☰) inside the preview to see the drawer.</p>}
+                <RealSitePreview device={location === 'mobile' ? 'mobile' : 'desktop'} version={siteVersion} height={location === 'mobile' ? 520 : 360} path="/" scrollTo={footerMenu ? 'footer' : undefined} title="Website menu — real preview" />
+              </div>
+            ) : (
             <div className="border-t border-slate-100 dark:border-slate-800">
               {location === 'header' && <ScaledFrame width={880}><HeaderPreview items={tree} settings={preview.data?.settings} focusKey={openKey} programs={preview.data?.programs} /></ScaledFrame>}
               {location === 'topbar' && <TopbarPreview items={tree} settings={preview.data?.settings} />}
               {location === 'mobile' && <div className="bg-[#F5F2EE] p-6"><DrawerPreview items={tree} /></div>}
               {['footer_quick', 'footer_academics', 'footer_admissions', 'footer_support', 'legal'].includes(location) && <FooterPreview location={location} items={tree} />}
             </div>
+            )}
           </Card>
           {/* Editor */}
           <Card>

@@ -13,8 +13,18 @@ import { ShapeForm } from './site/ShapeForm';
 import { moveItem, useSortable } from './site/sortable';
 import { BrowserChrome, PreviewCtx, ScaledFrame, spotlightSlides } from './site/preview/kit';
 import { SectionPreview } from './site/preview/SectionPreview';
-import { RealSitePreview } from './site/preview/RealSitePreview';
+import { PreviewViewToggle, RealSitePreview, usePreviewView } from './site/preview/RealSitePreview';
 import type { CmsSchema, HomeSection, PreviewData, SectionDef } from './site/types';
+
+/** Element id of a home section on the website (mirrors hm_anchor() in includes/partials/home.php). */
+const SECTION_ANCHORS: Record<string, string> = {
+  hero: 'top', stats: 'at-a-glance', features: 'highlights', programs: 'programs', why: 'why-gimt', academic_excellence: 'about', admission_process: 'admissions',
+  campus_life: 'campus-life', placements: 'placements', recruiters: 'recruiters', testimonials: 'stories', events_news: 'news', faqs: 'faqs', cta: 'enquiry',
+};
+const sectionAnchor = (s: HomeSection): string => {
+  const own = String((s.content as Record<string, unknown> | undefined)?.anchor ?? '').toLowerCase().replace(/[^a-z0-9-]/g, '');
+  return own || SECTION_ANCHORS[s.key] || s.key.replace(/_/g, '-');
+};
 
 /** Preview pane: the real website (saved version, in a frame) or the quick drawing of the sections (instant, approximate). */
 type PreviewView = 'real' | 'quick';
@@ -278,6 +288,8 @@ function SectionEditor({ section, def, schema, preview, canEdit, onClose, onSave
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
+  const [view, setView] = usePreviewView('gimt.cms.sectionPreview');
+  const [siteVersion, setSiteVersion] = useState(() => Date.now());
   useEffect(() => {
     setDraft(section ? deepClone(section) : null);
     setErrors({});
@@ -296,6 +308,7 @@ function SectionEditor({ section, def, schema, preview, canEdit, onClose, onSave
     try {
       const res = await api.put<{ section: HomeSection }>(`cms/homepage/${draft.key}`, { title: draft.title, subtitle: draft.subtitle, content: draft.content });
       toast.success(res.message);
+      setSiteVersion(Date.now());
       onSaved(res.data.section);
       onClose();
     } catch (e) {
@@ -313,6 +326,7 @@ function SectionEditor({ section, def, schema, preview, canEdit, onClose, onSave
     try {
       const res = await api.post<{ section: HomeSection }>(`cms/homepage/${draft.key}/reset`);
       toast.success(res.message);
+      setSiteVersion(Date.now());
       onSaved(res.data.section);
       setDraft(deepClone(res.data.section));
       setErrors({});
@@ -345,16 +359,25 @@ function SectionEditor({ section, def, schema, preview, canEdit, onClose, onSave
           </div>
           <div className="min-w-0">
             <div className="lg:sticky lg:top-0">
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Live preview</p>
-                <DeviceToggle device={device} onChange={setDevice} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <PreviewViewToggle value={view} onChange={setView} />
+                  <DeviceToggle device={device} onChange={setDevice} />
+                </div>
               </div>
+              {view === 'real' && dirty && <Alert variant="info" className="mb-2">Unsaved changes — the real website shows the saved version. Save to see them here.</Alert>}
+              {view === 'real' && !draft.is_enabled && <Alert variant="warning" className="mb-2">This section is switched off, so it is not on the website.</Alert>}
               <div className="overflow-hidden rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
+                {view === 'real' ? (
+                  <RealSitePreview device={device} version={siteVersion} height={560} path="/" scrollTo={`[id="${sectionAnchor(draft)}"]`} title={`${draft.label} — real preview`} />
+                ) : (
                 <PreviewCtx.Provider value={{ mobile: device === 'mobile', data: preview }}>
                   <ScaledFrame width={device === 'mobile' ? 390 : 1280} maxHeight={560}>
                     <SectionPreview section={draft} />
                   </ScaledFrame>
                 </PreviewCtx.Provider>
+                )}
               </div>
             </div>
           </div>
