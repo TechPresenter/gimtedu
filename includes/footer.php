@@ -20,6 +20,9 @@ if (!array_filter($legal, fn ($l) => rtrim((string) ($l['url'] ?? ''), '/') === 
 }
 $cookieLink = function_exists('consent_settings_link') ? consent_settings_link() : '';
 $copyright = str_replace('{year}', date('Y'), setting('copyright_text', '© {year} Global Institute of Management & Technology (GIMT). All Rights Reserved.'));
+// group name first (Settings › Website › Footer › Group name before the copyright; owner request 2026-11-12)
+$groupName = trim((string) setting('footer_group_text', 'GIMT Group of Institutes'));
+$copyrightHtml = ($groupName !== '' ? '<strong class="font-semibold">' . e($groupName) . '</strong> | ' : '') . e($copyright);
 $fPhone = (string) setting('phone', '+91 9955446477');
 $fEmail = (string) setting('email', 'info@gimt.ac.in');
 $active = $page['active'] ?? trim(substr(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/', strlen(base_path())), '/');
@@ -67,7 +70,7 @@ $chatStyle = (string) ($opts['chat'] ?? setting('site_chat_style', 'tab'));
   </div>
   <?php endif; ?>
   <div class="container-site footer-bottom !mt-0">
-    <div class="footer-legal-copy"><p><?= e($copyright) ?></p><?= $creditHtml ?></div>
+    <div class="footer-legal-copy"><p><?= $copyrightHtml ?></p><?= $creditHtml ?></div>
     <div class="footer-visitors"><?php if (is_file(__DIR__ . '/partials/visitor_counter.php')) { require_once __DIR__ . '/partials/visitor_counter.php'; echo visitor_counter(); } ?></div>
     <nav aria-label="Legal" class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
       <a href="<?= e(site_url('contact')) ?>">Help Center</a>
@@ -165,7 +168,7 @@ $chatStyle = (string) ($opts['chat'] ?? setting('site_chat_style', 'tab'));
       <?php endif; ?>
     </div>
     <div class="footer-bottom">
-      <div class="footer-legal-copy"><p><?= e($copyright) ?></p><?= $creditHtml ?></div>
+      <div class="footer-legal-copy"><p><?= $copyrightHtml ?></p><?= $creditHtml ?></div>
       <div class="footer-visitors"><?php if (is_file(__DIR__ . '/partials/visitor_counter.php')) { require_once __DIR__ . '/partials/visitor_counter.php'; echo visitor_counter(); } ?></div>
       <nav aria-label="Legal" class="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
         <?php foreach ($legal as $l): ?><a href="<?= e(cms_link($l['url'])) ?>"><?= e($l['title']) ?></a><?php endforeach; ?>

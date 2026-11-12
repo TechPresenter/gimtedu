@@ -70,7 +70,7 @@ return [
         ['name' => 'max_external', 'label' => 'External max', 'type' => 'number', 'required' => true, 'default' => 70, 'min' => 0, 'max' => 500, 'col' => 3],
         ['name' => 'max_practical', 'label' => 'Practical max', 'type' => 'number', 'required' => true, 'default' => 0, 'min' => 0, 'max' => 500, 'col' => 3],
         ['name' => 'pass_marks', 'label' => 'Pass marks', 'type' => 'number', 'required' => true, 'default' => 40, 'min' => 0, 'max' => 1500, 'col' => 3],
-        ['name' => 'description', 'label' => 'Syllabus outline', 'type' => 'textarea', 'rows' => 3, 'maxlength' => 5000],
+        ['name' => 'description', 'label' => 'Syllabus outline / topics', 'type' => 'textarea', 'rows' => 3, 'maxlength' => 5000, 'help' => 'Separate topics with a semicolon ( ; ). On certificate course pages each topic shows as a chip under the module name.'],
     ],
     'bulk' => ['delete' => true, 'status' => ['active', 'inactive']],
     'import' => true,

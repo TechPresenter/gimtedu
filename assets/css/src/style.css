@@ -214,6 +214,16 @@
   .prose-site table { @apply my-6 w-full border-collapse text-sm; }
   .prose-site th { @apply border border-slate-200 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-800; }
   .prose-site td { @apply border border-slate-200 px-3 py-2; }
+  /* course page "Complete Program Details": wide tables scroll sideways on phones, cells align to the top */
+  .program-details { @apply overflow-x-auto; }
+  .program-details table { @apply min-w-[480px]; }
+  .program-details :is(th, td) { @apply align-top; }
+  .program-details h3:first-child { @apply mt-0; }
+  /* course modules: "+N more topics" toggle; detail panels: no default disclosure triangle */
+  .module-more > summary::-webkit-details-marker, .detail-panel > summary::-webkit-details-marker { display: none; }
+  .module-more .module-more-close, .module-more[open] .module-more-open { display: none; }
+  .module-more[open] .module-more-close { display: inline; }
+  .module-more[open] > summary svg { transform: rotate(180deg); }
 
   /* Misc */
   .empty-state { @apply flex flex-col items-center px-6 py-12 text-center; }

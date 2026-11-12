@@ -98,7 +98,8 @@ $isCert = $p['level'] === 'Certificate' && is_file(__DIR__ . '/certifications.ph
 $certGroup = $isCert ? (site_cert_groups()[site_cert_group_key($p)] ?? null) : null;
 $moduleCount = array_sum(array_map('count', $curriculum));
 $durationMonths = preg_match('/(\d+)\s*month/i', $duration, $dm) ? (int) $dm[1] : 0;
-$mode = $isCert ? 'Classroom · On Campus' : 'Full-Time · On Campus';
+// certificate courses whose highlights say they also run online (e.g. BFSI & Soft Skills: "Online & offline classes") show both modes
+$mode = $isCert ? (preg_match('/\bonline\b/i', (string) ($p['highlights'] ?? '')) ? 'Online & Offline' : 'Classroom · On Campus') : 'Full-Time · On Campus';
 
 // short eligibility for the facts strip
 $elig = trim((string) $p['eligibility']);
@@ -220,11 +221,14 @@ $facts = [
     ['clipboard-check', 'Eligibility', $eligShort ?: 'See below'],
     ['building-2', 'Mode', $mode],
 ];
+// optional long-form details (calendar, timetable, assessment …) — admin rich text, cleaned like every CMS field
+$details = trim((string) ($p['details_html'] ?? '')) !== '' ? sanitize_html((string) $p['details_html']) : '';
 $nav = array_filter([
     'overview' => 'Overview',
     'curriculum' => $curriculum ? ($isCert ? 'Modules' : 'Curriculum') : null,
     'fees' => 'Fees',
     'careers' => $careers ? 'Careers' : null,
+    'details' => $details !== '' ? 'Details' : null,
     'faculty' => $faculty ? 'Faculty' : null,
     'faqs' => 'FAQs',
 ]);
@@ -302,10 +306,25 @@ $nav = array_filter([
             <a href="<?= e(sa_brochure_url($p)) ?>" target="_blank" rel="noopener" class="link-arrow text-sm"><?= icon('printer', 'h-4 w-4') ?>Printable syllabus<span class="sr-only"> (opens in a new tab)</span></a>
           </div>
           <ol class="grid gap-3 sm:grid-cols-2" data-stagger="50">
-            <?php foreach ($mods as $i => $s): $final = $s['type'] === 'project'; ?>
+            <?php foreach ($mods as $i => $s): $final = $s['type'] === 'project';
+                // module topics (subjects.description, "a; b; c"): the first 4 as chips, the rest behind "+N more topics"
+                $topics = array_values(array_filter(array_map('trim', preg_split('/;\s*/', rtrim(trim((string) ($s['description'] ?? '')), '.')) ?: [])));
+                $chip = fn (string $t) => '<li class="rounded-full bg-slate-100 px-2.5 py-1 text-[12px] leading-tight text-slate-700 dark:bg-white/10 dark:text-slate-200">' . e(ucfirst($t)) . '</li>'; ?>
               <li class="flex items-start gap-3.5 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
                 <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-display text-sm font-extrabold <?= $final ? 'bg-accent-600 text-white' : 'tint-navy' ?>"><?= $final ? icon('award', 'h-4 w-4') : $i + 1 ?></span>
-                <span class="min-w-0 pt-1.5"><span class="block text-[15px] font-semibold leading-snug text-brand-900"><?= e($s['name']) ?></span><?php if ($final): ?><span class="mt-0.5 block text-xs text-slate-500">Final project / assessment</span><?php endif; ?></span>
+                <div class="min-w-0 flex-1 pt-1.5">
+                  <p class="text-[15px] font-semibold leading-snug text-brand-900"><?= e($s['name']) ?></p>
+                  <?php if ($final): ?><p class="mt-0.5 text-xs text-slate-500">Final project / assessment</p><?php endif; ?>
+                  <?php if ($topics): ?>
+                    <ul class="mt-2.5 flex flex-wrap gap-1.5" aria-label="Topics"><?= implode('', array_map($chip, array_slice($topics, 0, 4))) ?></ul>
+                    <?php if (count($topics) > 4): ?>
+                      <details class="module-more mt-2">
+                        <summary class="inline-flex cursor-pointer list-none items-center gap-1 text-[12.5px] font-semibold text-accent-700 hover:text-accent-800"><span class="module-more-open">+<?= count($topics) - 4 ?> more topics</span><span class="module-more-close">Show fewer</span><?= icon('chevron-down', 'h-3.5 w-3.5 transition-transform') ?></summary>
+                        <ul class="mt-2 flex flex-wrap gap-1.5"><?= implode('', array_map($chip, array_slice($topics, 4))) ?></ul>
+                      </details>
+                    <?php endif; ?>
+                  <?php endif; ?>
+                </div>
               </li>
             <?php endforeach; ?>
           </ol>
@@ -417,6 +436,40 @@ $nav = array_filter([
               <ul class="mt-4 flex flex-wrap gap-2">
                 <?php foreach ($recruiters as $r): ?><li class="flex h-14 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 transition hover:-translate-y-0.5 hover:shadow-card"><?php if (!empty($r['logo'])): ?><img src="<?= e($r['logo']) ?>" alt="<?= e($r['name']) ?>" title="<?= e($r['name']) ?>" class="h-7 w-auto max-w-[8.5rem] object-contain" loading="lazy" decoding="async"><?php else: ?><span class="font-display text-sm font-extrabold tracking-tight text-slate-700"><?= e($r['name']) ?></span><?php endif; ?></li><?php endforeach; ?>
               </ul>
+            </div>
+          <?php endif; ?>
+        </section>
+      <?php endif; ?>
+
+      <?php if ($details !== ''): ?>
+        <!-- Complete program details (Academics › Programs › "Complete program details", rich text) -->
+        <section id="details" class="mt-14 scroll-mt-28" aria-labelledby="details-title">
+          <h2 id="details-title" class="font-display text-2xl font-extrabold text-brand-900">Complete Program Details</h2>
+          <?php
+          // one collapsible panel per <h3> heading of the rich text (the first one open); text before the first heading stays on top
+          $intro = $details;
+          $parts = [];
+          if (preg_match_all('~<h3[^>]*>(.*?)</h3>(.*?)(?=<h3[\s>]|\z)~s', $details, $dm, PREG_SET_ORDER)) {
+              $intro = trim(substr($details, 0, (int) strpos($details, $dm[0][0])));
+              foreach ($dm as $m) {
+                  $parts[] = [trim(html_entity_decode(strip_tags($m[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8')), trim($m[2])];
+              }
+          }
+          ?>
+          <?php if (!$parts): ?>
+            <div class="prose-site program-details mt-5"><?= $details ?></div>
+          <?php else: ?>
+            <?php if ($intro !== ''): ?><div class="prose-site program-details mt-5"><?= $intro ?></div><?php endif; ?>
+            <div class="mt-5 space-y-3">
+              <?php foreach ($parts as $k => [$ptitle, $pbody]): ?>
+                <details class="detail-panel group overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm"<?= $k === 0 ? ' open' : '' ?>>
+                  <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-display text-[16px] font-bold text-brand-900 hover:bg-slate-50/70">
+                    <span class="flex items-center gap-3"><span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg tint-navy text-xs font-extrabold"><?= $k + 1 ?></span><?= e($ptitle) ?></span>
+                    <?= icon('chevron-down', 'h-5 w-5 shrink-0 text-slate-400 transition-transform group-open:rotate-180') ?>
+                  </summary>
+                  <div class="prose-site program-details border-t border-slate-100 px-5 pb-5 pt-1"><?= $pbody ?></div>
+                </details>
+              <?php endforeach; ?>
             </div>
           <?php endif; ?>
         </section>

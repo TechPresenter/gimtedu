@@ -622,7 +622,7 @@ function sa_fee_summary(array $structures): array
 function sa_curriculum(int $programId): array
 {
     $out = [];
-    foreach (sa_try(fn () => db_all("SELECT semester_no, code, name, type, is_elective, credits FROM subjects WHERE program_id = ? AND status = 'active' ORDER BY semester_no, is_elective, code", [$programId]), []) as $s) {
+    foreach (sa_try(fn () => db_all("SELECT semester_no, code, name, type, is_elective, credits, description FROM subjects WHERE program_id = ? AND status = 'active' ORDER BY semester_no, is_elective, code", [$programId]), []) as $s) {
         $out[(int) $s['semester_no']][] = $s;
     }
     ksort($out);

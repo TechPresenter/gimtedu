@@ -259,6 +259,7 @@ function settings_schema(): array
                 ]],
                 ['key' => 'footer', 'title' => 'Footer', 'description' => 'About text, copyright line and developer credit. Use {year} for the current year.', 'fields' => [
                     ['key' => 'footer_about', 'label' => 'About text', 'type' => 'textarea', 'rules' => 'max:600', 'col' => 12],
+                    ['key' => 'footer_group_text', 'label' => 'Group name before the copyright', 'rules' => 'max:120', 'col' => 12, 'default' => 'GIMT Group of Institutes', 'placeholder' => 'GIMT Group of Institutes', 'help' => 'Shown first in the footer copyright line: “GIMT Group of Institutes | © 2026 …”. Blank = not shown.'],
                     ['key' => 'copyright_text', 'label' => 'Copyright text', 'rules' => 'max:255', 'col' => 12],
                     ['key' => 'footer_credit_text', 'label' => 'Developer credit text', 'rules' => 'max:120', 'col' => 4, 'placeholder' => 'Design, Maintain And Developed By'],
                     ['key' => 'footer_credit_name', 'label' => 'Developer name', 'rules' => 'max:120', 'col' => 4, 'placeholder' => 'Appsgain Technologies Private Limited'],
