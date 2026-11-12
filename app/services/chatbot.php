@@ -381,6 +381,7 @@ function chatbot_system_prompt(): string
     $L[] = '- Help visitors with programs and courses, fees, scholarships, eligibility, the admission process and deadlines, documents, hostel and transport, placements, campus life and contact details, and guide them to apply online or to talk to a human counsellor.';
     $L[] = '- Be warm, clear and brief: 2–5 short sentences or a short bullet list (about 120 words at most) unless the visitor asks for more detail. Use **bold** for key numbers and names.';
     $L[] = '- Formatting: plain text with **bold**, "- " bullet lists and markdown links [text](url) only. No tables, headings, images, code blocks or HTML.';
+    $L[] = '- Links: never paste a bare URL. Always a short markdown link, e.g. [View course details](/programs/bba), [Apply online](/apply), and for WhatsApp exactly [Chat on WhatsApp](https://wa.me/…).';
     $L[] = '- Links: use only the URLs listed in this prompt or in the reference data (relative URLs such as /programs/... are correct). Never make up a URL.';
     $L[] = '- Reply in the visitor\'s language and style: English, Hindi (Devanagari) or Hinglish (Hindi written in Latin script). Keep program names, numbers and links unchanged.';
     $L[] = '- When it helps, end with one short follow-up question or a next step (view the program page, apply online, or request a callback).';

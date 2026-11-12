@@ -1,12 +1,46 @@
 import type { ReactNode } from 'react';
+import { WA_PILL, WhatsAppBadge } from './icons';
 
 /**
  * Safe "markdown-lite" for chat bubbles → React nodes (never innerHTML).
- * Supports paragraphs, line breaks, "- " / "• " / "1. " lists, **bold** and [label](url) links.
+ * Supports paragraphs, line breaks, "- " / "• " / "1. " lists, **bold**, [label](url) links and bare http(s) URLs.
  * Links: only root-relative paths ("/programs/bba", prefixed with the install base path) and http(s) URLs;
  * external links open in a new tab with rel="noopener noreferrer". Anything else renders as plain text.
+ * WhatsApp links (wa.me / api.whatsapp.com) render as the green "Chat on WhatsApp" pill; a bare URL never shows as
+ * a long raw address — it gets a short label ("View course details", "Apply online", the page name…).
  * Incomplete syntax (while a reply is still streaming) simply shows as text until it is closed.
  */
+
+/** True for a WhatsApp chat link. */
+export function isWhatsAppUrl(href: string): boolean {
+  try {
+    const h = new URL(href, window.location.origin).hostname.toLowerCase();
+    return h === 'wa.me' || h === 'api.whatsapp.com' || h === 'chat.whatsapp.com';
+  } catch {
+    return false;
+  }
+}
+
+/** Short, readable label for a bare URL. */
+export function linkLabel(href: string, basePath: string): string {
+  try {
+    const u = new URL(href, window.location.origin);
+    if (isWhatsAppUrl(u.href)) return 'Chat on WhatsApp';
+    if (u.host !== window.location.host) return u.hostname.replace(/^www\./, '');
+    const base = basePath.replace(/\/$/, '');
+    const path = (base && u.pathname.startsWith(base) ? u.pathname.slice(base.length) : u.pathname) || '/';
+    if (/^\/programs\/[^/]+/.test(path)) return 'View course details';
+    if (path.startsWith('/apply')) return 'Apply online';
+    if (path.startsWith('/contact')) return 'Contact us';
+    if (path.startsWith('/certifications')) return 'Certificate courses';
+    if (path.startsWith('/programs')) return 'All programs';
+    if (path === '/') return 'Visit our website';
+    const seg = decodeURIComponent(path.split('/').filter(Boolean).pop() ?? '').replace(/[-_]+/g, ' ').trim();
+    return seg ? seg.charAt(0).toUpperCase() + seg.slice(1) : 'Open page';
+  } catch {
+    return 'Open link';
+  }
+}
 
 export function safeHref(url: string, basePath: string): { href: string; external: boolean } | null {
   const u = url.trim();
@@ -25,7 +59,27 @@ export function safeHref(url: string, basePath: string): { href: string; externa
   return null;
 }
 
-const INLINE = /(\*\*([^*\n]+?)\*\*)|(\[([^\]\n]{1,200})\]\(([^)\s]{1,600})\))/g;
+// **bold** | [label](url) | bare http(s) URL
+const INLINE = /(\*\*([^*\n]+?)\*\*)|(\[([^\]\n]{1,200})\]\(([^)\s]{1,600})\))|(https?:\/\/[^\s<>"'`]{3,600})/g;
+
+function linkNode(key: string, href: string, label: string, linkClass: string, external: boolean): ReactNode {
+  const ext = external ? { target: '_blank', rel: 'noopener noreferrer' } : {};
+  if (isWhatsAppUrl(href)) {
+    return (
+      <a key={key} href={href} className={`${WA_PILL} my-0.5 align-middle no-underline`} target="_blank" rel="noopener noreferrer">
+        <WhatsAppBadge size={20} />
+        {label}
+        <span className="sr-only"> (opens WhatsApp)</span>
+      </a>
+    );
+  }
+  return (
+    <a key={key} href={href} className={linkClass} {...ext}>
+      {label}
+      {external && <span className="sr-only"> (opens in a new tab)</span>}
+    </a>
+  );
+}
 
 function inline(text: string, basePath: string, keyBase: string, linkClass: string): ReactNode[] {
   const out: ReactNode[] = [];
@@ -34,24 +88,27 @@ function inline(text: string, basePath: string, keyBase: string, linkClass: stri
   let i = 0;
   INLINE.lastIndex = 0;
   while ((m = INLINE.exec(text))) {
+    let end = m.index + m[0].length;
     if (m.index > last) out.push(text.slice(last, m.index));
     const key = `${keyBase}-${i++}`;
     if (m[1]) {
       out.push(<strong key={key} className="font-semibold">{m[2]}</strong>);
-    } else {
+    } else if (m[3]) {
       const link = safeHref(m[5], basePath);
-      out.push(
-        link ? (
-          <a key={key} href={link.href} className={linkClass} {...(link.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
-            {m[4]}
-            {link.external && <span className="sr-only"> (opens in a new tab)</span>}
-          </a>
-        ) : (
-          m[4]
-        ),
-      );
+      out.push(link ? linkNode(key, link.href, m[4], linkClass, link.external) : m[4]);
+    } else {
+      // bare URL: leave sentence punctuation after it as text ("…program." / "(see https://…)")
+      let raw = m[6];
+      const trail = /[.,;:!?)\]'"]+$/.exec(raw);
+      if (trail && !(trail[0].startsWith(')') && raw.includes('('))) {
+        raw = raw.slice(0, -trail[0].length);
+        end -= trail[0].length;
+      }
+      const link = safeHref(raw, basePath);
+      out.push(link ? linkNode(key, link.href, linkLabel(link.href, basePath), linkClass, link.external) : raw);
     }
-    last = m.index + m[0].length;
+    last = end;
+    INLINE.lastIndex = end;
   }
   if (last < text.length) out.push(text.slice(last));
   return out;
@@ -117,6 +174,7 @@ export function Markdown({ text, basePath, linkClass }: { text: string; basePath
 export function plainText(text: string): string {
   return text
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/https?:\/\/[^\s<>"'`]+/g, (u) => (isWhatsAppUrl(u) ? 'Chat on WhatsApp' : 'link'))
     .replace(/\*\*/g, '')
     .replace(/^\s*[-*•]\s+/gm, '• ');
 }
