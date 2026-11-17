@@ -1197,7 +1197,6 @@ function cms_menu_fallback(string $location): array
             $l('About', '/about', ['children' => [
                 $l('About GIMT', '/about', ['icon' => 'landmark', 'description' => 'Our story, campus and values']),
                 $l('Vision & Mission', '/vision-mission', ['icon' => 'target', 'description' => 'What drives us every day']),
-                $l('Leadership', '/leadership', ['icon' => 'users', 'description' => 'Chairman, Director and Deans']),
                 $l('Approvals & Affiliations', '/about#approvals', ['icon' => 'badge-check', 'description' => 'Recognitions of our programs']),
                 $l('Mandatory Disclosure', '/mandatory-disclosure', ['icon' => 'file-text', 'description' => 'Statutory information about GIMT']),
                 $l('Policies', '/policies', ['icon' => 'shield-check', 'description' => 'Anti-ragging, grievance & POSH']),
@@ -1206,7 +1205,7 @@ function cms_menu_fallback(string $location): array
             ]]),
             $l('Contact', '/contact'),
         ],
-        'footer_quick' => [$l('About GIMT', '/about'), $l('Vision & Mission', '/about#vision'), $l('Leadership', '/leadership'), $l('Our Faculty', '/faculty'),
+        'footer_quick' => [$l('About GIMT', '/about'), $l('Vision & Mission', '/vision-mission'), $l('Our Faculty', '/faculty'),
             $l('Approvals', '/about#approvals'), $l('Contact Us', '/contact')],
         'footer_academics' => [$l('All Programs', '/programs'), $l('Undergraduate', '/programs?category=ug'), $l('Postgraduate', '/programs?category=pg'),
             $l('Diploma', '/programs?category=diploma'), $l('Certificate Courses', '/certifications'), $l('Academics', '/academics')],
@@ -1332,7 +1331,7 @@ function cms_public_routes(): array
     $d = fn (string $label, string $file, string $desc, float $prio = 0.8, string $freq = 'weekly') => ['label' => $label, 'file' => $file, 'description' => $desc, 'priority' => $prio, 'changefreq' => $freq];
     return [
         '/' => $d('Home', 'index.php', 'Global Institute of Management & Technology (GIMT), Noida — industry-focused UG, PG, diploma and certificate programs.', 1.0, 'daily'),
-        '/about' => $d('About GIMT', 'about.php', 'Our story, vision and mission, leadership, campus and approvals.', 0.8, 'monthly'),
+        '/about' => $d('About GIMT', 'about.php', 'Our story, vision and mission, programs and campus.', 0.8, 'monthly'),
         '/programs' => $d('Programs', 'programs.php', 'Explore undergraduate, postgraduate, diploma and certificate programs at GIMT.', 0.9, 'weekly'),
         '/certifications' => $d('Certificate Courses', 'certifications.php', 'Short certificate courses in management, computers, communication, AI and career skills at GIMT Noida.', 0.8, 'weekly'),
         '/admissions' => $d('Admissions', 'admissions.php', 'Admission process, eligibility, fees, scholarships and important dates.', 0.9, 'weekly'),

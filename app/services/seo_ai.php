@@ -362,6 +362,7 @@ function seo_llms_build(bool $full): string
         function_exists('sa_application_fee') ? 'Application (registration) fee: ' . sa_application_fee() : null,
         function_exists('sa_scholarship_statement') ? 'Scholarships: ' . sa_scholarship_statement() . '.' : null,
         function_exists('sa_placement_statement') ? 'Placements: ' . sa_placement_statement() : null,
+        function_exists('sa_disambiguation_statement') && sa_disambiguation_statement() !== '' ? 'Same-name listings: ' . preg_replace('/^No\.\s*/', '', sa_disambiguation_statement()) : null,
     ]);
     foreach ($facts as $f) {
         $out[] = '- ' . $f;

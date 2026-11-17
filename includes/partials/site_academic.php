@@ -351,6 +351,12 @@ function sa_placement_statement(): string
     return 'GIMT provides placement assistance: career guidance, CV and interview preparation, and help applying to recruiters. Placement assistance is support, not a job guarantee.';
 }
 
+/** Owner's note on same-name listings that are not this institute (Settings › Social › entity_disambiguation), or ''. */
+function sa_disambiguation_statement(): string
+{
+    return trim(strip_tags((string) setting('entity_disambiguation', '')));
+}
+
 /** Admission window (decision 1): "Rolling admissions — until seats are filled", or the deadline an admin has set. */
 function sa_admission_window(): string
 {
@@ -593,6 +599,9 @@ function sa_generated_faq_sections(): array
     $about = [['q' => 'What is ' . $f['short'] . '?', 'a' => sa_definition_text()]];
     if ($f['address'] !== '') {
         $about[] = ['q' => 'Where is ' . $f['short'] . ' located?', 'a' => $f['name'] . ' is at ' . $f['address'] . '.'];
+    }
+    if (($d = sa_disambiguation_statement()) !== '') {
+        $about[] = ['q' => 'Is ' . $f['short'] . ' connected with other "Global Institute of Management & Technology" listings in Noida?', 'a' => $d];
     }
     $contact = array_filter([$f['phone'] !== '' ? 'call ' . $f['phone'] : '', $f['email'] !== '' ? 'e-mail ' . $f['email'] : '',
         ($wa = preg_replace('/\D/', '', (string) setting('whatsapp_number', ''))) !== '' ? 'message on WhatsApp' : '']);

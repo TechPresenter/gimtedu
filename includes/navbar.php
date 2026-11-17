@@ -93,7 +93,6 @@ if (!$menu) {
         ['title' => 'About', 'url' => '/about', 'children' => [
             ['title' => 'About GIMT', 'url' => '/about', 'icon' => 'landmark', 'description' => 'Our story, campus and values', 'children' => []],
             ['title' => 'Vision & Mission', 'url' => '/vision-mission', 'icon' => 'target', 'description' => 'What drives us every day', 'children' => []],
-            ['title' => 'Leadership', 'url' => '/leadership', 'icon' => 'users', 'description' => 'Chairman, Director and Deans', 'children' => []],
             ['title' => 'Approvals & Affiliations', 'url' => '/about#approvals', 'icon' => 'badge-check', 'description' => 'Recognitions of our programs', 'children' => []],
             ['title' => 'Mandatory Disclosure', 'url' => '/mandatory-disclosure', 'icon' => 'file-text', 'description' => 'Statutory information about GIMT', 'children' => []],
             ['title' => 'Policies', 'url' => '/policies', 'icon' => 'shield-check', 'description' => 'Anti-ragging, grievance & POSH', 'children' => []],
