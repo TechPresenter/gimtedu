@@ -12,12 +12,12 @@ return function (array $opts): void {
 
     // ---------------- Departments ----------------
     $departments = [
-        ['Department of Management Studies', 'MGT', 'mgt@gimt.ac.in', 2008, 'Business administration, finance, marketing and HR programs with strong industry exposure.'],
-        ['Department of Computer Science & Engineering', 'CSE', 'cse@gimt.ac.in', 2010, 'Engineering programs in computer science, AI and data science with modern labs.'],
-        ['Department of Computer Applications', 'DCA', 'dca@gimt.ac.in', 2009, 'BCA, MCA and diploma programs in software development and applications.'],
-        ['Department of Commerce', 'COM', 'commerce@gimt.ac.in', 2008, 'B.Com (Honours) and M.Com programs in accounting, taxation and finance.'],
-        ['Department of Sciences', 'SCI', 'science@gimt.ac.in', 2014, 'Science programs focusing on data science, mathematics and statistics.'],
-        ['School of Professional & Skill Development', 'PSD', 'skills@gimt.ac.in', 2018, 'Short-term certificate programs in digital marketing, analytics and soft skills.'],
+        ['Department of Management Studies', 'MGT', 'mgt@gimt.ac.in', null, 'Business administration, finance, marketing and HR programs with strong industry exposure.'],
+        ['Department of Computer Science & Engineering', 'CSE', 'cse@gimt.ac.in', null, 'Engineering programs in computer science, AI and data science with modern labs.'],
+        ['Department of Computer Applications', 'DCA', 'dca@gimt.ac.in', null, 'BCA, MCA and diploma programs in software development and applications.'],
+        ['Department of Commerce', 'COM', 'commerce@gimt.ac.in', null, 'B.Com (Honours) and M.Com programs in accounting, taxation and finance.'],
+        ['Department of Sciences', 'SCI', 'science@gimt.ac.in', null, 'Science programs focusing on data science, mathematics and statistics.'],
+        ['School of Professional & Skill Development', 'PSD', 'skills@gimt.ac.in', null, 'Short-term certificate programs in digital marketing, analytics and soft skills.'],
     ];
     $deptIds = [];
     foreach ($departments as [$name, $code, $email, $year, $desc]) {
@@ -74,7 +74,7 @@ return function (array $opts): void {
             'level' => $level, 'degree' => $degree, 'category' => $cat, 'duration_years' => $years, 'duration_label' => $dur, 'total_semesters' => $sems,
             'total_credits' => $sems * 22, 'intake_capacity' => $intake, 'fee_per_year' => $fee, 'fee_label' => $feeLabel,
             'eligibility' => $eligibility[$level], 'overview' => $overviews[$code],
-            'highlights' => "Industry-aligned curriculum designed with recruiters\nLive projects, internships and industrial visits\nCertifications and skill labs included\nDedicated placement and career support",
+            'highlights' => "Industry-aligned curriculum designed with recruiters\nLive projects, internships and industrial visits\nCertifications and skill labs included\nPlacement assistance and career guidance",
             // program-specific roles first (certificate / diploma / data science programs), then the department's typical roles
             'career_prospects' => $careers[$code] ?? ($cat === 'Management' ? "Business Analyst\nMarketing Manager\nHR Executive\nEntrepreneur\nOperations Manager"
                 : ($cat === 'Commerce' ? "Chartered Accountancy\nFinancial Analyst\nTax Consultant\nBanking & Insurance\nAuditor"

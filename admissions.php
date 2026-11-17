@@ -20,7 +20,7 @@ $scholarships = sf_scholarships();
 $docs = sf_documents();
 $modes = sf_payment_modes();
 $openText = (string) setting('admissions_open_text', 'Admissions Open for ' . $session);
-$heroImage = 'assets/images/site/students-lawn.jpg';
+$heroImage = 'assets/images/site/students-laptop.jpg';
 
 site_header([
     'title' => 'Admissions ' . $session . ' — Eligibility, Fees & How to Apply',
@@ -35,9 +35,9 @@ page_hero(
     'Your Journey to GIMT Starts Here',
     ['Admissions'],
     $heroImage,
-    'Industry-focused UG, PG, diploma and certificate programs with merit scholarships, experienced faculty and dedicated placement support. Apply online in minutes.',
-    [['icon' => 'award', 'label' => ($maxSch = site_max_scholarship()) ? 'Scholarships up to ' . $maxSch . '%' : 'Merit scholarships'], ['icon' => 'file-check', 'label' => 'Simple online application'], ['icon' => 'banknote', 'label' => 'Education loan assistance'], ['icon' => 'building-2', 'label' => 'Hostel & transport']],
-    ['eyebrow' => 'Shaping Future Leaders', 'size' => 'lg', 'image_alt' => 'GIMT students on the campus lawn', 'gold' => $session,
+    'Industry-focused UG, PG, diploma and certificate programs in Noida with merit scholarships and placement assistance. ' . sa_admission_window() . '.',
+    [['icon' => 'award', 'label' => ($maxSch = site_max_scholarship()) ? 'Scholarships up to ' . $maxSch . '%' : 'Merit scholarships'], ['icon' => 'file-check', 'label' => 'Simple online application'], ['icon' => 'banknote', 'label' => 'Education loan assistance'], ['icon' => 'calendar-clock', 'label' => 'Rolling admissions']],
+    ['eyebrow' => 'Shaping Future Leaders', 'size' => 'lg', 'image_alt' => 'GIMT students working on a laptop', 'gold' => $session,
      'actions' => button_link('Apply Online', '/apply', 'accent', ['size' => 'lg', 'gleam' => true, 'magnetic' => true]) . button_link('Talk to a Counsellor', '#enquiry', 'outline-light', ['size' => 'lg', 'icon' => '', 'icon_left' => 'phone'])]
 );
 ?>
@@ -55,7 +55,7 @@ page_hero(
             <span class="live-dot pulse-ring" aria-hidden="true"></span><?= sf_admissions_open() ? 'Admissions Open' : 'Admissions Closed' ?>
           </p>
           <h2 id="admissions-open-title" class="mt-4 font-display text-3xl font-extrabold leading-tight text-white sm:text-4xl"><?= e($openText) ?></h2>
-          <p class="mt-3 max-w-md text-white/75">Applications are reviewed on a rolling basis. Secure your seat early — merit scholarships are awarded in order of application.</p>
+          <p class="mt-3 max-w-md text-white/75">Rolling admissions — applications are reviewed on a rolling basis until seats are filled. Application (registration) fee <?= e(sa_application_fee()) ?>.</p>
           <div class="mt-6 flex flex-wrap gap-3">
             <?= button_link('Apply Now', '/apply', 'accent', ['shine' => true, 'magnetic' => true]) ?>
             <?= button_link('Check Eligibility', '#eligibility', 'outline-light', ['icon' => '']) ?>
@@ -90,13 +90,7 @@ page_hero(
 <!-- Admission journey -->
 <?= section_open(['id' => 'process', 'class' => 'scroll-mt-24']) ?>
   <?= section_heading('The Admission Journey', 'A simple, transparent five-step process — most applicants complete it within two weeks.', 'How to Apply', 'left', button_link('Start Your Application', '/apply', 'accent', ['shine' => true])) ?>
-  <?= progress_steps([
-      ['title' => 'Explore Programs', 'text' => 'Compare programs, eligibility and fees, or talk to a counsellor.', 'icon' => 'search'],
-      ['title' => 'Submit Application', 'text' => 'Fill the online form in about 10 minutes — no application fee.', 'icon' => 'file-text'],
-      ['title' => 'Upload Documents', 'text' => 'Photo, marksheets and ID proof as PDF or image files.', 'icon' => 'upload'],
-      ['title' => 'Verification & Approval', 'text' => 'Documents verified in 3 working days, then test / interview.', 'icon' => 'clipboard-check'],
-      ['title' => 'Enrollment & Fee Payment', 'text' => 'Accept your offer, pay the admission fee and get your student ID.', 'icon' => 'wallet'],
-  ]) ?>
+  <?= progress_steps(sa_admission_steps()) ?>
 <?= section_close() ?>
 
 <!-- Programs & eligibility -->
@@ -115,7 +109,7 @@ page_hero(
   ?>
   <?php if ($tabs): ?>
     <?= content_tabs($tabs, $panels, ['variant' => 'pills']) ?>
-    <p class="mt-5 flex items-start gap-2 text-sm text-slate-500"><?= icon('info', 'mt-0.5 h-4 w-4 shrink-0 text-brand-500') ?>Relaxation of 5% in minimum marks for SC / ST / OBC (non-creamy layer) candidates as per government norms. Fees shown are tuition fees; hostel and transport are optional.</p>
+    <p class="mt-5 flex items-start gap-2 text-sm text-slate-500"><?= icon('info', 'mt-0.5 h-4 w-4 shrink-0 text-brand-500') ?>Relaxation of 5% in minimum marks for SC / ST / OBC (non-creamy layer) candidates as per government norms. Fees shown are tuition fees.</p>
   <?php else: ?>
     <div class="empty-state rounded-3xl border border-dashed border-slate-200 bg-white p-10 text-center">
       <p class="font-display text-lg font-bold text-brand-900">Programs for <?= e($session) ?> will be announced soon</p>
@@ -127,7 +121,7 @@ page_hero(
 
 <!-- Fees & scholarships -->
 <?= section_open(['id' => 'fees', 'class' => 'scroll-mt-24']) ?>
-  <?= section_heading('Fee Overview', 'Transparent, all-inclusive tuition with flexible payment options. No fee is charged to apply online.', 'Fees & Financial Aid') ?>
+  <?= section_heading('Fee Overview', 'Program-wise tuition with flexible payment options. The application (registration) fee is ' . sa_application_fee() . '.', 'Fees & Financial Aid') ?>
   <?php if ($feeCards): ?>
     <div class="grid gap-5 md:grid-cols-3" data-stagger="90">
       <?php foreach ($feeCards as $f): ?>
@@ -153,7 +147,7 @@ page_hero(
       <?php endif; ?>
     </div>
     <div class="flex flex-col justify-between gap-4 rounded-2xl bg-accent-50 p-5 ring-1 ring-accent-100">
-      <p class="text-sm text-accent-900"><strong class="font-semibold">Need the detailed fee structure?</strong> Our counsellors will share the program-wise break-up including hostel and transport.</p>
+      <p class="text-sm text-accent-900"><strong class="font-semibold">Need the detailed fee structure?</strong> Our counsellors will share the program-wise fee break-up.</p>
       <?= button_link('Request Fee Details', '/contact?type=scholarship#message', 'accent', ['size' => 'sm']) ?>
     </div>
   </div>
@@ -161,7 +155,7 @@ page_hero(
   <div id="scholarships" class="mt-16 scroll-mt-28">
     <?= section_heading('Scholarships', 'Rewarding merit, talent and need — scholarships are adjusted directly against your tuition fee.', 'Financial Aid', 'left', '<a href="' . e(site_url('contact?type=scholarship#message')) . '" class="link-arrow">Ask about eligibility' . icon('arrow-right', 'h-4 w-4') . '</a>') ?>
     <?php if (!$scholarships): ?>
-      <p class="rounded-2xl border border-dashed border-warm-line bg-white p-5 text-[15px] text-slate-600">Scholarship schemes for <?= e($session) ?> are announced by the admissions office. Ask our counsellors about merit, sports and need-based support for your program.</p>
+      <p class="rounded-2xl border border-dashed border-warm-line bg-white p-5 text-[15px] text-slate-600"><?= e(sa_scholarship_statement()) ?>. Ask our counsellors which scholarship fits your program.</p>
     <?php endif; ?>
     <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" data-stagger="70">
       <?php foreach ($scholarships as $i => $s): ?>

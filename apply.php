@@ -95,7 +95,7 @@ $open = sf_admissions_open();
 $title = $initial ? 'Apply for ' . $initial['short_name'] . ' — Admissions ' . $session : 'Apply Online — Admissions ' . $session;
 site_header([
     'title' => $title,
-    'description' => 'Apply online to Global Institute of Management & Technology (GIMT), Noida for the ' . $session . ' session. Simple 7-step application, secure document upload, instant application number and no application fee.',
+    'description' => 'Apply online to Global Institute of Management & Technology (GIMT), Noida for the ' . $session . ' session. Simple 7-step application, secure document upload, instant application number. Application (registration) fee ' . sa_application_fee() . '.',
     'active' => 'admissions', 'seo' => ['route', '/apply'], 'canonical' => absolute_url('apply'),
     'announce' => false, 'loader' => false,
     'schema' => [sf_breadcrumb_schema(['Home' => '', 'Admissions' => 'admissions', 'Apply Online' => 'apply'])],
@@ -106,7 +106,7 @@ site_form_page_hero(
     ($initial ? 'Apply for ' . $initial['short_name'] : 'Apply Online') . ' — Admissions ' . $session,
     'One simple form — fill in your details, attach your documents and submit. It takes about 10 minutes.',
     ['Admissions' => '/admissions', 'Apply Online'],
-    [['clock', 'About 10 minutes'], ['shield-check', 'Secure document upload'], ['badge-check', 'Instant application number'], ['wallet', 'No application fee']]
+    [['clock', 'About 10 minutes'], ['shield-check', 'Secure document upload'], ['badge-check', 'Instant application number'], ['wallet', 'Application fee ' . sa_application_fee()]]
 );
 ?>
 

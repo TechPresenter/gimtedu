@@ -17,7 +17,7 @@ return [
                     WHEN 'event' THEN (SELECT title FROM events WHERE id = t.entity_id)
                     WHEN 'notice' THEN (SELECT title FROM notices WHERE id = t.entity_id) END AS target,
                  CHAR_LENGTH(COALESCE(t.meta_title, '')) AS title_length, CHAR_LENGTH(COALESCE(t.meta_description, '')) AS description_length",
-    'search' => ['t.route', 't.meta_title', 't.meta_description', 't.meta_keywords'],
+    'search' => ['t.route', 't.meta_title', 't.meta_description', 't.meta_keywords', 't.focus_keyword', 't.secondary_keywords'],
     'order' => "FIELD(t.entity_type, 'route', 'page', 'program', 'post', 'event', 'notice'), t.route, t.entity_id",
     'columns' => [
         ['key' => 'target', 'label' => 'URL / entity', 'format' => 'title', 'sub' => 'entity_type', 'sortable' => 'target'],
@@ -25,13 +25,18 @@ return [
         ['key' => 'meta_title', 'label' => 'SEO title', 'format' => 'truncate', 'truncate' => 60, 'sortable' => true],
         ['key' => 'title_length', 'label' => 'Title chars', 'format' => 'number', 'align' => 'center', 'sortable' => 'title_length', 'hidden' => true],
         ['key' => 'description_length', 'label' => 'Description chars', 'format' => 'number', 'align' => 'center', 'sortable' => 'description_length', 'hidden' => true],
+        ['key' => 'focus_keyword', 'label' => 'Focus keyword', 'format' => 'truncate', 'sortable' => true],
         ['key' => 'robots', 'label' => 'Robots', 'format' => 'code', 'sortable' => true],
+        ['key' => 'index_status', 'label' => 'Indexing', 'format' => 'badge', 'sortable' => true,
+            'colors' => ['unknown' => 'slate', 'submitted' => 'blue', 'indexed' => 'green', 'excluded' => 'amber', 'error' => 'red']],
+        ['key' => 'index_checked_at', 'label' => 'Index checked', 'format' => 'date', 'sortable' => true, 'hidden' => true],
         ['key' => 'include_in_sitemap', 'label' => 'Sitemap', 'format' => 'boolean', 'sortable' => true],
         ['key' => 'updated_at', 'label' => 'Updated', 'format' => 'datetime', 'sortable' => true],
     ],
     'filters' => [
         ['key' => 'entity_type', 'label' => 'Type', 'options' => cms_seo_entity_types()],
         ['key' => 'robots', 'label' => 'Robots', 'options' => cms_robots_options()],
+        ['key' => 'index_status', 'label' => 'Indexing', 'options' => cms_seo_index_statuses()],
     ],
     'fields' => [
         ['name' => 'entity_type', 'label' => 'Type', 'type' => 'select', 'required' => true, 'default' => 'route', 'col' => 4, 'options' => cms_seo_entity_types(), 'readonly_on_edit' => true],
@@ -40,15 +45,23 @@ return [
         ['name' => 'meta_title', 'label' => 'SEO title', 'type' => 'text', 'maxlength' => 190, 'help' => 'Aim for 30–60 characters.'],
         ['name' => 'meta_description', 'label' => 'Meta description', 'type' => 'textarea', 'rows' => 3, 'maxlength' => 320, 'help' => 'Aim for 70–160 characters.'],
         ['name' => 'meta_keywords', 'label' => 'Keywords', 'type' => 'text', 'maxlength' => 255],
+        ['name' => 'focus_keyword', 'label' => 'Focus keyword', 'type' => 'text', 'maxlength' => 120, 'col' => 6, 'help' => 'The main search phrase this URL should rank for.'],
+        ['name' => 'secondary_keywords', 'label' => 'Secondary keywords', 'type' => 'text', 'maxlength' => 500, 'col' => 6, 'help' => 'Comma separated.'],
         ['name' => 'canonical_url', 'label' => 'Canonical URL', 'type' => 'text', 'maxlength' => 255],
         ['name' => 'og_title', 'label' => 'Social title', 'type' => 'text', 'maxlength' => 190, 'col' => 6],
         ['name' => 'og_image', 'label' => 'Social image', 'type' => 'image', 'folder' => 'cms/seo', 'col' => 6],
         ['name' => 'og_description', 'label' => 'Social description', 'type' => 'textarea', 'rows' => 2, 'maxlength' => 320],
+        ['name' => 'image_alt', 'label' => 'Share image alt text', 'type' => 'text', 'maxlength' => 190],
+        ['name' => 'twitter_title', 'label' => 'X (Twitter) title', 'type' => 'text', 'maxlength' => 190, 'col' => 6],
+        ['name' => 'twitter_description', 'label' => 'X (Twitter) description', 'type' => 'text', 'maxlength' => 320, 'col' => 6],
         ['name' => 'robots', 'label' => 'Robots', 'type' => 'select', 'required' => true, 'default' => 'index,follow', 'col' => 4, 'options' => cms_robots_options()],
         ['name' => 'sitemap_priority', 'label' => 'Sitemap priority', 'type' => 'decimal', 'default' => 0.7, 'min' => 0, 'max' => 1, 'step' => 0.1, 'col' => 4],
         ['name' => 'sitemap_changefreq', 'label' => 'Change frequency', 'type' => 'select', 'required' => true, 'default' => 'weekly', 'col' => 4, 'options' => cms_changefreq_options()],
         ['name' => 'include_in_sitemap', 'label' => 'Include in sitemap', 'type' => 'boolean', 'default' => true],
         ['name' => 'schema_json', 'label' => 'Schema (JSON-LD)', 'type' => 'textarea', 'rows' => 6, 'maxlength' => 60000],
+        ['name' => 'index_status', 'label' => 'Indexing status', 'type' => 'select', 'default' => 'unknown', 'col' => 4, 'options' => cms_seo_index_statuses()],
+        ['name' => 'index_checked_at', 'label' => 'Checked on', 'type' => 'date', 'col' => 4],
+        ['name' => 'index_note', 'label' => 'Indexing note', 'type' => 'text', 'maxlength' => 255, 'col' => 4],
     ],
     'bulk' => ['delete' => true],
     'export' => true,
@@ -83,9 +96,12 @@ return [
                     $data['route'] = $target['ref_route'];
                 }
             }
-            if (!empty($data['schema_json'])) {
-                [$clean] = cms_seo_check_input(['schema_json' => $data['schema_json']]);
-                $data['schema_json'] = $clean['schema_json'];
+            // same normalisation as the SEO drawer (plain text, keyword list, JSON pretty print, index date)
+            [$clean] = cms_seo_check_input(array_merge($old ?? [], $data));
+            foreach ($clean as $k => $v) {
+                if (array_key_exists($k, $data) && $k !== 'og_image') {
+                    $data[$k] = $v;
+                }
             }
             return $data;
         },

@@ -96,12 +96,12 @@ page_hero('Academic Excellence', 'Rigorous Learning. Real-World Impact.', ['Acad
           <div class="img-zoom relative aspect-[16/7] overflow-hidden bg-slate-100">
             <img src="<?= e(sa_department_image($d)) ?>" alt="" loading="lazy" decoding="async" class="h-full w-full object-cover">
             <span class="absolute inset-0 bg-gradient-to-t from-brand-950/70 via-brand-950/10 to-transparent" aria-hidden="true"></span>
-            <span class="absolute left-4 top-3 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-brand-900 shadow-sm"><?= e($d['code']) ?><?= $d['established_year'] ? ' · Est. ' . (int) $d['established_year'] : '' ?></span>
+            <span class="absolute left-4 top-3 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-brand-900 shadow-sm"><?= e($d['code']) ?></span>
           </div>
           <div class="flex flex-1 flex-col p-5">
             <div class="flex items-start gap-3">
               <span class="relative z-[1] -mt-10 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-900 text-white shadow-soft ring-4 ring-white transition duration-500 group-hover:-rotate-6"><?= icon(sa_department_icon($d), 'h-6 w-6') ?></span>
-              <h3 class="font-display text-lg font-extrabold leading-snug text-brand-900"><?= e($d['name']) ?></h3>
+              <h3 class="font-display text-lg font-extrabold leading-snug text-brand-900"><?php if (!empty($d['url'])): ?><a href="<?= e($d['url']) ?>" class="transition-colors hover:text-accent-700"><?= e($d['name']) ?></a><?php else: ?><?= e($d['name']) ?><?php endif; ?></h3>
             </div>
             <?php if ($d['description']): ?><p class="mt-3 text-sm leading-relaxed text-slate-600"><?= e($d['description']) ?></p><?php endif; ?>
             <ul class="mt-4 flex flex-wrap gap-2 text-xs font-semibold">

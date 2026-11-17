@@ -32,7 +32,8 @@ function chatbot_enabled_sources(): array
     $saved = json_decode((string) setting('chatbot_sources', ''), true);
     $out = [];
     foreach (array_keys(chatbot_source_labels()) as $k) {
-        $out[$k] = is_array($saved) && array_key_exists($k, $saved) ? (bool) $saved[$k] : true;
+        // hostel / transport answers only when an admin switches them on (owner decision 2026-11-17: no such claims by default)
+        $out[$k] = is_array($saved) && array_key_exists($k, $saved) ? (bool) $saved[$k] : !in_array($k, ['hostel', 'transport'], true);
     }
     return $out;
 }
@@ -76,7 +77,8 @@ function chatbot_facts(): array
     }
     $deadline = (string) setting('admissions_deadline', '');
     $deadlineLabel = '';
-    if ($deadline !== '' && ($ts = strtotime($deadline))) {
+    // a real, still-open deadline only; empty or past = rolling admissions (owner decision 2026-11-17)
+    if ($deadline !== '' && ($ts = strtotime($deadline)) && $ts >= time()) {
         $deadlineLabel = date('j M Y', $ts) . (date('H:i', $ts) !== '00:00' && date('H:i', $ts) !== '23:59' ? ', ' . date('g:i A', $ts) : '');
     }
     $session = null;
@@ -106,8 +108,23 @@ function chatbot_facts(): array
         'admissions_open' => $session ? ((int) $session['admissions_open'] ? 'yes' : 'no') : '',
         'deadline' => $deadlineLabel,
         'whatsapp' => $wa,
-    ], fn ($v) => $v !== '');
+    ] + chatbot_owner_facts($deadlineLabel === ''), fn ($v) => $v !== '');
     return $facts;
+}
+
+/**
+ * Institute facts confirmed by the owner on 2026-11-17 (admissions, application fee, scholarships, placements). The
+ * wording can be overridden with the settings named below; an empty setting value keeps the confirmed default.
+ */
+function chatbot_owner_facts(bool $rolling): array
+{
+    $v = fn (string $key, string $default) => trim((string) setting($key, '')) ?: $default;
+    return [
+        'admission_dates' => $rolling ? $v('admissions_rolling_text', 'Rolling admissions — until seats are filled') : '',
+        'application_fee' => $v('application_fee_label', '₹999'),
+        'scholarships' => $v('scholarship_summary', 'Merit scholarships of up to 50% of the tuition fee, plus sports, single girl child, economically weaker section, defence ward and sibling scholarships.'),
+        'placement_support' => $v('placement_support_text', 'Placement assistance: career guidance, CV and interview preparation, and help applying to recruiters. There is no job guarantee.'),
+    ];
 }
 
 function chatbot_wa_link(string $text = ''): ?string
@@ -258,12 +275,21 @@ function chatbot_build_snippets(array $on): array
         }
     }
     $add('facts:contact', 'contact', 'Contact, address and office hours', implode('. ', $contact) . '.', chatbot_route('/contact'), ['keywords' => 'contact phone call email address location where campus reach office hours timing']);
-    if (!empty($f['admissions_open_text']) || !empty($f['deadline'])) {
-        $add('facts:dates', 'dates', 'Admission dates and deadline', trim(($f['admissions_open_text'] ?? '') . '. ' . (!empty($f['deadline']) ? 'Last date to apply: ' . $f['deadline'] . '.' : '')), chatbot_route('/admissions#dates'),
-            ['keywords' => 'deadline last date admission open session apply when']);
+    if (!empty($f['admissions_open_text']) || !empty($f['deadline']) || !empty($f['admission_dates'])) {
+        $when = !empty($f['deadline']) ? 'Last date to apply: ' . $f['deadline'] . '.' : (!empty($f['admission_dates']) ? rtrim($f['admission_dates'], '.') . '.' : '');
+        $add('facts:dates', 'dates', 'Admission dates', trim(($f['admissions_open_text'] ?? '') . '. ' . $when, ' .') . '.', chatbot_route('/admissions#dates'),
+            ['keywords' => 'deadline last date admission open session apply when rolling seats']);
+    }
+    if (!empty($f['application_fee'])) {
+        $add('facts:application_fee', 'fees', 'Application (registration) fee', 'The online application (registration) fee is ' . $f['application_fee'] . '. The admission fee is paid only after the application is approved.',
+            chatbot_route('/admissions#fees'), ['keywords' => 'application fee registration fee form fee apply cost']);
+    }
+    if (!empty($f['placement_support'])) {
+        $add('facts:placement', 'placement', 'Placement assistance', $f['placement_support'], chatbot_route('/placement'),
+            ['keywords' => 'placement placements job jobs career recruiters assistance support interview cv']);
     }
     if (!empty($f['affiliation'])) {
-        $add('facts:affiliation', 'affiliation', 'Affiliation and approvals', $f['affiliation'] . (!empty($f['established']) ? '. Established in ' . $f['established'] . '.' : '.'), chatbot_route('/about#approvals'),
+        $add('facts:affiliation', 'affiliation', 'Affiliation and approvals', rtrim($f['affiliation'], '.') . '.', chatbot_route('/about#approvals'),
             ['keywords' => 'affiliation approved aicte ugc university recognised degree valid']);
     }
 
@@ -316,6 +342,9 @@ function chatbot_build_snippets(array $on): array
             }
             if ($all) {
                 $add('scholarships:all', 'scholarships', 'Scholarships and fee concessions', implode("\n", $all), chatbot_route('/admissions#scholarships'), ['keywords' => 'scholarship scholarships concession waiver discount']);
+            }
+            if (!empty($f['scholarships'])) {
+                $add('facts:scholarships', 'scholarships', 'Scholarships', $f['scholarships'], chatbot_route('/admissions#scholarships'), ['keywords' => 'scholarship scholarships concession merit sports girl child defence sibling ews']);
             }
         }
         if ($on['faqs']) {
@@ -370,7 +399,7 @@ function chatbot_build_snippets(array $on): array
                 if ($fares) {
                     $text .= ' Annual transport fare: ' . money(min($fares)) . ' to ' . money(max($fares)) . ' depending on the route.';
                 }
-                $add('transport:all', 'transport', 'Transport (college bus routes)', $text, chatbot_route('/campus#transport'), ['keywords' => 'transport bus buses route van fare pick drop']);
+                $add('transport:all', 'transport', 'Transport routes', $text, chatbot_route('/campus#transport'), ['keywords' => 'transport bus buses route van fare pick drop']);
             }
         }
         if ($on['placements']) {

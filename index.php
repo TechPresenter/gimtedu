@@ -12,7 +12,7 @@ $sections = hm_sections();
 site_header([
     'active' => 'home',
     'seo' => ['route', '/'],
-    'description' => 'Global Institute of Management & Technology (GIMT), Noida — industry-focused UG, PG, diploma and certificate programs in management, technology, commerce and computer applications, with scholarships, placements and a green campus.',
+    'description' => 'Global Institute of Management & Technology (GIMT), Noida — industry-focused UG, PG, diploma and certificate programs in management, technology, commerce and computer applications, with scholarships and placement assistance. Rolling admissions.',
     'image' => 'assets/images/site/hero-campus-students.jpg',
     'preload' => hm_preload($sections),
     'schema' => hm_schema($sections),

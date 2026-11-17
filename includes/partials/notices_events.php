@@ -165,19 +165,18 @@ function ne_pin_icon(string $class = 'h-3.5 w-3.5'): string
 /** BreadcrumbList JSON-LD. $items = [['Home', ''], ['Notice Board', 'notices'], ['Title', null]] (null = current page). */
 function ne_breadcrumb_ld(array $items): array
 {
-    $list = [];
-    foreach (array_values($items) as $i => [$name, $path]) {
-        $list[] = array_filter(['@type' => 'ListItem', 'position' => $i + 1, 'name' => (string) $name,
-            'item' => $path === null ? null : absolute_url(ltrim((string) $path, '/'))], fn ($v) => $v !== null);
-    }
-    return ['@context' => 'https://schema.org', '@type' => 'BreadcrumbList', 'itemListElement' => $list];
+    require_once APP_ROOT . '/app/services/seo_schema.php';
+    return seo_ld_breadcrumb($items, ['omit_current' => true]);
 }
 
-/** Publisher / organiser organisation for JSON-LD. */
+/**
+ * Publisher / organiser for JSON-LD: a reference to the site-wide CollegeOrUniversity (#organization, printed with
+ * its logo, address and sameAs by seo_jsonld_html()) instead of a second copy of the organisation.
+ */
 function ne_org_ld(): array
 {
-    return ['@type' => 'CollegeOrUniversity', 'name' => institute_name(), 'url' => absolute_url(''),
-        'logo' => ['@type' => 'ImageObject', 'url' => absolute_url('assets/images/logo.svg')]];
+    require_once APP_ROOT . '/app/services/seo_schema.php';
+    return seo_ld_org_ref();
 }
 
 /**

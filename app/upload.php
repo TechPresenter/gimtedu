@@ -123,8 +123,237 @@ function upload_file(?array $file, string $category = 'image', string $folder = 
         return ['ok' => false, 'error' => 'Could not save the uploaded file.'];
     }
     @chmod($dest, 0644);
+    // public photos: resized WebP copies next to the file (abc-480w.webp …) for srcset — the uploaded file itself is
+    // kept as it is (it stays the src / fallback). Never fails the upload.
+    if (!$private && $width && in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+        try {
+            image_variants_generate($relDir . '/' . $name);
+        } catch (Throwable $e) {
+            // variants are an optimisation only
+        }
+    }
     return ['ok' => true, 'path' => $relDir . '/' . $name, 'original_name' => mb_substr($original, 0, 190), 'mime' => $mime,
         'size' => (int) filesize($dest), 'extension' => $ext, 'width' => $width, 'height' => $height];
+}
+
+/* ------------------------------------------------------------------ Responsive WebP variants (performance)
+ * Every public raster image (uploads under assets/uploads/, bundled photos under assets/images/) can have resized WebP
+ * copies NEXT TO it, named <name>-<width>w.webp (e.g. abc.jpg → abc-480w.webp, abc-960w.webp, abc-1440w.webp and, for a
+ * JPEG / PNG, a full-size abc-<width>w.webp). The original file is never modified — it stays the <img src> fallback and
+ * what admins download. site_image_variants() / site_img_attrs() (includes/config.php) turn the copies that exist into
+ * srcset; they are made here at upload time and for older files by `php tools/img-variants.php` (idempotent backfill).
+ * A copy is (re)made when it is missing or older than its original (photos replaced in place keep fresh copies) and is
+ * only kept when it is smaller than the original file. Needs GD with WebP; without it nothing happens.
+ */
+
+/** Target widths (px) of the resized copies; only widths below the original's width are made. */
+function image_variant_widths(): array
+{
+    return [480, 960, 1440];
+}
+
+/** Variant path of an image: assets/uploads/x/abc.jpg + 480 → assets/uploads/x/abc-480w.webp */
+function image_variant_path(string $path, int $width): string
+{
+    return preg_replace('/\.[A-Za-z0-9]+$/', '', $path) . '-' . $width . 'w.webp';
+}
+
+/** True for a relative path whose variants this module manages (local public jpg / png / webp, not a variant itself). */
+function image_variant_source_ok(string $path): bool
+{
+    return !str_contains($path, '..') && (bool) preg_match('#^assets/(uploads|images)/.+\.(jpe?g|png|webp)$#i', $path)
+        && !preg_match('#-\d{2,4}w\.webp$#i', $path) && !preg_match('#-(fav\d+|touch\d+|logo\d+)\.(png|webp)$#i', $path);
+}
+
+/** GD can read the source type and write WebP. */
+function image_variants_supported(): bool
+{
+    return function_exists('imagewebp') && function_exists('imagecreatetruecolor') && function_exists('imagecopyresampled');
+}
+
+/** Load a jpg / png / webp file into GD (null when unreadable, e.g. an animated WebP). */
+function image_variant_load(string $abs, int $type)
+{
+    $img = match ($type) {
+        IMAGETYPE_JPEG => @imagecreatefromjpeg($abs),
+        IMAGETYPE_PNG => @imagecreatefrompng($abs),
+        IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($abs) : false,
+        default => false,
+    };
+    if (!$img) {
+        return null;
+    }
+    if (!imageistruecolor($img)) {
+        imagepalettetotruecolor($img);
+    }
+    return $img;
+}
+
+/**
+ * Write one resized copy ($w × $h, or square $w × $w "contain" when $square) of a GD image to $destAbs atomically.
+ * $format webp | png. Returns the written size in bytes (0 on failure).
+ */
+function image_variant_write($img, string $destAbs, int $w, int $h, string $format = 'webp', int $quality = 80, bool $square = false, bool $opaque = false): int
+{
+    $sw = imagesx($img);
+    $sh = imagesy($img);
+    [$cw, $ch] = $square ? [$w, $w] : [$w, $h];
+    $dst = imagecreatetruecolor($cw, $ch);
+    imagealphablending($dst, false);
+    imagesavealpha($dst, true);
+    imagefill($dst, 0, 0, $opaque ? imagecolorallocate($dst, 255, 255, 255) : imagecolorallocatealpha($dst, 255, 255, 255, 127));
+    if ($opaque) {
+        imagealphablending($dst, true); // composite a transparent logo onto white (iOS shows transparent touch icons on black)
+    }
+    if ($square) {
+        // whole image centred in the square (favicons / touch icons from a wide logo)
+        $scale = min($cw / $sw, $ch / $sh);
+        $dw = max(1, (int) round($sw * $scale));
+        $dh = max(1, (int) round($sh * $scale));
+        imagecopyresampled($dst, $img, (int) (($cw - $dw) / 2), (int) (($ch - $dh) / 2), 0, 0, $dw, $dh, $sw, $sh);
+    } else {
+        imagecopyresampled($dst, $img, 0, 0, 0, 0, $cw, $ch, $sw, $sh);
+    }
+    $tmp = $destAbs . '.' . bin2hex(random_bytes(4)) . '.tmp';
+    $ok = $format === 'png' ? imagepng($dst, $tmp, 9) : imagewebp($dst, $tmp, $quality);
+    if (!$ok || !is_file($tmp)) {
+        @unlink($tmp);
+        return 0;
+    }
+    $size = (int) filesize($tmp);
+    if (!@rename($tmp, $destAbs)) {
+        @unlink($destAbs);
+        if (!@rename($tmp, $destAbs)) {
+            @unlink($tmp);
+            return 0;
+        }
+    }
+    @chmod($destAbs, 0644);
+    return $size;
+}
+
+/**
+ * Make the WebP variants of one image. Idempotent: a variant that exists and is not older than the original is kept
+ * (unless $force). Returns ['made' => [width…], 'kept' => [width…], 'skipped' => [width => reason]] — or ['error' => …].
+ */
+function image_variants_generate(string $path, bool $force = false, ?array $widths = null): array
+{
+    $path = ltrim(str_replace('\\', '/', $path), '/');
+    if (!image_variant_source_ok($path)) {
+        return ['error' => 'not a public jpg/png/webp image'];
+    }
+    if (!image_variants_supported()) {
+        return ['error' => 'GD WebP support missing'];
+    }
+    $abs = APP_ROOT . '/' . $path;
+    $info = is_file($abs) ? @getimagesize($abs) : false;
+    if (!$info || !in_array($info[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true)) {
+        return ['error' => 'unreadable image'];
+    }
+    [$w, $h, $type] = $info;
+    $srcTime = (int) filemtime($abs);
+    $srcSize = (int) filesize($abs);
+    $targets = array_values(array_filter($widths ?? image_variant_widths(), fn ($t) => $t > 0 && $t < $w));
+    if ($type !== IMAGETYPE_WEBP && !in_array($w, $targets, true)) {
+        $targets[] = $w; // full-size WebP of a JPEG / PNG
+    }
+    $out = ['made' => [], 'kept' => [], 'skipped' => []];
+    $img = null;
+    foreach ($targets as $t) {
+        $destAbs = APP_ROOT . '/' . image_variant_path($path, $t);
+        if (!$force && is_file($destAbs) && filemtime($destAbs) >= $srcTime) {
+            $out['kept'][] = $t;
+            continue;
+        }
+        $img ??= image_variant_load($abs, $type);
+        if (!$img) {
+            return ['error' => 'GD could not read the image'] + $out;
+        }
+        $th = max(1, (int) round($h * $t / $w));
+        // photos q80; graphics with transparency a little higher (edges of cut-outs and logos)
+        $size = image_variant_write($img, $destAbs, $t, $th, 'webp', $type === IMAGETYPE_JPEG ? 80 : 84);
+        if (!$size) {
+            $out['skipped'][$t] = 'write failed';
+            continue;
+        }
+        if ($size >= $srcSize) {
+            @unlink($destAbs); // no gain over the original file: the original stays the candidate at this width
+            $out['skipped'][$t] = 'not smaller than the original';
+            continue;
+        }
+        $out['made'][] = $t;
+    }
+    return $out;
+}
+
+/** Remove every generated copy of an image (variants, favicon / touch icon / logo derivatives). */
+function image_variants_delete(string $path): void
+{
+    $path = ltrim(str_replace('\\', '/', $path), '/');
+    if (str_contains($path, '..') || !preg_match('#^assets/(uploads|images)/#', $path)) {
+        return;
+    }
+    $base = APP_ROOT . '/' . preg_replace('/\.[A-Za-z0-9]+$/', '', $path);
+    foreach (array_merge(glob($base . '-*w.webp') ?: [], glob($base . '-fav*.png') ?: [], glob($base . '-touch*.png') ?: [], glob($base . '-logo*.webp') ?: []) as $f) {
+        if (preg_match('#-(\d{2,4}w\.webp|fav\d+\.png|touch\d+\.png|logo\d+\.webp)$#', $f)) {
+            @unlink($f);
+        }
+    }
+}
+
+/**
+ * A derived file of an image with a fixed size, made on first use (idempotent, refreshed when the original changes):
+ *   'logo'  → <name>-logo<H>.webp, $size = height in px (the header logo at ~2× its displayed height)
+ *   'fav'   → <name>-fav<S>.png,   square $size px (favicon 48 / 96 / 192)
+ *   'touch' → <name>-touch<S>.png, square $size px (apple-touch-icon 180)
+ * Returns the relative path, or null when it cannot be made (original missing, SVG, no GD) — callers fall back to the original.
+ */
+function image_derivative(string $path, string $kind, int $size): ?string
+{
+    $path = ltrim(str_replace('\\', '/', $path), '/');
+    if (str_contains($path, '..') || !preg_match('#^assets/(uploads|images)/.+\.(jpe?g|png|webp)$#i', $path) || $size < 16 || $size > 1024) {
+        return null;
+    }
+    $suffix = match ($kind) {
+        'logo' => '-logo' . $size . '.webp',
+        'fav' => '-fav' . $size . '.png',
+        'touch' => '-touch' . $size . '.png',
+        default => null,
+    };
+    if ($suffix === null) {
+        return null;
+    }
+    $abs = APP_ROOT . '/' . $path;
+    if (!is_file($abs)) {
+        return null;
+    }
+    $rel = preg_replace('/\.[A-Za-z0-9]+$/', '', $path) . $suffix;
+    $destAbs = APP_ROOT . '/' . $rel;
+    if (is_file($destAbs) && filemtime($destAbs) >= filemtime($abs)) {
+        return $rel;
+    }
+    if (!image_variants_supported() || !function_exists('imagepng')) {
+        return null;
+    }
+    $info = @getimagesize($abs);
+    $img = $info ? image_variant_load($abs, (int) $info[2]) : null;
+    if (!$img) {
+        return null;
+    }
+    [$w, $h] = [imagesx($img), imagesy($img)];
+    if ($kind === 'logo') {
+        if ($h <= $size) {
+            return null; // already small: the original is fine
+        }
+        $tw = max(1, (int) round($w * $size / $h));
+        $written = image_variant_write($img, $destAbs, $tw, $size, 'webp', 90);
+        if ($written && $written >= (int) filesize($abs)) {
+            @unlink($destAbs);
+            return null;
+        }
+        return $written ? $rel : null;
+    }
+    return image_variant_write($img, $destAbs, $size, $size, 'png', 0, true, $kind === 'touch') ? $rel : null;
 }
 
 /** Re-encode an image (strips metadata and anything appended to the file). Large images are downscaled to 2400px. */
@@ -175,6 +404,9 @@ function delete_upload(?string $path): void
     $abs = APP_ROOT . '/' . $path;
     if (is_file($abs)) {
         @unlink($abs);
+    }
+    if (str_starts_with($path, 'assets/uploads/')) {
+        image_variants_delete($path); // its WebP copies / icon derivatives go with it
     }
 }
 

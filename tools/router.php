@@ -16,6 +16,14 @@ $uri = urldecode(parse_url($requestUri, PHP_URL_PATH) ?: '/');
 $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 $qs = (string) ($_SERVER['QUERY_STRING'] ?? '') !== '' ? '?' . $_SERVER['QUERY_STRING'] : '';
 
+// www.<host> → <host> (301, every path; same rule as .htaccess — set GIMT_KEEP_WWW=1 when the canonical host has www.)
+$reqHost = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+if (str_starts_with($reqHost, 'www.') && getenv('GIMT_KEEP_WWW') !== '1' && in_array($method, ['GET', 'HEAD'], true)
+    && preg_match('/^www\.([a-z0-9.\-]+(:\d+)?)$/', $reqHost, $hm)) {
+    $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    header('Location: ' . ($https ? 'https' : 'http') . '://' . $hm[1] . (str_starts_with($requestUri, '/') && !str_starts_with($requestUri, '//') ? $requestUri : '/'), true, 301);
+    return true;
+}
 // Block sensitive paths (same rules as .htaccess)
 if (preg_match('#^/(config|database|storage|tools|app|frontend|includes|node_modules|docs|\.git)(/|$)#', $uri)
     || preg_match('#(^|/)\.(?!well-known)#', $uri) || preg_match('#\.(sql|md|lock|log|sh|cjs|json)$#i', $uri)) {
@@ -50,7 +58,7 @@ if (preg_match('#^/verify-marksheet/([A-Za-z0-9\-]+)/?$#', $uri, $m)) {
 // Public URL normalisation (301)
 if (in_array($method, ['GET', 'HEAD'], true) && !preg_match('#^/(admin|api|assets|portal|storage)(/|$)#i', $uri)) {
     $to = $rawPath;
-    if (preg_match('#^/([a-z0-9\-]+)\.php$#i', $uri, $m) && is_file($root . '/' . strtolower($m[1]) . '.php') && !in_array(strtolower($m[1]), ['sitemap', 'robots'], true)) {
+    if (preg_match('#^/([a-z0-9\-]+)\.php$#i', $uri, $m) && is_file($root . '/' . strtolower($m[1]) . '.php') && !in_array(strtolower($m[1]), ['sitemap', 'robots', 'llms', 'indexnow'], true)) {
         $to = strtolower($m[1]) === 'index' ? '/' : '/' . $m[1];
     }
     if ($to !== '/' && str_ends_with($to, '/')) {
@@ -111,7 +119,7 @@ $routes = [
     '#^/gallery/([a-z0-9\-]+)/?$#' => ['gallery.php', 'slug'],
     '#^/page/([a-z0-9\-]+)/?$#' => ['page.php', 'slug'],
 ];
-// SEO files: sitemap index, child sitemaps, robots.txt
+// SEO files: sitemap index, child sitemaps, robots.txt, llms.txt / llms-full.txt, IndexNow key file /{key}.txt
 if ($uri === '/sitemap.xml') {
     $uri = '/sitemap.php';
 } elseif (preg_match('#^/sitemap-([a-z]+)\.xml$#', $uri, $m)) {
@@ -119,6 +127,11 @@ if ($uri === '/sitemap.xml') {
     $uri = '/sitemap.php';
 } elseif ($uri === '/robots.txt') {
     $uri = '/robots.php';
+} elseif ($uri === '/llms.txt' || $uri === '/llms-full.txt') {
+    $_GET['full'] = $uri === '/llms-full.txt' ? '1' : '0';
+    $uri = '/llms.php';
+} elseif (preg_match('#^/[A-Za-z0-9\-]{8,128}\.txt$#', $uri)) {
+    $uri = '/indexnow.php';
 }
 foreach ($routes as $re => [$script, $param]) {
     if (preg_match($re, $uri, $m)) {

@@ -28,12 +28,33 @@
 @font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/plus-jakarta-sans-latin-600-normal.woff2') format('woff2'); }
 @font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/plus-jakarta-sans-latin-700-normal.woff2') format('woff2'); }
 @font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 800; font-display: swap; src: url('../fonts/plus-jakarta-sans-latin-800-normal.woff2') format('woff2'); }
-/* Metric-matched fallbacks (no layout shift when the web fonts swap in): local Arial / Helvetica / Liberation Sans scaled
- * to the web font's average glyph width and given its ascent / descent (measured in Chromium against Arial,
- * tools/.cache/shots/design_polish/font-metrics.cjs). Referenced right after each family in tailwind.config.cjs. */
-@font-face { font-family: 'Inter Fallback'; src: local('Arial'), local('Helvetica'), local('Liberation Sans'); size-adjust: 106.93%; ascent-override: 90.72%; descent-override: 22.45%; line-gap-override: 0%; }
-@font-face { font-family: 'Plus Jakarta Sans Fallback'; font-weight: 100 600; src: local('Arial'), local('Helvetica'), local('Liberation Sans'); size-adjust: 102.2%; ascent-override: 101.7%; descent-override: 21.5%; line-gap-override: 0%; }
-@font-face { font-family: 'Plus Jakarta Sans Fallback'; font-weight: 700 900; src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Bold'), local('Liberation Sans Bold'); size-adjust: 102.2%; ascent-override: 101.7%; descent-override: 21.5%; line-gap-override: 0%; }
+/* Metric-matched fallbacks (no layout shift when the web fonts swap in): a local system font scaled to the web font's
+ * average glyph width (size-adjust) and given its ascent / descent, measured in Chrome per weight (400 / 500 text
+ * vs Arial, 600 / 700 / 800 vs Arial Bold). Referenced right after each family in tailwind.config.cjs. Each family has two
+ * sets of faces with the same name: Arial / Helvetica / Liberation Sans (Windows, macOS, iOS, Linux) and Roboto
+ * (Android, which has no Arial) — Chrome uses the last face whose local() font exists, so every platform gets the
+ * numbers measured for its own font. Other heading/body fonts picked in Settings › Website get the same treatment from
+ * site_font_faces() (app/services/site_brand.php). */
+@font-face { font-family: 'Inter Fallback'; font-weight: 100 400; src: local('Arial'), local('Helvetica'), local('Liberation Sans'); size-adjust: 106.78%; ascent-override: 90.84%; descent-override: 22.48%; line-gap-override: 0%; }
+@font-face { font-family: 'Inter Fallback'; font-weight: 500; src: local('Arial'), local('Helvetica'), local('Liberation Sans'); size-adjust: 107.89%; ascent-override: 89.91%; descent-override: 22.24%; line-gap-override: 0%; }
+@font-face { font-family: 'Inter Fallback'; font-weight: 600; src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Bold'), local('Liberation Sans Bold'); size-adjust: 101.19%; ascent-override: 95.86%; descent-override: 23.72%; line-gap-override: 0%; }
+@font-face { font-family: 'Inter Fallback'; font-weight: 700; src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Bold'), local('Liberation Sans Bold'); size-adjust: 102.21%; ascent-override: 94.9%; descent-override: 23.48%; line-gap-override: 0%; }
+@font-face { font-family: 'Inter Fallback'; font-weight: 800 900; src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Bold'), local('Liberation Sans Bold'); size-adjust: 102.21%; ascent-override: 94.9%; descent-override: 23.48%; line-gap-override: 0%; }
+@font-face { font-family: 'Inter Fallback'; font-weight: 100 400; src: local('Roboto'), local('Roboto-Regular'), local('Roboto Regular'); size-adjust: 107.17%; ascent-override: 90.51%; descent-override: 22.39%; line-gap-override: 0%; }
+@font-face { font-family: 'Inter Fallback'; font-weight: 500; src: local('Roboto'), local('Roboto-Regular'), local('Roboto Regular'); size-adjust: 108.29%; ascent-override: 89.58%; descent-override: 22.16%; line-gap-override: 0%; }
+@font-face { font-family: 'Inter Fallback'; font-weight: 600; src: local('Roboto Bold'), local('Roboto-Bold'); size-adjust: 107.61%; ascent-override: 90.14%; descent-override: 22.3%; line-gap-override: 0%; }
+@font-face { font-family: 'Inter Fallback'; font-weight: 700; src: local('Roboto Bold'), local('Roboto-Bold'); size-adjust: 108.69%; ascent-override: 89.25%; descent-override: 22.08%; line-gap-override: 0%; }
+@font-face { font-family: 'Inter Fallback'; font-weight: 800 900; src: local('Roboto Bold'), local('Roboto-Bold'); size-adjust: 108.69%; ascent-override: 89.25%; descent-override: 22.08%; line-gap-override: 0%; }
+@font-face { font-family: 'Plus Jakarta Sans Fallback'; font-weight: 100 400; src: local('Arial'), local('Helvetica'), local('Liberation Sans'); size-adjust: 104.91%; ascent-override: 99.13%; descent-override: 20.97%; line-gap-override: 0%; }
+@font-face { font-family: 'Plus Jakarta Sans Fallback'; font-weight: 500; src: local('Arial'), local('Helvetica'), local('Liberation Sans'); size-adjust: 106.18%; ascent-override: 97.95%; descent-override: 20.72%; line-gap-override: 0%; }
+@font-face { font-family: 'Plus Jakarta Sans Fallback'; font-weight: 600; src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Bold'), local('Liberation Sans Bold'); size-adjust: 99.69%; ascent-override: 104.32%; descent-override: 22.07%; line-gap-override: 0%; }
+@font-face { font-family: 'Plus Jakarta Sans Fallback'; font-weight: 700; src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Bold'), local('Liberation Sans Bold'); size-adjust: 100.82%; ascent-override: 103.16%; descent-override: 21.82%; line-gap-override: 0%; }
+@font-face { font-family: 'Plus Jakarta Sans Fallback'; font-weight: 800 900; src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Bold'), local('Liberation Sans Bold'); size-adjust: 101.9%; ascent-override: 102.06%; descent-override: 21.59%; line-gap-override: 0%; }
+@font-face { font-family: 'Plus Jakarta Sans Fallback'; font-weight: 100 400; src: local('Roboto'), local('Roboto-Regular'), local('Roboto Regular'); size-adjust: 105.3%; ascent-override: 98.76%; descent-override: 20.89%; line-gap-override: 0%; }
+@font-face { font-family: 'Plus Jakarta Sans Fallback'; font-weight: 500; src: local('Roboto'), local('Roboto-Regular'), local('Roboto Regular'); size-adjust: 106.57%; ascent-override: 97.59%; descent-override: 20.64%; line-gap-override: 0%; }
+@font-face { font-family: 'Plus Jakarta Sans Fallback'; font-weight: 600; src: local('Roboto Bold'), local('Roboto-Bold'); size-adjust: 106.01%; ascent-override: 98.11%; descent-override: 20.75%; line-gap-override: 0%; }
+@font-face { font-family: 'Plus Jakarta Sans Fallback'; font-weight: 700; src: local('Roboto Bold'), local('Roboto-Bold'); size-adjust: 107.21%; ascent-override: 97.01%; descent-override: 20.52%; line-gap-override: 0%; }
+@font-face { font-family: 'Plus Jakarta Sans Fallback'; font-weight: 800 900; src: local('Roboto Bold'), local('Roboto-Bold'); size-adjust: 108.36%; ascent-override: 95.98%; descent-override: 20.3%; line-gap-override: 0%; }
 
 @tailwind base;
 @tailwind components;
@@ -477,7 +498,8 @@ html.js:not(.no-motion) [data-reveal="wipe"].is-visible:not(.reveal-static)::aft
 [data-reveal="wipe"].reveal-static, .hero-eyebrow[data-reveal="wipe"] { transition: none; }
 @keyframes wipe-bar { 0% { transform: translateX(0) scaleX(0); } 46%, 54% { transform: translateX(0) scaleX(1); } 100% { transform: translateX(100%) scaleX(0); } }
 /* text-mask heading reveal: core/motion.ts initTextReveal() wraps each rendered line in .tm-line > .tm-inner */
-html.js:not(.no-motion) [data-text-reveal]:not(.tm-ready) { opacity: 0; }
+/* (never on an h1: the page title is painted with the first frame — it is the LCP element; initTextReveal skips it too) */
+html.js:not(.no-motion) [data-text-reveal]:not(h1):not(.tm-ready) { opacity: 0; }
 .tm-line { display: block; overflow: hidden; padding: .06em 0 .12em; margin: -.06em 0 -.12em; }
 .tm-done .tm-line { overflow: visible; }
 .tm-inner { display: inline-block; transform: translate3d(0, 115%, 0); transition: transform .85s var(--ease-out) calc(var(--l, 0) * 90ms + var(--reveal-delay, 0ms)); }
@@ -531,6 +553,12 @@ img.lazy-pending { opacity: 0; transform: scale(1.04); }
 .announce-links a:hover { color: #fff; }
 /* Admission notification bar (dismissible) */
 .admission-bar { @apply relative z-[41] flex items-center justify-center gap-3 bg-accent-600 px-10 py-2.5 text-center text-[13.5px] font-medium text-white; }
+/* The bar must never change height while the page loads (web-font swap = layout shift of everything below it): the
+ * text is clamped (1 line from 640 px, at most 2 on phones) and phones reserve the 2-line height up front — a short
+ * text sits centred in it. Dismissed bars are hidden before the first paint (inline head script, includes/header.php). */
+.admission-bar > span { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.5; }
+@media (max-width: 639px) { .admission-bar { min-height: calc(3em + 20px); } }
+@media (min-width: 640px) { .admission-bar > span { -webkit-line-clamp: 1; line-clamp: 1; } }
 .admission-bar a.admission-bar-cta { @apply inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-3 py-1 text-[12.5px] font-bold text-accent-700 transition hover:bg-brand-900 hover:text-white; }
 .admission-bar-close { @apply absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white; }
 .admission-bar.is-dismissed { display: none; }
@@ -1800,12 +1828,26 @@ html.no-motion [data-reveal], html.no-motion .reveal, html.no-motion [data-stagg
 .footer-credit { @apply text-[13px] text-slate-600; }
 .footer-credit a { @apply font-bold text-brand-900; }
 
-/* Hero photo clip reveal (CSS-only so the LCP image is painted immediately — starts partially visible) */
+/* Hero photo entrance (.clip-in on every hero photo = the LCP image): the whole photo is painted with the first frame —
+ * no clip-path / opacity entrance (it hid part of the LCP image and delayed LCP by up to 1.5 s); only the picture inside
+ * the frame settles from a slight zoom (transform only, 0.7 s). clip-reveal stays available for decorative images. */
 @keyframes clip-reveal { from { -webkit-clip-path: inset(12% 9% 12% 9% round 56px); clip-path: inset(12% 9% 12% 9% round 56px); } to { -webkit-clip-path: inset(0 0 0 0 round 0); clip-path: inset(0 0 0 0 round 0); } }
-@keyframes img-settle { from { transform: scale(1.14); } to { transform: scale(1); } }
-.clip-in { animation: clip-reveal 1s var(--ease-out) .1s both; -webkit-animation: clip-reveal 1s var(--ease-out) .1s both; }
-.clip-in > img { animation: img-settle 1.3s var(--ease-out) .1s backwards; -webkit-animation: img-settle 1.3s var(--ease-out) .1s backwards; }
+@keyframes img-settle { from { transform: scale(1.08); } to { transform: scale(1); } }
+.clip-in > img { animation: img-settle .7s var(--ease-out) backwards; -webkit-animation: img-settle .7s var(--ease-out) backwards; }
 @media (prefers-reduced-motion: reduce) { .clip-in, .clip-in > img { animation: none !important; -webkit-animation: none !important; -webkit-clip-path: none; clip-path: none; } }
+
+/* Hero text + course thumbnail (page_hero(), the program hero, the landing heroes): visible from the first paint — the
+ * title, subtitle and the hero image are the page's LCP candidates, and an element that starts at opacity 0 is never
+ * counted (Chrome reported no LCP at all on program pages). They rise into place with a transform-only entrance
+ * (≤ 0.6 s); the small chips and badges keep their fade. */
+@keyframes hero-rise { from { transform: translate3d(0, 18px, 0); } to { transform: none; } }
+@keyframes hero-drop { from { transform: translate3d(0, -12px, 0); } to { transform: none; } }
+@keyframes hero-zoom { from { transform: scale(.96); } to { transform: none; } }
+:is(.page-hero, .lp-hero, .form-hero, #top) :is(h1, p, nav, div).animate-fade-up:not(.page-hero-chip) { animation-name: hero-rise; -webkit-animation-name: hero-rise; animation-duration: .6s; -webkit-animation-duration: .6s; }
+:is(.page-hero, .lp-hero, .form-hero, #top) :is(h1, p, nav, div).animate-fade-down { animation-name: hero-drop; -webkit-animation-name: hero-drop; }
+:is(.page-hero, .lp-hero, .form-hero, #top) .animate-zoom-in { animation-name: hero-zoom; -webkit-animation-name: hero-zoom; }
+/* homepage hero title: its lines used to slide up from behind a mask (invisible in the first frames) — shown at once */
+#hm-hero-title > span > span { animation: none; -webkit-animation: none; }
 
 /* Listing view modes (view_mode_toggle() + view_mode_open()): Grid / List / Compact / Detailed on generic cards.
  * Items: .view-item with optional .vm-media (image), .vm-body, .vm-text (hidden in compact), .vm-extra (detailed only). */

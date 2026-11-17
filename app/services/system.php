@@ -210,7 +210,7 @@ function settings_schema(): array
                     ['key' => 'support_email', 'label' => 'Support email', 'type' => 'email', 'rules' => 'email', 'col' => 4],
                     ['key' => 'placement_email', 'label' => 'Placement cell email', 'type' => 'email', 'rules' => 'email', 'col' => 6, 'help' => 'Recruiter enquiries on /placement. Blank = general email.'],
                     ['key' => 'alumni_email', 'label' => 'Alumni office email', 'type' => 'email', 'rules' => 'email', 'col' => 6, 'help' => 'Shown on /alumni. Blank = general email.'],
-                    ['key' => 'website', 'label' => 'Website', 'rules' => 'max:120', 'col' => 6, 'placeholder' => 'www.gimt.ac.in'],
+                    ['key' => 'website', 'label' => 'Website', 'rules' => 'max:120', 'col' => 6, 'placeholder' => 'https://gimtedu.com'],
                     ['key' => 'office_hours', 'label' => 'Office hours', 'rules' => 'max:120', 'col' => 6],
                 ]],
                 ['key' => 'location', 'title' => 'Map & location', 'description' => 'Used by the contact page map and directions links.', 'fields' => [
@@ -254,7 +254,7 @@ function settings_schema(): array
                         'placeholder' => 'Admissions Open for 2026-27 | Merit scholarships available | Call 99554 46477',
                         'help' => 'Separate messages with a vertical bar ( | ); up to 8 scroll in the navy strip. Shown while “Show top information bar” is on and no Top bar / News ticker announcement is published. Blank = the admissions banner text.'],
                     ['key' => 'site_admission_bar', 'label' => 'Show the admission notice bar', 'type' => 'toggle', 'col' => 6, 'help' => 'Orange-red bar under the announcement strip on every page, with the header CTA button. Visitors can dismiss it.'],
-                    ['key' => 'admission_bar_text', 'label' => 'Admission bar text', 'rules' => 'max:160', 'col' => 6, 'placeholder' => 'Admissions Open for 2026-27 · Last date to apply: 30 Nov 2026',
+                    ['key' => 'admission_bar_text', 'label' => 'Admission bar text', 'rules' => 'max:160', 'col' => 6, 'placeholder' => 'Admissions Open for 2026-27 · Rolling admissions — until seats are filled',
                         'help' => 'Blank = the admissions banner text (General) plus the application deadline set under Campaign landing pages.'],
                 ]],
                 ['key' => 'footer', 'title' => 'Footer', 'description' => 'About text, copyright line and developer credit. Use {year} for the current year.', 'fields' => [
@@ -305,7 +305,7 @@ function settings_schema(): array
                         'help' => 'Tall portrait (about 720×1080 px) beside the form on wide screens. Blank = the built-in admission counsellor photo.'],
                     ['key' => 'landing_counsellor_image', 'label' => 'Counsellor photo', 'type' => 'image', 'col' => 6, 'default_preview' => 'assets/images/site/lp-counsellor.webp',
                         'help' => 'White card beside the enquiry form at the bottom of the page, shown whole (about 1100×1000 px; keep the lower edge plain, the Call button sits there). Blank = the built-in counsellor photo.'],
-                    ['key' => 'landing_strip_text', 'label' => 'Top strip messages', 'rules' => 'max:500', 'col' => 12, 'placeholder' => 'Admissions open for 2026-27 | Last date to apply: 30 Nov 2026 | Free career counselling',
+                    ['key' => 'landing_strip_text', 'label' => 'Top strip messages', 'rules' => 'max:500', 'col' => 12, 'placeholder' => 'Admissions open for 2026-27 | Rolling admissions — until seats are filled | Free career counselling',
                         'help' => 'Separate messages with a vertical bar ( | ). Blank = admissions session, deadline, scholarship line and helpline.'],
                     ['key' => 'landing_form_title', 'label' => 'Enquiry form heading', 'rules' => 'max:80', 'col' => 4, 'placeholder' => 'Talk to an Admission Expert'],
                     ['key' => 'landing_form_highlight', 'label' => 'Highlighted words', 'rules' => 'max:60', 'col' => 4, 'placeholder' => 'Admission Expert', 'help' => 'Part of the heading to colour.'],
@@ -516,6 +516,14 @@ function settings_schema(): array
                     ['key' => 'linkedin_url', 'label' => 'LinkedIn', 'type' => 'url', 'rules' => ['url', 'max:255', 'regex:/^https?:\/\//'], 'col' => 6],
                     ['key' => 'youtube_url', 'label' => 'YouTube', 'type' => 'url', 'rules' => ['url', 'max:255', 'regex:/^https?:\/\//'], 'col' => 6],
                     ['key' => 'x_url', 'label' => 'X (Twitter)', 'type' => 'url', 'rules' => ['url', 'max:255', 'regex:/^https?:\/\//'], 'col' => 6],
+                ]],
+                // Search-engine identity (schema.org sameAs of the institute, merged by seo_same_as()): only profiles
+                // GIMT itself owns or that describe GIMT — not shown as icons on the website.
+                ['key' => 'entity', 'title' => 'Search engine profiles', 'description' => 'Official listings that describe the institute. Search engines and AI assistants use them to recognise GIMT as one organisation (schema.org sameAs). Not shown as icons. https:// links only.', 'fields' => [
+                    ['key' => 'gbp_url', 'label' => 'Google Business Profile', 'type' => 'url', 'rules' => ['url', 'max:255', 'regex:/^https:\/\/[^\s\/]+\.[^\s\/]+\/\S+$/'], 'col' => 6, 'placeholder' => 'https://maps.app.goo.gl/…', 'help' => 'The profile\'s share link (Google Maps › your listing › Share).'],
+                    ['key' => 'wikidata_url', 'label' => 'Wikidata item', 'type' => 'url', 'rules' => ['url', 'max:255', 'regex:/^https:\/\/(www\.)?wikidata\.org\/wiki\/Q[1-9][0-9]*$/'], 'col' => 6, 'placeholder' => 'https://www.wikidata.org/wiki/Q…', 'help' => 'Only if an item about GIMT exists.'],
+                    ['key' => 'sameas_extra', 'label' => 'Other official profiles', 'type' => 'textarea', 'rules' => ['max:2000', 'regex:/^https:\/\/[^\s\/]+\.[^\s\/]+\/\S*(\s*\R\s*https:\/\/[^\s\/]+\.[^\s\/]+\/\S*)*$/'], 'col' => 12,
+                     'placeholder' => "https://en.wikipedia.org/wiki/…\nhttps://www.example-directory.in/colleges/gimt", 'help' => 'One https:// link per line, e.g. Wikipedia or an education directory listing about GIMT.'],
                 ]],
             ],
         ],

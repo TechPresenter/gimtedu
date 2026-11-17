@@ -177,3 +177,10 @@ export function bindOnce(el: Element, key: string): boolean {
   keys.add(key);
   return true;
 }
+
+/** Give the browser a turn (input, rendering) between slices of start-up work. */
+export function yieldToMain(): Promise<void> {
+  const sched = (window as Window & { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  if (sched && typeof sched.yield === 'function') return sched.yield();
+  return new Promise((resolve) => window.setTimeout(resolve, 0));
+}

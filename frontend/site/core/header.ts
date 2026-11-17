@@ -14,12 +14,13 @@ export function initHeader(): void {
   const toTop = $('[data-back-to-top]');
   const ring = toTop ? $<SVGCircleElement>('.btt-ring', toTop) : null;
 
-  let lastY = window.scrollY;
+  let lastY = -1; // read in the first update() (window.scrollY forces a layout)
   let downDistance = 0;
   let upDistance = 0;
 
   const update = () => {
     const y = Math.max(0, window.scrollY);
+    if (lastY < 0) lastY = y;
     const max = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
     const pct = Math.min(1, y / max);
 
@@ -60,7 +61,8 @@ export function initHeader(): void {
   const onScroll = rafThrottle(update);
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onScroll, { passive: true });
-  update();
+  // first state in the next frame: reading scrollHeight here would force a full-page layout inside start-up
+  requestAnimationFrame(update);
 
   toTop?.addEventListener('click', () => {
     window.scrollTo({ top: 0, behavior: staticMode() ? 'auto' : 'smooth' });

@@ -12,8 +12,10 @@
  */
 require __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/partials/news_gallery.php';
+require_once APP_ROOT . '/app/services/cms.php'; // cms_thin_listing_paths()
+require_once APP_ROOT . '/app/services/seo_schema.php'; // seo_ld_org_ref(): publisher = the site organisation @id
 
-$slug = strtolower(trim((string) (is_string($_GET['slug'] ?? null) ? $_GET['slug'] : '')));
+$slug =strtolower(trim((string) (is_string($_GET['slug'] ?? null) ? $_GET['slug'] : '')));
 
 /* ================================================================== album view */
 if ($slug !== '') {
@@ -61,7 +63,7 @@ if ($slug !== '') {
         array_filter(['@context' => 'https://schema.org', '@type' => 'ImageGallery', 'name' => $title, 'description' => $metaDesc, 'url' => $canonical,
             'datePublished' => !empty($album['event_date']) ? $album['event_date'] : null, 'image' => $images ?: null,
             'isPartOf' => ['@type' => 'CollectionPage', 'name' => 'Photo Gallery', 'url' => ng_gallery_abs()],
-            'publisher' => ['@type' => 'CollegeOrUniversity', 'name' => institute_name(), 'url' => absolute_url('')]], fn ($v) => $v !== null),
+            'publisher' => seo_ld_org_ref()], fn ($v) => $v !== null),
     ];
     site_header([
         'title' => $title . ' — Photo Gallery',
@@ -69,6 +71,7 @@ if ($slug !== '') {
         'active' => 'gallery',
         'seo' => ['route', '/gallery/' . $album['slug']], // admin SEO record of this URL (Website → SEO → Routes), if any
         'canonical' => $canonical,
+        'robots' => isset(cms_thin_listing_paths()['/gallery/' . $album['slug']]) ? 'noindex,follow' : null, // < 3 photos: thin
         'image' => $cover,
         'preload' => [site_image($cover)],
         'schema' => $schema,
@@ -135,7 +138,7 @@ if ($slug !== '') {
 <?= ng_share_script() ?>
 <?php site_footer([
         'cta_title' => 'See It for Yourself — Visit Our Campus',
-        'cta_text' => 'Walk through our classrooms, labs, library and hostels, meet faculty and get your admission questions answered.',
+        'cta_text' => 'Walk through our classrooms, computer lab and library, meet faculty and get your admission questions answered.',
         'cta_highlight' => 'Campus',
         'cta_primary' => ['label' => 'Apply for Admission', 'url' => '/apply'],
         'cta_secondary' => ['label' => 'Book a Campus Visit', 'url' => '/contact?type=campus_visit#message', 'icon' => 'calendar-check'],
@@ -175,7 +178,7 @@ $pageUrl = fn (int $n) => ng_gallery_url(null, $params + ['page' => $n]);
 $pageAbs = fn (int $n) => ng_gallery_abs(null, $params + ['page' => $n]);
 $canonical = $pageAbs($pg['page']);
 $titleText = 'Photo Gallery' . ($category ? ' — ' . $category['label'] : '') . ($pg['page'] > 1 ? ' — Page ' . $pg['page'] : '');
-$description = 'Photo albums from Global Institute of Management & Technology (GIMT), ' . setting('city', 'Noida') . ' — campus, labs, events, sports, cultural fests and convocation'
+$description = 'Photo albums from Global Institute of Management & Technology (GIMT), ' . setting('city', 'Noida') . ' — campus, labs, events, cultural fests and convocation'
     . ($category ? ' (' . $category['label'] . ')' : '') . '.' . ($pg['page'] > 1 ? ' Page ' . $pg['page'] . ' of ' . $pg['pages'] . '.' : '');
 $schema = [ng_breadcrumb_ld($category ? [['Home', ''], ['Gallery', 'gallery'], [$category['label'], null]] : [['Home', ''], ['Gallery', null]], $canonical)];
 if ($isBase && $albums) {
@@ -191,7 +194,8 @@ ng_site_header([
     'active' => 'gallery',
     'seo' => $isBase && $pg['page'] === 1 ? ['route', '/gallery'] : null,
     'canonical' => $canonical,
-    'robots' => $category ? 'noindex,follow' : 'index,follow',
+    // category views are filtered duplicates; the hub is thin while fewer than 3 photos are published (as in the sitemap)
+    'robots' => $category || isset(cms_thin_listing_paths()['/gallery']) ? 'noindex,follow' : 'index,follow',
     'image' => $heroCover !== '' ? $heroCover : 'assets/images/site/students-atrium.jpg',
     'preload' => [site_image($heroCover !== '' ? $heroCover : 'assets/images/site/students-atrium.jpg')],
     'schema' => $schema,
@@ -209,7 +213,7 @@ if ($totals['videos']) {
 }
 page_hero('Photo Gallery', $category ? $category['label'] . ' albums' : 'Moments from campus life at GIMT', $category ? ['Gallery' => '/gallery', $category['label']] : ['Gallery'],
     $heroCover !== '' ? $heroCover : 'assets/images/site/students-atrium.jpg',
-    'Explore our campus, classrooms and labs, and relive the events, fests, sports meets and convocations that make student life at GIMT memorable.', $chips, [
+    'Explore our campus, classrooms and labs, and relive the events, fests and convocations that make student life at GIMT memorable.', $chips, [
         'eyebrow' => 'Campus Life', 'eyebrow_icon' => 'images', 'highlight' => 'Gallery', 'image_alt' => $heroCover !== '' ? (ng_media_alt($heroCover) ?? 'From the album ' . $albums[0]['title']) : 'Students in the atrium at GIMT',
         'image2' => $heroSecond ?: false,
         'badge' => $totals['photos'] ? ['icon' => 'images', 'text' => number_format($totals['photos']) . ' photos · ' . $totals['albums'] . ' albums'] : false,
@@ -263,7 +267,7 @@ page_hero('Photo Gallery', $category ? $category['label'] . ' albums' : 'Moments
 
 <?php site_footer([
     'cta_title' => 'See It for Yourself — Visit Our Campus',
-    'cta_text' => 'Walk through our classrooms, labs, library and hostels, meet faculty and get your admission questions answered.',
+    'cta_text' => 'Walk through our classrooms, computer lab and library, meet faculty and get your admission questions answered.',
     'cta_highlight' => 'Campus',
     'cta_primary' => ['label' => 'Apply for Admission', 'url' => '/apply'],
     'cta_secondary' => ['label' => 'Book a Campus Visit', 'url' => '/contact?type=campus_visit#message', 'icon' => 'calendar-check'],

@@ -9,6 +9,7 @@
  */
 require __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/partials/site_academic.php';
+require_once APP_ROOT . '/app/services/cms.php'; // cms_thin_listing_paths()
 
 $faculty = sa_faculty();
 $counts = sa_counts();
@@ -50,13 +51,26 @@ site_header([
     'description' => 'Meet the ' . ($faculty ? count($faculty) . ' ' : '') . 'faculty members of GIMT Noida — professors, heads of department and mentors across management, technology, commerce, computer applications and sciences.',
     'active' => 'faculty',
     'seo' => ['route', '/faculty'],
+    // thin while no profile is public: noindex,follow (same rule that keeps it out of the sitemap)
+    'robots' => isset(cms_thin_listing_paths()['/faculty']) ? 'noindex,follow' : null,
     'image' => $heroImg,
     'preload' => [asset($heroImg)],
     'schema' => array_values(array_filter([
         sa_breadcrumb_ld([['Home', ''], ['About', 'about'], ['Faculty', null]]),
-        !$faculty || sa_seo_schema_has('ItemList', 'route', null, '/faculty') ? null : ['@context' => 'https://schema.org', '@type' => 'ItemList', 'name' => 'Faculty of ' . institute_name(), 'numberOfItems' => count($faculty),
-         'itemListElement' => array_map(fn ($f, $i) => ['@type' => 'ListItem', 'position' => $i + 1, 'item' => array_filter(['@type' => 'Person', 'name' => sa_person_name($f), 'jobTitle' => $f['designation'],
-             'worksFor' => ['@type' => 'CollegeOrUniversity', 'name' => institute_name()], 'knowsAbout' => $f['specialization'] ?: null, 'sameAs' => $f['linkedin_url'] ?: null])], array_slice($faculty, 0, 60), array_keys(array_slice($faculty, 0, 60)))],
+        !$faculty || sa_seo_schema_has('ItemList', 'route', null, '/faculty') ? null : (function () use ($faculty) {
+            // Person entries only from the faculty records listed in the directory (public fields: name, designation,
+            // specialisation, bio, uploaded photo, LinkedIn); worksFor = the site organisation @id
+            $items = [];
+            foreach (array_slice($faculty, 0, 60) as $f) {
+                $person = seo_ld_person(['name' => sa_person_name($f), 'role' => (string) $f['designation'], 'bio' => (string) ($f['bio'] ?? ''),
+                    'image' => !empty($f['photo']) ? site_image($f['photo']) : '', 'knowsAbout' => (string) ($f['specialization'] ?? ''),
+                    'sameAs' => [(string) ($f['linkedin_url'] ?? '')]]);
+                if ($person) {
+                    $items[] = ['@type' => 'ListItem', 'position' => count($items) + 1, 'item' => $person];
+                }
+            }
+            return $items ? ['@context' => 'https://schema.org', '@type' => 'ItemList', 'name' => 'Faculty of ' . institute_name(), 'numberOfItems' => count($items), 'itemListElement' => $items] : null;
+        })(),
     ])),
 ]);
 

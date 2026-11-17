@@ -1334,7 +1334,7 @@ function wa_variable_catalog(): array
     $v += [
         'course_duration' => ['Course duration', '3 Years', 'Student'],
         'admission_status' => ['Admission status', 'Confirmed', 'Admission'],
-        'last_date' => ['Last date', '30 Nov 2026', 'Admission'],
+        'last_date' => ['Last date', 'Rolling admissions — until seats are filled', 'Admission'], // owner decision 2026-11-17: no fixed deadline
         'document_list' => ['Documents list', '12th marksheet, Aadhaar card', 'Admission'],
         'fee_amount' => ['Fee amount', '₹45,000', 'Fees'],
         'payment_status' => ['Payment status', 'Paid', 'Fees'],

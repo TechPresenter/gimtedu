@@ -22,3 +22,7 @@ tools/.cache/
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Generated WebP size copies (tools/img-variants.php / app/upload.php) — rebuilt on each server
+assets/images/site/**/*-[0-9]*w.webp
+assets/images/site/*-[0-9]*w.webp

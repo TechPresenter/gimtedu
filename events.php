@@ -87,8 +87,8 @@ $pageUrl = fn (int $p) => $urlWith(['page' => $p]) . '#listing';
 /* ------------------------------------------------------------------ SEO */
 $title = ($catInfo ? $catInfo['label'] . ' Events' : ($tab === 'past' ? 'Past Events & Activities' : 'Events & Activities — Seminars, Fests & Workshops')) . ($catInfo && $tab === 'past' ? ' — Past' : '') . ($pg['page'] > 1 ? ' — Page ' . $pg['page'] : '');
 $descr = $tab === 'past'
-    ? site_meta_description('Past events at ' . institute_name() . ' — seminars, workshops, webinars, fests, sports meets and celebrations held this session.')
-    : site_meta_description('Upcoming events at ' . setting('institute_short_name', 'GIMT') . ', ' . setting('city', 'Noida') . ': seminars, workshops, webinars, fests, sports meets and placement drives, with dates, venues and online registration.');
+    ? site_meta_description('Past events at ' . institute_name() . ' — seminars, workshops, webinars, fests and celebrations held this session.')
+    : site_meta_description('Upcoming events at ' . setting('institute_short_name', 'GIMT') . ', ' . setting('city', 'Noida') . ': seminars, workshops, webinars, fests and placement drives, with dates, venues and online registration.');
 $canonical = ne_abs_url('events', ['tab' => $tab === 'past' ? 'past' : null, 'page' => $outOfRange ? null : $pg['page']]);
 site_header([
     'title' => $title,
@@ -97,8 +97,8 @@ site_header([
     'seo' => !$filtered && $tab === 'upcoming' && $pg['page'] === 1 ? ['route', '/events'] : null,
     'canonical' => $canonical,
     'robots' => $filtered || $outOfRange || $total === 0 ? 'noindex,follow' : 'index,follow',
-    'image' => 'assets/images/site/students-lawn.jpg',
-    'preload' => [asset('assets/images/site/students-lawn.jpg')],
+    'image' => 'assets/images/site/news-campus.jpg',
+    'preload' => [asset('assets/images/site/news-campus.jpg')],
     'schema' => [
         ne_breadcrumb_ld($tab === 'past' ? [['Home', ''], ['Events', 'events'], ['Past Events', null]] : [['Home', ''], ['Events', null]]),
         ['@context' => 'https://schema.org', '@type' => 'ItemList', 'name' => $title, 'numberOfItems' => $total,
@@ -124,11 +124,11 @@ page_hero(
     $tab === 'past' ? 'Past Events' : 'Events & Activities',
     $tab === 'past' ? 'Highlights from earlier in the session' : 'Seminars, workshops, fests & campus life',
     $tab === 'past' ? ['Events' => '/events', 'Past Events'] : ['Events'],
-    'assets/images/site/students-lawn.jpg',
-    'Industry talks, hands-on workshops, webinars, cultural nights, sports meets and placement drives — find what’s happening at GIMT and register online.',
+    'assets/images/site/news-campus.jpg',
+    'Industry talks, hands-on workshops, webinars, cultural nights and placement drives — find what’s happening at GIMT and register online.',
     $chips,
     ['eyebrow' => 'Campus calendar', 'eyebrow_icon' => 'calendar-days', 'highlight' => $tab === 'past' ? 'Events' : 'Activities', 'actions' => $actions,
-     'image_alt' => 'Students on the GIMT campus lawn', 'image2' => 'assets/images/site/facility-sports.jpg',
+     'image_alt' => 'Students gathered at a GIMT event', 'image2' => 'assets/images/site/students-laptop.jpg',
      'badge' => $next ? ['icon' => 'calendar-clock', 'text' => 'Next: ' . date('d M', strtotime((string) $next['start_datetime'])) . ' · ' . str_limit((string) $next['title'], 30)] : false]
 );
 ?>
@@ -256,7 +256,7 @@ if (ne_route_exists('academics')) {
 }
 $links[] = feature_tile('megaphone', 'Notice Board', 'Event announcements, circulars, examination schedules and holiday notices.', ['url' => '/notices?category=event', 'tint' => 'navy', 'heading' => 'h3']);
 if (ne_route_exists('campus')) {
-    $links[] = feature_tile('trees', 'Campus Life', 'Clubs, sports, cultural activities and facilities that make every day at GIMT memorable.', ['url' => '/campus', 'tint' => 'orange', 'heading' => 'h3']);
+    $links[] = feature_tile('users', 'Campus Life', 'Clubs, cultural activities and student support that make every day at GIMT memorable.', ['url' => '/campus', 'tint' => 'orange', 'heading' => 'h3']);
 }
 ?>
 <?= section_open(['bg' => 'white', 'padding' => 'tight', 'label' => 'Related pages']) ?>

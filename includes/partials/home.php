@@ -20,6 +20,7 @@
 
 require_once APP_ROOT . '/app/services/cms.php';
 require_once APP_ROOT . '/app/services/public_forms.php';
+require_once APP_ROOT . '/app/services/seo_schema.php'; // JSON-LD builders + seo_ld_img_dims()
 require_once __DIR__ . '/campus_map.php';
 
 /* =====================================================================================================================
@@ -640,11 +641,18 @@ function hm_student_life(int $limit = 12): array
             continue;
         }
         $seen[$key] = true;
+        $albumN ??= [];
+        // captions / alt texts that look like a file name or code ("Lib", "45345348", "IMG_1.jpg") → "<Album> — photo N"
+        $codeLike = fn (string $t) => mb_strlen($t) <= 4 || preg_match('/^[\d\s._-]+$/', $t) || preg_match('/\.(jpe?g|png|gif|webp|avif|svg|heic|bmp|tiff?)\b/i', $t)
+            || preg_match('/^(img|dsc|pxl|photo|image|wa)[\s_-]?\d+/i', $t);
+        $albumN[$r['album']] = ($albumN[$r['album']] ?? 0) + 1;
+        $altText = trim((string) $r['alt_text']);
+        $altText = $altText !== '' && !$codeLike($altText) ? $altText : '';
         $caption = trim((string) $r['caption']);
-        if ($caption === '' || preg_match('/\b(image|photo|picture|banner)\s+used\b|home ?page/i', $caption)) {
-            $caption = trim((string) $r['alt_text']) ?: (string) $r['album'];
+        if ($caption === '' || $codeLike($caption) || preg_match('/\b(image|photo|picture|banner)\s+used\b|home ?page/i', $caption)) {
+            $caption = $altText ?: trim((string) $r['album'] . ' — photo ' . $albumN[$r['album']]);
         }
-        $out[] = ['src' => $path !== '' ? site_image($path) : site_image('assets/images/site/students-atrium.jpg'), 'alt' => trim((string) $r['alt_text']) ?: $caption,
+        $out[] = ['src' => $path !== '' ? site_image($path) : site_image('assets/images/site/students-atrium.jpg'), 'alt' => $altText ?: $caption,
             'caption' => rtrim($caption, '.'), 'tag' => (string) $r['album'], 'video' => $video !== '' && cms_valid_video($video) ? $video : null];
         if (count($out) >= $limit) {
             break;
@@ -652,12 +660,11 @@ function hm_student_life(int $limit = 12): array
     }
     // top up with bundled campus photography (not already used)
     $bundled = [
-        ['students-laptop.jpg', 'Collaborative learning on campus', 'Students working together on a laptop on campus', 'Campus life'],
-        ['students-lawn.jpg', 'Group study on the central lawn', 'Students studying together on the campus lawn', 'Campus life'],
+        ['students-laptop.jpg', 'Collaborative learning', 'Students working together on a laptop', 'Campus life'],
         ['students-atrium.jpg', 'The atrium between classes', 'Students walking through the campus atrium between classes', 'Campus life'],
         ['graduation.jpg', 'Convocation day celebrations', 'Graduates throwing their caps at the convocation ceremony', 'Convocation'],
-        ['news-campus.jpg', 'Campus events all year round', 'Students gathered at a campus event', 'Events'],
-        ['campus-library.jpg', 'The central library', 'Reading hall of the central library and learning centre', 'Library'],
+        ['news-campus.jpg', 'Events and workshops', 'Students gathered at a GIMT event', 'Events'],
+        ['campus-library.jpg', 'The library', 'Reading area of the GIMT library', 'Library'],
     ];
     foreach ($bundled as [$file, $caption, $alt, $tag]) {
         if (count($out) >= min($limit, 12)) {
@@ -831,19 +838,12 @@ function hm_preload(array $sections): array
 /** JSON-LD for the homepage: ItemList of programs, upcoming Events, FAQPage (CollegeOrUniversity is in the header). */
 function hm_schema(array $sections): array
 {
+    require_once APP_ROOT . '/app/services/seo_schema.php';
     $out = [];
-    $org = ['@type' => 'CollegeOrUniversity', 'name' => institute_name(), 'url' => absolute_url('')];
+    $org = seo_ld_org_ref(); // the site-wide CollegeOrUniversity (#organization) printed by the header
     $abs = fn (string $u) => preg_match('#^https?://#', $u) ? $u : absolute_url(ltrim(preg_replace('#^' . preg_quote(base_path(), '#') . '#', '', parse_url($u, PHP_URL_PATH) ?: ''), '/'));
-    if (isset($sections['programs']) && ($programs = hm_programs())) {
-        $list = [];
-        foreach ($programs as $i => $p) {
-            $list[] = ['@type' => 'ListItem', 'position' => $i + 1, 'item' => array_filter([
-                '@type' => 'Course', 'name' => (string) $p['name'], 'url' => absolute_url('programs/' . $p['slug']),
-                'description' => hm_text($p['overview'] ?? '', 220) ?: null, 'provider' => $org,
-                'educationalCredentialAwarded' => (string) ($p['degree'] ?? '') ?: null,
-            ])];
-        }
-        $out[] = ['@context' => 'https://schema.org', '@type' => 'ItemList', 'name' => 'Programs at ' . setting('institute_short_name', 'GIMT'), 'itemListElement' => $list];
+    if (isset($sections['programs']) && ($programs = hm_programs()) && ($list = seo_ld_course_list($programs, 'Programs at ' . setting('institute_short_name', 'GIMT')))) {
+        $out[] = $list;
     }
     if (isset($sections['events_news']) && !empty($sections['events_news']['content']['show_events'])) {
         foreach (hm_events((int) ($sections['events_news']['content']['events_limit'] ?? 3)) as $ev) {
@@ -862,9 +862,8 @@ function hm_schema(array $sections): array
             ]);
         }
     }
-    if (isset($sections['faqs']) && ($faqs = hm_faqs($sections['faqs']['content']))) {
-        $out[] = ['@context' => 'https://schema.org', '@type' => 'FAQPage', 'mainEntity' => array_map(fn ($f) => ['@type' => 'Question', 'name' => $f['q'],
-            'acceptedAnswer' => ['@type' => 'Answer', 'text' => $f['a']]], $faqs)];
+    if (isset($sections['faqs']) && ($faqs = hm_faqs($sections['faqs']['content'])) && ($faqLd = seo_ld_faq($faqs))) {
+        $out[] = $faqLd;
     }
     return $out;
 }
@@ -891,7 +890,7 @@ function hm_render_hero(array $s): string
     $mainPath = (string) ($c['image'] ?? '') ?: 'assets/images/site/hero-campus-students.jpg';
     $main = site_image($mainPath);
     $alt = trim((string) ($c['image_alt'] ?? '')) ?: 'Students on the GIMT campus';
-    $others = array_values(array_filter(['assets/images/site/students-atrium.jpg', 'assets/images/site/campus-building.jpg', 'assets/images/site/students-lawn.jpg'], fn ($p) => $p !== $mainPath));
+    $others = array_values(array_filter(['assets/images/site/students-atrium.jpg', 'assets/images/site/campus-building.jpg', 'assets/images/site/students-laptop.jpg'], fn ($p) => $p !== $mainPath));
     $chips = array_slice(array_values(array_filter((array) ($c['chips'] ?? []), fn ($ch) => trim((string) ($ch['label'] ?? '')) !== '')), 0, 1);
     $words = array_slice(array_values(array_filter(array_map('trim', (array) ($c['tagline_words'] ?? [])))), 0, 6);
     $video = trim((string) ($c['video_url'] ?? ''));
@@ -950,7 +949,8 @@ function hm_render_hero(array $s): string
     if ($badgeText !== '') {
         $inner = '<span class="relative inline-flex h-2.5 w-2.5 shrink-0"><span class="absolute inset-0 animate-ping rounded-full bg-accent-500/70"></span><span class="relative h-2.5 w-2.5 rounded-full bg-accent-600"></span></span>'
             . '<span class="min-w-0"><span class="block truncate">' . e($badgeText) . '</span>'
-            . ($deadline ? '<span class="block text-[12px] font-medium text-slate-500">Last date to apply: ' . e(date('j M Y', $deadline)) . '</span>' : '') . '</span>'
+            // owner decision 2026-11-17: rolling admissions unless a deadline is set in Settings
+            . '<span class="block text-[12px] font-medium text-slate-500">' . ($deadline ? 'Last date to apply: ' . e(date('j M Y', $deadline)) : 'Rolling admissions — until seats are filled') . '</span></span>'
             . ($badgeUrl ? icon('arrow-right', 'h-4 w-4 shrink-0 text-accent-600 transition-transform group-hover:translate-x-1') : '');
         $cls = 'group mt-7 inline-flex max-w-full items-center gap-3 rounded-2xl border border-accent-200 bg-white/90 px-4 py-2.5 text-[14px] font-semibold text-brand-900 shadow-sm transition hover:border-accent-300 hover:shadow-soft animate-fade-up delay-2';
         $h .= $badgeUrl ? '<a href="' . e($badgeUrl) . '" class="' . $cls . '">' . $inner . '</a>' : '<p class="' . $cls . '">' . $inner . '</p>';
@@ -1063,13 +1063,16 @@ function hm_render_hero_split(array $s): string
     $strip = '';
     if ($cd = countdown($deadline, ['label' => 'Application closes in'])) {
         $strip .= '<span class="inline-flex items-center gap-2">' . icon('calendar-clock', 'h-5 w-5 shrink-0') . $cd . '</span>';
+    } elseif (!$deadline) {
+        // owner decision 2026-11-17: rolling admissions unless a deadline is set in Settings
+        $strip .= '<span class="inline-flex items-center gap-2 font-semibold">' . icon('calendar-clock', 'h-5 w-5 shrink-0') . 'Rolling admissions — until seats are filled</span>';
     }
     if ($seats !== null) {
         $strip .= '<span class="inline-flex items-baseline gap-1.5"><b class="enquiry-strip-big">' . $seats . '%</b><span class="font-semibold">seats filled</span></span>';
     }
     $form = enquiry_form([
         'endpoint' => base_url('api/public/enquiry'), 'theme' => 'lead', 'compact' => true, 'captureUtm' => true,
-        'title' => (string) setting('landing_form_title', 'Talk to an Admission Expert'),
+        'title' => (string) setting('landing_form_title', 'Talk to an Admission Expert'), 'titleTag' => 'h2', // h1 → h2 heading order
         'titleHighlight' => (string) setting('landing_form_highlight', 'Admission Expert'),
         'tags' => array_values(array_filter([['icon' => 'wallet', 'label' => 'Semester-wise fee payment'], site_max_scholarship() ? ['icon' => 'award', 'label' => 'Merit scholarships'] : null])),
         'subtitle' => (string) setting('landing_form_subtitle', 'Get a Free Career Counselling Session'),
@@ -1136,7 +1139,7 @@ function hm_render_stats(array $s, ?string $prev = null): string
     // live figures without data are hidden by hm_stat(); top the card up with other live figures so it never shows a
     // lone number (e.g. a new install with programs but no students / faculty yet)
     $used = array_column($items, 'source');
-    foreach ([['programs', 'Programs', 'graduation-cap', '+'], ['departments', 'Departments', 'school', ''], ['specialisations', 'Specialisations', 'layers', ''], ['years', 'Years of Excellence', 'award', '+']] as [$src, $label, $icon, $suffix]) {
+    foreach ([['programs', 'Programs', 'graduation-cap', '+'], ['departments', 'Departments', 'school', ''], ['specialisations', 'Specialisations', 'layers', '']] as [$src, $label, $icon, $suffix]) {
         if (count($items) >= 4) {
             break;
         }
@@ -1461,7 +1464,7 @@ function hm_render_why(array $s): string
     $h = '<section id="' . e(hm_anchor('why', $c)) . '" class="section relative isolate overflow-hidden bg-white"><div class="container-site grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-14">';
     $h .= '<div class="lg:col-span-4"><div class="lg:sticky lg:top-32">' . section_heading($s['title'], $s['subtitle'], (string) ($c['eyebrow'] ?? ''), 'left', '', ['class' => '!mb-0']);
     if ($image !== '') {
-        $h .= '<figure class="mt-8 overflow-hidden rounded-[26px] bg-warm-2" data-reveal="clip"><img src="' . e(site_image($image)) . '" alt="" class="aspect-[4/3] h-full w-full object-cover" loading="lazy" decoding="async"></figure>';
+        $h .= '<figure class="mt-8 overflow-hidden rounded-[26px] bg-warm-2" data-reveal="clip"><img src="' . e(site_image($image)) . '"' . seo_ld_img_dims(site_image($image)) . ' alt="" class="aspect-[4/3] h-full w-full object-cover" loading="lazy" decoding="async"></figure>';
     } else {
         $h .= '<div class="mt-8 hidden rounded-[26px] bg-brand-950 p-7 text-white lg:block">'
             . '<p class="font-display text-lg font-bold leading-snug">Not sure which program fits you?</p><p class="mt-2 text-[14.5px] text-white/70">Our admission counsellors help you compare courses, fees and scholarships — free of charge.</p>'
@@ -1665,9 +1668,9 @@ function hm_render_admission_process(array $s): string
             . '<div class="flex items-start justify-between gap-3"><dt class="text-slate-500">Applications</dt><dd class="text-right font-semibold ' . ((int) $session['admissions_open'] === 1 ? 'text-emerald-700' : 'text-slate-700') . '">' . ((int) $session['admissions_open'] === 1 ? 'Open now' : 'Opening soon') . '</dd></div>'
             . '<div class="flex items-start justify-between gap-3"><dt class="text-slate-500">Academic year</dt><dd class="text-right font-semibold text-brand-900">' . e(date('M Y', strtotime((string) $session['start_date'])) . ' – ' . date('M Y', strtotime((string) $session['end_date']))) . '</dd></div>';
     }
-    if ($deadline) {
-        $h .= '<div class="flex items-start justify-between gap-3"><dt class="text-slate-500">Last date to apply</dt><dd class="text-right font-semibold text-accent-700">' . e(date('j M Y', $deadline)) . '</dd></div>';
-    }
+    // rolling admissions unless a deadline is set in Settings (owner decision 2026-11-17); ₹999 application fee
+    $h .= '<div class="flex items-start justify-between gap-3"><dt class="text-slate-500">' . ($deadline ? 'Last date to apply' : 'Admissions') . '</dt><dd class="text-right font-semibold text-accent-700">' . ($deadline ? e(date('j M Y', $deadline)) : 'Rolling — until seats are filled') . '</dd></div>'
+        . '<div class="flex items-start justify-between gap-3"><dt class="text-slate-500">Application fee</dt><dd class="text-right font-semibold text-brand-900">₹999</dd></div>';
     $h .= '</dl>' . ($deadline ? '<p class="mt-4 rounded-xl bg-sun-light px-3 py-2 text-[13px] font-semibold text-brand-900">' . countdown($deadline, ['label' => 'Closes in']) . '</p>' : '')
         . (hm_url_ok('/admissions') ? '<a href="' . e(site_url('admissions')) . '#dates" class="link-arrow mt-auto pt-5 text-[14px]">All admission dates' . icon('arrow-right', 'h-4 w-4') . '</a>' : '') . '</div>';
     // fees
@@ -1798,7 +1801,7 @@ function hm_render_campus_life(array $s): string
         foreach ($slides as $i => $sl) {
             $wide = $i % 3 === 0;
             $fb .= '<figure class="group relative shrink-0 snap-start overflow-hidden rounded-[26px] bg-warm-2 ' . ($wide ? 'w-[82%] sm:w-[440px]' : 'w-[64%] sm:w-[300px]') . '">'
-                . '<img src="' . e($sl['src']) . '" alt="' . e($sl['alt']) . '" class="h-[340px] w-full object-cover transition duration-700 group-hover:scale-[1.04] sm:h-[400px]" loading="lazy" decoding="async" draggable="false">'
+                . '<img src="' . e($sl['src']) . '"' . seo_ld_img_dims($sl['src']) . ' alt="' . e($sl['alt']) . '" class="h-[340px] w-full object-cover transition duration-700 group-hover:scale-[1.04] sm:h-[400px]" loading="lazy" decoding="async" draggable="false">'
                 . '<span class="pointer-events-none absolute inset-0 bg-gradient-to-t from-brand-950/80 via-brand-950/5 to-transparent" aria-hidden="true"></span>'
                 . ($sl['tag'] !== '' ? '<span class="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-[11.5px] font-bold text-brand-900">' . e($sl['tag']) . '</span>' : '')
                 . ($sl['video'] ? '<span class="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-accent-600 text-white shadow-lg">' . icon('play', 'h-4 w-4 translate-x-px') . '</span>' : '')
@@ -1811,9 +1814,9 @@ function hm_render_campus_life(array $s): string
 
     // Campus Explorer (illustrated map): only when switched on (Home Page Sections › Campus life cards › Show the campus map;
     // off by default — owner request 2026-11-10)
-    if (!empty($c['show_map'])) {
-        $h .= hm_render_campus_explorer(hm_campus_map());
-    }
+    // Not rendered any more (owner decision 2026-11-17): the illustrated map shows lawns, hostels, a sports complex and a
+    // bus bay that do not exist at the Wave One, Sector 18 office — the "Show the campus map" switch is ignored.
+    // hm_render_campus_explorer() is kept for a future map of the real premises.
 
     // CMS overlay cards (Campus Life / Placements / News & Events)
     $cards = [];
@@ -1857,7 +1860,7 @@ function hm_render_campus_explorer(array $map): string
     }
     $fb .= '</div></div>';
     $fb .= '<div class="min-w-0 lg:col-span-4"><div class="flex h-full flex-col overflow-hidden rounded-[28px] border border-warm-2 bg-white">'
-        . ($first['image'] ? '<img src="' . e($first['image']) . '" alt="' . e($first['image_alt']) . '" class="aspect-[16/9] w-full object-cover" loading="lazy" decoding="async">' : '')
+        . ($first['image'] ? '<img src="' . e($first['image']) . '"' . seo_ld_img_dims($first['image']) . ' alt="' . e($first['image_alt']) . '" class="aspect-[16/9] w-full object-cover" loading="lazy" decoding="async">' : '')
         . '<div class="flex flex-1 flex-col p-6"><p class="text-[12px] font-bold uppercase tracking-[0.12em] text-accent-700">' . (int) $first['n'] . ' · ' . e($map['categories'][$first['category']] ?? '') . '</p>'
         . '<h4 class="mt-1 font-display text-xl font-extrabold text-brand-900">' . e($first['name']) . '</h4><p class="mt-2 text-[14.5px] leading-relaxed text-slate-600">' . e($first['description']) . '</p>'
         . '<ul class="mt-4 space-y-1.5">' . implode('', array_map(fn ($f) => '<li class="flex items-start gap-2 text-[14px] text-slate-700">' . icon('circle-check', 'mt-0.5 h-4 w-4 shrink-0 text-accent-600') . e($f) . '</li>', $first['facts'])) . '</ul></div></div></div>';
@@ -1958,7 +1961,7 @@ function hm_render_placements(array $s): string
             . ($alumni ? '<a href="' . e(site_url('alumni')) . '" class="inline-flex items-center gap-1.5 text-[14px] font-semibold text-accent-300 hover:text-white">All alumni stories' . icon('arrow-right', 'h-4 w-4') . '</a>' : '') . '</div>'
             . '<ul class="mt-5 grid gap-5 md:grid-cols-3" data-stagger="90">';
         foreach ($stories as $st) {
-            $h .= '<li class="group overflow-hidden rounded-[24px] border border-white/10 bg-white/[.04]"><div class="relative aspect-[16/10] overflow-hidden"><img src="' . e($st['image']) . '" alt="" class="h-full w-full object-cover transition duration-700 group-hover:scale-[1.04]" loading="lazy" decoding="async">'
+            $h .= '<li class="group overflow-hidden rounded-[24px] border border-white/10 bg-white/[.04]"><div class="relative aspect-[16/10] overflow-hidden"><img src="' . e($st['image']) . '"' . seo_ld_img_dims($st['image']) . ' alt="" class="h-full w-full object-cover transition duration-700 group-hover:scale-[1.04]" loading="lazy" decoding="async">'
                 . '<span class="absolute inset-0 bg-gradient-to-t from-brand-950/80 to-transparent" aria-hidden="true"></span>'
                 . '<p class="absolute inset-x-4 bottom-3 text-[12.5px] font-semibold text-white/85">' . e(trim($st['name'] . ($st['name'] !== '' && $st['role'] !== '' ? ' · ' : '') . $st['role'])) . '</p></div>'
                 . '<div class="p-5"><h4 class="font-display text-[16px] font-bold leading-snug text-white">' . e($st['title']) . '</h4>'
@@ -2052,7 +2055,7 @@ function hm_render_events_news(array $s): string
             $meta = '<span class="text-[12px] font-bold uppercase tracking-[0.12em] text-accent-700">' . e((string) ($n['category'] ?: ucfirst((string) $n['type']))) . '</span><span class="text-[12.5px] text-slate-500">' . e(date('j M Y', strtotime((string) $n['published_at']))) . '</span>';
             if ($i === 0) {
                 $h .= '<article class="group relative grid overflow-hidden rounded-[26px] border border-warm-2 bg-white transition hover:shadow-[0_26px_50px_-34px_rgba(7,26,59,.5)] sm:grid-cols-2"' . reveal_attr() . '>'
-                    . '<div class="relative aspect-[16/10] overflow-hidden bg-warm-2 sm:aspect-auto"><img src="' . e(site_image($n['thumbnail'] ?: null, 'assets/images/site/news-campus.jpg')) . '" alt="" class="h-full w-full object-cover transition duration-700 group-hover:scale-[1.04]" loading="lazy" decoding="async"></div>'
+                    . '<div class="relative aspect-[16/10] overflow-hidden bg-warm-2 sm:aspect-auto"><img src="' . e(site_image($n['thumbnail'] ?: null, 'assets/images/site/news-campus.jpg')) . '"' . seo_ld_img_dims(site_image($n['thumbnail'] ?: null, 'assets/images/site/news-campus.jpg')) . ' alt="" class="h-full w-full object-cover transition duration-700 group-hover:scale-[1.04]" loading="lazy" decoding="async"></div>'
                     . '<div class="flex flex-col p-6"><div class="flex flex-wrap items-center gap-3">' . $meta . '</div><h4 class="mt-3 font-display text-[19px] font-extrabold leading-snug text-brand-900">' . $title . '</h4>'
                     . (trim((string) $n['excerpt']) !== '' ? '<p class="mt-2 line-clamp-3 text-[14.5px] leading-relaxed text-slate-600">' . e(hm_text($n['excerpt'], 200)) . '</p>' : '') . '</div></article>';
                 $h .= count($news) > 1 ? '<ul class="mt-4 grid gap-3 sm:grid-cols-2" data-stagger="80">' : '';
@@ -2231,7 +2234,7 @@ function hm_render_cta(array $s): string
             . '<div class="pattern-layer pattern-grid-light pattern-fade" aria-hidden="true"></div>';
     }
     if (!empty($c['image']) && !$form) {
-        $h .= '<img src="' . e(site_image((string) $c['image'])) . '" alt="" class="absolute inset-y-0 right-0 -z-10 hidden h-full w-[46%] object-cover opacity-60 [mask-image:linear-gradient(90deg,transparent,#000_45%)] [-webkit-mask-image:linear-gradient(90deg,transparent,#000_45%)] md:block" loading="lazy" decoding="async">';
+        $h .= '<img src="' . e(site_image((string) $c['image'])) . '"' . seo_ld_img_dims(site_image((string) $c['image'])) . ' alt="" class="absolute inset-y-0 right-0 -z-10 hidden h-full w-[46%] object-cover opacity-60 [mask-image:linear-gradient(90deg,transparent,#000_45%)] [-webkit-mask-image:linear-gradient(90deg,transparent,#000_45%)] md:block" loading="lazy" decoding="async">';
     }
     $h .= '<div class="container-site grid grid-cols-1 items-center gap-12 lg:grid-cols-12 lg:gap-14">';
     $h .= '<div class="' . ($form ? 'lg:col-span-6' : 'lg:col-span-7') . '">' . (trim((string) ($c['eyebrow'] ?? '')) !== '' ? hm_kicker((string) $c['eyebrow'], $dark) : '')
@@ -2253,7 +2256,7 @@ function hm_render_cta(array $s): string
     if ($form) {
         $h .= '<div class="lg:col-span-6">' . hm_render_smart_enquiry() . '</div>';
     } elseif (!empty($c['image'])) {
-        $h .= '<div class="lg:col-span-5 md:hidden"><img src="' . e(site_image((string) $c['image'])) . '" alt="" class="aspect-[16/10] w-full rounded-[26px] object-cover" loading="lazy" decoding="async"></div>';
+        $h .= '<div class="lg:col-span-5 md:hidden"><img src="' . e(site_image((string) $c['image'])) . '"' . seo_ld_img_dims(site_image((string) $c['image'])) . ' alt="" class="aspect-[16/10] w-full rounded-[26px] object-cover" loading="lazy" decoding="async"></div>';
     }
     return $h . '</div></section>';
 }

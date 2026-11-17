@@ -252,9 +252,9 @@ function chatbot_t(string $key, string $lang, array $vars = []): string
 {
     static $p = null;
     $p ??= [
-        'greet' => ["Hello! 👋 I'm the **{bot}**. I can help you with programs, fees, scholarships, eligibility, admissions, hostel, transport and placements at {short}. What would you like to know?",
-            "नमस्ते! 👋 मैं **{bot}** हूँ। मैं {short} के कोर्स, फीस, स्कॉलरशिप, योग्यता, एडमिशन, हॉस्टल, ट्रांसपोर्ट और प्लेसमेंट के बारे में आपकी मदद कर सकता हूँ। आप क्या जानना चाहेंगे?",
-            "Namaste! 👋 Main **{bot}** hoon. Main {short} ke courses, fees, scholarships, eligibility, admission, hostel, transport aur placements ke baare mein help kar sakta hoon. Aap kya jaanna chahenge?"],
+        'greet' => ["Hello! 👋 I'm the **{bot}**. I can help you with programs, fees, scholarships, eligibility, admissions and placement assistance at {short}. What would you like to know?",
+            "नमस्ते! 👋 मैं **{bot}** हूँ। मैं {short} के कोर्स, फीस, स्कॉलरशिप, योग्यता, एडमिशन और प्लेसमेंट सहायता के बारे में आपकी मदद कर सकता हूँ। आप क्या जानना चाहेंगे?",
+            "Namaste! 👋 Main **{bot}** hoon. Main {short} ke courses, fees, scholarships, eligibility, admission aur placement assistance ke baare mein help kar sakta hoon. Aap kya jaanna chahenge?"],
         'thanks' => ["You're welcome! 😊 Is there anything else I can help you with?", 'आपका स्वागत है! 😊 क्या मैं और कुछ मदद कर सकता हूँ?', 'Aapka swagat hai! 😊 Aur kuch help chahiye?'],
         'bye' => ['Thank you for chatting with {short}! All the best for your admission. 🎓', '{short} से बात करने के लिए धन्यवाद! आपके एडमिशन के लिए शुभकामनाएँ। 🎓', '{short} se baat karne ke liye dhanyavaad! Admission ke liye all the best. 🎓'],
         'abuse' => ["Let's keep our chat respectful. 🙏 I'm here to help with admissions at {short} — ask me about programs, fees, scholarships or the admission process.",
@@ -278,6 +278,11 @@ function chatbot_t(string $key, string $lang, array $vars = []): string
         'elig_one' => ['Eligibility for **{name}**: {text}', '**{name}** के लिए योग्यता: {text}', '**{name}** ke liye eligibility: {text}'],
         'elig_all' => ['Eligibility at a glance:', 'योग्यता संक्षेप में:', 'Eligibility ek nazar mein:'],
         'dates' => ['{open}The last date to apply is **{deadline}**.', '{open}आवेदन की अंतिम तिथि **{deadline}** है।', '{open}Apply karne ki last date **{deadline}** hai.'],
+        'dates_rolling' => ['{open}**{rolling}.**', '{open}एडमिशन रोलिंग आधार पर हैं — **सीटें भरने तक** आवेदन खुले हैं।', '{open}Admissions rolling hain — **seats bharne tak** applications open hain.'],
+        'app_fee' => ['The online application (registration) fee is **{fee}**; the admission fee is paid only after your application is approved.',
+            'ऑनलाइन आवेदन (रजिस्ट्रेशन) शुल्क **{fee}** है; एडमिशन फीस आवेदन स्वीकृत होने के बाद ही देनी होती है।',
+            'Online application (registration) fee **{fee}** hai; admission fee application approve hone ke baad hi deni hoti hai.'],
+        'scholarships_summary' => ['Scholarships at {short}: {text}', '{short} में स्कॉलरशिप: {text}', '{short} mein scholarships: {text}'],
         'apply_cta' => ['You can [apply online]({apply}) — or I can arrange a call with an admission counsellor.', 'आप [ऑनलाइन आवेदन]({apply}) कर सकते हैं — या मैं काउंसलर से कॉल करवा सकता हूँ।', 'Aap [online apply]({apply}) kar sakte hain — ya main counsellor se call arrange kar sakta hoon.'],
         'hostel' => ['Hostel accommodation is available on campus:', 'कैंपस में हॉस्टल सुविधा उपलब्ध है:', 'Campus mein hostel facility available hai:'],
         'transport' => ['College transport:', 'कॉलेज ट्रांसपोर्ट:', 'College transport:'],
@@ -420,6 +425,14 @@ function chatbot_offline_answer(string $question, array $ctx): array
                 }
                 break;
             case 'fees':
+                // "Is there an application fee?" / "form fee": the application (registration) fee, not the program fees
+                if (!empty($f['application_fee']) && preg_match('/\b(application|registration|form|apply(ing)?)\b.{0,20}\b(fee|fees|charges?|cost)\b|\bform\s?(ki\s)?fees?\b|आवेदन\sशुल्क|फॉर्म\sफीस|रजिस्ट्रेशन/iu', $question)) {
+                    $lines[] = chatbot_t('app_fee', $lang, ['fee' => $f['application_fee']]);
+                    $useSource($byId['facts:application_fee'] ?? null);
+                    if (!$programs) {
+                        break;
+                    }
+                }
                 $payQ = (bool) preg_match('/instal|loan|refund|\bemi\b|\bpay|kist|किस्त|लोन/iu', $question);
                 if ($payQ && !$programs) {
                     $faq = chatbot_best_faq($question, array_filter($all, fn ($x) => $x['type'] === 'faq'));
@@ -466,6 +479,10 @@ function chatbot_offline_answer(string $question, array $ctx): array
                         $lines[] = '- **' . $name . '** — ' . $rest;
                     }
                     $useSource($s);
+                } elseif (!empty($f['scholarships'])) {
+                    // no scholarship records yet: the institute's published scholarship statement
+                    $lines[] = chatbot_t('scholarships_summary', $lang, $base + ['text' => $f['scholarships']]);
+                    $useSource($byId['facts:scholarships'] ?? null);
                 }
                 break;
             case 'eligibility':
@@ -496,6 +513,10 @@ function chatbot_offline_answer(string $question, array $ctx): array
                 if (!empty($f['deadline'])) {
                     $lines[] = chatbot_t('dates', $lang, ['open' => !empty($f['admissions_open_text']) ? $f['admissions_open_text'] . '. ' : '', 'deadline' => $f['deadline']]);
                     $useSource($byId['facts:dates'] ?? null);
+                } elseif (!empty($f['admission_dates'])) {
+                    // rolling admissions (no deadline set)
+                    $lines[] = chatbot_t('dates_rolling', $lang, ['open' => !empty($f['admissions_open_text']) ? $f['admissions_open_text'] . '. ' : '', 'rolling' => rtrim($f['admission_dates'], '.')]);
+                    $useSource($byId['facts:dates'] ?? null);
                 } else {
                     $faq = chatbot_best_faq($question, $snippets);
                     if ($faq && $faq['confidence'] >= 0.3) {
@@ -520,6 +541,11 @@ function chatbot_offline_answer(string $question, array $ctx): array
                 if ($intent === 'admission') {
                     if (!empty($f['deadline']) && !in_array('dates', $topical, true)) {
                         $lines[] = chatbot_t('dates', $lang, ['open' => '', 'deadline' => $f['deadline']]);
+                    } elseif (!empty($f['admission_dates']) && !in_array('dates', $topical, true)) {
+                        $lines[] = chatbot_t('dates_rolling', $lang, ['open' => '', 'rolling' => rtrim($f['admission_dates'], '.')]);
+                    }
+                    if (!empty($f['application_fee']) && !in_array('fees', $topical, true)) {
+                        $lines[] = chatbot_t('app_fee', $lang, ['fee' => $f['application_fee']]);
                     }
                     if ($apply = chatbot_route('/apply')) {
                         $lines[] = chatbot_t('apply_cta', $lang, ['apply' => $apply]);
@@ -567,6 +593,11 @@ function chatbot_offline_answer(string $question, array $ctx): array
                 if ($faq && $faq['confidence'] >= 0.5 && (!$lines || isset(array_flip(chatbot_tokens($question))['internship']))) {
                     $lines[] = $faq['snippet']['text'];
                     $useSource($faq['snippet']);
+                }
+                if (!$lines && !empty($f['placement_support'])) {
+                    // no placement records: placement assistance only — never outcomes, recruiters or packages
+                    $lines[] = $f['placement_support'];
+                    $useSource($byId['facts:placement'] ?? null);
                 }
                 break;
             case 'location':
@@ -668,16 +699,16 @@ function chatbot_suggestions(array $intents, array $programs, bool $lead = false
     } else {
         $map = [
             'programs' => [$msg('Fees', 'What are the fees?'), $msg('Eligibility', 'What is the eligibility?'), $msg('Scholarships', 'Which scholarships are available?')],
-            'fees' => [$msg('Scholarships', 'Which scholarships are available?'), $msg('Hostel fees', 'What are the hostel fees?'), $msg('Admission process', 'How do I apply?')],
+            'fees' => [$msg('Scholarships', 'Which scholarships are available?'), $msg('Application fee', 'Is there an application fee?'), $msg('Admission process', 'How do I apply?')],
             'scholarship' => [$msg('Fees', 'What are the fees?'), $msg('Eligibility', 'What is the eligibility?'), $msg('Admission process', 'How do I apply?')],
             'eligibility' => [$msg('Admission process', 'How do I apply?'), $msg('Documents required', 'Which documents are required?'), $msg('Fees', 'What are the fees?')],
-            'admission' => [$msg('Documents required', 'Which documents are required?'), $msg('Last date to apply', 'What is the last date to apply?'), ['label' => 'Apply now', 'action' => 'link', 'url' => chatbot_route('/apply')]],
+            'admission' => [$msg('Documents required', 'Which documents are required?'), $msg('Admission dates', 'Is there a last date to apply?'), ['label' => 'Apply now', 'action' => 'link', 'url' => chatbot_route('/apply')]],
             'dates' => [$msg('Admission process', 'How do I apply?'), ['label' => 'Apply now', 'action' => 'link', 'url' => chatbot_route('/apply')]],
-            'documents' => [$msg('Last date to apply', 'What is the last date to apply?'), $msg('Eligibility', 'What is the eligibility?')],
-            'hostel' => [$msg('Transport', 'Do you provide transport?'), $msg('Campus facilities', 'What facilities are available on campus?')],
-            'transport' => [$msg('Hostel', 'Is hostel accommodation available?'), $msg('Campus location', 'Where is the campus?')],
-            'placement' => [$msg('Programs', 'Which programs do you offer?'), $msg('Internships', 'Are internships compulsory?')],
-            'location' => [$msg('Campus visit', 'Can I visit the campus before applying?'), $msg('Transport', 'Do you provide transport?')],
+            'documents' => [$msg('Admission dates', 'Is there a last date to apply?'), $msg('Eligibility', 'What is the eligibility?')],
+            'hostel' => [$msg('Campus location', 'Where is the campus?'), $msg('Campus facilities', 'What facilities are available on campus?')],
+            'transport' => [$msg('Campus location', 'Where is the campus?'), $msg('Contact', 'How do I contact the admissions office?')],
+            'placement' => [$msg('Programs', 'Which programs do you offer?'), $msg('Scholarships', 'Which scholarships are available?')],
+            'location' => [$msg('Campus visit', 'Can I visit the campus before applying?'), $msg('Contact', 'How do I contact the admissions office?')],
             'greeting' => [$msg('Programs & courses', 'Which programs do you offer?'), $msg('Fees & scholarships', 'What are the fees and scholarships?'), $msg('Admission process', 'How do I apply?')],
             'about' => [$msg('Programs & courses', 'Which programs do you offer?'), $msg('Fees & scholarships', 'What are the fees and scholarships?'), $msg('Admission process', 'How do I apply?')],
             'unknown' => [$msg('Programs & courses', 'Which programs do you offer?'), $msg('Fees & scholarships', 'What are the fees and scholarships?')],

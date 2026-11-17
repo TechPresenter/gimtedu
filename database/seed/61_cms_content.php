@@ -54,7 +54,7 @@ return function (array $opts): void {
         'facility-sports.jpg' => ['Sports Courts', 'events', 'Outdoor basketball and volleyball courts on campus', 'Outdoor courts used for the annual sports meet.'],
         'facility-green-campus.jpg' => ['Green Campus', 'campus', 'Tree-lined walkway across the green campus lawns', 'Tree-lined walkways across the campus.'],
         'students-atrium.jpg' => ['Student Atrium', 'campus', 'Students walking through the campus atrium between classes', 'The atrium between classes.'],
-        'students-lawn.jpg' => ['Campus Lawns', 'campus', 'Students studying together on the campus lawn', 'Group study on the central lawn.'],
+        'students-lawn.jpg' => ['Students Studying', 'campus', 'Students studying together', 'Group study between classes.'],
         'students-laptop.jpg' => ['Students Collaborating', 'general', 'Two students collaborating on a laptop', 'Project work in the learning commons.'],
         'hero-campus-students.jpg' => ['Students on Campus', 'banners', 'Smiling students standing in front of the campus building', 'Students in front of the main campus building.'],
         // admin dashboard welcome banner (contains UI text) - kept in the library for the admin, never used in public albums
@@ -127,9 +127,9 @@ return function (array $opts): void {
     $docs = [
         'gimt-prospectus-2026-27.pdf' => ['Prospectus 2026-27', 'Admissions prospectus with programs, eligibility and the admission process.', array_merge(
             ['Programs offered in the 2026-27 session:', ''], array_map(fn ($p) => '  - ' . $p, array_slice($programNames, 0, 14)),
-            ['', 'Admission process: apply online, upload documents, counselling / interview, fee payment.', 'Scholarships: merit and need-based scholarships for eligible students.'])],
-        'fee-structure-2026-27.pdf' => ['Fee Structure 2026-27', 'Program-wise tuition, hostel and transport fees for the 2026-27 session.', [
-            'Tuition fees are payable semester-wise.', 'Hostel and transport fees are charged separately.', 'Merit scholarships are adjusted against tuition fees.',
+            ['', 'Admission process: apply online, upload documents, counselling / interview, fee payment.', 'Scholarships: Merit scholarships of up to 50% of the tuition fee, plus sports, single girl child, economically weaker section, defence ward and sibling scholarships.'])],
+        'fee-structure-2026-27.pdf' => ['Fee Structure 2026-27', 'Program-wise tuition fees for the 2026-27 session.', [
+            'Tuition fees are payable semester-wise.', 'Application (registration) fee: Rs. 999.', 'Merit scholarships are adjusted against tuition fees.',
             'Refund rules follow the university and regulatory guidelines.', '', 'Contact the accounts office for the program-wise fee schedule.']],
         'academic-calendar-2026-27.pdf' => ['Academic Calendar 2026-27', 'Semester dates, examinations, holidays and events for 2026-27.', [
             'Odd semester classes begin: July 2026', 'Mid-term examinations: September 2026', 'End-term examinations: December 2026',
@@ -210,7 +210,7 @@ return function (array $opts): void {
                 $h2('Who can apply'),
                 $ul(['<strong>Undergraduate programs:</strong> Class 12 from a recognised board with the subject requirements of the program.', '<strong>Postgraduate programs:</strong> a bachelor\'s degree in a relevant discipline; entrance scores are considered where applicable.', '<strong>Diploma and certificates:</strong> Class 12 or equivalent; working professionals are welcome.']),
                 $h2('How to apply'),
-                'Fill in the online application, upload your documents and pay the registration fee. Our admissions team verifies documents within three working days and schedules counselling or an interview where required. Seats are confirmed once the first semester fee is paid.',
+                'Fill in the online application, upload your documents and pay the ₹999 registration fee. Our admissions team verifies documents within three working days and schedules counselling or an interview where required. Seats are confirmed once the first semester fee is paid.',
                 'Have questions? Book a free counselling call or visit the campus at Knowledge Park, Greater Noida — the admissions office is open Monday to Saturday, 9 am to 6 pm.'),
             $admissionsId, true, 'published', -150, 4820],
         ['BBA or B.Com (Hons)? How to Choose After Class 12', 'admissions', 'blog', 'program-bba.jpg', 'bba, bcom, career guidance',
@@ -399,7 +399,7 @@ return function (array $opts): void {
 
     // ---------------------------------------------------------------- galleries + items
     $albums = [
-        ['Campus Tour', 'campus', 'A walk through the GIMT campus — academic blocks, lawns, library and hostels.', -180, 'published',
+        ['Campus Tour', 'campus', 'A walk through GIMT — classrooms, labs and library.', -180, 'published',
             ['campus-main.jpg', 'campus-building.jpg', 'campus-academic-block.jpg', 'facility-green-campus.jpg', 'students-atrium.jpg', 'students-lawn.jpg', 'campus-library.jpg', 'campus-hostel.jpg']],
         ['Labs & Learning Spaces', 'labs', 'Smart classrooms, computer labs, the library and student facilities.', -150, 'published',
             ['facility-labs.jpg', 'facility-classroom.jpg', 'facility-library.jpg', 'program-btech.jpg', 'program-dca.jpg', 'facility-hostel.jpg']],
@@ -436,8 +436,8 @@ return function (array $opts): void {
     // ---------------------------------------------------------------- FAQs
     // [category, question, answer, home, contact]
     $faqs = [
-        ['admissions', 'When do admissions open for the 2026-27 session?', "Applications for most programs open in February and continue until seats are filled. Postgraduate programs follow the entrance and counselling schedule of the university.\n\nWe recommend applying early, as hostel rooms and scholarship funds are allotted on a first-come basis.", 1, 1],
-        ['admissions', 'How do I apply to GIMT?', "Apply online from the Admissions page: fill in the form, upload your documents and pay the registration fee. You will receive an application number by email and SMS to track your status.", 1, 1],
+        ['admissions', 'When do admissions open for the 2026-27 session?', "Admissions for the 2026-27 session are rolling — applications stay open until seats are filled. We recommend applying early.", 1, 1],
+        ['admissions', 'How do I apply to GIMT?', "Apply online from the Admissions page: fill in the form, upload your documents and pay the ₹999 registration fee. You will receive an application number by email and SMS to track your status.", 1, 1],
         ['admissions', 'What is the eligibility for undergraduate programs?', "Class 12 (or equivalent) from a recognised board. Some programs have subject requirements — for example, Mathematics for B.Tech, BCA and B.Sc (Data Science). Check the program page for exact criteria.", 1, 0],
         ['admissions', 'Is there an entrance test or interview?', "Undergraduate admissions are based on Class 12 marks followed by a counselling session. MBA and MCA admissions consider national or state entrance scores along with a personal interview.", 0, 0],
         ['admissions', 'Can I apply before my Class 12 results are declared?', "Yes. You can apply with your Class 10 and Class 11 marks and upload the Class 12 marksheet when results are declared. Admission is confirmed after verification.", 0, 0],
@@ -445,7 +445,7 @@ return function (array $opts): void {
         ['admissions', 'Do you offer lateral entry into B.Tech?', "Yes, diploma holders in engineering can join the second year of B.Tech through lateral entry, subject to university rules and seat availability.", 0, 0],
         ['fees', 'How can I pay the fees?', "Fees can be paid online by UPI, net banking, debit or credit card, or at the accounts office by demand draft. Every payment generates a receipt that you can download from the student portal.", 1, 1],
         ['fees', 'Can fees be paid in instalments?', "Tuition fees are payable semester-wise. In genuine cases, students can request an instalment plan from the accounts office before the due date.", 0, 1],
-        ['fees', 'What scholarships are available?', "Merit scholarships, need-based support, sports and cultural excellence scholarships, and concessions for single girl child and wards of defence personnel. The scholarship is adjusted against the tuition fee.", 1, 0],
+        ['fees', 'What scholarships are available?', "Merit scholarships of up to 50% of the tuition fee, plus sports, single girl child, economically weaker section, defence ward and sibling scholarships. The scholarship is adjusted against the tuition fee.", 1, 0],
         ['fees', 'Is education loan assistance available?', "Yes. Our accounts office provides the documents banks require and has tie-ups with leading banks for education loans.", 0, 0],
         ['fees', 'What is the refund policy if I withdraw?', "Refunds follow the university and regulatory guidelines and depend on the date of withdrawal. Submit a written request to the admissions office to start the process.", 0, 0],
         ['academics', 'Which university is GIMT affiliated with?', "GIMT programs are affiliated to the state university and approved by the relevant regulatory bodies. Degrees are awarded by the affiliating university.", 0, 0],
@@ -453,17 +453,12 @@ return function (array $opts): void {
         ['academics', 'How are students evaluated?', "Evaluation combines internal assessment (assignments, quizzes, mid-term tests, presentations) with end-semester examinations conducted by the university.", 0, 0],
         ['academics', 'Are there value-added courses alongside the degree?', "Yes. Students can take certifications in data analytics, digital marketing, cloud computing, communication skills and more — many are free for enrolled students.", 1, 0],
         ['academics', 'Is there a mentor or counsellor for every student?', "Every class has a faculty mentor who tracks attendance, academic progress and well-being. A professional counsellor is also available on campus.", 0, 0],
-        ['hostel', 'Is hostel accommodation available?', "Yes, separate hostels for boys and girls are available inside the campus with twin and triple-sharing rooms, mess, Wi-Fi, laundry and 24x7 security.", 1, 1],
-        ['hostel', 'How are hostel rooms allotted?', "Rooms are allotted on a first-come, first-served basis after the hostel fee is paid. First-year students are usually allotted rooms in the same block.", 0, 0],
-        ['hostel', 'Does the college provide transport?', "Yes, college buses cover major routes in Greater Noida, Noida, Ghaziabad and Delhi. Transport fees depend on the route and pickup point.", 0, 1],
-        ['hostel', 'What are the hostel in-time rules?', "The hostel in-time is 9:30 pm. Late entry or night-out requires prior permission from the warden and parents.", 0, 0],
-        ['placement', 'Does GIMT provide placement support?', "Yes. The training and placement cell runs aptitude training, soft-skills workshops, mock interviews and on-campus recruitment drives for every program.", 1, 1],
-        ['placement', 'Which companies visit the campus?', "Recruiters from IT services, consulting, banking and financial services, e-commerce and manufacturing visit the campus. The placement page lists recent recruiters.", 1, 0],
+        ['placement', 'Does GIMT provide placement support?', "Yes — placement assistance. The training and placement cell offers career guidance, aptitude and soft-skills training, CV and interview preparation, and help applying to recruiters. Placement is not guaranteed.", 1, 1],
         ['placement', 'Are internships compulsory?', "Internships are part of the curriculum for BBA, MBA, B.Tech and BCA. The placement cell helps students find internships through its industry network.", 0, 0],
         ['placement', 'Who is eligible to sit for placements?', "Final-year students with the required attendance and no active backlog are eligible. Some companies also set minimum academic criteria.", 0, 0],
-        ['campus', 'What facilities are available on campus?', "Smart classrooms, computer labs, a central library with e-resources, sports grounds, a gym, cafeteria, medical room, hostels and Wi-Fi across the campus.", 0, 1],
+        ['campus', 'What facilities are available on campus?', "Smart classrooms, computer labs and a library with e-resources.", 0, 1],
         ['campus', 'How can I join student clubs and events?', "Club recruitment happens in the first month of each semester. Follow the student council notices or visit the student activity centre to sign up.", 0, 0],
-        ['general', 'Where is the GIMT campus located?', "The campus is in Knowledge Park, Greater Noida, Uttar Pradesh, well connected by road and the Aqua Line metro.", 0, 1],
+        ['general', 'Where is the GIMT campus located?', 'GIMT is at ' . setting('address', 'Sector 18, Noida, Uttar Pradesh') . '.', 0, 1],
         ['general', 'Can I visit the campus before applying?', "Of course. Campus visits are welcome Monday to Saturday, 9 am to 5 pm. Book a visit from the Contact page and a counsellor will show you around.", 1, 1],
         ['general', 'How do I contact the admissions office?', "Call +91 9955446477, email admissions@gimt.ac.in or use the enquiry form on the website. We usually respond within one working day.", 0, 1],
         ['general', 'Is ragging allowed on campus?', "No. GIMT follows a zero-tolerance anti-ragging policy with an anti-ragging committee, squad and helpline. Strict action is taken on any complaint.", 0, 0],

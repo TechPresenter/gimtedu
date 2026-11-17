@@ -27,7 +27,7 @@ $faqs = [
     ['q' => 'What are the fees?', 'a' => $fees ? 'Published course fees range from ' . money(min($fees)) . ' to ' . money(max($fees)) . ' per course. For courses without a published fee, our counsellors share the current fee when you enquire.' : 'Our counsellors share the current course fee when you enquire. Request a call back using the form on this page.'],
     ['q' => 'Will I get a certificate?', 'a' => 'Yes. When you complete the modules and the final assessment you receive a GIMT course completion certificate with a unique certificate number and QR code' . ($verifyUrl !== '' ? ' that anyone — for example an employer — can check at ' . absolute_url('verify-certificate') : '') . '.'],
     ['q' => 'Can I take more than one course?', 'a' => 'Yes. Many learners combine courses, for example MS Office with Spoken English, or AI Tools with Advanced Excel. Our counsellors help you choose the right combination for your goals.'],
-    ['q' => 'How do I enrol?', 'a' => 'Open the course you like and click Apply Now, or request a free call back with the form on this page and our team will guide you. You can also call ' . setting('phone', '+91 9955446477') . '.'],
+    ['q' => 'How do I enrol?', 'a' => 'Open the course you like and click Apply Now: fill the online form, upload your documents and pay the ' . sa_application_fee() . ' application (registration) fee. ' . sa_admission_window() . '. You can also request a free call back with the form on this page, or call ' . setting('phone', '+91 9955446477') . '.'],
 ];
 
 $heroImg = 'assets/images/site/students-laptop.jpg';
@@ -40,9 +40,8 @@ site_header([
     'preload' => [asset($heroImg)],
     'schema' => array_values(array_filter([
         sa_breadcrumb_ld([['Home', ''], ['Programs', 'programs'], ['Certificate Courses', null]]),
-        $courses && !sa_seo_schema_has('ItemList', 'route', null, '/certifications') ? ['@context' => 'https://schema.org', '@type' => 'ItemList', 'name' => 'Certificate courses at ' . institute_name(), 'numberOfItems' => $n,
-            'itemListElement' => array_map(fn ($p, $i) => ['@type' => 'ListItem', 'position' => $i + 1, 'item' => ['@type' => 'Course', 'name' => $p['name'], 'url' => absolute_url('programs/' . $p['slug']),
-                'description' => str_limit((string) $p['overview'], 250), 'provider' => ['@type' => 'CollegeOrUniversity', 'name' => institute_name(), 'sameAs' => absolute_url('')]]], $courses, array_keys($courses))] : null,
+        sa_seo_schema_has('ItemList', 'route', null, '/certifications') ? null : seo_ld_course_list($courses, 'Certificate courses at ' . institute_name()),
+        sa_seo_schema_has('FAQPage', 'route', null, '/certifications') ? null : seo_ld_faq($faqs),
     ])),
 ]);
 

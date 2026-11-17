@@ -12,6 +12,14 @@ ErrorDocument 500 /500.php
   RewriteEngine On
   RewriteBase /
 
+  # www.<host> -> https://<host> (301, every path, one hop, query string kept). Generic: works for any domain whose
+  # canonical URL (config app.url / GIMT_URL) has no "www.". If the canonical host is www.<domain>, set
+  # "SetEnvIf Host . GIMT_KEEP_WWW=1" in the vhost or above this block (SetEnv runs after mod_rewrite and is not seen
+  # here), or delete these lines. PHP repeats the check (seo_host_redirect()).
+  RewriteCond %{ENV:GIMT_KEEP_WWW} !^1$
+  RewriteCond %{HTTP_HOST} ^www\.([^:]+)(?::\d+)?$ [NC]
+  RewriteRule ^ https://%1%{REQUEST_URI} [R=301,L,NE]
+
   # Block internal folders and dot-files
   RewriteRule ^(app|config|database|storage|tools|frontend|includes|node_modules|docs|install/lib)(/|$) - [F,L]
   RewriteRule (^|/)\.(?!well-known) - [F,L]
@@ -28,34 +36,39 @@ ErrorDocument 500 /500.php
   # Student & Faculty portal SPA (/portal/...) handled by portal/.htaccess
   RewriteRule ^portal$ portal/ [R=301,L]
 
-  # SEO files: sitemap index + child sitemaps, robots.txt
+  # SEO files: sitemap index + child sitemaps, robots.txt, llms.txt / llms-full.txt, IndexNow key file /{key}.txt
   RewriteRule ^sitemap\.xml$ sitemap.php [L]
   RewriteRule ^sitemap-([a-z]+)\.xml$ sitemap.php?type=$1 [L,QSA]
   RewriteRule ^robots\.txt$ robots.php [L]
+  RewriteRule ^llms\.txt$ llms.php [L]
+  RewriteRule ^llms-full\.txt$ llms.php?full=1 [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^[a-z0-9\-]{8,128}\.txt$ indexnow.php [L]
 
   # Pretty marksheet verification URL (QR codes) -> GET /api/marksheets/verify/{no}
   RewriteRule ^verify-marksheet/([A-Za-z0-9\-]+)/?$ api/index.php?r=marksheets/verify/$1 [L,QSA]
 
   # ---- One URL per page (301, GET/HEAD only) --------------------------------------------------------
+  # Mixed-case URLs -> 404.php, which 301s to an admin redirect rule or to the lower-case URL when it exists
+  # (certificate / marksheet numbers keep their case). It runs before the .php rule so /About.php -> /about is
+  # one hop; [END] stops the rewritten 404.php from matching the .php rule again.
+  RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^(?!(?:admin|api|assets|portal|storage|verify-certificate|verify-marksheet)(?:/|$))(.*[A-Z].*)$ 404.php [END]
   # /about.php -> /about (only for requests that really asked for .php, not for internal rewrites)
   RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
   RewriteCond %{THE_REQUEST} \s/+(?:[^?\s]*/)?([a-z0-9\-]+)\.php[\s?] [NC]
-  RewriteCond %1 !^(index|sitemap|robots)$ [NC]
+  RewriteCond %1 !^(index|sitemap|robots|llms|indexnow)$ [NC]
   RewriteRule ^([a-z0-9\-]+)\.php$ $1 [R=301,L,NC]
   # /index.php -> / (the home page has one URL; DirectoryIndex sub-requests are not affected). In a sub-folder
   # install, change "/" to the RewriteBase.
   RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
   RewriteCond %{THE_REQUEST} \s/+index\.php[\s?] [NC]
   RewriteRule ^index\.php$ / [R=301,L,NC]
-  # /about/ -> /about (not the admin / portal SPAs, the API or real folders; mixed-case paths are fixed in one hop below)
+  # /about/ -> /about (not the admin / portal SPAs, the API or real folders; mixed-case paths were sent to 404.php above)
   RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^(?!(?:admin|api|assets|portal|storage)(?:/|$))([^A-Z]+)/$ $1 [R=301,L]
-  # Mixed-case URLs -> 404.php, which 301s to an admin redirect rule or to the lower-case URL when it exists
-  # (certificate / marksheet numbers keep their case)
-  RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteRule ^(?!(?:admin|api|assets|portal|storage|verify-certificate|verify-marksheet)(?:/|$))(.*[A-Z].*)$ 404.php [L]
 
   # Pretty URLs for the public website
   RewriteRule ^verify-certificate/([A-Za-z0-9/\-]+)/?$ verify-certificate.php?no=$1 [L,QSA]
@@ -84,11 +97,41 @@ ErrorDocument 500 /500.php
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
-  <FilesMatch "\.(css|js|woff2|svg|png|jpe?g|webp|gif|ico)$">
+  # Static files: 30 days (uploads and bundled files linked without a version)…
+  <FilesMatch "\.(css|js|mjs|woff2?|svg|png|jpe?g|webp|avif|gif|ico|webmanifest)$">
     Header set Cache-Control "public, max-age=2592000"
+    # …one year + immutable when the URL changes with the content: the website bundle (assets/site/js/<name>-<hash>.js),
+    # every ?v=<mtime> URL (asset(), site_image(), the WebP copies) and the self-hosted fonts (assets/fonts: one file
+    # per family / weight, never edited in place).
+    <If "%{REQUEST_URI} =~ m#/assets/(site|fonts)/# || %{QUERY_STRING} =~ /(^|&)v=[0-9A-Za-z._-]+/">
+      Header set Cache-Control "public, max-age=31536000, immutable"
+    </If>
   </FilesMatch>
 </IfModule>
 
-<IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml text/xml application/xml text/plain
+# Compression of text responses: brotli when mod_brotli is loaded (Ubuntu: a2enmod brotli — listed first so it wins
+# for browsers that accept br), gzip otherwise. Apache on Ubuntu 24.04 labels .js text/javascript, so both JavaScript
+# types are listed (before: application/javascript only — the JS bundle went out uncompressed).
+<IfModule mod_filter.c>
+  <IfModule mod_brotli.c>
+    AddOutputFilterByType BROTLI_COMPRESS text/html text/css text/javascript application/javascript application/x-javascript application/json application/ld+json application/manifest+json application/xml text/xml application/rss+xml application/atom+xml image/svg+xml text/plain image/x-icon image/vnd.microsoft.icon font/ttf font/otf
+  </IfModule>
+  <IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/x-javascript application/json application/ld+json application/manifest+json application/xml text/xml application/rss+xml application/atom+xml image/svg+xml text/plain image/x-icon image/vnd.microsoft.icon font/ttf font/otf
+  </IfModule>
 </IfModule>
+# The by-type filters above never touch a response whose status is not 2xx (the 404 / 410 / 500 pages went out
+# uncompressed, ~190 KB): PHP pages outside the JSON API (which streams chat replies) are compressed explicitly too.
+# A response that is already compressed is passed through unchanged.
+<FilesMatch "\.php$">
+  <If "%{REQUEST_URI} !~ m#(^|/)api(/|$)#">
+    <IfModule mod_brotli.c>
+      SetOutputFilter BROTLI_COMPRESS;DEFLATE
+    </IfModule>
+    <IfModule !mod_brotli.c>
+      <IfModule mod_deflate.c>
+        SetOutputFilter DEFLATE
+      </IfModule>
+    </IfModule>
+  </If>
+</FilesMatch>

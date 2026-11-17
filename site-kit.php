@@ -23,7 +23,7 @@ $slides = [
      'text' => 'Industry-focused UG, PG, diploma and certificate programs in management, technology and commerce.',
      'cta' => ['label' => 'Apply for Admission', 'url' => site_url('apply')], 'cta2' => ['label' => 'Explore Courses', 'url' => site_url('programs')]],
     ['image' => asset('assets/images/site/campus-main.jpg'), 'eyebrow' => 'Admissions ' . (current_session()['name'] ?? '2026-27'), 'title' => 'A Campus Built for Ambition', 'scribble' => 'Ambition',
-     'text' => 'Smart classrooms, labs, a digital library and a green campus in ' . setting('city', 'Greater Noida') . '.',
+     'text' => 'Smart classrooms, a computer lab and a digital library in ' . setting('city', 'Noida') . '.',
      'cta' => ['label' => 'Take a Campus Tour', 'url' => site_url('campus')], 'cta2' => ['label' => 'Admission Process', 'url' => site_url('admissions')]],
 ];
 $stories = [
@@ -41,9 +41,9 @@ try {
 $recruiters = $recruiters ?: array_map(fn ($n) => ['name' => $n], ['ICICI Bank', 'HDFC Bank', 'Deloitte USI', 'Infosys', 'Wipro', 'TCS']);
 $faqs = [
     ['q' => 'What is the admission process at GIMT?', 'a' => "Choose your program, submit the online application, upload your documents and pay the registration fee.\n\nThe admission team verifies documents and shares the offer letter by email.", 'category' => 'Admissions'],
-    ['q' => 'Do you offer scholarships?', 'a' => 'Yes — merit, sports and other scholarships are available for eligible students (see Admissions › Scholarships).', 'category' => 'Fees'],
+    ['q' => 'Do you offer scholarships?', 'a' => 'Yes — merit scholarships of up to 50% of the tuition fee, plus sports, single girl child, economically weaker section, defence ward and sibling scholarships.', 'category' => 'Fees'],
     ['q' => 'Can I visit the campus before admission?', 'a' => 'Campus visits run Monday to Saturday; book a slot through the contact page.', 'category' => 'Campus'],
-    ['q' => 'Is hostel accommodation available?', 'a' => 'Separate hostels for boys and girls are available on campus.', 'category' => 'Campus'],
+    ['q' => 'Is there an application fee?', 'a' => 'Yes — the application (registration) fee is ₹999.', 'category' => 'Admissions'],
 ];
 $gallery = [
     ['src' => asset('assets/images/site/campus-main.jpg'), 'alt' => 'GIMT main campus', 'caption' => 'Main Campus', 'category' => 'Campus'],
@@ -145,7 +145,7 @@ page_hero('Website Kit', 'Design v3 tokens, components & motion', ['Website Kit'
     <?= feature_tile('briefcase-business', 'Industry-aligned curriculum', 'Projects, case studies and industry interaction.') ?>
     <?= feature_tile('users', 'Experienced faculty', 'Mentors who guide academics and careers.', ['tint' => 'orange']) ?>
     <?= feature_tile('handshake', 'Placement cell', 'Aptitude, soft skills and campus drives.', ['variant' => 'warm']) ?>
-    <?= feature_tile('building-2', 'Modern campus', 'Labs, library, hostel and sports.', ['tint' => 'orange', 'variant' => 'warm']) ?>
+    <?= feature_tile('building-2', 'Learning spaces', 'Classrooms, computer lab and library.', ['tint' => 'orange', 'variant' => 'warm']) ?>
   </div>
   <div class="mt-10 grid gap-5 md:grid-cols-3">
     <?= pastel_card('Management Studies', 'BBA and MBA programs with specialisations.', ['color' => 'warm', 'button' => ['label' => 'View programs', 'url' => '/programs?category=management']]) ?>
@@ -157,7 +157,7 @@ page_hero('Website Kit', 'Design v3 tokens, components & motion', ['Website Kit'
     <div class="grid grid-cols-2 gap-4 pt-3"><?php foreach (array_slice(site_approvals(), 0, 2) as $a): ?><?= approval_card($a) ?><?php endforeach; ?></div>
   </div>
   <div class="mt-10 grid gap-5 md:grid-cols-3" data-stagger="80">
-    <?= overlay_card('Campus Life', 'Clubs, fests and sports on campus.', '/campus', 'assets/images/site/students-lawn.jpg') ?>
+    <?= overlay_card('Campus Life', 'Clubs, fests and student activities.', '/campus', 'assets/images/site/students-atrium.jpg') ?>
     <?= overlay_card('Placements', 'Training and campus recruitment drives.', '/placement', 'assets/images/site/placement-student.jpg', 'View placements') ?>
     <?= overlay_card('News & Events', 'Latest news from campus.', '/blog', 'assets/images/site/news-campus.jpg', 'View all') ?>
   </div>

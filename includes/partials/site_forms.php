@@ -7,6 +7,8 @@
  * fallbacks so every page renders on an empty CMS.
  */
 require_once APP_ROOT . '/app/services/public_forms.php';
+require_once APP_ROOT . '/app/services/seo_schema.php'; // shared JSON-LD builders (FAQPage, BreadcrumbList)
+require_once __DIR__ . '/site_academic.php'; // verified admission facts (sa_application_fee, sa_admission_steps, sa_scholarship_statement …)
 
 /* ------------------------------------------------------------------ Session, dates, contact data */
 
@@ -28,16 +30,29 @@ function sf_setting_date(string $key): ?string
     return $v !== '' && strtotime($v) ? date('Y-m-d', strtotime($v)) : null;
 }
 
+/** Admission deadline (Y-m-d) set in Settings — the same source as site_admissions_deadline() — or null = rolling admissions. */
+function sf_deadline_date(): ?string
+{
+    $ts = function_exists('site_admissions_deadline') ? site_admissions_deadline() : null;
+    return $ts ? date('Y-m-d', $ts) : null;
+}
+
+/** Published selection process (entrance test / interview) — one wording for /admissions, /faq and generated answers. */
+function sf_selection_text(): string
+{
+    return 'Applicants appear for the GIMT Aptitude Test and a personal interview, scheduled within 7 days of document verification. Valid CUET, JEE Main, CAT, MAT or CMAT scores can be submitted in place of the aptitude test.';
+}
+
 /** Key facts for the "Admissions Open" banner. */
 function sf_key_dates(): array
 {
     $s = pf_admission_session();
     $start = $s['start_date'] ?? null;
     $end = $s['end_date'] ?? null;
-    $last = sf_setting_date('admission_last_date');
+    $last = sf_deadline_date();
     return [
         ['icon' => 'calendar-check', 'label' => 'Applications', 'value' => sf_admissions_open() ? 'Open Now' : 'Closed', 'note' => 'Session ' . sf_session_name()],
-        ['icon' => 'calendar-clock', 'label' => 'Last Date to Apply', 'value' => $last ? format_date($last, 'd M Y') : 'Rolling Admissions', 'note' => $last ? 'Subject to seat availability' : 'Until seats are filled'],
+        ['icon' => 'calendar-clock', 'label' => $last ? 'Last Date to Apply' : 'Admission Window', 'value' => $last ? format_date($last, 'd M Y') : 'Rolling Admissions', 'note' => $last ? 'Subject to seat availability' : 'Until seats are filled'],
         ['icon' => 'clipboard-check', 'label' => 'Entrance & Interview', 'value' => 'Within 7 Days', 'note' => 'of document verification'],
         ['icon' => 'calendar-range', 'label' => 'Academic Session', 'value' => $start ? date('M Y', strtotime($start)) . ' – ' . date('M Y', strtotime((string) $end)) : sf_session_name(), 'note' => 'Semester system'],
     ];
@@ -61,9 +76,9 @@ function sf_important_dates(): array
     }
     $items[] = ['date' => null, 'when' => (string) setting('counselling_schedule', 'Every Saturday · 10:00 AM'), 'title' => 'Counselling & Merit Rounds',
         'text' => 'Rolling merit lists and one-to-one counselling on campus and online for verified applicants.', 'icon' => 'users', 'state' => 'current'];
-    $last = sf_setting_date('admission_last_date');
-    $items[] = ['date' => $last, 'when' => $last ? format_date($last, 'd M Y') : 'Until seats are filled', 'title' => 'Last Date to Apply',
-        'text' => 'Seats are allotted in order of merit and completed applications — apply early to secure your seat.', 'icon' => 'calendar-clock', 'state' => $last ? null : 'upcoming'];
+    $last = sf_deadline_date();
+    $items[] = ['date' => $last, 'when' => $last ? format_date($last, 'd M Y') : 'Until seats are filled', 'title' => $last ? 'Last Date to Apply' : 'Rolling Admissions',
+        'text' => $last ? 'Seats are allotted in order of merit and completed applications.' : 'Applications are accepted until seats are filled.', 'icon' => 'calendar-clock', 'state' => $last ? null : 'upcoming'];
     try {
         foreach (db_all("SELECT title, slug, excerpt, venue, start_datetime FROM events WHERE status = 'published' AND show_on_website = 1 AND category IN ('admission','webinar')
                          AND start_datetime >= ? ORDER BY start_datetime LIMIT 3", [date('Y-m-d 00:00:00')]) as $ev) {
@@ -320,12 +335,12 @@ function sf_admission_faq_defaults(): array
     $c = sf_contact();
     $session = sf_session_name();
     return [
-        ['q' => 'How do I apply for admission at GIMT?', 'a' => "Choose your program, fill the online application form (it takes about 10 minutes), upload your documents and submit. You receive an application number instantly and an acknowledgement on email.\n\nOur admission team verifies your documents within 3 working days and schedules your entrance test or interview.", 'category' => 'Admissions'],
+        ['q' => 'How do I apply for admission at GIMT?', 'a' => "Choose your program, fill the online application form (it takes about 10 minutes), upload your documents, pay the " . sa_application_fee() . " application (registration) fee and submit. You receive an application number instantly and an acknowledgement on email.\n\nOur admission team verifies your documents within 3 working days and schedules your entrance test or interview.", 'category' => 'Admissions'],
         ['q' => 'What are the eligibility criteria for UG and PG programs?', 'a' => 'Undergraduate programs require 10+2 or equivalent from a recognised board with at least 50% aggregate marks (45% for reserved categories). Postgraduate programs require a recognised bachelor’s degree with at least 50% marks. Program-wise eligibility is listed in the table above.', 'category' => 'Eligibility'],
-        ['q' => 'Is there an entrance test?', 'a' => 'Applicants appear for the GIMT Aptitude Test and a personal interview, scheduled within 7 days of document verification. Valid CUET, JEE Main, CAT, MAT or CMAT scores can be submitted in place of the aptitude test.', 'category' => 'Admissions'],
-        ['q' => 'Is there an application fee?', 'a' => 'No — applying online is free. The admission fee (' . money(admission_default_fee(null, null)) . ' for most UG programs) is payable only after your application is approved and the offer letter is issued.', 'category' => 'Fees'],
+        ['q' => 'Is there an entrance test?', 'a' => sf_selection_text(), 'category' => 'Admissions'],
+        ['q' => 'Is there an application fee?', 'a' => 'Yes — the application (registration) fee is ' . sa_application_fee() . '. The admission fee (' . money(admission_default_fee(null, null)) . ' for most UG programs) is payable only after your application is approved and the offer letter is issued.', 'category' => 'Fees'],
         ['q' => 'Can I pay the fee in instalments?', 'a' => 'Yes. Tuition fees can be paid semester-wise, and education-loan assistance is available through partner banks. Payments are accepted by UPI, card, net banking and bank transfer.', 'category' => 'Fees'],
-        ['q' => 'What scholarships are available?', 'a' => 'Merit scholarships of up to 50% of the tuition fee, plus sports, single girl child, economically weaker section, defence ward and sibling scholarships. Mention your eligibility in the application and submit supporting documents at verification.', 'category' => 'Scholarships'],
+        ['q' => 'What scholarships are available?', 'a' => sa_scholarship_statement() . '. Mention your eligibility in the application and submit supporting documents at verification.', 'category' => 'Scholarships'],
         ['q' => 'I am awaiting my Class 12 / final-year results. Can I still apply?', 'a' => 'Yes. Apply with your latest marksheet or admit card. Your admission is provisional until you submit the final marksheet before the session ' . $session . ' cut-off date.', 'category' => 'Eligibility'],
         ['q' => 'How can I track my application?', 'a' => 'Your application number and acknowledgement are emailed to you. For status updates call ' . $c['phone'] . ' or email ' . $c['admission_email'] . ' with your application number.', 'category' => 'Admissions'],
     ];
@@ -335,31 +350,25 @@ function sf_contact_faq_defaults(): array
 {
     $c = sf_contact();
     return [
-        ['q' => 'What is the admission process at GIMT?', 'a' => 'Explore programs, submit the online application, upload your documents, complete verification and the entrance test / interview, then confirm your seat by paying the admission fee. Each step is explained on the Admissions page.', 'category' => 'Admissions'],
-        ['q' => 'Where is GIMT located?', 'a' => $c['address'] . '. The campus is well connected by road and the Aqua Line metro.', 'category' => 'Campus'],
+        ['q' => 'What is the admission process at GIMT?', 'a' => 'Explore programs, submit the online application with the ' . sa_application_fee() . ' application (registration) fee, upload your documents, complete verification and the entrance test / interview, then confirm your seat by paying the admission fee. Each step is explained on the Admissions page.', 'category' => 'Admissions'],
+        ['q' => 'Where is GIMT located?', 'a' => institute_name() . ' (GIMT) is at ' . $c['address'] . '.', 'category' => 'Campus'],
         ['q' => 'What are the eligibility criteria for UG and PG programs?', 'a' => 'UG programs require 10+2 or equivalent with at least 50% marks (45% for reserved categories). PG programs require a recognised bachelor’s degree with at least 50% marks.', 'category' => 'Admissions'],
-        ['q' => 'Do you offer scholarships?', 'a' => 'Yes — merit scholarships of up to 50% of tuition, along with sports, single girl child, economically weaker section and defence ward scholarships.', 'category' => 'Fees'],
+        ['q' => 'Do you offer scholarships?', 'a' => 'Yes — ' . lcfirst(sa_scholarship_statement()) . '.', 'category' => 'Fees'],
         ['q' => 'Can I visit the campus before admission?', 'a' => 'Absolutely. Campus visits run ' . $c['hours'] . '. Choose "Campus Visit" in the message form above and our team will confirm a slot for you.', 'category' => 'Campus'],
         ['q' => 'How can I contact the admission office?', 'a' => 'Call ' . $c['phone'] . ', email ' . $c['admission_email'] . ' or send us a message using the form on this page — a counsellor will respond within 24 hours.', 'category' => 'Admissions'],
     ];
 }
 
+/** FAQPage JSON-LD for [{q, a}] — [] when there are no questions (seo_jsonld_html() skips empty blocks' callers). */
 function sf_faq_schema(array $faqs): array
 {
-    return ['@context' => 'https://schema.org', '@type' => 'FAQPage', 'mainEntity' => array_map(fn ($f) => [
-        '@type' => 'Question', 'name' => $f['q'], 'acceptedAnswer' => ['@type' => 'Answer', 'text' => $f['a']],
-    ], array_values($faqs))];
+    return seo_ld_faq($faqs) ?? [];
 }
 
 /** BreadcrumbList JSON-LD: ['Home' => '', 'Admissions' => 'admissions', …]. */
 function sf_breadcrumb_schema(array $crumbs): array
 {
-    $i = 0;
-    $items = [];
-    foreach ($crumbs as $name => $path) {
-        $items[] = ['@type' => 'ListItem', 'position' => ++$i, 'name' => $name, 'item' => absolute_url(ltrim($path, '/'))];
-    }
-    return ['@context' => 'https://schema.org', '@type' => 'BreadcrumbList', 'itemListElement' => $items];
+    return seo_ld_breadcrumb($crumbs);
 }
 
 /* ------------------------------------------------------------------ Small render helpers */
@@ -399,8 +408,9 @@ function sf_apply_props(array $programs, ?array $initial): array
     return [
         'endpoint' => base_url('api/public/apply'),
         'session' => sf_session_name(),
+        'applicationFee' => function_exists('sa_application_fee') ? sa_application_fee() : '₹999', // display text only
         'programs' => array_map(fn ($p) => [
-            'id' => (int) $p['id'], 'name' => $p['name'], 'short' => $p['short_name'], 'slug' => $p['slug'], 'level' => $p['level'], 'levelLabel' => program_level_label($p['level']),
+            'id' => (int) $p['id'], 'name' => $p['name'], 'short' => $p['short_name'], 'slug' => $p['slug'], 'code' => trim((string) ($p['code'] ?? '')) ?: null, 'level' => $p['level'], 'levelLabel' => program_level_label($p['level']),
             'category' => (string) $p['category'], 'duration' => (string) $p['duration_label'], 'fee' => sf_fee_text($p), 'eligibility' => (string) $p['eligibility'],
             'image' => site_image($p['image']), 'seats' => $p['intake_capacity'] ? (int) $p['intake_capacity'] : null, 'popular' => (bool) $p['is_popular'],
             'admissionFee' => money(admission_default_fee((int) $p['id'], $sessionId)), 'courses' => $courses[(int) $p['id']] ?? [],
@@ -522,10 +532,8 @@ function sf_apply_classic_form(array $programs, ?array $initial, array $old = []
         . $select('course_id', 'Specialisation (if applicable)', $courseOpts, ['placeholder' => 'No specialisation / decide later'])
         . $select('second_program_id', 'Second preference', $byLevel, ['placeholder' => 'None'])
         . $select('category', 'Category', $opt['categories'], ['required' => true, 'col' => 'sm:col-span-4'])
-        . $select('quota', 'Admission quota', $opt['quotas'], ['col' => 'sm:col-span-4', 'default' => 'general'])
-        . '<div class="flex flex-col justify-end gap-2 sm:col-span-4">'
-        . '<label class="flex items-center gap-2.5 text-sm"><input type="checkbox" name="hostel_required" value="1" class="form-check"' . (!empty($old['hostel_required']) ? ' checked' : '') . '>I need hostel accommodation</label>'
-        . '<label class="flex items-center gap-2.5 text-sm"><input type="checkbox" name="transport_required" value="1" class="form-check"' . (!empty($old['transport_required']) ? ' checked' : '') . '>I need college transport</label></div>');
+        . $select('quota', 'Admission quota', $opt['quotas'], ['col' => 'sm:col-span-4', 'default' => 'general']));
+    // (hostel / college-transport checkboxes removed — owner decision 2026-11-17: no hostel or transport is offered)
     $html .= $fieldset('2', 'Personal details', 'Enter your name exactly as on your Class 10 certificate.',
         $input('first_name', 'First name', ['required' => true, 'max' => 80, 'col' => 'sm:col-span-4', 'auto' => 'given-name'])
         . $input('middle_name', 'Middle name', ['max' => 80, 'col' => 'sm:col-span-4', 'auto' => 'additional-name'])

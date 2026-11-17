@@ -28,7 +28,7 @@ return function (array $opts): void {
     $email = $s('email', 'info@gimt.ac.in');
     $admEmail = $s('admission_email', 'admissions@gimt.ac.in');
     $supEmail = $s('support_email', 'support@gimt.ac.in');
-    $website = $s('website', 'www.gimt.ac.in');
+    $website = $s('website', 'https://gimtedu.com');
     $hours = $s('office_hours', 'Mon - Sat, 9:00 AM - 6:00 PM');
     $established = (int) $s('established_year', '0');
     $affiliation = $s('affiliation', '');
@@ -172,7 +172,7 @@ return function (array $opts): void {
             ]) . $p($ph('confirm the refund schedule adopted for the 2026-27 session as per the applicable UGC / AICTE fee-refund notification and the affiliating university')),
             'Seat vacated and filled' => $p('Where the regulations provide for it, if the seat vacated by a withdrawing student is filled by another candidate by the last date of admission, the fees collected are refunded after deducting the processing fee.'),
             'Cancellation by the institute' => $p('If the institute cancels a program or cannot offer the seat confirmed to a student, all fees paid are refunded in full. Admission cancelled because of false information, ineligibility or disciplinary action is governed by the ' . $a('/admission-policy', 'Admission Policy') . ' and the ' . $a('/code-of-conduct', 'Code of Conduct') . '.'),
-            'Hostel, transport and other fees' => $p('Hostel and transport fees are refunded on a pro-rata basis for the unused period after deducting dues. Caution money and security deposits are refunded after all dues are cleared ' . $ph('timeline for refund of caution money / security deposits') . '.'),
+            'Deposits and other fees' => $p('Caution money and security deposits are refunded after all dues are cleared ' . $ph('timeline for refund of caution money / security deposits') . '.'),
             'Original documents' => $p('Original certificates and documents submitted at admission are never withheld to compel payment of fees and are returned on withdrawal.'),
             'Failed, duplicate or excess online payments' => $p('If your account is debited but the payment is not confirmed, or you pay twice, write to the accounts office with the transaction reference. Verified excess or duplicate amounts are refunded to the original payment method ' . $ph('processing time for failed / duplicate online payments') . '.'),
             'How to apply for a refund' => $ol([
@@ -200,7 +200,7 @@ return function (array $opts): void {
     $pages['scholarship-policy'] = ['Scholarship Policy', 'Financial support for deserving students',
         'How scholarships and fee concessions are awarded at ' . $name . ': institute scholarships, government schemes, eligibility, renewal and withdrawal.',
         $doc($p($N . ' supports deserving students through institute scholarships and fee concessions and helps eligible students apply for government scholarship schemes. This policy sets out the principles; the scholarships available for each session and their amounts are published on the ' . $a('/admissions', 'Admissions') . ' page and in the prospectus.'), [
-            'Institute scholarships' => $p('Institute scholarships may be awarded for academic merit, sports and co-curricular achievement, economically weaker sections and other categories notified for the session. ' . $ph('scholarship categories, percentages and number of awards for 2026-27')),
+            'Institute scholarships' => $p('Institute scholarships may be awarded for academic merit, sports and co-curricular achievement, economically weaker sections and other categories notified for the session. For 2026-27 these are: merit scholarships of up to 50% of the tuition fee, plus sports, single girl child, economically weaker section, defence ward and sibling scholarships.'),
             'Government scholarships' => $p('Eligible students can apply for central and state government schemes, for example through the National Scholarship Portal (scholarships.gov.in) and the Government of Uttar Pradesh scholarship and fee-reimbursement portal. The institute verifies applications and forwards them within the deadlines notified by the authorities.'),
             'Eligibility and selection' => $ul([
                 'Scholarships are awarded on the basis of documents submitted at admission and verified by the scholarship committee.',
@@ -220,7 +220,7 @@ return function (array $opts): void {
     $pages['fee-policy'] = ['Fee Policy', 'Fees, payment schedule, receipts and dues',
         'How fees are fixed, notified, paid and receipted at ' . $name . ', including instalments, late fees and no-dues requirements.',
         $doc($p('This policy explains how fees are notified and paid at ' . $N . '. The fee for each program and session is published on the ' . $a('/admissions', 'Admissions') . ' page and in the fee notice issued by the accounts office.'), [
-            'Fee structure' => $p('Fees are fixed for each program and session in accordance with the norms of the regulators, the affiliating university and the fee-fixation authority of the state, where applicable. ' . $ph('authority approving the fee structure and reference of the approval') . ' The fee notice lists tuition and other heads (such as examination, library and development fees) and optional services such as hostel and transport.'),
+            'Fee structure' => $p('Fees are fixed for each program and session in accordance with the norms of the regulators, the affiliating university and the fee-fixation authority of the state, where applicable. ' . $ph('authority approving the fee structure and reference of the approval') . ' The fee notice lists tuition and other heads (such as examination, library and development fees).'),
             'No capitation fee' => $p('No capitation fee or donation is charged. Any amount paid must be against an official receipt issued by the institute.'),
             'Payment schedule' => $p('Fees are payable semester-wise or annually by the due dates in the fee notice. Instalments may be permitted in genuine cases on written request to the accounts office. ' . $ph('instalment rules')),
             'Payment modes' => $p('Fees can be paid at the accounts office or by bank transfer, UPI and other modes notified by the institute. Payments to individuals or third-party agents are not valid.'),
@@ -252,7 +252,7 @@ return function (array $opts): void {
 
     $pages['code-of-conduct'] = ['Code of Conduct', 'Respect, integrity and responsibility on campus and online',
         'The standards of behaviour expected from students, faculty and staff of ' . $name . ', and how breaches are handled.',
-        $doc($p('Our community depends on respect, integrity and responsibility. This code applies to every student, faculty member and staff member of ' . $N . ' on campus, in hostels and transport, during internships, field visits and events, and online when representing the institute.'), [
+        $doc($p('Our community depends on respect, integrity and responsibility. This code applies to every student, faculty member and staff member of ' . $N . ' on campus, during internships, field visits and events, and online when representing the institute.'), [
             'Respect for others' => $ul([
                 'Treat every member of the community with dignity, regardless of gender, caste, religion, region, language, disability or background.',
                 'Ragging in any form is a criminal offence and strictly prohibited — see the ' . $a('/anti-ragging-policy', 'Anti-Ragging Policy') . '.',
@@ -263,8 +263,8 @@ return function (array $opts): void {
             'Campus life' => $ul([
                 'Carry your institute identity card on campus and show it when asked.',
                 'The campus is free of tobacco, alcohol and drugs. Possession or use of these substances, weapons or anything dangerous is prohibited.',
-                'Take care of institute property, laboratories, the library and hostels; damage is recoverable.',
-                'Follow the dress code and the rules of the hostel, library, laboratories and transport as notified. ' . $ph('dress code, if any'),
+                'Take care of institute property, laboratories and the library; damage is recoverable.',
+                'Follow the dress code and the rules of the library and laboratories as notified. ' . $ph('dress code, if any'),
             ]),
             'Digital conduct' => $p('Use the institute’s network, email and systems responsibly. Do not share your passwords, access other people’s accounts, post offensive or defamatory content about members of the community, or record and share others without their consent.'),
             'Faculty and staff' => $p('Faculty and staff are expected to act fairly and professionally, maintain confidentiality of student records, avoid conflicts of interest and follow the service rules of the institute.'),
@@ -273,30 +273,28 @@ return function (array $opts): void {
         ]), [], 'policies', 40, 'default'];
 
     /* ------------------------------------------------------------------ Student welfare & statutory committees */
-    $pages['anti-ragging-policy'] = ['Anti-Ragging Policy', 'Zero tolerance for ragging — on campus, in hostels and online',
+    $pages['anti-ragging-policy'] = ['Anti-Ragging Policy', 'Zero tolerance for ragging — on campus and online',
         'Ragging is a criminal offence and is completely prohibited at ' . $name . '. How we prevent it, how to report it, and the action taken.',
-        $doc($p($N . ' has zero tolerance for ragging. This policy follows the UGC Regulations on Curbing the Menace of Ragging in Higher Educational Institutions, 2009 (as amended), the corresponding AICTE regulations and the directions of the Hon’ble Supreme Court of India. It applies on campus and off campus — in classrooms, hostels, transport, at events and online.'), [
+        $doc($p($N . ' has zero tolerance for ragging. This policy follows the UGC Regulations on Curbing the Menace of Ragging in Higher Educational Institutions, 2009 (as amended), the corresponding AICTE regulations and the directions of the Hon’ble Supreme Court of India. It applies on campus and off campus — in classrooms, at events and online.'), [
             'What is ragging' => $p('Ragging is any conduct by a student or students — by words spoken or written, or by an act — that teases, treats rudely or handles another student with indiscipline; causes annoyance, hardship, physical or psychological harm, or fear; asks a student to do something they would not ordinarily do and which causes shame or embarrassment; exploits a student’s services for any purpose; or involves financial extortion, physical abuse, sexual abuse, or abuse on the basis of colour, race, religion, caste, ethnicity, gender, sexual orientation, appearance, nationality, region, linguistic identity, place of birth, place of residence or economic background. It includes such conduct in person and through phones, messaging and social media.'),
             'Our commitments' => $ul([
-                'An Anti-Ragging Committee and an Anti-Ragging Squad that make surprise checks in hostels, transport, canteens and other vulnerable places, especially at the start of the session.',
+                'An Anti-Ragging Committee and an Anti-Ragging Squad that make surprise checks at vulnerable places, especially at the start of the session.',
                 'A mentoring cell in which senior students and faculty mentors support new students.',
-                'Information about this policy and the helplines in the prospectus, at prominent places on campus and in every hostel.',
+                'Information about this policy and the helplines in the prospectus and at prominent places on campus.',
                 'Prompt action on every complaint, including anonymous ones, with protection for the complainant and witnesses.',
             ]),
             'Undertaking by students and parents' => $p('Every student and their parent or guardian must submit an online undertaking against ragging each academic year through the national anti-ragging portal (www.antiragging.in) and submit the acknowledgement to the institute at admission.'),
             'How to report ragging' => $ol([
-                'Contact any member of the Anti-Ragging Squad or Committee listed below, a faculty mentor or the hostel warden — at any time.',
+                'Contact any member of the Anti-Ragging Squad or Committee listed below or a faculty mentor — at any time.',
                 'Call the National Anti-Ragging Helpline <strong>1800-180-5522</strong> (toll free, 24×7) or email <a href="mailto:helpline@antiragging.in">helpline@antiragging.in</a>.',
                 'Write to ' . $mail($email) . ' or call ' . $tel($phone) . '. You do not need to give your name.',
             ]),
             'Anti-Ragging Committee and Squad' => $table(['Role', 'Name and designation', 'Phone', 'Email'], [
                 ['Chairperson, Anti-Ragging Committee', $ph('name'), $ph('phone'), $ph('email')],
                 ['Convener, Anti-Ragging Squad', $ph('name'), $ph('phone'), $ph('email')],
-                ['Chief Warden (Boys’ hostel)', $ph('name'), $ph('phone'), $ph('email')],
-                ['Chief Warden (Girls’ hostel)', $ph('name'), $ph('phone'), $ph('email')],
                 ['Local police station / SHO', $ph('police station and phone'), $ph('phone'), '—'],
             ]),
-            'Action against ragging' => $p('Depending on the nature and gravity of the incident, the Anti-Ragging Committee may impose one or more of the punishments provided in the regulations, including suspension from classes and academic privileges, withholding of scholarships and other benefits, debarring from examinations or withholding results, suspension or expulsion from the hostel, cancellation of admission, rustication and expulsion, and a fine. Where the incident amounts to a criminal offence, a First Information Report (FIR) is lodged with the police. If the persons responsible cannot be identified, collective punishment may be imposed as permitted by the regulations.'),
+            'Action against ragging' => $p('Depending on the nature and gravity of the incident, the Anti-Ragging Committee may impose one or more of the punishments provided in the regulations, including suspension from classes and academic privileges, withholding of scholarships and other benefits, debarring from examinations or withholding results, cancellation of admission, rustication and expulsion, and a fine. Where the incident amounts to a criminal offence, a First Information Report (FIR) is lodged with the police. If the persons responsible cannot be identified, collective punishment may be imposed as permitted by the regulations.'),
             'Support for students' => $p('Students affected by ragging receive counselling and academic support. Any attempt to threaten or victimise a complainant or witness is itself treated as ragging.'),
         ]), [], 'policies', 41, 'default'];
 
@@ -308,7 +306,7 @@ return function (array $opts): void {
                 'Admission — eligibility decisions, merit, reservation, documents and the withholding of certificates.',
                 'Fees — demands contrary to the published fee structure, refunds and scholarships.',
                 'Examinations — conduct of examinations, evaluation, results and the issue of marksheets or certificates.',
-                'Academics and services — teaching, attendance, internships, library, hostel, transport and other facilities.',
+                'Academics and services — teaching, attendance, internships, library and other facilities.',
                 'Harassment, discrimination or victimisation. Complaints of sexual harassment go to the ' . $a('/internal-complaints-committee', 'Internal Complaints Committee') . ', and complaints of ragging to the Anti-Ragging Committee (' . $a('/anti-ragging-policy', 'Anti-Ragging Policy') . ').',
             ]),
             'How to submit a grievance' => $ol([
@@ -390,12 +388,11 @@ return function (array $opts): void {
                 ['Phone', $tel($phone)],
                 ['Email', $mail($email)],
                 ['Website', e($website)],
-                ['Year of establishment', $established > 1900 ? (string) $established : $ph('year of establishment')],
                 ['Type of institute', $ph('e.g. private, self-financing')],
                 ['Name of the society / trust', $ph('name and registration number of the sponsoring society or trust')],
                 ['Head of the institute', $ph('name, designation, phone and email of the Director / Principal')],
             ]),
-            'Affiliation and approvals' => ($affiliation !== '' ? $p('As recorded by the institute: ' . e($affiliation) . '.') : '') . $table(['Item', 'Details'], [
+            'Affiliation and approvals' => ($affiliation !== '' && $s('site_show_approvals', '0') === '1' ? $p('As recorded by the institute: ' . e($affiliation) . '.') : '') . $table(['Item', 'Details'], [
                 ['Affiliating university', $ph('name of the affiliating university and affiliation reference')],
                 ['AICTE approval', $ph('approval / extension of approval letter number and date for the current session')],
                 ['Other recognitions or accreditations', $ph('e.g. NAAC / NBA status, if any')],
@@ -447,13 +444,12 @@ return function (array $opts): void {
         ], 'academics', 4, 'default'];
 
     $pages['campus-life'] = ['Campus Life', 'A place to learn, grow and thrive',
-        'Clubs, sports, events, hostels and student support on the ' . $name . ' campus.',
-        $p('Life at ' . $N . ' goes well beyond the classroom — student clubs, sports, cultural events, community service and a supportive campus community. Find details of facilities, hostels and events on our ' . $a('/campus', 'Campus Life') . ' page.'),
+        'Clubs, events and student support at ' . $name . '.',
+        $p('Life at ' . $N . ' goes well beyond the classroom — student clubs, cultural events, community service and a supportive campus community. Find details of facilities and events on our ' . $a('/campus', 'Campus Life') . ' page.'),
         [
             $b('p08-cl-1', 'gallery', ['eyebrow' => 'Campus in pictures', 'heading' => 'Life on campus', 'subheading' => '', 'source' => 'manual', 'gallery_id' => null, 'layout' => 'grid', 'columns' => '3', 'items' => [
-                ['image' => 'assets/images/site/students-lawn.jpg', 'alt' => 'Students studying together on the campus lawn', 'caption' => 'Campus lawns'],
                 ['image' => 'assets/images/site/facility-library.jpg', 'alt' => 'Library reading hall', 'caption' => 'Library'],
-                ['image' => 'assets/images/site/facility-sports.jpg', 'alt' => 'Outdoor sports courts', 'caption' => 'Sports'],
+                ['image' => 'assets/images/site/facility-classroom.jpg', 'alt' => 'Smart classroom', 'caption' => 'Classrooms'],
             ]], ['background' => 'light']),
         ], 'campus', 5, 'default'];
 

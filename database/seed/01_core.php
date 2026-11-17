@@ -86,10 +86,10 @@ return function (array $opts): void {
     $settings = [
         'general' => [
             'institute_name' => 'Global Institute of Management & Technology', 'institute_short_name' => 'GIMT', 'brand_name' => 'Global IMT',
-            'tagline' => 'Education • Innovation • Opportunity', 'established_year' => '2008',
+            'tagline' => 'Education • Innovation • Opportunity', 'established_year' => '', // founding year: none published (owner decision 2026-11-17)
             'address' => 'Wave One, 36th Floor, L-2A, Pocket G, Sector 18, Noida, Uttar Pradesh - 201301', 'city' => 'Noida', 'state' => 'Uttar Pradesh',
-            'country' => 'India', 'pincode' => '201301', 'phone' => '+91 90600 31540', 'phone_alt' => '+91 120 4567890', 'email' => 'info@gimt.ac.in',
-            'admission_email' => 'admissions@gimt.ac.in', 'support_email' => 'support@gimt.ac.in', 'website' => 'www.gimt.ac.in',
+            'country' => 'India', 'pincode' => '201301', 'phone' => '+91 90600 31540', 'phone_alt' => '', 'email' => 'info@gimt.ac.in',
+            'admission_email' => 'admissions@gimt.ac.in', 'support_email' => 'support@gimt.ac.in', 'website' => 'https://gimtedu.com',
             'office_hours' => 'Mon - Sat, 9:00 AM - 6:00 PM', 'affiliation' => 'Affiliated to State University · Approved by AICTE',
             'map_embed_url' => 'https://www.google.com/maps?q=Wave+One,+Sector+18,+Noida,+Uttar+Pradesh+201301&output=embed', 'latitude' => '', 'longitude' => '',
             'date_format' => 'd M Y', 'timezone' => 'Asia/Kolkata', 'currency_code' => 'INR', 'currency_symbol' => '₹',

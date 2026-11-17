@@ -12,6 +12,7 @@
 require __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/partials/public_career.php';
 require_once APP_ROOT . '/app/services/alumni.php';
+require_once APP_ROOT . '/app/services/seo_schema.php'; // seo_ld_org_ref(): organizer = the site organisation @id
 
 $cms = pc_cms_page('alumni');
 $stats = pc_alumni_stats();
@@ -59,7 +60,7 @@ foreach ($events as $ev) {
         'location' => $online ? $virtual : ($ev['mode'] === 'hybrid' ? [$place, $virtual] : $place),
         'description' => $ev['description'] ? pc_plain((string) $ev['description'], 300) : null,
         'image' => pc_image_ok($ev['image']) && !preg_match('#^https?://#i', (string) $ev['image']) ? absolute_url(ltrim((string) $ev['image'], '/')) : null,
-        'organizer' => ['@type' => 'CollegeOrUniversity', 'name' => institute_name(), 'url' => absolute_url('')],
+        'organizer' => seo_ld_org_ref(),
     ], fn ($v) => $v !== null);
 }
 

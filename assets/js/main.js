@@ -195,7 +195,7 @@
           if (res.ok) {
             form.reset();
             if (msg) { msg.className = 'form-message form-message-success'; msg.textContent = res.message || form.getAttribute('data-success') || 'Submitted successfully.'; }
-            form.dispatchEvent(new CustomEvent('form:success', { detail: res }));
+            form.dispatchEvent(new CustomEvent('form:success', { detail: res, bubbles: true }));
             if (res.data && res.data.redirect) window.location.href = res.data.redirect;
           } else {
             if (msg) { msg.className = 'form-message form-message-error'; msg.textContent = res.message || 'Please check the form and try again.'; }

@@ -18,19 +18,19 @@ $name = institute_name();
 
 site_header([
     'title' => 'Contact Us — Admissions, Campus Visits & Support',
-    'description' => 'Contact Global Institute of Management & Technology (GIMT), ' . $city . '. Call ' . $c['phone'] . ', email ' . $c['email'] . ', visit our Sector 18 campus or send us a message — we reply within 24 hours.',
+    'description' => site_meta_description('Contact ' . $name . ' (' . setting('institute_short_name', 'GIMT') . '), ' . $city . '. Call ' . $c['phone'] . ', email ' . $c['email'] . ', visit our ' . $city . ' campus or send us a message — we reply within 24 hours.'),
     'active' => 'contact', 'seo' => ['route', '/contact'], 'announce' => false, 'loader' => false,
-    'schema' => [
+    // ContactPage about the site organisation (@id — its address, logo and profiles come from the header's entity);
+    // the contact points listed on this page are added to that same entity
+    'schema' => array_values(array_filter([
         sf_breadcrumb_schema(['Home' => '', 'Contact Us' => 'contact']),
         ['@context' => 'https://schema.org', '@type' => 'ContactPage', 'name' => 'Contact ' . $name, 'url' => absolute_url('contact'),
-         'mainEntity' => ['@type' => 'CollegeOrUniversity', 'name' => $name, 'telephone' => $c['phone'], 'email' => $c['email'],
-             'address' => ['@type' => 'PostalAddress', 'streetAddress' => $c['address'], 'addressLocality' => $city, 'addressRegion' => setting('state', 'Uttar Pradesh'), 'postalCode' => setting('pincode', '201301'), 'addressCountry' => 'IN'],
-             'contactPoint' => [
-                 ['@type' => 'ContactPoint', 'contactType' => 'admissions', 'telephone' => $c['phone'], 'email' => $c['admission_email'], 'areaServed' => 'IN', 'availableLanguage' => ['English', 'Hindi']],
-                 ['@type' => 'ContactPoint', 'contactType' => 'customer support', 'email' => $c['support_email'], 'areaServed' => 'IN'],
-             ]]],
+         'mainEntity' => seo_ld_org_ref() + ['contactPoint' => array_values(array_filter([
+             seo_ld_clean(['@type' => 'ContactPoint', 'contactType' => 'admissions', 'telephone' => $c['phone'], 'email' => $c['admission_email'], 'areaServed' => 'IN']),
+             $c['support_email'] !== '' ? ['@type' => 'ContactPoint', 'contactType' => 'customer support', 'email' => $c['support_email'], 'areaServed' => 'IN'] : null,
+         ]))]],
         sf_faq_schema($faqs),
-    ],
+    ])),
 ]);
 
 site_form_page_hero('Contact Us', 'Admissions, programs, campus visits or student support — send us a message and our team replies within 24 hours.', ['Contact Us']);
@@ -96,7 +96,7 @@ $details = array_values(array_filter([
         <?php if ($c['map_embed'] !== '' && preg_match('#^https://(www\.)?google\.[a-z.]+/maps#', $c['map_embed'])): ?>
           <iframe src="<?= e($c['map_embed']) ?>" title="Map showing the location of <?= e($name) ?>" class="absolute inset-0 h-full w-full border-0" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
         <?php else: ?>
-          <img src="<?= e(asset('assets/images/site/campus-main.jpg')) ?>" alt="<?= e($name) ?> campus" loading="lazy" decoding="async" class="absolute inset-0 h-full w-full object-cover">
+          <img src="<?= e(asset('assets/images/site/campus-main.jpg')) ?>" alt="<?= e($name) ?> campus"<?= seo_ld_img_dims('assets/images/site/campus-main.jpg') ?> loading="lazy" decoding="async" class="absolute inset-0 h-full w-full object-cover">
           <div class="absolute inset-x-4 bottom-4"><?= button_link('Open in Google Maps', $c['map_url'], 'white', ['icon' => 'external-link', 'target' => '_blank']) ?></div>
         <?php endif; ?>
       </div>

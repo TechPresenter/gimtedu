@@ -1,6 +1,7 @@
 import { $, $$ } from './dom';
 import { mountIslandsNow } from './islands';
 import { closeLayer, openLayer } from './overlays';
+import { trackEvent } from './track';
 
 /**
  * Enquiry popup (enquiry_modal() in includes/components.php — markup [data-enquiry-popup], opened like every other
@@ -12,8 +13,10 @@ import { closeLayer, openLayer } from './overlays';
  *    never again for 30 days after the visitor sent an enquiry (localStorage "gimt.popup.done": any lead form with a
  *    phone field that fires form:success, and every island lead — `gimt:lead` from forms/security.ts pushLead(): the
  *    homepage Smart Enquiry, the Apply wizard, the chat callback card);
- *  - warmed up before it shows (photo loaded, EnquiryForm island mounted while still hidden): ~2 s after load when it
- *    will open by itself, and on intent (pointer over / focus on / touch of a [data-modal-open] trigger) for clicks;
+ *  - warmed up before it shows: its EnquiryForm island is mounted while still hidden ~1.5 s before it opens by itself
+ *    (not during the page load), and on intent (pointer over / focus on / touch of a [data-modal-open] trigger) for
+ *    clicks; its photo (a resized WebP, includes/components.php enquiry_popup_image()) is only downloaded when the
+ *    popup opens or on that intent — never on a page view where it does not open;
  *  - phones / touch screens (< 768 px or coarse pointer): only after ≥ 35 % of the page was scrolled or 20 s passed,
  *    and never before the delay;
  *  - never on top of another open layer (modal, drawer, search, cookie banner / preferences, chat window) — it waits
@@ -73,8 +76,8 @@ function busy(): boolean {
  * dialog opens — it would pop in) and mount its EnquiryForm island (no visible fallback → island swap after opening).
  * Called on intent (pointer / focus / touch on a trigger), while waiting for the automatic opening, and on open.
  */
-function warm(modal: HTMLElement): void {
-  $$<HTMLImageElement>('img[loading="lazy"]', modal).forEach((img) => (img.loading = 'eager'));
+function warm(modal: HTMLElement, photo = true): void {
+  if (photo) $$<HTMLImageElement>('img[loading="lazy"]', modal).forEach((img) => (img.loading = 'eager'));
   mountIslandsNow(modal);
 }
 
@@ -84,8 +87,7 @@ function open(modal: HTMLElement, trigger: 'auto' | 'preview'): void {
   const card = $<HTMLElement>('.epop', modal) ?? modal;
   openLayer(modal, { focus: card });
   modal.setAttribute('data-opened-by', trigger);
-  const w = window as Window & { dataLayer?: unknown[] };
-  if (Array.isArray(w.dataLayer)) w.dataLayer.push({ event: 'enquiry_popup_open', trigger });
+  trackEvent('enquiry_popup_open', { trigger });
 }
 
 export function initEnquiryPopup(): void {
@@ -148,14 +150,19 @@ function initEnquiry(): boolean {
   if (read('session', SEEN) || recentlyDone()) return false;
 
   const delayMs = Math.min(60, Math.max(3, Number(modal.dataset.popupAuto) || 8)) * 1000;
-  // it will open by itself: prepare it in the background once the page has loaded (well before the delay)
-  const prepare = () => window.setTimeout(() => warm(modal), Math.min(2000, delayMs / 3));
-  if (document.readyState === 'complete') prepare();
-  else window.addEventListener('load', prepare, { once: true });
   const touch = touchScreen();
   const start = performance.now();
   let done = false;
   let timer = 0;
+  // it will open by itself: mount its form ~1.5 s before that (not while the page is still loading); the photo waits
+  // for open()
+  let prepared = false;
+  const prepare = (elapsed: number) => {
+    if (prepared || elapsed < delayMs - 1500) return;
+    if (touch && !(scrolledShare() >= 0.25 || elapsed >= 18500)) return;
+    prepared = true;
+    warm(modal!, false);
+  };
 
   const stop = () => {
     done = true;
@@ -167,6 +174,7 @@ function initEnquiry(): boolean {
     if (done) return;
     if (read('session', SEEN) || recentlyDone()) return stop(); // opened by a click meanwhile, or a lead was sent
     const elapsed = performance.now() - start;
+    if (document.readyState === 'complete') prepare(elapsed);
     if (elapsed < delayMs) return;
     if (touch && !(scrolledShare() >= 0.35 || elapsed >= 20000)) return;
     if (document.hidden || busy()) return; // try again on the next tick
@@ -192,8 +200,7 @@ function initNoticePopup(enquiryFirst: boolean): void {
     if (key) write('session', key, '1');
     $$<HTMLImageElement>('img[loading="lazy"]', modal).forEach((img) => (img.loading = 'eager'));
     openLayer(modal, { focus: card });
-    const w = window as Window & { dataLayer?: unknown[] };
-    if (Array.isArray(w.dataLayer)) w.dataLayer.push({ event: 'notice_popup_open', trigger, notice: key });
+    trackEvent('notice_popup_open', { trigger, notice: key });
   };
   // following one of its links (same-page anchors included) closes it
   modal.addEventListener('click', (e) => {

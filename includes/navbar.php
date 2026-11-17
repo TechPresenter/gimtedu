@@ -67,7 +67,7 @@ if (!$menu) {
             ['title' => 'Apply Online', 'url' => '/apply', 'icon' => 'file-text', 'description' => 'Start your application in minutes', 'children' => []],
             ['title' => 'Fees & Scholarships', 'url' => '/admissions#fees', 'icon' => 'wallet', 'description' => 'Fee structure, instalments & awards', 'children' => []],
             ['title' => 'Eligibility & Documents', 'url' => '/admissions#eligibility', 'icon' => 'file-check', 'description' => 'Who can apply and what to upload', 'children' => []],
-            ['title' => 'Important Dates', 'url' => '/admissions#dates', 'icon' => 'calendar-days', 'description' => 'Deadlines for the ' . (current_session()['name'] ?? '2026-27') . ' session', 'children' => []],
+            ['title' => 'Important Dates', 'url' => '/admissions#dates', 'icon' => 'calendar-days', 'description' => 'Key dates of the ' . (current_session()['name'] ?? '2026-27') . ' session', 'children' => []],
             ['title' => 'FAQs', 'url' => '/faq', 'icon' => 'message-circle', 'description' => 'Answers to common questions', 'children' => []],
         ]],
         ['title' => 'Academics', 'url' => '/academics', 'children' => [
@@ -79,9 +79,9 @@ if (!$menu) {
             ['title' => 'Verify Certificate', 'url' => '/verify-certificate', 'icon' => 'circle-check', 'description' => 'Check a GIMT certificate online', 'children' => []],
         ]],
         ['title' => 'Campus Life', 'url' => '/campus', 'children' => [
-            ['title' => 'Campus & Facilities', 'url' => '/campus', 'icon' => 'building', 'description' => 'Labs, library, hostel and sports', 'children' => []],
+            ['title' => 'Campus & Facilities', 'url' => '/campus', 'icon' => 'building', 'description' => 'Classrooms, computer lab and library', 'children' => []],
             ['title' => 'Student Life & Clubs', 'url' => '/campus-life', 'icon' => 'palette', 'description' => 'Clubs, fests and student activities', 'children' => []],
-            ['title' => 'Placements', 'url' => '/placement', 'icon' => 'briefcase-business', 'description' => 'Training, drives and recruiters', 'children' => []],
+            ['title' => 'Placements', 'url' => '/placement', 'icon' => 'briefcase-business', 'description' => 'Placement assistance and career guidance', 'children' => []],
             ['title' => 'Alumni', 'url' => '/alumni', 'icon' => 'users', 'description' => 'Our global alumni network', 'children' => []],
             ['title' => 'Photo Gallery', 'url' => '/gallery', 'icon' => 'image', 'description' => 'Campus moments in pictures', 'children' => []],
         ]],
@@ -277,7 +277,7 @@ $drawerDeadline = site_admissions_deadline();
     <?php $di = 0; if ($drawerAdmit !== ''): ?>
     <a href="<?= e(site_url('admissions')) ?>" class="drawer-admit drawer-item" style="--i:0">
       <span class="drawer-admit-dot" aria-hidden="true"></span>
-      <span class="min-w-0 flex-1"><span class="block truncate font-bold"><?= e($drawerAdmit) ?></span><?php if ($drawerDeadline): ?><span class="block text-[12px] font-medium opacity-80">Last date to apply: <?= e(date('j M Y', $drawerDeadline)) ?></span><?php endif; ?></span>
+      <span class="min-w-0 flex-1"><span class="block truncate font-bold"><?= e($drawerAdmit) ?></span><span class="block text-[12px] font-medium opacity-80"><?= $drawerDeadline ? 'Last date to apply: ' . e(date('j M Y', $drawerDeadline)) : 'Rolling admissions — until seats are filled' ?></span></span>
       <?= icon('arrow-right', 'h-4 w-4 shrink-0') ?>
     </a>
     <?php endif; ?>

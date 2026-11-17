@@ -60,8 +60,8 @@ if (!$faqs) {
             . ($certs ? ', plus ' . count($certs) . ' short certificate courses in management, computers, communication, AI and career skills (see ' . absolute_url('certifications') . ').' : '.')],
         ['q' => 'What is the eligibility for undergraduate programs?', 'a' => $ugElig ?: 'Candidates need 10+2 or equivalent from a recognised board. Program-specific requirements are listed on each program page.'],
         ['q' => 'What is the eligibility for postgraduate programs?', 'a' => $pgElig ?: 'A bachelor’s degree from a recognised university. Program-specific requirements are listed on each program page.'],
-        ['q' => 'How much are the program fees?', 'a' => $fees ? 'Fees for the ' . ($session['name'] ?? 'current') . ' session range from ' . money(min($fees)) . ' to ' . money(max($fees)) . ' per year (certificate programs are charged per course). Merit, sports and need-based scholarships and education-loan assistance are available.' : 'Fees are listed on each program page. Merit and need-based scholarships are available.'],
-        ['q' => 'How do I apply for admission?', 'a' => "Choose your program and fill in the online application at " . absolute_url('apply') . ". Upload your documents, pay the registration fee and our admission team will verify your application.\n\nNeed guidance first? Request a free counselling call using the form on this page or call " . setting('phone', '+91 9955446477') . '.'],
+        ['q' => 'How much are the program fees?', 'a' => $fees ? 'Fees for the ' . ($session['name'] ?? 'current') . ' session range from ' . money(min($fees)) . ' to ' . money(max($fees)) . ' per year (certificate programs are charged per course). The application (registration) fee is ' . sa_application_fee() . '. ' . sa_scholarship_statement() . '.' : 'Fees are listed on each program page. ' . sa_scholarship_statement() . '.'],
+        ['q' => 'How do I apply for admission?', 'a' => sa_how_to_apply() . "\n\nNeed guidance first? Request a free counselling call using the form on this page or call " . setting('phone', '+91 9955446477') . '.'],
         ['q' => 'Can I talk to a counsellor before choosing a program?', 'a' => 'Yes. Our admission counsellors help you compare programs, eligibility, fees and career outcomes. Submit the counselling form and we will call you within one working day.'],
     ];
 }
@@ -89,21 +89,21 @@ site_header([
     'seo' => ['route', '/programs'],
     'image' => $heroImg,
     'preload' => [asset($heroImg)],
+    // Course list (the programs the explorer shows, provider = the site organisation @id) + FAQPage of the FAQ section
     'schema' => array_values(array_filter([
         sa_breadcrumb_ld([['Home', ''], ['Programs', null]]),
-        sa_seo_schema_has('ItemList', 'route', null, '/programs') ? null : ['@context' => 'https://schema.org', '@type' => 'ItemList', 'name' => 'Academic programs at ' . institute_name(), 'numberOfItems' => count($programs),
-         'itemListElement' => array_map(fn ($p, $i) => ['@type' => 'ListItem', 'position' => $i + 1, 'item' => ['@type' => 'Course', 'name' => $p['name'], 'url' => absolute_url('programs/' . $p['slug']),
-             'description' => str_limit((string) $p['overview'], 250), 'provider' => ['@type' => 'CollegeOrUniversity', 'name' => institute_name(), 'sameAs' => absolute_url('')]]], $programs, array_keys($programs))],
+        sa_seo_schema_has('ItemList', 'route', null, '/programs') ? null : seo_ld_course_list($programs, 'Academic programs at ' . institute_name()),
+        sa_seo_schema_has('FAQPage', 'route', null, '/programs') ? null : seo_ld_faq($faqs),
     ])),
 ]);
 
 page_hero('Academic Programs', 'Future-Ready Programs for a Brighter Tomorrow', ['Programs'], $heroImg,
-    'Explore our wide range of undergraduate, postgraduate, diploma and certificate programs designed to build industry-ready skills and unlock global opportunities.',
+    'Explore our undergraduate, postgraduate, diploma and certificate programs in Noida, designed to build industry-ready skills. ' . sa_admission_window() . '.',
     [
         ['icon' => 'presentation', 'label' => 'Industry Relevant Curriculum'],
         ['icon' => 'user-round', 'label' => 'Experienced Faculty'],
-        ['icon' => 'building-2', 'label' => 'Modern Infrastructure'],
-        ['icon' => 'globe', 'label' => 'Global Career Opportunities'],
+        ['icon' => 'award', 'label' => 'Scholarships up to 50%'],
+        ['icon' => 'handshake', 'label' => 'Placement Assistance'],
     ],
     ['script' => 'Learn Grow Innovate Succeed', 'image_alt' => 'GIMT students collaborating on a laptop on campus']);
 ?>
@@ -111,6 +111,15 @@ page_hero('Academic Programs', 'Future-Ready Programs for a Brighter Tomorrow', 
 <!-- Find your program: explorer + sticky counselling sidebar -->
 <?= section_open(['id' => 'find', 'bg' => 'brand-soft', 'class' => 'scroll-mt-20 !pt-12 sm:!pt-14']) ?>
   <?= section_heading('Find Your Program', 'Choose from our diverse range of programs across multiple disciplines.', '', 'left', '<a href="#compare" class="link-arrow">Compare All Programs' . icon('arrow-right', 'h-4 w-4') . '</a>') ?>
+  <?php if ($landings = sa_landing_pages()): ?>
+    <nav class="-mt-4 mb-8" aria-label="Programs by level and department">
+      <p class="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">Browse by level &amp; department</p>
+      <ul class="flex flex-wrap gap-2">
+        <?php foreach ($landings as $lp): ?><li><a href="<?= e(site_url('programs/' . $lp['slug'])) ?>" class="chip"><?= icon($lp['type'] === 'level' ? 'graduation-cap' : 'school', 'h-4 w-4') ?><?= e($lp['title']) ?> <span class="chip-count"><?= count($lp['programs']) ?></span></a></li><?php endforeach; ?>
+        <?php if ($certs): ?><li><a href="<?= e(site_url('certifications')) ?>" class="chip"><?= icon('badge-check', 'h-4 w-4') ?>Certificate Courses <span class="chip-count"><?= count($certs) ?></span></a></li><?php endif; ?>
+      </ul>
+    </nav>
+  <?php endif; ?>
   <?php if ($programs): ?>
     <div class="program-views flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_auto_auto_1fr] lg:gap-x-8 xl:grid-cols-[minmax(0,1fr)_340px]
                 [&>[data-island]]:contents [&_.program-explorer]:contents
@@ -170,7 +179,7 @@ page_hero('Academic Programs', 'Future-Ready Programs for a Brighter Tomorrow', 
           $certs ? $table($certs) . '<p class="mt-3 text-sm"><a href="' . e(site_url('certifications')) . '" class="link-arrow">Browse certificate courses by group' . icon('arrow-right', 'h-4 w-4') . '</a></p>' : null])),
       ['variant' => 'pills']
   ) ?>
-  <p class="mt-4 flex items-start gap-2 text-sm text-slate-500"><?= icon('info', 'mt-0.5 h-4 w-4 shrink-0 text-brand-500') ?>Tuition fees<?= $session ? ' for ' . e($session['name']) : '' ?> are per year (certificate programs per course); hostel, transport and examination fees are charged separately. Scholarships are available on merit and need.</p>
+  <p class="mt-4 flex items-start gap-2 text-sm text-slate-500"><?= icon('info', 'mt-0.5 h-4 w-4 shrink-0 text-brand-500') ?>Tuition fees<?= $session ? ' for ' . e($session['name']) : '' ?> are per year (certificate programs per course); examination fees are charged separately. Application (registration) fee <?= e(sa_application_fee()) ?>. <?= e(sa_scholarship_statement()) ?>.</p>
 <?= section_close() ?>
 <?php endif; ?>
 
@@ -180,17 +189,17 @@ page_hero('Academic Programs', 'Future-Ready Programs for a Brighter Tomorrow', 
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8" data-stagger="60">
     <?php foreach ([
         ['graduation-cap', 'Industry-Aligned Curriculum', 'blue'], ['users', 'Expert Faculty & Mentorship', 'green'], ['presentation', 'Practical Learning', 'cyan'],
-        ['briefcase-business', 'Internship Opportunities', 'violet'], ['handshake', 'Placement Support', 'blue'], ['globe', 'Global Exposure', 'violet'],
-        ['building-2', 'Modern Infrastructure', 'cyan'], ['lightbulb', 'Holistic Development', 'green'],
+        ['briefcase-business', 'Internship Opportunities', 'violet'], ['handshake', 'Placement Assistance', 'blue'], ['award', 'Merit Scholarships', 'violet'],
+        ['map-pin', 'Sector 18, Noida', 'cyan'], ['lightbulb', 'Holistic Development', 'green'],
     ] as [$ic, $label, $tint]): ?><?= sa_icon_tile($ic, $label, $tint) ?><?php endforeach; ?>
   </div>
 <?= section_close() ?>
 
 <!-- Career opportunities: recruiters -->
 <?= section_open(['id' => 'careers']) ?>
-  <?= section_heading('Career Opportunities', 'Our graduates are placed in top companies across diverse industries.', '', 'left', is_file(__DIR__ . '/placement.php') ? '<a href="' . e(site_url('placement')) . '" class="link-arrow">View Placement Details' . icon('arrow-right', 'h-4 w-4') . '</a>' : '') ?>
+  <?= section_heading('Placement Assistance', 'Career guidance, CV and interview preparation, and help applying to recruiters — support, not a job guarantee.', '', 'left', is_file(__DIR__ . '/placement.php') ? '<a href="' . e(site_url('placement')) . '" class="link-arrow">View Placement Details' . icon('arrow-right', 'h-4 w-4') . '</a>' : '') ?>
   <div class="rounded-3xl border border-slate-100 bg-slate-50/80 px-2 py-5 sm:px-4"<?= reveal_attr() ?>>
-    <?= logo_marquee($recruiters, ['rows' => 1, 'ariaLabel' => 'Companies that recruit GIMT graduates']) ?>
+    <?= logo_marquee($recruiters, ['rows' => 1, 'ariaLabel' => 'Recruiter companies']) ?>
   </div>
 <?= section_close() ?>
 

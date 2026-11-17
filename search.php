@@ -72,7 +72,7 @@ if ($words && !$total) {
 }
 $topics = array_values(array_unique(array_merge(
     array_slice(array_values(array_filter(array_map(fn ($p) => (string) ($p['short_name'] ?? ''), site_programs()))), 0, 5),
-    ['Admissions', 'Fees', 'Scholarship', 'Hostel', 'Placement', 'Eligibility']
+    ['Admissions', 'Fees', 'Scholarship', 'Courses', 'Placement', 'Eligibility']
 )));
 
 $title = $q !== '' ? 'Search results for “' . $q . '”' : 'Search the website';

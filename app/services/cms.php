@@ -129,7 +129,7 @@ function cms_stat_sources(): array
     return [
         'programs' => 'Programs offered', 'departments' => 'Departments', 'specialisations' => 'Specialisations', 'students' => 'Active students', 'faculty' => 'Faculty members',
         'alumni' => 'Alumni', 'recruiters' => 'Recruiting companies', 'offers' => 'Placement offers', 'placement_rate' => 'Placement rate (%)',
-        'highest_package' => 'Highest package (LPA)', 'average_package' => 'Average package (LPA)', 'years' => 'Years of excellence',
+        'highest_package' => 'Highest package (LPA)', 'average_package' => 'Average package (LPA)',
         'satisfaction' => 'Student satisfaction (%)',
     ];
 }
@@ -151,7 +151,6 @@ function cms_stat_values(): array
     };
     $applied = $q('SELECT COUNT(DISTINCT student_id) FROM placement_applications');
     $placed = $q("SELECT COUNT(DISTINCT student_id) FROM placement_offers WHERE status IN ('offered','accepted','joined')");
-    $established = (int) setting('established_year', 0);
     $cache = [
         'programs' => $q("SELECT COUNT(*) FROM programs WHERE status = 'active' AND show_on_website = 1"),
         'departments' => $q("SELECT COUNT(*) FROM departments WHERE status = 'active'"),
@@ -164,8 +163,10 @@ function cms_stat_values(): array
         'placement_rate' => $applied ? (int) round(($placed ?? 0) / $applied * 100) : null,
         'highest_package' => ($v = $q("SELECT MAX(package_lpa) FROM placement_offers WHERE status <> 'declined'")) !== null ? round((float) $v, 1) : null,
         'average_package' => ($v = $q("SELECT AVG(package_lpa) FROM placement_offers WHERE status <> 'declined'")) !== null ? round((float) $v, 1) : null,
-        'years' => $established > 1900 ? (int) date('Y') - $established : null,
-        'satisfaction' => (int) setting('student_satisfaction', 95),
+        // no founding-year figure (owner decision 2026-11-17); kept as null so old 'years' stat items simply hide
+        'years' => null,
+        // only a figure the institute has entered (Settings): never a made-up default
+        'satisfaction' => is_numeric($sv = setting('student_satisfaction', '')) && (float) $sv > 0 ? (int) $sv : null,
     ];
     return $cache;
 }
@@ -469,17 +470,17 @@ function cms_block_types(): array
             cms_fd('toggle', 'show_qualification', 'Show qualification', ['col' => 6, 'default' => true]), cms_fd('toggle', 'show_bio', 'Show short bio', ['col' => 6]),
             cms_link_fd('cta', 'Button'),
         ]), 'default' => ['heading' => 'Meet our faculty', 'limit' => 8, 'show_qualification' => true, 'show_bio' => false, 'cta' => ['label' => 'View All Faculty', 'url' => '/faculty']]],
-        'placement_section' => ['label' => 'Placement section', 'icon' => 'briefcase-business', 'group' => 'Data', 'description' => 'Placement numbers, recruiters and top offers.', 'fields' => array_merge(cms_heading_fields(), [
+        'placement_section' => ['label' => 'Placement section', 'icon' => 'briefcase-business', 'group' => 'Data', 'description' => 'Placement assistance, with real placement numbers, recruiters and offers when recorded.', 'fields' => array_merge(cms_heading_fields(), [
             cms_fd('repeater', 'stats', 'Statistics', ['max_items' => 4, 'item_label' => 'label', 'fields' => cms_stat_item_fields()]),
             cms_fd('toggle', 'show_recruiters', 'Show recruiter logos', ['col' => 6, 'default' => true]),
             cms_fd('number', 'recruiters_limit', 'Logos', ['col' => 6, 'min' => 4, 'max' => 48, 'default' => 16, 'when' => ['show_recruiters' => true]]),
             cms_fd('toggle', 'show_offers', 'Show top offers', ['col' => 6, 'default' => true]),
             cms_fd('number', 'offers_limit', 'Offers', ['col' => 6, 'min' => 3, 'max' => 12, 'default' => 6, 'when' => ['show_offers' => true]]),
             cms_link_fd('cta', 'Button'),
-        ]), 'default' => ['heading' => 'Placements that speak for themselves', 'stats' => [
-            ['value' => '90', 'suffix' => '%', 'label' => 'Placement rate', 'icon' => 'trending-up', 'source' => 'placement_rate'],
-            ['value' => '25', 'prefix' => '₹', 'suffix' => ' LPA', 'label' => 'Highest package', 'icon' => 'trophy', 'source' => 'highest_package'],
-            ['value' => '35', 'suffix' => '+', 'label' => 'Recruiters', 'icon' => 'handshake', 'source' => 'recruiters']],
+        ]), 'default' => ['heading' => 'Placement assistance', 'stats' => [
+            ['value' => '', 'suffix' => '%', 'label' => 'Placement rate', 'icon' => 'trending-up', 'source' => 'placement_rate'],
+            ['value' => '', 'prefix' => '₹', 'suffix' => ' LPA', 'label' => 'Highest package', 'icon' => 'trophy', 'source' => 'highest_package'],
+            ['value' => '', 'suffix' => '+', 'label' => 'Recruiters', 'icon' => 'handshake', 'source' => 'recruiters']],
             'show_recruiters' => true, 'recruiters_limit' => 16, 'show_offers' => true, 'offers_limit' => 6, 'cta' => ['label' => 'View Placement Details', 'url' => '/placement']]],
     ];
 }
@@ -912,7 +913,7 @@ function cms_template_slugs(): array
             $slugs[] = basename($f, '.php');
         }
         // Detail/utility scripts and the error pages are never route templates for a CMS page.
-        $slugs = array_values(array_diff($slugs, ['index', 'page', 'post', 'event', 'notice', 'gallery', 'program', 'sitemap', 'robots', 'site-kit', 'install', '404', '500']));
+        $slugs = array_values(array_diff($slugs, ['index', 'page', 'post', 'event', 'notice', 'gallery', 'program', 'sitemap', 'robots', 'llms', 'indexnow', 'site-kit', 'install', '404', '500']));
     }
     return $slugs;
 }
@@ -926,7 +927,8 @@ function cms_reserved_slugs(): array
     static $list = null;
     if ($list === null) {
         $list = ['admin', 'api', 'assets', 'page', 'blog', 'events', 'notices', 'gallery', 'programs', 'verify-certificate', 'sitemap', 'robots', 'storage',
-            'portal', 'search', 'home', 'index', 'login', 'logout', 'includes', 'config', 'database', 'docs', 'frontend', 'tools', 'app', 'vendor', '404', '500'];
+            'portal', 'search', 'home', 'index', 'login', 'logout', 'includes', 'config', 'database', 'docs', 'frontend', 'tools', 'app', 'vendor', '404', '500',
+            'llms', 'llms-full', 'indexnow'];
         foreach (glob(APP_ROOT . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
             $list[] = strtolower(basename($dir));
         }
@@ -1169,7 +1171,7 @@ function cms_menu_fallback(string $location): array
                 $l('Apply Online', '/apply', ['icon' => 'file-text', 'description' => 'Start your application in minutes']),
                 $l('Fees & Scholarships', '/admissions#fees', ['icon' => 'wallet', 'description' => 'Fee structure, instalments & awards']),
                 $l('Eligibility & Documents', '/admissions#eligibility', ['icon' => 'file-check', 'description' => 'Who can apply and what to upload']),
-                $l('Important Dates', '/admissions#dates', ['icon' => 'calendar-days', 'description' => 'Deadlines for the ' . $session . ' session']),
+                $l('Important Dates', '/admissions#dates', ['icon' => 'calendar-days', 'description' => 'Key dates of the ' . $session . ' session']),
                 $l('FAQs', '/faq', ['icon' => 'message-circle', 'description' => 'Answers to common questions']),
             ]]),
             $l('Academics', '/academics', ['children' => [
@@ -1181,9 +1183,9 @@ function cms_menu_fallback(string $location): array
                 $l('Verify Certificate', '/verify-certificate', ['icon' => 'circle-check', 'description' => 'Check a GIMT certificate online']),
             ]]),
             $l('Campus Life', '/campus', ['children' => [
-                $l('Campus & Facilities', '/campus', ['icon' => 'building', 'description' => 'Labs, library, hostel and sports']),
+                $l('Campus & Facilities', '/campus', ['icon' => 'building', 'description' => 'Classrooms, computer lab and library']),
                 $l('Student Life & Clubs', '/campus-life', ['icon' => 'palette', 'description' => 'Clubs, fests and student activities']),
-                $l('Placements', '/placement', ['icon' => 'briefcase-business', 'description' => 'Training, drives and recruiters']),
+                $l('Placements', '/placement', ['icon' => 'briefcase-business', 'description' => 'Placement assistance and career guidance']),
                 $l('Alumni', '/alumni', ['icon' => 'users', 'description' => 'Our global alumni network']),
                 $l('Photo Gallery', '/gallery', ['icon' => 'image', 'description' => 'Campus moments in pictures']),
             ]]),
@@ -1336,7 +1338,7 @@ function cms_public_routes(): array
         '/admissions' => $d('Admissions', 'admissions.php', 'Admission process, eligibility, fees, scholarships and important dates.', 0.9, 'weekly'),
         '/admissions-open' => $d('Admissions Open (campaign)', 'admissions-open.php', 'Admissions open — apply now and get free career counselling.', 0.7, 'weekly'),
         '/academics' => $d('Academics', 'academics.php', 'Departments, faculty, academic calendar and research at GIMT.', 0.8, 'monthly'),
-        '/campus' => $d('Campus Life', 'campus.php', 'Facilities, hostel, sports, clubs and life on the GIMT campus.', 0.7, 'monthly'),
+        '/campus' => $d('Campus Life', 'campus.php', 'Classrooms, computer lab, library, clubs and student life at GIMT.', 0.7, 'monthly'),
         '/placement' => $d('Placements', 'placement.php', 'Placement statistics, recruiters and career development at GIMT.', 0.8, 'monthly'),
         '/alumni' => $d('Alumni', 'alumni.php', 'The GIMT alumni network, success stories and events.', 0.6, 'monthly'),
         '/faculty' => $d('Faculty', 'faculty.php', 'Meet the experienced faculty members of GIMT.', 0.6, 'monthly'),
@@ -1390,7 +1392,7 @@ function cms_seo_entries(?string $type = null): array
                 $known = cms_public_routes();
                 foreach ($known as $path => $r) {
                     $raw[] = ['type' => 'route', 'entity_id' => null, 'route' => $path, 'title' => $r['label'], 'url' => $path, 'status' => is_file(APP_ROOT . '/' . $r['file']) ? 'live' : 'planned',
-                        'is_public' => is_file(APP_ROOT . '/' . $r['file']), 'fallback_description' => $r['description'], 'fallback_image' => 'assets/images/site/hero-campus-students.jpg', 'updated_at' => null];
+                        'is_public' => is_file(APP_ROOT . '/' . $r['file']), 'fallback_description' => $r['description'], 'fallback_image' => 'assets/images/og/gimt-share.jpg', 'updated_at' => null];
                 }
                 foreach ($seo as $k => $row) {
                     if ($row['entity_type'] === 'route' && !isset($known[$row['route']])) {
@@ -1400,11 +1402,16 @@ function cms_seo_entries(?string $type = null): array
                 }
                 break;
             case 'page':
-                foreach ($try('SELECT id, title, slug, is_system, status, published_at, excerpt, subtitle, banner_image, updated_at, created_at FROM pages ORDER BY title') as $p) {
+                foreach ($try('SELECT id, title, slug, is_system, status, published_at, excerpt, subtitle, banner_image, content, blocks, updated_at, created_at FROM pages ORDER BY title') as $p) {
                     [$refType, $ref] = cms_page_seo_ref($p);
+                    // draft text waiting for the institute ("[To be confirmed by GIMT: …]", placeholder people cards): page.php
+                    // renders such a page noindex,follow and the sitemap leaves it out — flagged so the owner sees what to fill
+                    $visible = array_values(array_filter(json_decode(api_str($p['blocks'] ?? null), true) ?: [], fn ($b) => is_array($b) && empty($b['hidden'])));
+                    $draftText = (string) $p['content'] . ' ' . json_encode($visible, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                    $drafts = $refType === 'route' ? 0 : substr_count($draftText, '[To be confirmed') + substr_count($draftText, '(placeholder)');
                     $raw[] = ['type' => 'page', 'entity_id' => (int) $p['id'], 'route' => $refType === 'route' ? $ref : null, 'title' => $p['title'], 'url' => cms_page_url($p), 'status' => $p['status'],
                         'is_public' => $p['status'] === 'published', 'fallback_description' => $p['excerpt'] ?: $p['subtitle'], 'fallback_image' => $p['banner_image'],
-                        'updated_at' => $p['updated_at'] ?: $p['created_at'], 'seo_key' => $refType === 'route' ? 'route:' . $ref : 'page:' . $p['id']];
+                        'updated_at' => $p['updated_at'] ?: $p['created_at'], 'seo_key' => $refType === 'route' ? 'route:' . $ref : 'page:' . $p['id'], 'placeholders' => $drafts];
                 }
                 break;
             case 'program':
@@ -1437,60 +1444,192 @@ function cms_seo_entries(?string $type = null): array
         }
     }
     $suffix = cms_seo_suffix();
+    $audit = cms_seo_audit_index();
+    $sitemapPaths = [];
+    foreach (cms_sitemap_urls() as $u) {
+        $sitemapPaths[$u['path']] = true;
+    }
+    $generic = cms_seo_generic_schema_types();
+    $routesWithSchema = array_flip(cms_seo_routes_with_schema());
     $out = [];
     foreach ($raw as $r) {
         $key = $r['seo_key'] ?? ($r['type'] === 'route' ? 'route:' . $r['route'] : $r['type'] . ':' . $r['entity_id']);
         $s = $seo[$key] ?? null;
+        $path = strtok((string) $r['url'], '?') ?: '/';
+        $a = $audit[$path === '/' ? '/' : rtrim($path, '/')] ?? null;
         $metaTitle = trim((string) ($s['meta_title'] ?? ''));
         $metaDesc = trim((string) ($s['meta_description'] ?? ''));
-        $effTitle = $metaTitle !== '' ? $metaTitle : ($r['type'] === 'route' && $r['route'] === '/' ? institute_name() . $suffix : $r['title'] . $suffix);
+        // Effective values = what the page really prints: the custom value, else the title/description the latest
+        // audit crawled from the live page, else the template default.
+        $crawledTitle = trim((string) ($a['title'] ?? ''));
+        $crawledDesc = trim((string) ($a['description'] ?? ''));
+        $effTitle = $metaTitle !== '' ? $metaTitle : ($crawledTitle !== '' ? $crawledTitle : ($r['type'] === 'route' && $r['route'] === '/' ? institute_name() . $suffix : $r['title'] . $suffix));
         $fallbackDesc = trim(preg_replace('/\s+/u', ' ', strip_tags(html_entity_decode((string) $r['fallback_description'], ENT_QUOTES | ENT_HTML5, 'UTF-8'))));
-        $effDesc = $metaDesc !== '' ? $metaDesc : ($fallbackDesc !== '' ? str_limit($fallbackDesc, 160) : '');
+        $effDesc = $metaDesc !== '' ? $metaDesc : ($crawledDesc !== '' ? $crawledDesc : ($fallbackDesc !== '' ? str_limit($fallbackDesc, 160) : ''));
+        $titleSource = $metaTitle !== '' ? 'custom' : ($crawledTitle !== '' ? 'crawled' : 'automatic');
+        $descSource = $metaDesc !== '' ? 'custom' : ($crawledDesc !== '' ? 'crawled' : ($effDesc !== '' ? 'automatic' : 'none'));
         $og = trim((string) ($s['og_image'] ?? ''));
         $effOg = $og !== '' ? $og : ((string) $r['fallback_image']);
         $robots = $s['robots'] ?? 'index,follow';
+        $focus = trim((string) ($s['focus_keyword'] ?? ''));
+        $canonical = trim((string) ($s['canonical_url'] ?? ''));
+        $tl = mb_strlen($effTitle);
+        $dl = mb_strlen($effDesc);
         $issues = [];
-        if ($metaTitle === '') {
+        if ($effTitle === '') {
             $issues[] = 'missing_title';
-        }
-        if (mb_strlen($effTitle) > 60) {
+        } elseif ($tl > 60) {
             $issues[] = 'title_long';
+        } elseif ($tl < 30) {
+            $issues[] = 'title_short';
         }
         if ($effDesc === '') {
             $issues[] = 'missing_description';
-        } elseif ($metaDesc !== '' && mb_strlen($metaDesc) > 160) {
+        } elseif ($dl > 160) {
             $issues[] = 'description_long';
-        } elseif ($metaDesc !== '' && mb_strlen($metaDesc) < 70) {
+        } elseif ($dl < 70) {
             $issues[] = 'description_short';
-        } elseif ($metaDesc === '') {
+        }
+        if ($descSource === 'automatic') {
             $issues[] = 'auto_description';
         }
+        $ogMissingFile = $effOg !== '' && cms_seo_image_file_missing($effOg);
         if ($effOg === '') {
             $issues[] = 'missing_og_image';
+        } elseif ($ogMissingFile) {
+            $issues[] = 'og_image_file_missing';
+        }
+        $drafts = (int) ($r['placeholders'] ?? 0);
+        if ($drafts > 0) {
+            $issues[] = 'draft_placeholder';
+            if (!str_contains($robots, 'noindex')) {
+                $robots = 'noindex,follow'; // what page.php prints while draft text remains
+            }
         }
         if (str_contains($robots, 'noindex')) {
             $issues[] = 'noindex';
+            if (isset($sitemapPaths[$path])) {
+                $issues[] = 'noindex_in_sitemap';
+            }
         }
-        $penalty = ['missing_title' => 20, 'title_long' => 15, 'missing_description' => 30, 'description_long' => 10, 'description_short' => 10,
-            'auto_description' => 10, 'missing_og_image' => 15, 'noindex' => 0];
+        if ($a && in_array('noindex_in_sitemap', $a['issues'], true) && !in_array('noindex_in_sitemap', $issues, true)) {
+            $issues[] = 'noindex_in_sitemap';
+        }
+        if ($canonical !== '' && cms_seo_canonical_elsewhere($canonical, $path)) {
+            $issues[] = 'canonical_elsewhere';
+        }
+        if ($focus !== '') {
+            if (!cms_seo_contains($effTitle, $focus)) {
+                $issues[] = 'keyword_not_in_title';
+            }
+            if ($effDesc !== '' && !cms_seo_contains($effDesc, $focus)) {
+                $issues[] = 'keyword_not_in_description';
+            }
+            if ($a && trim((string) $a['h1']) !== '' && !cms_seo_contains($a['h1'], $focus)) {
+                $issues[] = 'keyword_not_in_h1';
+            }
+        } elseif (in_array($r['type'], ['route', 'page', 'program'], true)) {
+            $issues[] = 'no_focus_keyword';
+        }
+        // Structured data: admin JSON-LD, else page-specific types the audit found, else what the template is known to print
+        $hasSchema = trim((string) ($s['schema_json'] ?? '')) !== '';
+        if (!$hasSchema) {
+            if ($a && $a['schema_known']) {
+                $hasSchema = (bool) array_diff(array_map('strtolower', $a['schema_types']), $generic);
+            } else {
+                $hasSchema = in_array($r['type'], ['page', 'program', 'post', 'event', 'notice'], true) || isset($routesWithSchema[(string) $r['route']]);
+            }
+        }
+        if (!$hasSchema) {
+            $issues[] = 'no_schema';
+        }
+        if ($a) {
+            foreach (['h1_missing', 'img_alt_missing', 'broken_links'] as $code) {
+                if (in_array($code, $a['issues'], true)) {
+                    $issues[] = $code;
+                }
+            }
+            if (array_filter($a['issues'], fn ($i) => is_string($i) && str_starts_with($i, 'schema_') && $i !== 'schema_none')) {
+                $issues[] = 'schema_invalid';
+            }
+        }
+        $penalty = cms_seo_issue_penalties() + ['draft_placeholder' => 20];
         $score = max(0, 100 - array_sum(array_map(fn ($i) => $penalty[$i] ?? 0, $issues)));
         $out[] = [
             'key' => $key, 'type' => $r['type'], 'entity_id' => $r['entity_id'], 'route' => $r['route'], 'title' => $r['title'], 'url' => $r['url'],
             'status' => $r['status'], 'is_public' => (bool) $r['is_public'], 'has_seo' => (bool) $s, 'seo_id' => $s ? (int) $s['id'] : null,
-            'meta_title' => $metaTitle, 'effective_title' => $effTitle, 'title_length' => mb_strlen($effTitle),
-            'meta_description' => $metaDesc, 'effective_description' => $effDesc, 'description_length' => mb_strlen($effDesc),
-            'og_image' => $og, 'effective_og_image' => $effOg, 'robots' => $robots, 'include_in_sitemap' => $s ? (bool) $s['include_in_sitemap'] : true,
+            'meta_title' => $metaTitle, 'effective_title' => $effTitle, 'title_length' => $tl, 'title_source' => $titleSource,
+            'meta_description' => $metaDesc, 'effective_description' => $effDesc, 'description_length' => $dl, 'description_source' => $descSource,
+            'og_image' => $og, 'effective_og_image' => $effOg, 'og_image_exists' => !$ogMissingFile, 'robots' => $robots, 'include_in_sitemap' => $s ? (bool) $s['include_in_sitemap'] : true,
+            'canonical_url' => $canonical, 'focus_keyword' => $focus, 'index_status' => $s['index_status'] ?? null, 'index_checked_at' => $s['index_checked_at'] ?? null,
+            'h1' => $a['h1'] ?? null, 'audited_at' => $a['crawled_at'] ?? null,
             'issues' => $issues, 'score' => $score, 'updated_at' => $s['updated_at'] ?? $r['updated_at'],
+            'placeholder_count' => $drafts,
         ];
     }
+    // Duplicate titles / descriptions across public URLs (one SEO record counted once: route-template pages share a key)
+    $titles = [];
+    $descs = [];
+    $seenKey = [];
+    foreach ($out as $e) {
+        if (!$e['is_public'] || isset($seenKey[$e['key']]) || in_array('noindex', $e['issues'], true) || in_array('canonical_elsewhere', $e['issues'], true)) {
+            continue;
+        }
+        $seenKey[$e['key']] = true;
+        if ($e['effective_title'] !== '') {
+            $titles[mb_strtolower($e['effective_title'])][$e['key']] = true;
+        }
+        if ($e['effective_description'] !== '') {
+            $descs[mb_strtolower($e['effective_description'])][$e['key']] = true;
+        }
+    }
+    $penalty = cms_seo_issue_penalties() + ['draft_placeholder' => 20];
+    foreach ($out as &$e) {
+        if (!$e['is_public']) {
+            continue;
+        }
+        $add = [];
+        if ($e['effective_title'] !== '' && count($titles[mb_strtolower($e['effective_title'])] ?? []) > 1) {
+            $add[] = 'duplicate_title';
+        }
+        if ($e['effective_description'] !== '' && count($descs[mb_strtolower($e['effective_description'])] ?? []) > 1) {
+            $add[] = 'duplicate_description';
+        }
+        if ($add) {
+            $e['issues'] = array_merge($e['issues'], $add);
+            $e['score'] = max(0, 100 - array_sum(array_map(fn ($i) => $penalty[$i] ?? 0, $e['issues'])));
+        }
+    }
+    unset($e);
     return $out;
+}
+
+/** Score penalty per issue (100 - sum = score). Informational codes cost nothing. */
+function cms_seo_issue_penalties(): array
+{
+    return ['missing_title' => 30, 'title_long' => 10, 'title_short' => 5, 'missing_description' => 25, 'description_long' => 5, 'description_short' => 5,
+        'auto_description' => 0, 'missing_og_image' => 10, 'og_image_file_missing' => 10, 'noindex' => 0, 'duplicate_title' => 15, 'duplicate_description' => 10,
+        'canonical_elsewhere' => 0, 'noindex_in_sitemap' => 15, 'no_focus_keyword' => 5, 'keyword_not_in_title' => 10, 'keyword_not_in_description' => 5,
+        'keyword_not_in_h1' => 5, 'no_schema' => 5, 'h1_missing' => 10, 'img_alt_missing' => 5, 'broken_links' => 15, 'schema_invalid' => 10];
 }
 
 function cms_seo_issue_labels(): array
 {
-    return ['missing_title' => 'No custom title', 'title_long' => 'Title over 60 characters', 'missing_description' => 'No description',
+    return ['missing_title' => 'No title', 'title_long' => 'Title over 60 characters', 'title_short' => 'Title under 30 characters', 'missing_description' => 'No description',
         'description_long' => 'Description over 160 characters', 'description_short' => 'Description under 70 characters',
-        'auto_description' => 'Auto-generated description', 'missing_og_image' => 'No social share image', 'noindex' => 'Hidden from search (noindex)'];
+        'auto_description' => 'Auto-generated description', 'missing_og_image' => 'No social share image', 'og_image_file_missing' => 'Share image file not found', 'noindex' => 'Hidden from search (noindex)',
+        'duplicate_title' => 'Duplicate title', 'duplicate_description' => 'Duplicate description', 'canonical_elsewhere' => 'Canonical points elsewhere',
+        'noindex_in_sitemap' => 'noindex but listed in the sitemap', 'no_focus_keyword' => 'No focus keyword', 'keyword_not_in_title' => 'Focus keyword not in title',
+        'keyword_not_in_description' => 'Focus keyword not in description', 'keyword_not_in_h1' => 'Focus keyword not in H1', 'no_schema' => 'No page structured data',
+        'h1_missing' => 'Missing H1 (audit)', 'img_alt_missing' => 'Images without alt text (audit)', 'broken_links' => 'Broken links (audit)',
+        'schema_invalid' => 'Structured data errors (audit)',
+        'draft_placeholder' => 'Draft placeholder text (“[To be confirmed …]”) — kept out of search until filled in'];
+}
+
+/** Issue codes that are information only (not counted as "issues to fix"). */
+function cms_seo_info_issues(): array
+{
+    return ['noindex', 'auto_description', 'canonical_elsewhere'];
 }
 
 /** SEO dashboard numbers. */
@@ -1505,21 +1644,32 @@ function cms_seo_overview(): array
         $uniquePublic[$e['key']] ??= $e;
     }
     $uniquePublic = array_values($uniquePublic);
+    $info = cms_seo_info_issues();
     foreach (cms_seo_entity_types() as $t => $label) {
         $list = array_values(array_filter($public, fn ($e) => $e['type'] === $t));
         $all = array_values(array_filter($entries, fn ($e) => $e['type'] === $t));
         $byType[] = ['type' => $t, 'label' => $label, 'total' => count($all), 'public' => count($list),
             'custom' => count(array_filter($list, fn ($e) => $e['has_seo'])),
-            'issues' => count(array_filter($list, fn ($e) => array_diff($e['issues'], ['noindex']))),
+            'issues' => count(array_filter($list, fn ($e) => array_diff($e['issues'], $info))),
             'score' => $list ? (int) round(array_sum(array_column($list, 'score')) / count($list)) : null];
     }
     $issues = [];
     foreach (array_keys(cms_seo_issue_labels()) as $code) {
         $issues[$code] = count(array_filter($uniquePublic, fn ($e) => in_array($code, $e['issues'], true)));
     }
+    $indexStatus = array_fill_keys(array_keys(cms_seo_index_statuses()), 0);
+    foreach ($uniquePublic as $e) {
+        $indexStatus[$e['index_status'] && isset($indexStatus[$e['index_status']]) ? $e['index_status'] : 'unknown']++;
+    }
     usort($uniquePublic, fn ($a, $b) => $a['score'] <=> $b['score'] ?: strcmp($a['title'], $b['title']));
     $sitemap = cms_sitemap_urls(true);
+    $auditIndex = cms_seo_audit_index();
+    $firstAudit = $auditIndex ? reset($auditIndex) : null;
     return [
+        'info_issues' => $info,
+        'index_status' => $indexStatus,
+        'index_status_labels' => cms_seo_index_statuses(),
+        'audit' => $firstAudit ? ['id' => $firstAudit['audit_id'], 'finished_at' => $firstAudit['audit_finished_at'], 'pages' => count($auditIndex)] : null,
         'score' => $uniquePublic ? (int) round(array_sum(array_column($uniquePublic, 'score')) / count($uniquePublic)) : 0,
         'total' => count($uniquePublic),
         'custom' => count(array_filter($uniquePublic, fn ($e) => $e['has_seo'])),
@@ -1551,7 +1701,7 @@ function cms_seo_resolve(string $type, ?int $id, ?string $route): ?array
         $known = cms_public_routes()[$route] ?? null;
         return ['ref_type' => 'route', 'ref_id' => null, 'ref_route' => $route, 'entity' => ['type' => 'route', 'id' => null, 'route' => $route,
             'title' => $known['label'] ?? $route, 'url' => $route, 'status' => $known ? (is_file(APP_ROOT . '/' . $known['file']) ? 'live' : 'planned') : 'custom',
-            'fallback_description' => $known['description'] ?? '', 'fallback_image' => 'assets/images/site/hero-campus-students.jpg']];
+            'fallback_description' => $known['description'] ?? '', 'fallback_image' => 'assets/images/og/gimt-share.jpg']];
     }
     if (!$id) {
         return null;
@@ -1592,29 +1742,184 @@ function cms_seo_find(array $target): ?array
         : db_row('SELECT * FROM seo_settings WHERE entity_type = ? AND entity_id = ?', [$target['ref_type'], $target['ref_id']]);
 }
 
+/** Indexing status of a URL (set by people after checking Search Console / Bing Webmaster Tools). */
+function cms_seo_index_statuses(): array
+{
+    return ['unknown' => 'Not checked', 'submitted' => 'Submitted', 'indexed' => 'Indexed', 'excluded' => 'Excluded', 'error' => 'Error'];
+}
+
+/** Does a plain-text SEO field contain HTML / script markup? (SEO text is printed into meta tags and must stay plain text.) */
+function cms_seo_has_markup(string $v): bool
+{
+    return $v !== '' && (bool) preg_match('/<\s*[a-z!\/?]|&lt;\s*\/?\s*[a-z]|javascript\s*:|vbscript\s*:|data\s*:\s*text\/html|\bon[a-z]{3,}\s*=\s*["\']?/i', $v);
+}
+
+/** "a, b ,a,, c" → "a, b, c" (comma separated keyword list, de-duplicated case-insensitively). */
+function cms_seo_keyword_list(string $v): string
+{
+    $out = [];
+    foreach (preg_split('/\s*[,;\n]\s*/u', $v) ?: [] as $k) {
+        $k = trim($k);
+        if ($k !== '') {
+            $out[mb_strtolower($k)] ??= $k;
+        }
+    }
+    return implode(', ', $out);
+}
+
+/** Lower-case text with punctuation folded to spaces — for "does the title contain the focus keyword" checks. */
+function cms_seo_fold(?string $v): string
+{
+    $v = mb_strtolower(html_entity_decode((string) $v, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    return trim((string) preg_replace('/\s+/u', ' ', (string) preg_replace('/[^\p{L}\p{N}]+/u', ' ', $v)));
+}
+
+/** Does $text contain $keyword (case / punctuation insensitive)? */
+function cms_seo_contains(?string $text, ?string $keyword): bool
+{
+    $k = cms_seo_fold($keyword);
+    return $k !== '' && str_contains(' ' . cms_seo_fold($text) . ' ', ' ' . $k . ' ');
+}
+
+/** Path of a canonical URL when it points to this website ("/x"), the absolute URL when it points elsewhere, '' when empty. */
+function cms_seo_canonical_path(?string $canonical): string
+{
+    $c = trim((string) $canonical);
+    if ($c === '') {
+        return '';
+    }
+    if (preg_match('#^https?://#i', $c)) {
+        $origin = strtolower((string) preg_replace('#^(https?://[^/]+).*$#i', '$1', absolute_url('')));
+        $host = strtolower((string) parse_url($c, PHP_URL_HOST));
+        if ($host !== '' && $host === strtolower((string) parse_url($origin, PHP_URL_HOST))) {
+            $c = (string) (parse_url($c, PHP_URL_PATH) ?: '/') . (($q = parse_url($c, PHP_URL_QUERY)) ? '?' . $q : '');
+            $base = rtrim(base_url(''), '/');
+            if ($base !== '' && str_starts_with($c, $base)) {
+                $c = substr($c, strlen($base)) ?: '/';
+            }
+        } else {
+            return $c;
+        }
+    }
+    $c = '/' . ltrim($c, '/');
+    return $c === '/' ? '/' : rtrim($c, '/');
+}
+
+/** Does the admin canonical URL of a record point to another address than $url? */
+function cms_seo_canonical_elsewhere(?string $canonical, string $url): bool
+{
+    $c = cms_seo_canonical_path($canonical);
+    if ($c === '') {
+        return false;
+    }
+    $u = '/' . ltrim($url, '/');
+    $u = $u === '/' ? '/' : rtrim($u, '/');
+    return mb_strtolower(rawurldecode($c)) !== mb_strtolower(rawurldecode($u));
+}
+
+/**
+ * Pages of the latest completed site audit, keyed by path: [path => [title, description, h1, h1_count, images_no_alt,
+ * schema_types[], issues[], status_code, crawled_at]]. Empty when no audit has completed yet.
+ */
+function cms_seo_audit_index(): array
+{
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+    $cache = [];
+    try {
+        $audit = db_row("SELECT id, finished_at FROM seo_audits WHERE status = 'completed' ORDER BY id DESC LIMIT 1");
+        if (!$audit) {
+            return $cache;
+        }
+        foreach (db_all("SELECT path, title, description, h1, h1_count, images_no_alt, schema_types, issues, status_code, crawled_at
+                         FROM seo_audit_pages WHERE audit_id = ? AND kind = 'page' AND state = 'done'", [$audit['id']]) as $r) {
+            $path = (string) $r['path'];
+            $path = $path === '/' ? '/' : rtrim($path, '/');
+            $issues = json_decode((string) $r['issues'], true);
+            $cache[$path] = ['title' => $r['title'], 'description' => $r['description'], 'h1' => $r['h1'], 'h1_count' => $r['h1_count'] !== null ? (int) $r['h1_count'] : null,
+                'images_no_alt' => (int) $r['images_no_alt'], 'status_code' => $r['status_code'] !== null ? (int) $r['status_code'] : null,
+                'schema_types' => array_values(array_filter(array_map('trim', preg_split('/[,|;\s]+/', (string) $r['schema_types']) ?: []))),
+                'schema_known' => $r['schema_types'] !== null,
+                'issues' => is_array($issues) ? $issues : [], 'crawled_at' => $r['crawled_at'], 'audit_id' => (int) $audit['id'], 'audit_finished_at' => $audit['finished_at']];
+        }
+    } catch (Throwable $e) {
+        $cache = [];
+    }
+    return $cache;
+}
+
+/** Is $path a local image (assets/…) whose file does not exist on this server? (remote URLs are not checked) */
+function cms_seo_image_file_missing(string $path): bool
+{
+    $p = trim($path);
+    if ($p === '' || preg_match('#^(https?:)?//#i', $p) || str_contains($p, '..')) {
+        return false;
+    }
+    $p = (string) preg_replace('#^' . preg_quote(rtrim(base_url(''), '/'), '#') . '/#', '', $p);
+    return !is_file(APP_ROOT . '/' . ltrim(strtok($p, '?#') ?: $p, '/'));
+}
+
+/** Schema.org types every page carries (site graph + breadcrumbs) — not counted as page-specific structured data. */
+function cms_seo_generic_schema_types(): array
+{
+    return ['organization', 'collegeoruniversity', 'educationalorganization', 'website', 'breadcrumblist', 'searchaction', 'entrypoint', 'postaladdress',
+        'geocoordinates', 'contactpoint', 'imageobject', 'listitem', 'thing'];
+}
+
+/** Routes whose template prints page-specific JSON-LD (used when no audit data is available). */
+function cms_seo_routes_with_schema(): array
+{
+    return ['/', '/about', '/contact', '/admissions', '/faculty', '/certifications', '/alumni', '/programs', '/blog', '/events', '/notices', '/gallery', '/faq'];
+}
+
 /**
  * Validate SEO input. @return array [clean columns, errors]
  */
 function cms_seo_check_input(array $in): array
 {
     $errors = [];
-    $s = fn (string $k) => trim(preg_replace('/[ \t]+/u', ' ', api_str($in[$k] ?? null)));
+    // single-line text: collapse whitespace (incl. new lines), drop control characters
+    $s = fn (string $k) => trim((string) preg_replace(['/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '/\s+/u'], ['', ' '], api_str($in[$k] ?? null)));
     $data = [
-        'meta_title' => $s('meta_title'), 'meta_description' => trim(preg_replace('/\s+/u', ' ', api_str($in['meta_description'] ?? null))),
-        'meta_keywords' => $s('meta_keywords'), 'canonical_url' => $s('canonical_url'), 'og_title' => $s('og_title'),
-        'og_description' => trim(preg_replace('/\s+/u', ' ', api_str($in['og_description'] ?? null))), 'og_image' => $s('og_image'),
+        'meta_title' => $s('meta_title'), 'meta_description' => $s('meta_description'),
+        'meta_keywords' => $s('meta_keywords'), 'focus_keyword' => $s('focus_keyword'), 'secondary_keywords' => cms_seo_keyword_list($s('secondary_keywords')),
+        'canonical_url' => $s('canonical_url'), 'og_title' => $s('og_title'),
+        'og_description' => $s('og_description'), 'og_image' => $s('og_image'),
+        'twitter_title' => $s('twitter_title'), 'twitter_description' => $s('twitter_description'), 'image_alt' => $s('image_alt'),
         'robots' => $s('robots') ?: 'index,follow', 'schema_json' => trim(api_str($in['schema_json'] ?? null)),
         'include_in_sitemap' => in_array($in['include_in_sitemap'] ?? true, [true, 1, '1', 'true', 'on'], true) ? 1 : 0,
         'sitemap_priority' => $in['sitemap_priority'] ?? 0.7, 'sitemap_changefreq' => $s('sitemap_changefreq') ?: 'weekly',
+        'index_status' => $s('index_status') ?: 'unknown', 'index_checked_at' => $s('index_checked_at'), 'index_note' => $s('index_note'),
     ];
-    foreach (['meta_title' => [190, 'SEO title'], 'meta_description' => [320, 'Meta description'], 'meta_keywords' => [255, 'Keywords'], 'canonical_url' => [255, 'Canonical URL'],
-        'og_title' => [190, 'Social title'], 'og_description' => [320, 'Social description'], 'og_image' => [255, 'Social image']] as $k => [$max, $label]) {
+    $textFields = ['meta_title' => [190, 'SEO title'], 'meta_description' => [320, 'Meta description'], 'meta_keywords' => [255, 'Keywords'],
+        'focus_keyword' => [120, 'Focus keyword'], 'secondary_keywords' => [500, 'Secondary keywords'], 'canonical_url' => [255, 'Canonical URL'],
+        'og_title' => [190, 'Social title'], 'og_description' => [320, 'Social description'], 'og_image' => [255, 'Social image'],
+        'twitter_title' => [190, 'X (Twitter) title'], 'twitter_description' => [320, 'X (Twitter) description'], 'image_alt' => [190, 'Image alt text'],
+        'index_note' => [255, 'Indexing note']];
+    foreach ($textFields as $k => [$max, $label]) {
         if (mb_strlen($data[$k]) > $max) {
             $errors[$k] = "$label may not be longer than $max characters.";
+        } elseif (cms_seo_has_markup($data[$k])) {
+            $errors[$k] = "$label may not contain HTML tags or scripts. Use plain text only.";
         }
     }
-    if ($data['canonical_url'] !== '' && !preg_match('#^(https?://\S+|/\S*)$#i', $data['canonical_url'])) {
+    if ($data['canonical_url'] !== '' && !isset($errors['canonical_url']) && !preg_match('#^(https?://[^\s"\'<>]+|/[^\s"\'<>]*)$#i', $data['canonical_url'])) {
         $errors['canonical_url'] = 'Use an absolute URL (https://…) or a path starting with /.';
+    }
+    if (!isset(cms_seo_index_statuses()[$data['index_status']])) {
+        $errors['index_status'] = 'Select a valid indexing status.';
+    }
+    if ($data['index_checked_at'] !== '') {
+        $t = strtotime($data['index_checked_at']);
+        if (!$t || !preg_match('/^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$/', $data['index_checked_at'])) {
+            $errors['index_checked_at'] = 'Enter a valid date.';
+        } elseif ($t > time() + 86400) {
+            $errors['index_checked_at'] = 'The checked date cannot be in the future.';
+        } else {
+            $data['index_checked_at'] = date('Y-m-d H:i:s', $t);
+        }
     }
     if ($data['og_image'] !== '' && !cms_valid_image($data['og_image'])) {
         $errors['og_image'] = 'Choose an image from the media library or upload one.';
@@ -1634,6 +1939,8 @@ function cms_seo_check_input(array $in): array
         $decoded = json_decode($data['schema_json'], true);
         if (!is_array($decoded)) {
             $errors['schema_json'] = 'Schema must be valid JSON-LD (an object or an array): ' . json_last_error_msg() . '.';
+        } elseif (preg_match('/<\s*\/?\s*script|<!--|javascript\s*:/i', $data['schema_json'])) {
+            $errors['schema_json'] = 'Schema may not contain <script> tags, HTML comments or javascript: links.';
         } else {
             $data['schema_json'] = json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             if (mb_strlen($data['schema_json']) > 60000) {
@@ -1649,16 +1956,21 @@ function cms_seo_check_input(array $in): array
     return [$data, $errors];
 }
 
-/** Default robots.txt (used when the robots_txt setting is empty). */
+/**
+ * Default robots.txt (used when the robots_txt setting is empty) — the recommended rules of the SEO platform,
+ * including the managed AI crawler block (app/services/seo.php seo_default_robots_txt()).
+ */
 function cms_default_robots_txt(): string
 {
-    return "User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\nDisallow: /storage/\nDisallow: /search\n\nSitemap: " . absolute_url('sitemap.xml') . "\n";
+    require_once APP_ROOT . '/app/services/seo.php';
+    return seo_default_robots_txt();
 }
 
+/** robots.txt exactly as /robots.txt serves it (custom rules + managed AI block + Sitemap line, or the defaults). */
 function cms_robots_txt(): string
 {
-    $custom = trim((string) setting('robots_txt', ''));
-    return $custom !== '' ? $custom . "\n" : cms_default_robots_txt();
+    require_once APP_ROOT . '/app/services/seo.php';
+    return seo_robots_txt();
 }
 
 /** Validate robots.txt content. Returns error message or null. */
@@ -1681,7 +1993,7 @@ function cms_robots_error(string $content): ?string
 
 /**
  * URLs for the sitemaps: [{loc, path, type, title, lastmod, changefreq, priority, pending}]. Only indexable canonical
- * URLs: excludes noindex and include_in_sitemap = 0 records, drafts / scheduled content, campaign landing pages
+ * URLs: excludes noindex and include_in_sitemap = 0 records, records whose admin canonical points elsewhere, drafts / scheduled content, campaign landing pages
  * (/admissions-open and pages with the "landing" template) unless setting landing_indexable = 1, empty CMS pages
  * (rendered noindex by page.php), error pages, admin and portal URLs. Types: route, page, program, post,
  * blog_category (/blog?category=…), event, notice, gallery. Entries whose template file does not exist yet are only
@@ -1699,6 +2011,10 @@ function cms_sitemap_urls(bool $includePending = false): array
         }
         $s = $seo[$key] ?? null;
         if ($s && (str_contains((string) $s['robots'], 'noindex') || !(int) $s['include_in_sitemap'])) {
+            return;
+        }
+        // A URL whose admin canonical points to another address is a duplicate: only canonical URLs belong in a sitemap.
+        if ($s && trim((string) ($s['canonical_url'] ?? '')) !== '' && cms_seo_canonical_elsewhere((string) $s['canonical_url'], strtok($path, '?') ?: '/')) {
             return;
         }
         $seen[$path] = true;
@@ -1728,9 +2044,32 @@ function cms_sitemap_urls(bool $includePending = false): array
     foreach ($try("SELECT slug, updated_at FROM pages WHERE status = 'published'") as $r) {
         $pageDates['/' . $r['slug']] = $r['updated_at'];
     }
+    // Listing pages that are empty are thin content (noindex while empty) — not sitemap material (cms_thin_listing_paths()).
+    $emptyRoutes = cms_thin_listing_paths();
+    // CMS pages with draft text ("[To be confirmed by GIMT: …]") or /leadership without one confirmed profile render
+    // noindex,follow (page.php) — leave them out too.
+    $draftCount = function (array $p): int {
+        $blocks = array_values(array_filter(json_decode(api_str($p['blocks'] ?? null), true) ?: [], fn ($b) => is_array($b) && empty($b['hidden'])));
+        return substr_count((string) $p['content'] . ' ' . json_encode($blocks, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), '[To be confirmed');
+    };
+    $noRealPeople = function (array $p): bool {
+        $real = 0;
+        foreach (json_decode(api_str($p['blocks'] ?? null), true) ?: [] as $b) {
+            if (is_array($b) && empty($b['hidden']) && ($b['type'] ?? '') === 'cards' && (($b['data']['style'] ?? '') === 'person')) {
+                foreach ((array) ($b['data']['items'] ?? []) as $it) {
+                    $t = is_array($it) ? (string) ($it['title'] ?? '') . ' ' . ($it['subtitle'] ?? '') . ' ' . ($it['text'] ?? '') : '';
+                    $real += trim((string) ($it['title'] ?? '')) !== '' && !preg_match('/placeholder|to be confirmed|\[\s*tbc|lorem ipsum|sample name/i', $t) ? 1 : 0;
+                }
+            }
+        }
+        return $real === 0;
+    };
     foreach (cms_public_routes() as $path => $r) {
         if ($path === '/admissions-open' && !$landingIndexable) {
             continue; // campaign landing page: noindex,follow unless the institute opts in
+        }
+        if (isset($emptyRoutes[$path])) {
+            continue;
         }
         $file = APP_ROOT . '/' . $r['file'];
         $dates = array_filter([is_file($file) ? date('Y-m-d H:i:s', (int) filemtime($file)) : null, $pageDates[$path] ?? null,
@@ -1747,11 +2086,23 @@ function cms_sitemap_urls(bool $includePending = false): array
             && !array_filter(json_decode(api_str($p['blocks'] ?? null), true) ?: [], fn ($b) => is_array($b) && empty($b['hidden']))) {
             continue;
         }
+        if (isset($emptyRoutes[cms_page_url($p)]) || ($rt !== 'route' && ($draftCount($p) > 0 || ($p['slug'] === 'leadership' && $noRealPeople($p))))) {
+            continue;
+        }
         $add('page', $p['title'], cms_page_url($p), $p['updated_at'] ?: $p['created_at'], $rt === 'route' ? 'route:' . $ref : 'page:' . $p['id'], 0.6, 'monthly',
             $rt === 'route' ? $tpl(basename($ref) . '.php') : $tpl('page.php'));
     }
     foreach ($try("SELECT id, name, slug, updated_at, created_at FROM programs WHERE status = 'active' AND show_on_website = 1 ORDER BY sort_order, name") as $p) {
         $add('program', $p['name'], '/programs/' . $p['slug'], $p['updated_at'] ?: $p['created_at'], 'program:' . $p['id'], 0.8, 'monthly', $tpl('program.php'));
+    }
+    // Level / department landing pages served by program.php (/programs/undergraduate, /programs/{department})
+    try {
+        require_once APP_ROOT . '/includes/partials/site_academic.php';
+        foreach (sa_landing_pages() as $lp) {
+            $dates = array_filter(array_map(fn ($x) => $x['updated_at'] ?? null, $lp['programs']));
+            $add('program', $lp['title'], '/programs/' . $lp['slug'], $dates ? max($dates) : null, 'route:/programs/' . $lp['slug'], 0.7, 'monthly', $tpl('program.php'));
+        }
+    } catch (Throwable $e) {
     }
     foreach ($try("SELECT id, title, slug, updated_at, published_at FROM blog_posts WHERE status = 'published' AND (published_at IS NULL OR published_at <= NOW()) ORDER BY published_at DESC LIMIT 5000") as $p) {
         $add('post', $p['title'], '/blog/' . $p['slug'], $p['updated_at'] ?: $p['published_at'], 'post:' . $p['id'], 0.6, 'monthly', $tpl('post.php'));
@@ -1770,7 +2121,55 @@ function cms_sitemap_urls(bool $includePending = false): array
     }
     // Album pages keep their SEO on route records (/gallery/{slug}), so a noindex route row removes them here too.
     foreach ($try("SELECT id, title, slug, created_at, updated_at FROM galleries WHERE status = 'published' ORDER BY sort_order, title") as $p) {
+        if (isset($emptyRoutes['/gallery/' . $p['slug']])) {
+            continue; // fewer than 3 photos: thin album page
+        }
         $add('gallery', $p['title'], '/gallery/' . $p['slug'], $p['updated_at'] ?: $p['created_at'], 'route:/gallery/' . $p['slug'], 0.4, 'monthly', $tpl('gallery.php'));
+    }
+    return $out;
+}
+
+/**
+ * Listing pages that are thin while empty: path => reason. They render noindex,follow (blog.php, faculty.php,
+ * gallery.php) and stay out of the sitemaps (cms_sitemap_urls()) — one rule for both:
+ *   /blog without a published post, /faculty without a public profile, /gallery when all published albums together
+ *   hold fewer than 3 items, /gallery/{slug} for an album with fewer than 3 items.
+ * An unknown count (query error) never marks a page thin. Cached per request.
+ */
+function cms_thin_listing_paths(): array
+{
+    static $out = null;
+    if ($out !== null) {
+        return $out;
+    }
+    $out = [];
+    $count = function (string $sql): int {
+        try {
+            return (int) db_value($sql);
+        } catch (Throwable $e) {
+            return -1; // unknown → keep the URL
+        }
+    };
+    if ($count("SELECT COUNT(*) FROM blog_posts WHERE status = 'published' AND (published_at IS NULL OR published_at <= NOW())") === 0) {
+        $out['/blog'] = 'no published posts';
+    }
+    if ($count("SELECT COUNT(*) FROM faculty WHERE show_on_website = 1 AND status IN ('active','on_leave')") === 0) {
+        $out['/faculty'] = 'no public faculty profiles';
+    }
+    try {
+        $albums = db_all("SELECT g.slug, COUNT(gi.id) n FROM galleries g LEFT JOIN gallery_items gi ON gi.gallery_id = g.id WHERE g.status = 'published' GROUP BY g.id, g.slug");
+    } catch (Throwable $e) {
+        return $out;
+    }
+    $total = 0;
+    foreach ($albums as $a) {
+        $total += (int) $a['n'];
+        if ((int) $a['n'] < 3) {
+            $out['/gallery/' . $a['slug']] = 'album with fewer than 3 photos';
+        }
+    }
+    if ($total < 3) {
+        $out['/gallery'] = 'fewer than 3 photos in all albums';
     }
     return $out;
 }
@@ -1812,14 +2211,14 @@ function cms_default_sections(): array
     $tour = trim((string) setting('campus_tour_video_url', ''));
     $tour = $tour !== '' && cms_valid_url($tour) ? $tour : '';
     $s = [
-        'hero' => ['Shape Your Future.', 'Global Institute of Management & Technology empowers students with industry-focused education, expert mentorship and a vibrant campus in Sector 18, Noida.', [
+        'hero' => ['Shape Your Future.', 'Global Institute of Management & Technology empowers students with industry-focused education, expert mentorship and placement assistance in Sector 18, Noida.', [
             'layout' => 'split', 'person_image' => $img('hero-counsellor.webp'),
             'eyebrow' => 'Shaping Future Leaders', 'highlight' => 'Build Your Legacy.', 'image' => $img('hero-campus-students.jpg'),
-            'image_alt' => 'Smiling GIMT students in front of the academic block', 'primary_cta' => ['label' => 'Apply for Admission', 'url' => '/apply'],
+            'image_alt' => 'Smiling GIMT students', 'primary_cta' => ['label' => 'Apply for Admission', 'url' => '/apply'],
             'secondary_cta' => ['label' => 'Explore Programs', 'url' => '/programs'], 'badge' => 'Admissions Open for ' . $session,
             'tagline_words' => ['Learn', 'Grow', 'Innovate', 'Succeed'],
             'chips' => [['icon' => 'briefcase-business', 'label' => 'Industry Focused'], ['icon' => 'users', 'label' => 'Expert Faculty'],
-                ['icon' => 'building-2', 'label' => 'Modern Campus'], ['icon' => 'trending-up', 'label' => 'Placement Support']],
+                ['icon' => 'map-pin', 'label' => 'Sector 18, Noida'], ['icon' => 'trending-up', 'label' => 'Placement Assistance']],
             'video_url' => $tour, 'video_label' => 'Watch Our Campus Tour', 'use_banners' => true]],
         'stats' => ['GIMT at a Glance', null, ['variant' => 'overlap', 'anchor' => 'at-a-glance', 'items' => [
             ['value' => '10', 'prefix' => '', 'suffix' => '+', 'label' => 'Programs', 'icon' => 'graduation-cap', 'source' => 'programs'],
@@ -1831,26 +2230,26 @@ function cms_default_sections(): array
             ['icon' => 'briefcase-business', 'title' => 'Industry-Focused Curriculum', 'text' => 'Live projects, internships and certifications in every program.'],
             ['icon' => 'users', 'title' => 'Experienced Faculty', 'text' => 'PhD faculty and practitioners who mentor every student.'],
             ['icon' => 'building-2', 'title' => 'Modern Infrastructure', 'text' => 'Smart classrooms, advanced labs and a digital library.'],
-            ['icon' => 'rocket', 'title' => 'Career Development', 'text' => 'Dedicated placement cell, aptitude training and mock interviews.'],
+            ['icon' => 'rocket', 'title' => 'Career Development', 'text' => 'Placement assistance with aptitude training, CV and interview preparation.'],
             ['icon' => 'heart', 'title' => 'Student-Centric Education', 'text' => 'Mentoring, counselling and support from day one.']]]],
         'programs' => ['Explore Our Academic Programs', 'Choose from industry-aligned undergraduate, postgraduate, diploma and certificate programs designed for the careers of tomorrow.', [
             'eyebrow' => 'Programs & Courses', 'anchor' => 'programs', 'categories' => ['all', 'ug', 'pg', 'management', 'technology', 'commerce', 'diploma', 'certificate'],
             'mode' => 'all', 'limit' => 6, 'program_ids' => [], 'view_all' => ['label' => 'View All Programs', 'url' => '/programs']]],
-        'why' => ['Why Choose GIMT', 'Everything you need to learn, grow and launch a successful career — in one inspiring campus.', [
+        'why' => ['Why Choose GIMT', 'Everything you need to learn, grow and launch a successful career — in one place.', [
             'eyebrow' => 'Why GIMT', 'image' => '', 'items' => [
                 ['icon' => 'lightbulb', 'title' => 'Industry-Relevant Learning', 'text' => 'Curriculum co-designed with recruiters and updated every year.', 'tint' => 'lavender'],
                 ['icon' => 'users', 'title' => 'Expert Faculty & Mentorship', 'text' => 'Learn from experienced academics and industry practitioners.', 'tint' => 'sky'],
-                ['icon' => 'laptop', 'title' => 'Digital Learning Resources', 'text' => 'Digital library, e-journals, LMS and 24×7 Wi-Fi campus.', 'tint' => 'aqua'],
+                ['icon' => 'laptop', 'title' => 'Digital Learning Resources', 'text' => 'Digital library, e-journals and LMS access.', 'tint' => 'aqua'],
                 ['icon' => 'target', 'title' => 'Career Preparation', 'text' => 'Aptitude, soft-skills and interview training from the first year.', 'tint' => 'cream'],
                 ['icon' => 'microscope', 'title' => 'Practical Exposure', 'text' => 'Labs, live projects, industrial visits and internships.', 'tint' => 'sand'],
                 ['icon' => 'shield-check', 'title' => 'Student Support', 'text' => 'Mentors, counsellors and a responsive student helpdesk.', 'tint' => 'lavender'],
                 ['icon' => 'cpu', 'title' => 'Innovation & Technology', 'text' => 'Incubation support, hackathons and research projects.', 'tint' => 'sky'],
-                ['icon' => 'trophy', 'title' => 'Holistic Development', 'text' => 'Sports, clubs, cultural fests and community service.', 'tint' => 'aqua']]]],
-        'academic_excellence' => ['Academic Excellence Rooted in Real-World Learning', 'Since 2008, GIMT has prepared thousands of graduates for leadership roles in business and technology.', [
+                ['icon' => 'trophy', 'title' => 'Holistic Development', 'text' => 'Clubs, cultural fests and community service.', 'tint' => 'aqua']]]],
+        'academic_excellence' => ['Academic Excellence Rooted in Real-World Learning', 'Industry-oriented UG, PG, diploma and certificate programs in management, technology, commerce and computer applications — in Sector 18, Noida.', [
             'eyebrow' => 'About GIMT',
             'text' => "Global Institute of Management & Technology (GIMT) is committed to high-quality, industry-oriented education with a strong focus on innovation, research and holistic development.\n\nOur programs combine rigorous academics with live projects, internships and mentoring, so every student graduates confident, employable and ready to lead.",
-            'bullets' => ['Industry-integrated curriculum', 'Experienced and qualified faculty', 'State-of-the-art infrastructure', 'Strong placement and career support'],
-            'cta' => ['label' => 'Discover GIMT', 'url' => '/about'], 'image' => $img('campus-main.jpg'), 'image_alt' => 'The GIMT main campus building',
+            'bullets' => ['Industry-integrated curriculum', 'Experienced and qualified faculty', 'Placement assistance and career guidance'],
+            'cta' => ['label' => 'Discover GIMT', 'url' => '/about'], 'image' => $img('campus-main.jpg'), 'image_alt' => 'The GIMT building',
             'video_url' => $tour, 'video_label' => 'Virtual Campus Tour',
             'cards' => [['icon' => 'eye', 'title' => 'Our Vision', 'text' => 'To be a globally recognised institution for excellence in education and innovation, creating leaders who make a positive impact on society.'],
                 ['icon' => 'target', 'title' => 'Our Mission', 'text' => 'To empower students with knowledge, skills and values through industry-relevant education, research and holistic development.']]]],
@@ -1864,17 +2263,17 @@ function cms_default_sections(): array
                 ['icon' => 'wallet', 'title' => 'Enrollment & Fee Payment', 'text' => 'Pay the admission fee online and receive your confirmation.']]]],
         'campus_life' => ['Life at GIMT', 'Learning goes far beyond the classroom.', [
             'eyebrow' => 'Explore', 'anchor' => 'campus-life', 'cards' => [
-                ['title' => 'Campus Life', 'text' => 'Clubs, fests, sports and a green, safe campus that feels like home.', 'image' => $img('students-lawn.jpg'), 'url' => '/campus', 'link_label' => 'Explore Campus'],
-                ['title' => 'Placements', 'text' => 'A dedicated placement cell connecting students with leading recruiters.', 'image' => $img('placement-student.jpg'), 'url' => '/placement', 'link_label' => 'View Placements'],
+                ['title' => 'Campus Life', 'text' => 'Clubs, fests and a safe, welcoming campus that feels like home.', 'image' => $img('students-atrium.jpg'), 'url' => '/campus', 'link_label' => 'Explore Campus'],
+                ['title' => 'Placements', 'text' => 'Placement assistance: career guidance, CV and interview preparation, and help applying to recruiters.', 'image' => $img('placement-student.jpg'), 'url' => '/placement', 'link_label' => 'Placement Assistance'],
                 ['title' => 'News & Events', 'text' => 'Seminars, hackathons, convocations and achievements from campus.', 'image' => $img('news-campus.jpg'), 'url' => '/blog', 'link_label' => 'Latest Updates']]]],
-        'placements' => ['Placement Highlights', 'Our students are hired by leading companies across consulting, IT, banking and FMCG.', [
+        'placements' => ['Placement Assistance', 'Career guidance, CV and interview preparation, and help applying to recruiters — for every student. No job guarantee.', [
             'eyebrow' => 'Careers', 'cta' => ['label' => 'View Placement Details', 'url' => '/placement'],
-            'text' => 'The GIMT Training & Placement Cell prepares every student through aptitude training, mock interviews and industry mentoring, and partners with recruiters for internships and final placements.',
-            'image' => $img('placement-student.jpg'), 'image_alt' => 'A GIMT graduate after a successful interview', 'stats' => [
-                ['value' => '90', 'prefix' => '', 'suffix' => '%', 'label' => 'Placement rate', 'icon' => 'trending-up', 'source' => 'placement_rate'],
-                ['value' => '25', 'prefix' => '₹', 'suffix' => ' LPA', 'label' => 'Highest package', 'icon' => 'trophy', 'source' => 'highest_package'],
-                ['value' => '6', 'prefix' => '₹', 'suffix' => ' LPA', 'label' => 'Average package', 'icon' => 'chart-column', 'source' => 'average_package'],
-                ['value' => '35', 'prefix' => '', 'suffix' => '+', 'label' => 'Recruiters', 'icon' => 'handshake', 'source' => 'recruiters']],
+            'text' => 'The GIMT Training & Placement Cell offers placement assistance — career guidance, aptitude training, CV and interview preparation, and help applying to recruiters for internships and jobs. Placement is not guaranteed.',
+            'image' => $img('placement-student.jpg'), 'image_alt' => 'A GIMT student preparing for an interview', 'stats' => [
+                ['value' => '', 'prefix' => '', 'suffix' => '%', 'label' => 'Placement rate', 'icon' => 'trending-up', 'source' => 'placement_rate'],
+                ['value' => '', 'prefix' => '₹', 'suffix' => ' LPA', 'label' => 'Highest package', 'icon' => 'trophy', 'source' => 'highest_package'],
+                ['value' => '', 'prefix' => '₹', 'suffix' => ' LPA', 'label' => 'Average package', 'icon' => 'chart-column', 'source' => 'average_package'],
+                ['value' => '', 'prefix' => '', 'suffix' => '+', 'label' => 'Recruiters', 'icon' => 'handshake', 'source' => 'recruiters']],
             'show_top_offers' => true, 'offers_limit' => 6]],
         'recruiters' => ['Our Recruiters', 'Companies that trust GIMT talent.', [
             'eyebrow' => 'Top Recruiters', 'source' => 'companies', 'limit' => 24, 'rows' => '2', 'items' => [], 'cta' => ['label' => 'Partner With Us', 'url' => '/contact?type=placement#message']]],
@@ -1883,7 +2282,7 @@ function cms_default_sections(): array
         'events_news' => ['Events & News', 'What is happening on campus.', [
             'eyebrow' => 'Stay Updated', 'anchor' => 'news', 'show_events' => true, 'events_limit' => 3, 'show_news' => true, 'news_limit' => 3, 'show_notices' => true, 'notices_limit' => 5,
             'view_all_events' => ['label' => 'All Events', 'url' => '/events'], 'view_all_news' => ['label' => 'All News', 'url' => '/blog']]],
-        'faqs' => ['Frequently Asked Questions', 'Quick answers about admissions, fees, hostel and placements.', [
+        'faqs' => ['Frequently Asked Questions', 'Quick answers about admissions, fees, scholarships and placement assistance.', [
             'eyebrow' => 'FAQs', 'categories' => [], 'home_only' => true, 'limit' => 8, 'columns' => '2', 'view_all' => ['label' => 'View All FAQs', 'url' => '/faq']]],
         'cta' => ['Ready to Build a Brighter Future?', 'Join GIMT and take the next step towards your academic and professional success. Our counsellors will help you choose the right program.', [
             'eyebrow' => 'Admissions Open ' . $session, 'theme' => 'dark', 'primary' => ['label' => 'Apply for Admission', 'url' => '/apply'],

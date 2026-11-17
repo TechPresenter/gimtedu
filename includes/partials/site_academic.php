@@ -12,6 +12,7 @@
  *   from-brand-700 to-brand-900 from-accent-600 to-brand-800 from-cyan-600 from-violet-600 from-amber-500
  *   badge-blue badge-green badge-amber badge-purple badge-red badge-cyan badge-slate
  */
+require_once APP_ROOT . '/app/services/seo_schema.php'; // shared JSON-LD builders (Course, FAQPage, BreadcrumbList, Person)
 
 /* ============================================================================ Basics */
 
@@ -70,12 +71,7 @@ function sa_whatsapp_url(string $text = 'Hello GIMT, I would like to know more a
 /** BreadcrumbList JSON-LD: [['Home', '/'], ['Programs', '/programs'], ['MBA', null]] (null = current URL). */
 function sa_breadcrumb_ld(array $crumbs): array
 {
-    $items = [];
-    $here = ltrim(substr((string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/'), strlen(base_path())), '/');
-    foreach (array_values($crumbs) as $i => [$name, $url]) {
-        $items[] = ['@type' => 'ListItem', 'position' => $i + 1, 'name' => $name, 'item' => absolute_url($url === null ? $here : ltrim((string) $url, '/'))];
-    }
-    return ['@context' => 'https://schema.org', '@type' => 'BreadcrumbList', 'itemListElement' => $items];
+    return seo_ld_breadcrumb($crumbs);
 }
 
 /**
@@ -188,7 +184,9 @@ function sa_vision_mission(): array
 /** Leadership cards: CMS page "leadership" blocks → setting leadership_json → defaults (mockup). */
 function sa_leaders(): array
 {
-    $people = sa_page_people(sa_cms_page('leadership')) ?: sa_page_people(sa_cms_page('about'));
+    // placeholder cards ("Dr. X (placeholder)", "[To be confirmed …]") are never shown; no invented default people
+    $real = fn (array $list) => array_values(array_filter($list, fn ($p) => !seo_ld_is_placeholder($p['name'], $p['role'], $p['bio'])));
+    $people = $real(sa_page_people(sa_cms_page('leadership'))) ?: $real(sa_page_people(sa_cms_page('about')));
     if (!$people) {
         $json = json_decode((string) setting('leadership_json', ''), true);
         if (is_array($json)) {
@@ -197,14 +195,8 @@ function sa_leaders(): array
                     $people[] = ['name' => (string) $it['name'], 'role' => (string) $it['role'], 'bio' => (string) ($it['bio'] ?? ''), 'photo' => (string) ($it['photo'] ?? '')];
                 }
             }
+            $people = $real($people);
         }
-    }
-    if (!$people) {
-        $people = [
-            ['name' => 'Dr. R.K. Sharma', 'role' => 'Chairman', 'bio' => 'Visionary leader with 25+ years in education and research.', 'photo' => 'assets/images/site/leader-1.jpg'],
-            ['name' => 'Prof. Neha Verma', 'role' => 'Director', 'bio' => 'Focused on academic excellence and student development.', 'photo' => 'assets/images/site/leader-2.jpg'],
-            ['name' => 'Dr. Amit Kumar', 'role' => 'Academic Dean', 'bio' => 'Expert in curriculum design and industry collaboration.', 'photo' => 'assets/images/site/leader-3.jpg'],
-        ];
     }
     foreach ($people as $i => &$p) {
         $p['image'] = site_image($p['photo'] ?: null, 'assets/images/site/leader-' . (($i % 3) + 1) . '.jpg');
@@ -281,7 +273,8 @@ function sa_counts(): array
         'labs' => $int("SELECT COUNT(*) FROM classrooms WHERE status = 'active' AND type = 'lab'"),
         // only a figure GIMT entered (Settings › Website › Student satisfaction, from its own survey) — never a default
         'satisfaction' => is_numeric($sat = setting('student_satisfaction')) && (float) $sat > 0 && (float) $sat <= 100 ? (float) $sat : null,
-        'established' => (int) setting('established_year', 2008),
+        // only a year GIMT entered in Settings — never a default (owner decision 2026-11-17: no founding year is published)
+        'established' => (int) setting('established_year', 0) > 1900 ? (int) setting('established_year', 0) : 0,
     ];
     return $c;
 }
@@ -304,11 +297,449 @@ function sa_programs(): array
 {
     static $rows = null;
     if ($rows === null) {
-        $rows = sa_try(fn () => db_all("SELECT p.*, d.name AS department_name, d.code AS department_code FROM programs p
+        $rows = sa_try(fn () => db_all("SELECT p.*, d.name AS department_name, d.code AS department_code,
+                (SELECT SUM(s.credits) FROM subjects s WHERE s.program_id = p.id AND s.status = 'active') AS subject_credits FROM programs p
                 LEFT JOIN departments d ON d.id = p.department_id
                 WHERE p.status = 'active' AND p.show_on_website = 1 ORDER BY p.is_featured DESC, p.sort_order, p.name"), []);
+        foreach ($rows as &$r) {
+            $r['total_credits'] = sa_program_credits($r);
+        }
+        unset($r);
     }
     return $rows;
+}
+
+/**
+ * Total credits of a program — ONE source everywhere (program page, curriculum table, /programs cards, Course JSON-LD,
+ * FAQs, landing pages): the sum of the program's active subjects (the semester tables the page publishes) when a
+ * curriculum is entered, else programs.total_credits (Academics › Programs). Pass 'subject_credits' (sa_programs()) or
+ * the curriculum sum to avoid a query. 0 = unknown.
+ */
+function sa_program_credits(array $p, ?float $subjectSum = null): float
+{
+    if (($p['level'] ?? '') === 'Certificate') {
+        return 0.0; // certificate courses are described by duration + modules, never by credits
+    }
+    $sum = $subjectSum ?? (array_key_exists('subject_credits', $p) ? (float) $p['subject_credits']
+        : (float) sa_try(fn () => db_value("SELECT COALESCE(SUM(credits), 0) FROM subjects WHERE program_id = ? AND status = 'active'", [(int) $p['id']]), 0));
+    return $sum > 0 ? $sum : (float) ($p['total_credits'] ?? 0);
+}
+
+/** "138" / "7.5" — a credit or year figure without trailing zeros. */
+function sa_num(float $n): string
+{
+    return rtrim(rtrim(number_format($n, 1), '0'), '.');
+}
+
+/* ============================================================================ Verified facts (owner decisions 2026-11-17) */
+
+/** Application (registration) fee — owner decision (2). Display text only: no online payment step is switched on. */
+function sa_application_fee(): string
+{
+    return '₹999';
+}
+
+/** The scholarship statement confirmed by the owner (decision 3) — used verbatim wherever scholarships are described. */
+function sa_scholarship_statement(): string
+{
+    return 'Merit scholarships of up to 50% of the tuition fee, plus sports, single girl child, economically weaker section, defence ward and sibling scholarships';
+}
+
+/** Placement wording (decision 6): assistance, never outcomes. */
+function sa_placement_statement(): string
+{
+    return 'GIMT provides placement assistance: career guidance, CV and interview preparation, and help applying to recruiters. Placement assistance is support, not a job guarantee.';
+}
+
+/** Admission window (decision 1): "Rolling admissions — until seats are filled", or the deadline an admin has set. */
+function sa_admission_window(): string
+{
+    $d = function_exists('site_admissions_deadline') ? site_admissions_deadline() : null;
+    return $d ? 'Applications close on ' . date('j M Y', $d) : 'Rolling admissions — until seats are filled';
+}
+
+/** The five published admission steps (/admissions#process) — the only "how to apply" wording used in answers. */
+function sa_admission_steps(): array
+{
+    return [
+        ['title' => 'Explore Programs', 'text' => 'Compare programs, eligibility and fees, or talk to a counsellor.', 'icon' => 'search'],
+        ['title' => 'Submit Application', 'text' => 'Fill the online form in about 10 minutes and pay the ' . sa_application_fee() . ' application (registration) fee.', 'icon' => 'file-text'],
+        ['title' => 'Upload Documents', 'text' => 'Photo, marksheets and ID proof as PDF or image files.', 'icon' => 'upload'],
+        ['title' => 'Verification & Approval', 'text' => 'Documents verified in 3 working days, then test / interview.', 'icon' => 'clipboard-check'],
+        ['title' => 'Enrollment & Fee Payment', 'text' => 'Accept your offer, pay the admission fee and get your student ID.', 'icon' => 'wallet'],
+    ];
+}
+
+/** "How do I apply" answer (published steps + fee + admission window) for a program or in general. */
+function sa_how_to_apply(?array $p = null): string
+{
+    $url = absolute_url('apply' . ($p ? '?program=' . rawurlencode((string) $p['slug']) : ''));
+    return 'Apply online at ' . $url . ': fill the application form, upload your documents and pay the ' . sa_application_fee() . ' application (registration) fee. '
+        . 'Documents are verified within 3 working days, followed by the test / interview. ' . sa_admission_window() . '.';
+}
+
+/** Institute facts from Settings (name, short name, address, city, phone, e-mail, hours). */
+function sa_institute_facts(): array
+{
+    return [
+        'name' => institute_name(),
+        'short' => (string) setting('institute_short_name', 'GIMT'),
+        'address' => trim((string) setting('address', '')),
+        'city' => trim((string) setting('city', 'Noida')) ?: 'Noida',
+        'phone' => trim((string) setting('phone', '')),
+        'email' => trim((string) setting('admission_email', setting('email', ''))),
+        'hours' => trim((string) setting('office_hours', '')),
+    ];
+}
+
+/** Short eligibility ("10+2 with 50%", "Graduation with 50%", "Class 10 pass" …) for fact strips and tables. */
+function sa_eligibility_short(string $elig): string
+{
+    $elig = trim($elig);
+    if ($elig === '') {
+        return '';
+    }
+    if (preg_match('/(\d{2})\s*%/', $elig, $m)) {
+        $base = stripos($elig, '10+2') !== false ? '10+2' : (preg_match('/bachelor|graduat/i', $elig) ? 'Graduation' : '');
+        return $base !== '' ? $base . ' with ' . $m[1] . '%' : str_limit($elig, 30);
+    }
+    if (stripos($elig, '10+2') !== false) {
+        return stripos($elig, 'graduation') !== false ? '10+2 or Graduation' : '10+2 (any stream)';
+    }
+    if (preg_match('/^Class (\d+) pass/i', $elig, $m)) {
+        return 'Class ' . $m[1] . ' pass';
+    }
+    if (preg_match('/^Graduates/i', $elig)) {
+        return 'Graduates & professionals';
+    }
+    return str_limit($elig, 30);
+}
+
+/** Display name of a program: "Bachelor of Business Administration (BBA)". */
+function sa_program_label(array $p): string
+{
+    $sfx = function_exists('program_title_suffix') ? program_title_suffix($p) : '';
+    return $p['name'] . ($sfx !== '' ? ' (' . $sfx . ')' : '');
+}
+
+/** Number of years as text: "3 years", "1 year", "6 months" (duration_label first). */
+function sa_duration_text(array $p): string
+{
+    $label = trim((string) ($p['duration_label'] ?? ''));
+    if ($label !== '') {
+        return strtolower($label);
+    }
+    $y = (float) ($p['duration_years'] ?? 0);
+    return $y > 0 ? sa_num($y) . ' year' . ($y == 1.0 ? '' : 's') : '';
+}
+
+/** "A, B and C". */
+function sa_join(array $items, string $last = 'and'): string
+{
+    $items = array_values(array_filter(array_map('strval', $items), fn ($v) => $v !== ''));
+    return count($items) > 1 ? implode(', ', array_slice($items, 0, -1)) . ' ' . $last . ' ' . end($items) : (string) ($items[0] ?? '');
+}
+
+/** "Quick answers" block: visible question headings + short answers (the same items go into the page's FAQPage). */
+function sa_quick_answers_html(array $qa, string $title, string $id = 'quick-answers', string $lead = ''): string
+{
+    if (!$qa) {
+        return '';
+    }
+    $h = '<section id="' . e($id) . '" class="scroll-mt-28" aria-labelledby="' . e($id) . '-title">'
+        . '<p class="eyebrow mb-2">Quick answers</p><h2 id="' . e($id) . '-title" class="font-display text-2xl font-extrabold text-brand-900">' . e($title) . '</h2>'
+        . ($lead !== '' ? '<p class="mt-1 text-slate-600">' . e($lead) . '</p>' : '')
+        . '<div class="mt-5 grid gap-3 sm:grid-cols-2">';
+    foreach ($qa as $i => $item) {
+        $h .= '<div class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">'
+            . '<h3 class="flex items-start gap-2.5 font-display text-[15.5px] font-bold leading-snug text-brand-900"><span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg tint-navy text-[11px] font-extrabold" aria-hidden="true">' . ($i + 1) . '</span><span>' . e($item['q']) . '</span></h3>'
+            . '<p class="mt-2 text-sm leading-relaxed text-slate-600">' . sa_linkify(e($item['a'])) . '</p></div>';
+    }
+    return $h . '</div></section>';
+}
+
+/** Turns this site's absolute URLs inside already-escaped text into links. */
+function sa_linkify(string $escaped): string
+{
+    $base = preg_quote(e(absolute_url('')), '~');
+    return (string) preg_replace_callback('~' . $base . '[^\s<]*[^\s<.,;:]~', fn ($m) => '<a href="' . $m[0] . '" class="font-semibold text-brand-800 underline decoration-brand-200 underline-offset-2 hover:text-accent-800">' . $m[0] . '</a>', $escaped);
+}
+
+/**
+ * Quick answers for one program, built only from its row + published admission facts (5–8 items).
+ * $ctx: curriculum (sa_curriculum), courses (specialisations), fee_total (float|null), credits (float).
+ */
+function sa_program_quick_answers(array $p, array $ctx = []): array
+{
+    $f = sa_institute_facts();
+    $session = sa_session()['name'] ?? '';
+    $isCert = ($p['level'] ?? '') === 'Certificate';
+    $short = ($p['short_name'] ?? '') ?: $p['name'];
+    $curriculum = $ctx['curriculum'] ?? [];
+    $credits = (float) ($ctx['credits'] ?? 0);
+    $dur = sa_duration_text($p);
+    $level = strtolower(program_level_label((string) $p['level']));
+    $sem = (int) ($p['total_semesters'] ?? 0);
+    $qa = [];
+    if ($isCert) {
+        $mods = $curriculum ? array_merge(...array_values($curriculum)) : [];
+        $proj = count(array_filter($mods, fn ($m) => ($m['type'] ?? '') === 'project'));
+        $n = count($mods) - $proj;
+        $qa[] = ['q' => 'How long is the ' . $short . ' course at ' . $f['short'] . ' ' . $f['city'] . '?',
+            'a' => 'The ' . $p['name'] . ' runs for ' . $dur . ($mods ? ' and covers ' . $n . ' module' . ($n === 1 ? '' : 's') . ($proj ? ' + a final project' : '') : '') . '.'];
+    } else {
+        $qa[] = ['q' => 'How long is the ' . $short . ' program at ' . $f['short'] . ' ' . $f['city'] . '?',
+            'a' => 'The ' . sa_program_label($p) . ' is a ' . $dur . ' ' . $level . ' program' . ($sem ? ' divided into ' . $sem . ' semester' . ($sem === 1 ? '' : 's') : '') . ($credits > 0 ? ' with ' . sa_num($credits) . ' credits in total' : '') . '.'];
+    }
+    if (trim((string) $p['eligibility']) !== '') {
+        $qa[] = ['q' => 'What is the eligibility for ' . $short . '?', 'a' => trim((string) $p['eligibility'])];
+    }
+    if ((float) $p['fee_per_year'] > 0) {
+        $perCourse = stripos((string) $p['fee_label'], 'course') !== false || (float) $p['duration_years'] < 1;
+        $total = $ctx['fee_total'] ?? null;
+        $a = $perCourse
+            ? 'The course fee' . ($session ? ' for ' . $session : '') . ' is ' . money($p['fee_per_year']) . ' for the complete course.'
+            : 'The tuition fee' . ($session ? ' for ' . $session : '') . ' is ' . money($p['fee_per_year']) . ' per year' . ($total ? ' (' . money($total) . ' for the full program at ' . ($session ?: 'current') . ' rates)' : '') . '.';
+        $qa[] = ['q' => 'What is the fee for ' . $short . '?', 'a' => $a . ' The application (registration) fee is ' . sa_application_fee() . '.'];
+    }
+    if ((int) $p['intake_capacity'] > 0) {
+        $qa[] = ['q' => 'How many seats are there in ' . $short . '?', 'a' => 'The annual intake' . ($session ? ' for ' . $session : '') . ' is ' . (int) $p['intake_capacity'] . ' seats. ' . sa_admission_window() . '.'];
+    }
+    if (!empty($ctx['courses'])) {
+        $names = array_map(fn ($c) => preg_replace('/^.*?\s[-–]\s/', '', (string) $c['name']), $ctx['courses']);
+        $qa[] = ['q' => 'Which specialisations are offered in ' . $short . '?', 'a' => 'Specialisations offered: ' . sa_join($names) . '.'];
+    } elseif ($curriculum && !$isCert) {
+        $first = array_slice(array_column(reset($curriculum), 'name'), 0, 4);
+        $qa[] = ['q' => 'What subjects are taught in ' . $short . '?', 'a' => 'The curriculum has ' . array_sum(array_map('count', $curriculum)) . ' subjects over ' . count($curriculum) . ' semester' . (count($curriculum) === 1 ? '' : 's') . '; semester ' . (int) array_key_first($curriculum) . ' includes ' . sa_join($first) . '.'];
+    } elseif ($curriculum && $isCert) {
+        $mods = array_values(array_filter(array_merge(...array_values($curriculum)), fn ($m) => ($m['type'] ?? '') !== 'project'));
+        $qa[] = ['q' => 'What does the ' . $short . ' course cover?', 'a' => 'Modules: ' . sa_join(array_slice(array_column($mods, 'name'), 0, 6)) . (count($mods) > 6 ? ' and more' : '') . '.'];
+    }
+    $qa[] = ['q' => 'How do I apply for ' . $short . '?', 'a' => sa_how_to_apply($p)];
+    if ($f['address'] !== '') {
+        $qa[] = ['q' => 'Where are ' . $short . ' classes held?', 'a' => 'At ' . $f['name'] . ' (' . $f['short'] . '), ' . $f['address'] . '.'];
+    }
+    return array_slice($qa, 0, 8);
+}
+
+/** Level mix of the active website programs: ['UG' => n, 'PG' => n, 'Diploma' => n, 'Certificate' => n]. */
+function sa_level_counts(): array
+{
+    $out = ['UG' => 0, 'PG' => 0, 'Diploma' => 0, 'Certificate' => 0];
+    foreach (sa_programs() as $p) {
+        $k = in_array($p['level'], ['PG', 'PhD'], true) ? 'PG' : $p['level'];
+        if (isset($out[$k])) {
+            $out[$k]++;
+        }
+    }
+    return $out;
+}
+
+/** "6 undergraduate, 3 postgraduate and 1 diploma programs in management, technology, … plus 32 short certificate courses". */
+function sa_offer_text(): string
+{
+    $c = sa_level_counts();
+    $parts = array_filter([$c['UG'] ? $c['UG'] . ' undergraduate' : '', $c['PG'] ? $c['PG'] . ' postgraduate' : '', $c['Diploma'] ? $c['Diploma'] . ' diploma' : '']);
+    $streams = [];
+    foreach (sa_programs() as $p) {
+        $cat = strtolower(trim((string) $p['category']));
+        if ($p['level'] !== 'Certificate' && $cat !== '' && !in_array($cat, ['diploma', 'certificate'], true)) {
+            $streams[$cat] = $cat;
+        }
+    }
+    $degree = $parts ? sa_join($parts) . ' program' . (array_sum([$c['UG'], $c['PG'], $c['Diploma']]) === 1 ? '' : 's') . ($streams ? ' in ' . sa_join(array_values($streams)) : '') : '';
+    $certs = $c['Certificate'] ? $c['Certificate'] . ' short certificate course' . ($c['Certificate'] === 1 ? '' : 's') : '';
+    return $degree !== '' && $certs !== '' ? $degree . ', plus ' . $certs : $degree . $certs;
+}
+
+/** The definitional sentence: "<Name> (<short>) is an institute at <address> that offers …". */
+function sa_definition_text(): string
+{
+    $f = sa_institute_facts();
+    $offer = sa_offer_text();
+    return $f['name'] . ' (' . $f['short'] . ') is an institute ' . ($f['address'] !== '' ? 'at ' . $f['address'] : 'in ' . $f['city'])
+        . ($offer !== '' ? ' that offers ' . $offer : '') . '.';
+}
+
+/** "GIMT at a glance" (2–3 sentences, verified facts only) for /about. */
+function sa_glance_sentences(): array
+{
+    $f = sa_institute_facts();
+    $session = sa_session()['name'] ?? '';
+    $out = [sa_definition_text()];
+    $out[] = 'Admissions' . ($session ? ' for ' . $session : '') . ': ' . lcfirst(sa_admission_window()) . ', with an application (registration) fee of ' . sa_application_fee() . '. ' . sa_scholarship_statement() . '.';
+    $contact = array_filter([$f['phone'] !== '' ? 'call ' . $f['phone'] : '', $f['email'] !== '' ? 'e-mail ' . $f['email'] : '']);
+    if ($contact) {
+        $out[] = 'To talk to the admissions team, ' . sa_join($contact, 'or') . ($f['hours'] !== '' ? ' (' . $f['hours'] . ')' : '') . '.';
+    }
+    return $out;
+}
+
+/**
+ * Generated FAQ hub sections for /faq when the admin FAQ table has no published entries — built only from verified data
+ * (settings, active programs, the published admission steps / documents / selection text and the owner decisions).
+ * [key => ['label', 'icon', 'items' => [['q', 'a'], …]]].
+ */
+function sa_generated_faq_sections(): array
+{
+    $f = sa_institute_facts();
+    $session = sa_session()['name'] ?? '';
+    $programs = sa_programs();
+    $degrees = array_values(array_filter($programs, fn ($p) => $p['level'] !== 'Certificate'));
+    $certs = array_values(array_filter($programs, fn ($p) => $p['level'] === 'Certificate'));
+    $out = [];
+
+    // About GIMT
+    $about = [['q' => 'What is ' . $f['short'] . '?', 'a' => sa_definition_text()]];
+    if ($f['address'] !== '') {
+        $about[] = ['q' => 'Where is ' . $f['short'] . ' located?', 'a' => $f['name'] . ' is at ' . $f['address'] . '.'];
+    }
+    $contact = array_filter([$f['phone'] !== '' ? 'call ' . $f['phone'] : '', $f['email'] !== '' ? 'e-mail ' . $f['email'] : '',
+        ($wa = preg_replace('/\D/', '', (string) setting('whatsapp_number', ''))) !== '' ? 'message on WhatsApp' : '']);
+    if ($contact) {
+        $about[] = ['q' => 'How can I contact ' . $f['short'] . '?', 'a' => ucfirst(sa_join($contact, 'or')) . ($f['hours'] !== '' ? '. Office hours: ' . $f['hours'] : '') . '. You can also send a message from ' . absolute_url('contact') . '.'];
+    }
+    $out['about'] = ['label' => 'About ' . $f['short'], 'icon' => 'landmark', 'items' => $about];
+
+    // Programs
+    if ($degrees) {
+        $items = [];
+        $byLevel = [];
+        foreach ($degrees as $p) {
+            $byLevel[program_level_label((string) $p['level'])][] = $p;
+        }
+        $lines = [];
+        foreach ($byLevel as $lvl => $list) {
+            $slug = ['Undergraduate' => 'undergraduate', 'Postgraduate' => 'postgraduate'][$lvl] ?? '';
+            $lines[] = $lvl . ': ' . sa_join(array_map(fn ($p) => ($p['short_name'] ?? '') ?: $p['name'], $list)) . (($path = sa_landing_path($slug)) ? ' (' . absolute_url($path) . ')' : '');
+        }
+        $items[] = ['q' => 'Which programs does ' . $f['short'] . ' offer' . ($session ? ' for ' . $session : '') . '?', 'a' => implode('. ', $lines) . '.' . ($certs ? ' Plus ' . count($certs) . ' certificate courses (' . absolute_url('certifications') . ').' : '') . ' Details: ' . absolute_url('programs') . '.'];
+        foreach ($degrees as $p) {
+            $short = ($p['short_name'] ?? '') ?: $p['name'];
+            $a = sa_program_label($p) . ': ' . sa_duration_text($p) . '.';
+            if (trim((string) $p['eligibility']) !== '') {
+                $a .= ' Eligibility: ' . rtrim(trim((string) $p['eligibility']), '.') . '.';
+            }
+            if ((float) $p['fee_per_year'] > 0) {
+                $a .= ' Tuition' . ($session ? ' ' . $session : '') . ': ' . sa_program_fee($p) . '.';
+            }
+            $items[] = ['q' => 'What are the duration, eligibility and fee of ' . $short . '?', 'a' => $a . ' ' . absolute_url('programs/' . $p['slug'])];
+        }
+        $out['programs'] = ['label' => 'Programs', 'icon' => 'graduation-cap', 'items' => $items];
+    }
+
+    // Admissions
+    $adm = [
+        ['q' => 'Is there a last date to apply?', 'a' => sa_admission_window() . '.'],
+        ['q' => 'Is there an application fee?', 'a' => 'Yes. The application (registration) fee is ' . sa_application_fee() . '.'],
+        ['q' => 'How do I apply to ' . $f['short'] . '?', 'a' => implode(' ', array_map(fn ($s, $i) => ($i + 1) . '. ' . $s['title'] . ' — ' . $s['text'], sa_admission_steps(), array_keys(sa_admission_steps()))) . ' Apply at ' . absolute_url('apply') . '.'],
+    ];
+    if (is_file(APP_ROOT . '/includes/partials/site_forms.php')) {
+        require_once APP_ROOT . '/includes/partials/site_forms.php';
+    }
+    if (function_exists('sf_documents')) {
+        $docs = sa_try(fn () => sf_documents(), null);
+        if ($docs && !empty($docs['online'])) {
+            $adm[] = ['q' => 'Which documents are required?', 'a' => 'Upload with the application: ' . sa_join(array_map(fn ($d) => $d['label'] . ($d['note'] !== 'Required for all programs' ? ' (' . lcfirst($d['note']) . ')' : ''), $docs['online'])) . '. At enrolment bring the originals: '
+                . sa_join(array_map(fn ($d) => $d['label'], $docs['originals'])) . '.'];
+        }
+    }
+    if (function_exists('sf_selection_text')) {
+        $adm[] = ['q' => 'What is the selection process?', 'a' => sf_selection_text()];
+    }
+    $adm[] = ['q' => 'What scholarships are available?', 'a' => sa_scholarship_statement() . '.'];
+    $out['admissions'] = ['label' => 'Admissions', 'icon' => 'clipboard-check', 'items' => $adm];
+
+    // Placement assistance
+    $out['placement'] = ['label' => 'Placement assistance', 'icon' => 'briefcase-business', 'items' => [
+        ['q' => 'Does ' . $f['short'] . ' help with placements?', 'a' => sa_placement_statement()],
+    ]];
+
+    // Certificate courses
+    if ($certs) {
+        $months = array_filter(array_map(fn ($p) => preg_match('/(\d+)\s*month/i', (string) $p['duration_label'], $m) ? (int) $m[1] : (int) round((float) $p['duration_years'] * 12), $certs));
+        $range = $months ? (min($months) === max($months) ? min($months) . ' month' . (min($months) === 1 ? '' : 's') : min($months) . ' to ' . max($months) . ' months') : '';
+        $fees = array_values(array_filter($certs, fn ($p) => (float) $p['fee_per_year'] > 0));
+        $items = [['q' => 'Which certificate courses does ' . $f['short'] . ' offer?', 'a' => count($certs) . ' short certificate courses' . ($range !== '' ? ' of ' . $range : '') . ', each with a GIMT course completion certificate. Full list: ' . absolute_url('certifications') . '.']];
+        if ($fees) {
+            $items[] = ['q' => 'What do the certificate courses cost?', 'a' => 'Published course fees: ' . sa_join(array_map(fn ($p) => (($p['short_name'] ?? '') ?: $p['name']) . ' ' . money($p['fee_per_year']), $fees)) . '. For other courses the counsellors share the current fee on enquiry. The application (registration) fee is ' . sa_application_fee() . '.'];
+        }
+        $out['certificates'] = ['label' => 'Certificate courses', 'icon' => 'badge-check', 'items' => $items];
+    }
+    return $out;
+}
+
+/* ============================================================================ Level & department landing pages */
+
+/** URL slug of a department landing page: "Department of Management Studies" → "management-studies". */
+function sa_department_slug(array $d): string
+{
+    return slugify((string) preg_replace('/^(the\s+)?(department|school|faculty)\s+of\s+/i', '', trim((string) $d['name'])));
+}
+
+/**
+ * Data-driven landing pages served by program.php at /programs/{slug}: undergraduate / postgraduate and one per department
+ * with ≥ 2 active website programs (departments whose programs are all certificate courses are covered by /certifications).
+ * A slug that collides with a program slug, code or short-name key is skipped. slug => [type, slug, title, programs, department?].
+ */
+function sa_landing_pages(): array
+{
+    static $pages = null;
+    if ($pages !== null) {
+        return $pages;
+    }
+    $pages = [];
+    $programs = sa_programs();
+    $taken = [];
+    foreach ($programs as $p) {
+        $taken[strtolower((string) $p['slug'])] = true;
+        if (($p['code'] ?? '') !== '') {
+            $taken[strtolower((string) $p['code'])] = true;
+        }
+        // short-name aliases (/programs/computer-applications → the certificate course) are only convenience 301s:
+        // a department landing page with the same slug takes precedence over them, a real program slug / code never does
+    }
+    $sortByLevel = function (array $list): array {
+        $rank = ['UG' => 1, 'PG' => 2, 'PhD' => 3, 'Diploma' => 4, 'Certificate' => 5];
+        usort($list, fn ($a, $b) => [$rank[$a['level']] ?? 9, (int) $a['sort_order'], $a['name']] <=> [$rank[$b['level']] ?? 9, (int) $b['sort_order'], $b['name']]);
+        return $list;
+    };
+    foreach ([['undergraduate', 'Undergraduate', ['UG']], ['postgraduate', 'Postgraduate', ['PG', 'PhD']]] as [$slug, $label, $levels]) {
+        $list = array_values(array_filter($programs, fn ($p) => in_array($p['level'], $levels, true)));
+        if (count($list) >= 2 && !isset($taken[$slug])) {
+            $pages[$slug] = ['type' => 'level', 'slug' => $slug, 'label' => $label, 'title' => $label . ' Programs', 'programs' => $sortByLevel($list), 'department' => null];
+        }
+    }
+    foreach (sa_try(fn () => db_all("SELECT id, name, code, description, image FROM departments WHERE status = 'active' ORDER BY name"), []) as $d) {
+        $list = array_values(array_filter($programs, fn ($p) => (int) $p['department_id'] === (int) $d['id']));
+        $nonCert = array_filter($list, fn ($p) => $p['level'] !== 'Certificate');
+        $slug = sa_department_slug($d);
+        if (count($list) < 2 || !$nonCert || $slug === '' || isset($taken[$slug]) || isset($pages[$slug])) {
+            continue;
+        }
+        $label = (string) preg_replace('/^(the\s+)?(department|school|faculty)\s+of\s+/i', '', trim((string) $d['name']));
+        $pages[$slug] = ['type' => 'department', 'slug' => $slug, 'label' => $label, 'title' => $label . ' Programs', 'programs' => $sortByLevel($list), 'department' => $d];
+    }
+    return $pages;
+}
+
+/** Landing page URL path for a department row / level key, or null when there is no such page (fewer than 2 programs). */
+function sa_landing_path(string $slug): ?string
+{
+    return isset(sa_landing_pages()[$slug]) ? 'programs/' . $slug : null;
+}
+
+/** Where a department links: its landing page, /certifications for certificate-only departments, else its single program. */
+function sa_department_url(array $d): ?string
+{
+    if ($path = sa_landing_path(sa_department_slug($d))) {
+        return site_url($path);
+    }
+    $list = array_values(array_filter(sa_programs(), fn ($p) => (int) $p['department_id'] === (int) $d['id']));
+    if ($list && !array_filter($list, fn ($p) => $p['level'] !== 'Certificate') && is_file(APP_ROOT . '/certifications.php')) {
+        return site_url('certifications');
+    }
+    return count($list) === 1 ? site_url('programs/' . $list[0]['slug']) : null;
 }
 
 /** Programs page filter categories — keys double as ?category= values. */
@@ -556,7 +987,7 @@ function sa_program_hero(array $p, array $o = []): void
     $bg = site_image(trim((string) ($p['department_image'] ?? '')) ?: null, 'assets/images/site/campus-building.jpg');
     $img = site_image($p['image'] ?? null, 'assets/images/site/campus-building.jpg');
     echo '<section class="page-hero">';
-    echo '<div class="page-hero-media"><img src="' . e($bg) . '" alt="" class="parallax-media" data-parallax="0.12" fetchpriority="high" decoding="async"></div>';
+    echo '<div class="page-hero-media"><img src="' . e($bg) . '" alt=""' . seo_ld_img_dims($bg) . ' class="parallax-media" data-parallax="0.12" fetchpriority="high" decoding="async"></div>';
     echo '<div class="absolute inset-0 -z-[1] bg-hero-overlay"></div>';
     echo '<div class="pointer-events-none absolute inset-y-0 left-0 -z-[1] w-2/3 pattern-dots-light pattern-fade animate-pattern-drift opacity-60" aria-hidden="true"></div>';
     echo '<div class="blob -left-24 -top-24 -z-[1] h-72 w-72 bg-accent-500/20" aria-hidden="true"></div>';
@@ -653,13 +1084,16 @@ function sa_departments(): array
             f.qualification AS hod_qualification, f.photo AS hod_photo,
             (SELECT COUNT(*) FROM faculty x WHERE x.department_id = d.id AND x.status IN ('active','on_leave') AND x.show_on_website = 1) AS faculty_count
             FROM departments d LEFT JOIN faculty f ON f.id = d.hod_faculty_id AND f.show_on_website = 1 AND f.status IN ('active','on_leave')
-            WHERE d.status = 'active' ORDER BY COALESCE(d.established_year, 9999), d.name"), []);
+            WHERE d.status = 'active' ORDER BY d.id"), []);
     $byDept = [];
     foreach (sa_programs() as $p) {
         $byDept[(int) $p['department_id']][] = $p;
     }
     foreach ($rows as &$d) {
         $d['programs'] = $byDept[(int) $d['id']] ?? [];
+        // owner decision 2026-11-17: no founding / establishment years are published ("Est. 2008" labels removed)
+        $d['established_year'] = null;
+        $d['url'] = sa_department_url($d); // landing page /programs/{dept} (≥ 2 programs), /certifications or the single program
     }
     unset($d);
     return $rows;
@@ -710,7 +1144,7 @@ function sa_person_name(array $f, string $prefix = ''): string
 function sa_avatar(?string $photo, string $name, int $seed = 0, string $class = 'h-16 w-16 text-lg'): string
 {
     if ($photo) {
-        return '<img src="' . e(upload_url($photo)) . '" alt="Photo of ' . e($name) . '" loading="lazy" decoding="async" class="' . e($class) . ' shrink-0 rounded-full object-cover ring-4 ring-white">';
+        return '<img src="' . e(upload_url($photo)) . '"' . seo_ld_img_dims(upload_url($photo)) . ' alt="Photo of ' . e($name) . '" loading="lazy" decoding="async" class="' . e($class) . ' shrink-0 rounded-full object-cover ring-4 ring-white">';
     }
     $grad = ['from-brand-700 to-brand-900', 'from-accent-600 to-brand-800', 'from-cyan-600 to-brand-800', 'from-violet-600 to-brand-800', 'from-amber-500 to-brand-800'][$seed % 5];
     $clean = trim(preg_replace('/^(Dr\.|Prof\.|Mr\.|Ms\.|Mrs\.)\s*/i', '', $name));
@@ -856,21 +1290,29 @@ function sa_testimonials(int $limit = 6, ?int $programId = null): array
 /** Bundled campus photography (always available). */
 function sa_bundled_photos(): array
 {
+    // neutral captions only (owner decision 2026-11-17: no lawns, sports grounds, hostels or transport — the institute
+    // works from Wave One, Sector 18, Noida)
     $p = fn ($file, $alt, $caption, $cat) => ['src' => asset('assets/images/site/' . $file), 'alt' => $alt, 'caption' => $caption, 'category' => $cat];
     return [
-        $p('campus-main.jpg', 'GIMT main campus building in Sector 18, Noida', 'Main Campus', 'Campus'),
-        $p('facility-classroom.jpg', 'Smart classroom with interactive displays', 'Smart Classrooms', 'Facilities'),
-        $p('facility-labs.jpg', 'Students working in the computer laboratory', 'Advanced Laboratories', 'Facilities'),
-        $p('campus-library.jpg', 'Library and learning centre reading hall', 'Library & Learning Centre', 'Facilities'),
-        $p('students-atrium.jpg', 'Students walking through the campus atrium', 'Student Atrium', 'Student Life'),
-        $p('facility-sports.jpg', 'Outdoor sports courts on campus', 'Sports & Recreation', 'Student Life'),
-        $p('campus-hostel.jpg', 'On-campus hostel building', 'Hostel Facility', 'Hostel'),
-        $p('facility-green-campus.jpg', 'Tree-lined green campus lawns', 'Green & Safe Campus', 'Campus'),
-        $p('students-lawn.jpg', 'Students studying together on the campus lawn', 'Campus Lawns', 'Student Life'),
-        $p('campus-academic-block.jpg', 'Academic block exterior', 'Academic Block', 'Campus'),
+        $p('facility-classroom.jpg', 'Students in a GIMT classroom', 'Classrooms', 'Facilities'),
+        $p('facility-labs.jpg', 'Students working in the computer lab', 'Computer Lab', 'Facilities'),
+        $p('campus-library.jpg', 'Library reading area', 'Library', 'Facilities'),
+        $p('students-atrium.jpg', 'GIMT students between classes', 'Student Life', 'Student Life'),
         $p('graduation.jpg', 'Graduates celebrating at convocation', 'Convocation', 'Events'),
-        $p('news-campus.jpg', 'Students at a campus event', 'Campus Events', 'Events'),
+        $p('news-campus.jpg', 'Students at a GIMT event', 'Events', 'Events'),
     ];
+}
+
+/**
+ * Alt text for a gallery photo: the caption when it reads like a description, else "<Album title> — photo N" (captions
+ * that look like a file name or code — 4 characters or fewer, only digits, or with a file extension — are not used).
+ */
+function sa_photo_alt(string $caption, string $album, int $n): string
+{
+    $c = trim($caption);
+    $bad = $c === '' || mb_strlen($c) <= 4 || preg_match('/^[\d\s._-]+$/', $c) || preg_match('/\.(jpe?g|png|gif|webp|avif|svg|heic|bmp|tiff?)\b/i', $c)
+        || preg_match('/^(img|dsc|pxl|photo|image|wa)[\s_-]?\d+/i', $c);
+    return $bad ? trim(($album !== '' ? $album : 'GIMT') . ' — photo ' . $n) : $c;
 }
 
 /** Gallery photos: CMS gallery items first, topped up with bundled photography. */
@@ -880,8 +1322,13 @@ function sa_gallery(int $limit = 12): array
             JOIN galleries g ON g.id = gi.gallery_id LEFT JOIN media m ON m.id = gi.media_id
             WHERE g.status = 'published' AND (NULLIF(gi.image, '') IS NOT NULL OR m.path IS NOT NULL)
             ORDER BY g.sort_order, g.id DESC, gi.sort_order LIMIT " . max(1, $limit)), []);
-    $items = array_map(fn ($r) => ['src' => site_image($r['image']), 'alt' => (string) ($r['caption'] ?: $r['title']), 'caption' => (string) ($r['caption'] ?: $r['title']),
-        'category' => ucwords(str_replace(['_', '-'], ' ', (string) ($r['category'] ?: 'Campus')))], $rows);
+    $n = [];
+    $items = array_map(function ($r) use (&$n) {
+        $n[$r['title']] = ($n[$r['title']] ?? 0) + 1;
+        $alt = sa_photo_alt((string) $r['caption'], (string) $r['title'], $n[$r['title']]);
+        return ['src' => site_image($r['image']), 'alt' => $alt, 'caption' => $alt,
+            'category' => ucwords(str_replace(['_', '-'], ' ', (string) ($r['category'] ?: 'Campus')))];
+    }, $rows);
     foreach (sa_bundled_photos() as $b) {
         if (count($items) >= $limit) {
             break;
@@ -903,7 +1350,7 @@ function sa_gallery_grid(array $items, array $props = []): string
     $html = '<div class="gallery"><ul class="grid grid-cols-2 gap-3 sm:gap-4 ' . $colCls . ($bento ? ' gallery-bento' : '') . '">';
     foreach ($props['items'] as $it) {
         $html .= '<li><a href="' . e($it['src']) . '" data-lightbox="' . $group . '" data-caption="' . e($it['caption'] ?? $it['alt']) . '" class="gallery-tile img-zoom group aspect-[4/3]">'
-            . '<img src="' . e($it['thumb'] ?? $it['src']) . '" alt="' . e($it['alt']) . '" loading="lazy" decoding="async" class="h-full w-full object-cover">'
+            . '<img src="' . e($it['thumb'] ?? $it['src']) . '"' . seo_ld_img_dims($it['thumb'] ?? $it['src']) . ' alt="' . e($it['alt']) . '" loading="lazy" decoding="async" class="h-full w-full object-cover">'
             . '<span class="gallery-tile-overlay" aria-hidden="true">' . icon('search', 'h-5 w-5') . (!empty($it['caption']) ? '<span class="gallery-tile-caption">' . e($it['caption']) . '</span>' : '') . '</span></a></li>';
     }
     $html .= '</ul></div>';
@@ -1234,6 +1681,6 @@ function sa_render_brochure(array $programs, ?array $single = null): void
         }
     }
     echo '<footer class="mt-8 border-t border-slate-200 pt-4 text-xs text-slate-500"><p><strong class="text-brand-900">Admissions helpline:</strong> ' . e(setting('phone', '+91 9955446477')) . ' · ' . e(setting('admission_email', 'admissions@gimt.ac.in'))
-        . ' · Apply online: ' . e(absolute_url('apply')) . '</p><p class="mt-1">Fees shown are per the ' . e($session['name'] ?? 'current') . ' session and exclude hostel, transport and examination charges unless stated. Generated ' . e(date('d M Y')) . '.</p></footer>';
+        . ' · Apply online: ' . e(absolute_url('apply')) . '</p><p class="mt-1">Fees shown are per the ' . e($session['name'] ?? 'current') . ' session (tuition) unless stated otherwise. Application (registration) fee: ' . e(sa_application_fee()) . '. Generated' . e(date('d M Y')) . '.</p></footer>';
     echo '</main></body></html>';
 }

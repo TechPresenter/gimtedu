@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
-  ArrowLeftRight, BookOpenText, CalendarRange, ChartPie, CircleCheck, ExternalLink, FileCode2, FileText, Globe, GraduationCap, Map as MapIcon, Megaphone, Pencil, Plus, Radar,
-  RefreshCcw, Route as RouteIcon, Download, RotateCcw, Save, SearchCheck, TriangleAlert,
+  ArrowLeftRight, BookOpenText, Bot, CalendarRange, ChartPie, CircleCheck, ExternalLink, FileCode2, FileText, Gauge, Globe, GraduationCap, KeyRound, Map as MapIcon, Megaphone, Pencil, Plus, Radar,
+  RefreshCcw, Route as RouteIcon, Download, RotateCcw, Save, SearchCheck, Sparkles, TriangleAlert,
 } from 'lucide-react';
 import {
   Alert, Badge, Button, Card, CardHeader, DataTable, EmptyState, Field, Input, Modal, PageHeader, Pagination, Reveal, SearchInput, Select, Skeleton, Stagger, StatCard, Tabs, Textarea,
@@ -18,6 +18,14 @@ import { useDebounce } from '@/lib/hooks';
 import { formatNumber, labelize } from '@/lib/format';
 import { SeoEditor, type SeoTarget } from './site/SeoEditor';
 import { SeoAudit } from './site/SeoAudit';
+
+// SEO growth tabs (one file each under ./seo, loaded on demand)
+const PresenceTab = lazy(() => import('./seo/PresenceTab'));
+const KeywordsTab = lazy(() => import('./seo/KeywordsTab'));
+const AiVisibilityTab = lazy(() => import('./seo/AiVisibilityTab'));
+const PageSpeedTab = lazy(() => import('./seo/PageSpeedTab'));
+const AiIndexingTab = lazy(() => import('./seo/AiIndexingTab'));
+const tabFallback = <div className="space-y-4"><Skeleton className="h-24 w-full" /><Skeleton className="h-72 w-full" /></div>;
 
 interface Entry {
   key: string;
@@ -38,11 +46,24 @@ interface Entry {
   description_length: number;
   og_image: string;
   effective_og_image: string;
+  og_image_exists?: boolean;
   robots: string;
   include_in_sitemap: boolean;
+  title_source?: string;
+  description_source?: string;
+  focus_keyword?: string;
+  index_status?: string | null;
   issues: string[];
+  /** number of "[To be confirmed …]" / placeholder texts on the page (issue draft_placeholder) */
+  placeholder_count?: number;
   score: number;
   updated_at: string | null;
+}
+
+/** Issue badge text: the label, plus how many placeholders a draft page still has. */
+function issueText(code: string, e: Entry, labels: Record<string, string>): string {
+  const label = labels[code] ?? code;
+  return code === 'draft_placeholder' && e.placeholder_count ? `${label} · ${e.placeholder_count} to fill` : label;
 }
 interface Overview {
   score: number;
@@ -56,6 +77,7 @@ interface Overview {
   sitemap: { urls: number; pending: number };
   robots_custom: boolean;
   noindex: number;
+  info_issues?: string[];
   can: { edit: boolean };
   site_url: string;
 }
@@ -70,6 +92,11 @@ const TABS = [
   { key: 'events', label: 'Events', icon: CalendarRange },
   { key: 'notices', label: 'Notices', icon: Megaphone },
   { key: 'robots', label: 'Robots & sitemap', icon: FileCode2 },
+  { key: 'indexing', label: 'AI & indexing', icon: Sparkles },
+  { key: 'presence', label: 'Presence', icon: Globe },
+  { key: 'keywords', label: 'Keywords', icon: KeyRound },
+  { key: 'ai', label: 'AI visibility', icon: Bot },
+  { key: 'pagespeed', label: 'PageSpeed', icon: Gauge },
 ];
 const TAB_TYPE: Record<string, string> = { routes: 'route', pages: 'page', programs: 'program', posts: 'post', events: 'event', notices: 'notice' };
 const TYPE_TAB: Record<string, string> = Object.fromEntries(Object.entries(TAB_TYPE).map(([k, v]) => [v, k]));
@@ -116,6 +143,11 @@ export default function SeoPage() {
       {TAB_TYPE[tab] && <EntriesTab key={tab} type={TAB_TYPE[tab]} label={TABS.find((t) => t.key === tab)!.label} onEdit={(e) => setSeo(targetOf(e))} onAddRoute={(route) => setSeo({ type: 'route', route, title: route })} canEdit={overview.data?.can.edit ?? false} />}
       {tab === 'audit' && <SeoAudit />}
       {tab === 'robots' && <RobotsTab />}
+      {tab === 'indexing' && <Suspense fallback={tabFallback}><AiIndexingTab /></Suspense>}
+      {tab === 'presence' && <Suspense fallback={tabFallback}><PresenceTab /></Suspense>}
+      {tab === 'keywords' && <Suspense fallback={tabFallback}><KeywordsTab /></Suspense>}
+      {tab === 'ai' && <Suspense fallback={tabFallback}><AiVisibilityTab /></Suspense>}
+      {tab === 'pagespeed' && <Suspense fallback={tabFallback}><PageSpeedTab /></Suspense>}
 
       <SeoEditor target={seo} onClose={() => setSeo(null)} />
     </>
@@ -129,14 +161,17 @@ function targetOf(e: Entry): SeoTarget {
 function OverviewTab({ q, onOpen, onTab }: { q: ReturnType<typeof useApi<Overview>>; onOpen: (e: Entry) => void; onTab: (k: string, extra?: Record<string, string>) => void }) {
   const d = q.data;
   if (q.error) return <Alert variant="error" title="Unable to load the SEO dashboard">{(q.error as ApiError).message}</Alert>;
-  const issueTotal = d ? Object.entries(d.issues).filter(([k]) => !['noindex', 'auto_description'].includes(k)).reduce((n, [, v]) => n + v, 0) : 0;
+  const info = d?.info_issues ?? ['noindex', 'auto_description'];
+  const issueTotal = d ? Object.entries(d.issues).filter(([k]) => !info.includes(k)).reduce((n, [, v]) => n + v, 0) : 0;
+  // the four most frequent issues to fix (doughnut)
+  const topIssues = d ? Object.entries(d.issues).filter(([k, v]) => !info.includes(k) && v > 0).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k]) => k) : [];
   return (
     <>
       <Stagger className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4" step={50}>
         {[
           <StatCard key="s" label="SEO health score" value={d ? `${d.score}/100` : '—'} icon={SearchCheck} tone={!d ? 'blue' : d.score >= 90 ? 'green' : d.score >= 70 ? 'amber' : 'red'} loading={q.isLoading} hint="Average across public URLs" />,
           <StatCard key="c" label="Custom SEO coverage" value={d ? `${d.coverage}%` : '—'} icon={CircleCheck} tone="navy" loading={q.isLoading} hint={d ? `${formatNumber(d.custom)} of ${formatNumber(d.total)} public URLs` : undefined} />,
-          <StatCard key="i" label="Issues to fix" value={issueTotal} icon={TriangleAlert} tone="orange" loading={q.isLoading} hint="Titles, descriptions, share images" />,
+          <StatCard key="i" label="Issues to fix" value={issueTotal} icon={TriangleAlert} tone="orange" loading={q.isLoading} hint="Titles, descriptions, keywords, images" />,
           <StatCard key="m" label="Sitemap URLs" value={d?.sitemap.urls ?? 0} icon={MapIcon} tone="purple" loading={q.isLoading} hint={d?.sitemap.pending ? `${d.sitemap.pending} waiting for website templates` : 'In /sitemap.xml'} />,
         ]}
       </Stagger>
@@ -172,10 +207,10 @@ function OverviewTab({ q, onOpen, onTab }: { q: ReturnType<typeof useApi<Overvie
               {q.isLoading || !d ? <Skeleton className="h-48 w-full" /> : (
                 <>
                   <DoughnutChart height={150} valueFormat="number" centerValue={issueTotal} centerLabel="issues" legendList={false}
-                    labels={['missing_title', 'title_long', 'description_long', 'missing_og_image'].map((k) => d.issue_labels[k])}
-                    data={['missing_title', 'title_long', 'description_long', 'missing_og_image'].map((k) => d.issues[k] ?? 0)} />
-                  <ul className="mt-4 space-y-1.5 text-sm">
-                    {Object.entries(d.issue_labels).map(([k, label]) => (
+                    labels={topIssues.map((k) => d.issue_labels[k])}
+                    data={topIssues.map((k) => d.issues[k] ?? 0)} />
+                  <ul className="mt-4 max-h-[320px] space-y-1.5 overflow-y-auto pr-1 text-sm">
+                    {Object.entries(d.issue_labels).sort((a, b) => (d.issues[b[0]] ?? 0) - (d.issues[a[0]] ?? 0)).map(([k, label]) => (
                       <li key={k} className="flex items-center justify-between gap-3">
                         <span className="text-slate-600 dark:text-slate-300">{label}</span>
                         <span className={clsx('font-semibold tabular-nums', d.issues[k] ? 'text-slate-900 dark:text-white' : 'text-slate-400')}>{formatNumber(d.issues[k] ?? 0)}</span>
@@ -192,7 +227,7 @@ function OverviewTab({ q, onOpen, onTab }: { q: ReturnType<typeof useApi<Overvie
         <Card>
           <CardHeader title="Needs attention" subtitle="Public URLs with the lowest scores" icon={SearchCheck} />
           {q.isLoading || !d ? <div className="p-5"><Skeleton className="h-40 w-full" /></div> : d.worst.length === 0 ? (
-            <EmptyState icon={CircleCheck} title="Everything looks great" description="Every public URL has a good title, description and share image." />
+            <EmptyState icon={CircleCheck} title="Everything looks great" description="Every public URL has a good title, description, keywords and share image." />
           ) : (
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
               {d.worst.map((e) => (
@@ -202,7 +237,7 @@ function OverviewTab({ q, onOpen, onTab }: { q: ReturnType<typeof useApi<Overvie
                     <span className="block truncate text-sm font-semibold text-slate-900 dark:text-white">{e.title}</span>
                     <span className="block truncate text-xs text-slate-500">{labelize(e.type)} · {e.url}</span>
                   </span>
-                  <span className="flex flex-wrap gap-1">{e.issues.filter((i) => i !== 'auto_description').map((i) => <Badge key={i} color={i === 'noindex' ? 'slate' : 'amber'}>{d.issue_labels[i]}</Badge>)}</span>
+                  <span className="flex flex-wrap gap-1">{e.issues.filter((i) => i !== 'auto_description').slice(0, 4).map((i) => <Badge key={i} color={info.includes(i) ? 'slate' : 'amber'}>{issueText(i, e, d.issue_labels)}</Badge>)}{e.issues.filter((i) => i !== 'auto_description').length > 4 && <Badge color="slate">+{e.issues.filter((i) => i !== 'auto_description').length - 4}</Badge>}</span>
                   <Button size="sm" variant="secondary" icon={Pencil} onClick={() => onOpen(e)}>Fix</Button>
                 </li>
               ))}
@@ -218,26 +253,31 @@ function EntriesTab({ type, label, onEdit, onAddRoute, canEdit }: { type: string
   const [q, setQ] = useState('');
   const [issue, setIssue] = useState('');
   const [status, setStatus] = useState('');
+  const [params] = useSearchParams();
+  const [index, setIndex] = useState(params.get('index') ?? '');
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
   const [sort, setSort] = useState<SortState>({ key: 'score', dir: 'asc' });
   const [addOpen, setAddOpen] = useState(false);
   const [route, setRoute] = useState('/');
   const dq = useDebounce(q, 300);
-  useEffect(() => setPage(1), [dq, issue, status, perPage]);
-  const query = { type, q: dq || undefined, issue: issue || undefined, status: status || undefined, page, per_page: perPage, sort: sort.key, dir: sort.dir };
+  useEffect(() => setPage(1), [dq, issue, status, index, perPage]);
+  const query = { type, q: dq || undefined, issue: issue || undefined, status: status || undefined, index: index || undefined, page, per_page: perPage, sort: sort.key, dir: sort.dir };
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['seo', 'entries', query],
-    queryFn: () => api.get<{ rows: Entry[]; total: number; page: number; pages: number; per_page: number; issue_labels: Record<string, string> }>('seo/entries', query),
+    queryFn: () => api.get<{ rows: Entry[]; total: number; page: number; pages: number; per_page: number; issue_labels: Record<string, string>; info_issues?: string[]; index_statuses?: Record<string, string> }>('seo/entries', query),
     placeholderData: (p) => p,
   });
   const labels = data?.issue_labels ?? {};
+  const info = data?.info_issues ?? ['noindex', 'auto_description'];
+  const SOURCE: Record<string, string> = { custom: 'Custom', crawled: 'From the live page', automatic: 'Automatic' };
   const columns: Column<Entry>[] = [
     {
       key: 'title', header: label.replace(/s$/, ''), sortable: true, render: (e) => (
         <div className="w-[220px]">
           <button type="button" onClick={() => onEdit(e)} className="block w-full truncate text-left font-semibold text-slate-900 hover:text-brand-700 dark:text-white dark:hover:text-brand-300" title={e.title}>{e.title}</button>
           <a href={appUrl(e.url)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-slate-500 hover:text-brand-700"><span className="truncate">{e.url}</span><ExternalLink className="h-3 w-3 shrink-0" /></a>
+          {e.focus_keyword && <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-brand-700 dark:text-brand-300" title="Focus keyword"><KeyRound className="h-3 w-3 shrink-0" aria-hidden />{e.focus_keyword}</p>}
         </div>
       ),
     },
@@ -245,7 +285,7 @@ function EntriesTab({ type, label, onEdit, onAddRoute, canEdit }: { type: string
       key: 'title_length', header: 'SEO title', sortable: true, render: (e) => (
         <div className="w-[230px]">
           <p className={clsx('truncate text-sm', e.meta_title ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400')} title={e.effective_title}>{e.effective_title}</p>
-          <p className="text-[11px] text-slate-400">{e.meta_title ? 'Custom' : 'Automatic'}<LengthChip n={e.title_length} min={30} max={60} /></p>
+          <p className="text-[11px] text-slate-400">{SOURCE[e.title_source ?? (e.meta_title ? 'custom' : 'automatic')] ?? 'Automatic'}<LengthChip n={e.title_length} min={30} max={60} /></p>
         </div>
       ),
     },
@@ -253,17 +293,17 @@ function EntriesTab({ type, label, onEdit, onAddRoute, canEdit }: { type: string
       key: 'description_length', header: 'Description', sortable: true, render: (e) => (
         <div className="w-[260px]">
           <p className={clsx('line-clamp-2 text-xs', e.meta_description ? 'text-slate-700 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400')} title={e.effective_description}>{e.effective_description || 'No description'}</p>
-          {e.description_length > 0 && <p className="text-[11px] text-slate-400">{e.meta_description ? 'Custom' : 'From content'}<LengthChip n={e.description_length} min={70} max={160} /></p>}
+          {e.description_length > 0 && <p className="text-[11px] text-slate-400">{e.description_source === 'automatic' ? 'From content' : SOURCE[e.description_source ?? (e.meta_description ? 'custom' : 'automatic')] ?? 'From content'}<LengthChip n={e.description_length} min={70} max={160} /></p>}
         </div>
       ),
     },
     {
-      key: 'og', header: 'Image', render: (e) => e.effective_og_image ? <img src={appUrl(e.effective_og_image)} alt="" loading="lazy" className="h-9 w-16 rounded-md object-cover ring-1 ring-slate-200 dark:ring-slate-700" /> : <Badge color="amber">Missing</Badge>,
+      key: 'og', header: 'Image', render: (e) => e.effective_og_image && e.og_image_exists === false ? <Badge color="red">File missing</Badge> : e.effective_og_image ? <img src={appUrl(e.effective_og_image)} alt="" loading="lazy" className="h-9 w-16 rounded-md object-cover ring-1 ring-slate-200 dark:ring-slate-700" /> : <Badge color="amber">Missing</Badge>,
     },
     {
       key: 'issues', header: 'Issues', render: (e) => {
         const list = e.issues.filter((i) => i !== 'auto_description');
-        return <div className="flex w-[190px] flex-wrap gap-1">{list.length ? list.map((i) => <Badge key={i} color={i === 'noindex' ? 'red' : 'amber'}>{labels[i] ?? i}</Badge>) : <span className="text-xs text-emerald-600 dark:text-emerald-400">None</span>}</div>;
+        return <div className="flex w-[190px] flex-wrap gap-1">{list.length ? list.map((i) => <Badge key={i} color={i === 'noindex' ? 'red' : info.includes(i) ? 'slate' : 'amber'}>{issueText(i, e, labels)}</Badge>) : <span className="text-xs text-emerald-600 dark:text-emerald-400">None</span>}</div>;
       },
     },
     { key: 'score', header: 'Score', sortable: true, align: 'center', render: (e) => <ScorePill score={e.score} /> },
@@ -277,6 +317,8 @@ function EntriesTab({ type, label, onEdit, onAddRoute, canEdit }: { type: string
             options={[{ value: '', label: 'All URLs' }, { value: 'any', label: 'With issues' }, { value: 'ok', label: 'No issues' }, ...Object.entries(labels).map(([value, l]) => ({ value, label: l }))]} />
           <Select inputSize="sm" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status" className="w-full sm:w-auto"
             options={[{ value: '', label: 'Any status' }, { value: 'public', label: 'Public' }, { value: 'hidden', label: 'Draft / hidden' }, { value: 'custom', label: 'Custom SEO' }, { value: 'default', label: 'Automatic SEO' }]} />
+          <Select inputSize="sm" value={index} onChange={(e) => setIndex(e.target.value)} aria-label="Indexing status" className="w-full sm:w-auto"
+            options={[{ value: '', label: 'Any indexing' }, ...Object.entries(data?.index_statuses ?? { unknown: 'Not checked', submitted: 'Submitted', indexed: 'Indexed', excluded: 'Excluded', error: 'Error' }).map(([value, l]) => ({ value, label: l }))]} />
           {type === 'route' && canEdit && <Button size="sm" icon={Plus} onClick={() => setAddOpen(true)}>Add route</Button>}
         </div>
       </div>
@@ -289,7 +331,7 @@ function EntriesTab({ type, label, onEdit, onAddRoute, canEdit }: { type: string
           sort={sort}
           onSort={setSort}
           caption={`${label} SEO coverage`}
-          empty={<EmptyState icon={SearchCheck} title={q || issue || status ? 'No URLs match these filters' : `No ${label.toLowerCase()} yet`} description={q || issue || status ? 'Try clearing the filters.' : 'Published content appears here automatically.'} />}
+          empty={<EmptyState icon={SearchCheck} title={q || issue || status || index ? 'No URLs match these filters' : `No ${label.toLowerCase()} yet`} description={q || issue || status || index ? 'Try clearing the filters.' : 'Published content appears here automatically.'} />}
           actions={(e) => <Button size="xs" variant="secondary" icon={Pencil} onClick={() => onEdit(e)}>{canEdit ? 'Edit SEO' : 'View'}</Button>}
         />
       )}

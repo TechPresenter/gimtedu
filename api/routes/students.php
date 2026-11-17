@@ -130,7 +130,7 @@ route('GET', '/students/id-cards', function () {
     $res = students_card_rows($_GET, 300);
     api_ok(['rows' => $res['rows'], 'total' => $res['total'], 'limit' => 300, 'institute' => [
         'name' => institute_name(), 'phone' => setting('phone', '+91 9955446477'), 'email' => setting('email', 'info@gimt.ac.in'),
-        'website' => setting('website', 'www.gimt.ac.in'), 'address' => setting('address', ''), 'logo' => logo_url(), 'logo_white' => logo_url(true),
+        'website' => setting('website', 'https://gimtedu.com'), 'address' => setting('address', ''), 'logo' => logo_url(), 'logo_white' => logo_url(true),
     ]]);
 });
 

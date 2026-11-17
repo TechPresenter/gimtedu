@@ -8,7 +8,7 @@ return function (array $opts): void {
     $phone = (string) (db_value("SELECT value FROM settings WHERE `key` = 'phone'") ?: '+91 9955446477');
     $settings = [
         // campaign landing pages (/admissions-open and /admissions-open/{program})
-        'admissions_deadline' => '2026-11-30 23:59',           // real application deadline → countdown (hidden when empty/past)
+        'admissions_deadline' => '',                       // empty = rolling admissions (owner decision 2026-11-17); a real date shows a countdown
         'landing_indexable' => '0',                              // 0 = robots noindex,follow on ad landing pages
         'landing_show_seats' => '0',                             // 1 = show the real seats-filled % (confirmed admissions vs intake) on landing pages
         'landing_hero_title' => 'Industry-Ready UG & PG Programs at',
@@ -26,7 +26,7 @@ return function (array $opts): void {
             ['label' => 'AICTE', 'title' => 'Approved by AICTE', 'text' => 'Technical & management programs approved by AICTE', 'icon' => 'seal'],
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         // site chrome
-        'announcement_strip_text' => 'Admissions Open for 2026-27 · UG, PG, Diploma & Certificate programs | Merit scholarships available for eligible students | Talk to an admission counsellor: ' . $phone,
+        'announcement_strip_text' => 'Admissions Open for 2026-27 · UG, PG, Diploma & Certificate programs | Rolling admissions — until seats are filled | Merit scholarships of up to 50% of the tuition fee | Talk to an admission counsellor: ' . $phone,
         'admission_bar_text' => '',
         'site_admission_bar' => '0',
         'site_mobile_cta' => '1',

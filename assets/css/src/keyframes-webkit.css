@@ -39,7 +39,10 @@
 @-webkit-keyframes accent-sweep { from { -webkit-transform: translate3d(-100%, 0, 0); } to { -webkit-transform: translate3d(250%, 0, 0); } }
 @-webkit-keyframes geo-drift { 0%, 100% { -webkit-transform: translate3d(0, 0, 0) rotate(var(--rot, 0deg)); } 50% { -webkit-transform: translate3d(0, -10px, 0) rotate(calc(var(--rot, 0deg) + 8deg)); } }
 @-webkit-keyframes clip-reveal { from { -webkit-clip-path: inset(12% 9% 12% 9% round 56px); } to { -webkit-clip-path: inset(0 0 0 0 round 0); } }
-@-webkit-keyframes img-settle { from { -webkit-transform: scale(1.14); } to { -webkit-transform: scale(1); } }
+@-webkit-keyframes img-settle { from { -webkit-transform: scale(1.08); } to { -webkit-transform: scale(1); } }
+@-webkit-keyframes hero-rise { from { -webkit-transform: translate3d(0, 18px, 0); } to { -webkit-transform: none; } }
+@-webkit-keyframes hero-drop { from { -webkit-transform: translate3d(0, -12px, 0); } to { -webkit-transform: none; } }
+@-webkit-keyframes hero-zoom { from { -webkit-transform: scale(.96); } to { -webkit-transform: none; } }
 /* Cross-document view transitions (Chrome/Edge 126+, Safari 18.2+; ignored elsewhere): quick cross-fade between pages */
 @view-transition { navigation: auto; }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .28s; }

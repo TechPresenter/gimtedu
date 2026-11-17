@@ -98,8 +98,16 @@ export function initScribbles(root: ParentNode = document): void {
  * <span data-count="1248" data-suffix="+" data-prefix="₹" data-decimals="0" data-duration="1600">1,248+</span>
  * Server-render the final value (SEO / no-JS); the number counts up with an ease-out curve when visible.
  */
+/**
+ * Number in Indian digit grouping (12,34,567.5) — the same output as toLocaleString('en-IN'), without building an
+ * Intl formatter (the first one costs ~0.1–0.3 s on a slow phone; toLocaleString() built one per call, every frame).
+ */
 export function formatCount(v: number, decimals: number, locale = 'en-IN'): string {
-  return v.toLocaleString(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  if (locale !== 'en-IN' || !Number.isFinite(v)) return v.toLocaleString(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  const fixed = Math.abs(v).toFixed(Math.max(0, Math.min(20, decimals)));
+  const [int, frac] = fixed.split('.');
+  const grouped = int.length > 3 ? int.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + int.slice(-3) : int;
+  return (v < 0 && Number(fixed) !== 0 ? '-' : '') + grouped + (frac ? '.' + frac : '');
 }
 
 export function initCounters(root: ParentNode = document): void {
@@ -258,6 +266,9 @@ export function initParallax(root: ParentNode = document): void {
  * (data-marquee = pixels per second, default 40). Pauses on hover/focus (CSS) and when off-screen.
  */
 export function initMarquee(root: ParentNode = document): void {
+  // durations are measured in the next frame, all at once (scrollWidth right after appending the clones forced a
+  // full-page layout per marquee during start-up)
+  const measure: (() => void)[] = [];
   within('[data-marquee]', root).forEach((el) => {
     const track = el.querySelector<HTMLElement>('.marquee-track');
     if (!track || !bindOnce(el, 'marquee')) return;
@@ -271,12 +282,13 @@ export function initMarquee(root: ParentNode = document): void {
     });
     const speed = numAttr(el, 'data-marquee', 40) || 40;
     const setDuration = () => el.style.setProperty('--marquee-duration', `${Math.max(8, track.scrollWidth / 2 / speed)}s`);
-    setDuration();
+    measure.push(setDuration);
     window.addEventListener('resize', rafThrottle(setDuration), { passive: true });
     if ('IntersectionObserver' in window) {
       new IntersectionObserver((entries) => entries.forEach((en) => el.classList.toggle('is-offscreen', !en.isIntersecting))).observe(el);
     }
   });
+  if (measure.length) requestAnimationFrame(() => measure.forEach((fn) => fn()));
   // generic pause toggles: <button data-marquee-toggle aria-pressed="false"> inside a .marquee host
   $$('[data-marquee-toggle]', root as ParentNode).forEach((btn) => {
     if (!bindOnce(btn, 'marquee-toggle')) return;

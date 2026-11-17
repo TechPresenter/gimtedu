@@ -73,6 +73,36 @@ $isHub = $slug === 'policies';
 $blocks = cms_page_blocks($page);
 $heroBlock = $blocks && $blocks[0]['type'] === 'hero' ? array_shift($blocks)['data'] : null;
 $rawContent = sanitize_html((string) ($page['content'] ?? ''));
+
+// People cards ("person" style, e.g. /leadership): cards whose name / role / text is still a placeholder ("Dr. X
+// (placeholder)", "[To be confirmed …]") are never rendered; a block left without real people is dropped.
+require_once APP_ROOT . '/app/services/seo_schema.php';
+$realPeople = 0;
+foreach ($blocks as $k => $b) {
+    if (($b['type'] ?? '') !== 'cards' || ($b['data']['style'] ?? '') !== 'person') {
+        continue;
+    }
+    $items = array_values(array_filter((array) ($b['data']['items'] ?? []), fn ($it) => is_array($it) && trim((string) ($it['title'] ?? '')) !== ''
+        && !seo_ld_is_placeholder((string) ($it['title'] ?? ''), (string) ($it['subtitle'] ?? ''), (string) ($it['text'] ?? ''))));
+    $realPeople += count($items);
+    if (!$items) {
+        unset($blocks[$k]);
+        continue;
+    }
+    $blocks[$k]['data']['items'] = $items;
+    if (seo_ld_is_placeholder((string) ($b['data']['subheading'] ?? ''))) {
+        $blocks[$k]['data']['subheading'] = '';
+    }
+}
+$blocks = array_values($blocks);
+// /leadership without a single confirmed profile: no text about unnamed leaders — a neutral notice + the call to action
+// only, noindex,follow and out of the sitemap (cms_sitemap_urls()) until real profiles are published.
+$leadersPending = $slug === 'leadership' && $realPeople === 0;
+if ($leadersPending) {
+    $blocks = array_values(array_filter($blocks, fn ($b) => ($b['type'] ?? '') === 'cta'));
+    $rawContent = '';
+    $page['excerpt'] = ''; // the hero line about "the leadership team" waits for real profiles too
+}
 // A leading "Last updated: 1 July 2026" line written by the editor is the page's stated date: show it in the meta row
 // (instead of the database timestamp) and drop the duplicate paragraph.
 $statedTs = null;
@@ -105,6 +135,17 @@ $blocksHtml = '';
 foreach ($blocks as $b) {
     $blocksHtml .= cp_render_block($b, $ctx);
 }
+if ($leadersPending) {
+    $blocksHtml = section_open(['id' => 'team', 'padding' => 'normal'])
+        . '<div class="mx-auto max-w-2xl rounded-[24px] border border-warm-2 bg-warm/60 p-10 text-center">'
+        . '<span class="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-white text-accent-600 shadow-sm">' . icon('users', 'h-7 w-7') . '</span>'
+        . '<h2 class="mt-4 font-display text-xl font-extrabold text-brand-900">Leadership profiles will be published soon.</h2>'
+        . '<p class="mt-2 text-slate-600">For any question to the administration, please contact the institute office.</p></div>'
+        . section_close() . $blocksHtml;
+}
+// Draft text still waiting for the institute ("[To be confirmed by GIMT: …]"): the page stays reachable but is
+// noindex,follow and left out of the sitemap; the SEO coverage table flags it as draft_placeholder (with the count).
+$placeholderCount = substr_count($content . $blocksHtml, '[To be confirmed');
 
 $isEmpty = $content === '' && $blocksHtml === '' && !$isHub; // published but nothing to show yet → empty state, noindex
 $updated = $page['updated_at'] ?: ($page['published_at'] ?: $page['created_at']);
@@ -118,17 +159,38 @@ $seoRef = cms_page_seo_ref($page);
 $canonical = absolute_url(ltrim($canonPath, '/'));
 $rootSlug = $ancestors ? (string) $ancestors[0]['slug'] : $slug;
 
+require_once APP_ROOT . '/app/services/seo_schema.php';
 $schema = [sa_breadcrumb_ld($ldCrumbs)];
+// People shown in "person" card blocks (e.g. /leadership): Person entries only for real names — cards still marked as
+// placeholders ("(placeholder)", "[To be confirmed …]") are skipped, so nothing is claimed before GIMT confirms it.
+$people = [];
+foreach ($blocks as $b) {
+    if (($b['type'] ?? '') === 'cards' && (($b['data']['style'] ?? '') === 'person')) {
+        foreach ((array) ($b['data']['items'] ?? []) as $it) {
+            if (is_array($it) && ($person = seo_ld_person(['name' => (string) ($it['title'] ?? ''), 'role' => (string) ($it['subtitle'] ?? ''), 'bio' => (string) ($it['text'] ?? ''),
+                'image' => trim((string) ($it['image'] ?? '')) !== '' ? site_image((string) $it['image']) : '']))) {
+                $people[] = $person;
+            }
+        }
+    }
+}
 if (!sa_seo_schema_has('WebPage', $seoRef[0], $seoRef[0] === 'page' ? (int) $seoRef[1] : null, $seoRef[0] === 'route' ? (string) $seoRef[1] : null)) {
-    $schema[] = ['@context' => 'https://schema.org', '@type' => $slug === 'about' ? 'AboutPage' : 'WebPage', 'name' => $page['title'], 'description' => $description,
+    $schema[] = seo_ld_clean(['@context' => 'https://schema.org', '@type' => $slug === 'about' ? 'AboutPage' : 'WebPage', 'name' => $page['title'], 'description' => $description,
         'url' => $canonical, 'inLanguage' => 'en-IN', 'dateModified' => date('c', $updatedTs),
         'datePublished' => date('c', strtotime((string) ($page['published_at'] ?: $page['created_at'] ?: 'now'))),
-        'isPartOf' => ['@type' => 'WebSite', 'name' => institute_name(), 'url' => absolute_url('')],
-        'publisher' => ['@type' => 'CollegeOrUniversity', 'name' => institute_name(), 'url' => absolute_url('')]];
+        'isPartOf' => ['@id' => seo_site_url() . '#website'],
+        'publisher' => seo_ld_org_ref()]);
 }
-if ($ctx['faq']) {
-    $schema[] = cp_faq_schema($ctx['faq']);
+if ($people) {
+    $schema[] = ['@context' => 'https://schema.org', '@type' => 'ItemList', 'name' => $page['title'], 'numberOfItems' => count($people),
+        'itemListElement' => array_map(fn ($p, $i) => ['@type' => 'ListItem', 'position' => $i + 1, 'item' => $p], $people, array_keys($people))];
 }
+if ($ctx['faq'] && ($faqLd = seo_ld_faq($ctx['faq']))) {
+    $schema[] = $faqLd;
+}
+// Campaign pages (template "landing") follow Settings › Website › "Let search engines index these pages", like
+// /admissions-open: noindex,follow when off — consistent with their exclusion from the sitemap (cms_sitemap_urls()).
+$landingNoindex = $template === 'landing' && setting('landing_indexable', '0') !== '1';
 
 site_header([
     'title' => $page['title'],
@@ -136,7 +198,8 @@ site_header([
     'active' => $rootSlug,
     'seo' => $seoRef,
     'canonical' => $canonical,
-    'robots' => $preview ? 'noindex,nofollow' : ($isEmpty ? 'noindex,follow' : null), // an empty page is thin content
+    // an empty page is thin content; draft placeholders / unconfirmed leadership are not indexed until GIMT fills them in
+    'robots' => $preview ? 'noindex,nofollow' : ($isEmpty || $landingNoindex || $placeholderCount > 0 || $leadersPending ? 'noindex,follow' : null),
     'image' => $banner !== '' ? site_image($banner) : null,
     'preload' => $heroImage !== '' ? [site_image($heroImage)] : [],
     'schema' => $schema,

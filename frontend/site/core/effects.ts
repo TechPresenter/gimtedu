@@ -15,65 +15,116 @@ import { bindOnce, finePointer, rafThrottle, reducedMotion, staticMode, within }
 const tmOriginal = new WeakMap<HTMLElement, string>();
 let tmObserver: IntersectionObserver | null = null;
 
-/** Split a heading into its rendered lines (words measured by offsetTop; inline elements such as .scribble stay intact). */
-function splitLines(el: HTMLElement): void {
-  const html = tmOriginal.get(el) ?? el.innerHTML;
-  tmOriginal.set(el, html);
-  el.innerHTML = html;
-  const tokens: Node[] = [];
-  Array.from(el.childNodes).forEach((node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      (node.textContent ?? '').split(/(\s+)/).forEach((part) => {
-        if (!part) return;
-        if (/^\s+$/.test(part)) tokens.push(document.createTextNode(' '));
-        else {
-          const w = document.createElement('span');
-          w.className = 'tm-w';
-          w.textContent = part;
-          tokens.push(w);
-        }
+/**
+ * Split headings into their rendered lines (words measured by offsetTop; inline elements such as .scribble stay intact).
+ * Batched for performance: all headings get their word spans first (writes), then every word is measured in ONE layout
+ * pass (reads), then the lines are built (writes) — splitting one heading at a time forced a full-page layout per
+ * heading (1–2 s on a slow phone for a page with many section titles).
+ */
+function splitLinesBatch(els: HTMLElement[]): void {
+  // 1. writes: original markup back, words wrapped in .tm-w spans
+  const prepared = els.map((el) => {
+    try {
+      const html = tmOriginal.get(el) ?? el.innerHTML;
+      tmOriginal.set(el, html);
+      el.innerHTML = html;
+      const tokens: Node[] = [];
+      Array.from(el.childNodes).forEach((node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          (node.textContent ?? '').split(/(\s+)/).forEach((part) => {
+            if (!part) return;
+            if (/^\s+$/.test(part)) tokens.push(document.createTextNode(' '));
+            else {
+              const w = document.createElement('span');
+              w.className = 'tm-w';
+              w.textContent = part;
+              tokens.push(w);
+            }
+          });
+        } else tokens.push(node);
       });
-    } else tokens.push(node);
-  });
-  el.textContent = '';
-  tokens.forEach((t) => el.appendChild(t));
-  const lines: Node[][] = [];
-  let lastTop = Number.NaN;
-  // a new rendered line moves down by about a line-height; inline-block words (.scribble) sit a few px off the text
-  // words of the same line at display sizes, which a fixed 4 px tolerance mistook for line breaks ("B.Tech (" / "CSE" / ")")
-  const tolerance = Math.max(4, (parseFloat(getComputedStyle(el).fontSize) || 16) * 0.5);
-  tokens.forEach((t) => {
-    if (!(t instanceof HTMLElement)) {
-      if (lines.length) lines[lines.length - 1].push(t);
-      return;
+      el.textContent = '';
+      tokens.forEach((t) => el.appendChild(t));
+      return { el, tokens };
+    } catch {
+      return null; // keep the original markup
     }
-    const block = getComputedStyle(t).display === 'block';
-    const top = t.offsetTop;
-    if (block || !lines.length || Math.abs(top - lastTop) > tolerance) lines.push([]);
-    lines[lines.length - 1].push(t);
-    lastTop = block ? Number.NaN : top;
   });
-  el.textContent = '';
-  lines.forEach((line, i) => {
-    while (line.length && line[line.length - 1].nodeType === Node.TEXT_NODE) line.pop();
-    const outer = document.createElement('span');
-    outer.className = 'tm-line';
-    const inner = document.createElement('span');
-    inner.className = 'tm-inner';
-    inner.style.setProperty('--l', String(i));
-    line.forEach((n) => inner.appendChild(n));
-    outer.appendChild(inner);
-    el.appendChild(outer);
+  // 2. reads (one layout for the whole batch)
+  const measured = prepared.map((p) => {
+    if (!p) return null;
+    try {
+      // a new rendered line moves down by about a line-height; inline-block words (.scribble) sit a few px off the text
+      // words of the same line at display sizes, which a fixed 4 px tolerance mistook for line breaks ("B.Tech (" / "CSE" / ")")
+      const tolerance = Math.max(4, (parseFloat(getComputedStyle(p.el).fontSize) || 16) * 0.5);
+      const pos = p.tokens.map((t) => (t instanceof HTMLElement ? { block: getComputedStyle(t).display === 'block', top: t.offsetTop } : null));
+      return { ...p, tolerance, pos };
+    } catch {
+      return null;
+    }
+  });
+  // 3. writes: lines
+  measured.forEach((m) => {
+    if (!m) return;
+    const lines: Node[][] = [];
+    let lastTop = Number.NaN;
+    m.tokens.forEach((t, i) => {
+      const p = m.pos[i];
+      if (!p) {
+        if (lines.length) lines[lines.length - 1].push(t);
+        return;
+      }
+      if (p.block || !lines.length || Math.abs(p.top - lastTop) > m.tolerance) lines.push([]);
+      lines[lines.length - 1].push(t);
+      lastTop = p.block ? Number.NaN : p.top;
+    });
+    m.el.textContent = '';
+    lines.forEach((line, i) => {
+      while (line.length && line[line.length - 1].nodeType === Node.TEXT_NODE) line.pop();
+      const outer = document.createElement('span');
+      outer.className = 'tm-line';
+      const inner = document.createElement('span');
+      inner.className = 'tm-inner';
+      inner.style.setProperty('--l', String(i));
+      line.forEach((n) => inner.appendChild(n));
+      outer.appendChild(inner);
+      m.el.appendChild(outer);
+    });
+  });
+}
+
+let tmPrepObserver: IntersectionObserver | null = null;
+
+/** Split + arm the reveal of headings that came near the viewport (batched per observer callback). */
+function prepareReveal(els: HTMLElement[]): void {
+  splitLinesBatch(els);
+  els.forEach((el) => {
+    el.classList.add('tm-ready');
+    tmObserver?.observe(el);
+    let width = el.clientWidth;
+    window.addEventListener(
+      'resize',
+      rafThrottle(() => {
+        if (Math.abs(el.clientWidth - width) < 2) return;
+        width = el.clientWidth;
+        splitLinesBatch([el]);
+      }),
+      { passive: true },
+    );
   });
 }
 
 /**
  * <h2 data-text-reveal>…</h2> — lines slide up from behind an overflow-hidden mask when the heading scrolls into view;
  * re-split on width changes. CSS keeps [data-text-reveal] invisible until .tm-ready (html.js only; html.no-motion and
- * the no-bundle fallback show it).
+ * the no-bundle fallback show it). A heading is only split when it comes within ~one screen of the viewport (nothing
+ * is measured at start-up).
  */
 export function initTextReveal(root: ParentNode = document): void {
-  const els = within('[data-text-reveal]', root).filter((el) => bindOnce(el, 'text-reveal'));
+  const all = within('[data-text-reveal]', root).filter((el) => bindOnce(el, 'text-reveal'));
+  // a page title (h1) is painted with the first frame and never masked: it is the LCP element of most heroes
+  all.filter((el) => el.tagName === 'H1').forEach((el) => el.classList.add('tm-ready', 'is-revealed', 'tm-done'));
+  const els = all.filter((el) => el.tagName !== 'H1');
   if (!els.length) return;
   if (staticMode() || !('IntersectionObserver' in window)) {
     els.forEach((el) => el.classList.add('tm-ready', 'is-revealed', 'tm-done'));
@@ -91,29 +142,16 @@ export function initTextReveal(root: ParentNode = document): void {
       }),
     { rootMargin: '0px 0px -6% 0px', threshold: 0.2 },
   );
-  els.forEach((el) => {
-    try {
-      splitLines(el);
-    } catch {
-      /* keep the original markup */
-    }
-    el.classList.add('tm-ready');
-    tmObserver!.observe(el);
-    let width = el.clientWidth;
-    window.addEventListener(
-      'resize',
-      rafThrottle(() => {
-        if (Math.abs(el.clientWidth - width) < 2) return;
-        width = el.clientWidth;
-        try {
-          splitLines(el);
-        } catch {
-          /* ignore */
-        }
-      }),
-      { passive: true },
-    );
-  });
+  tmPrepObserver ??= new IntersectionObserver(
+    (entries) => {
+      const near = entries.filter((en) => en.isIntersecting).map((en) => en.target as HTMLElement);
+      if (!near.length) return;
+      near.forEach((el) => tmPrepObserver?.unobserve(el));
+      prepareReveal(near);
+    },
+    { rootMargin: '25% 0px 60% 0px' },
+  );
+  els.forEach((el) => tmPrepObserver!.observe(el));
 }
 
 /* ------------------------------------------------------------------ Morphing SVG blobs */

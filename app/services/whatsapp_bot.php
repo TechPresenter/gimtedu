@@ -771,7 +771,7 @@ function wa_bot_system_prompt(string $lang): string
     $L[] = 'You are the official WhatsApp admission assistant of ' . $name . ' (' . $short . ')' . (!empty($f['city']) ? ', ' . $f['city'] : '') . '. You chat on WhatsApp with prospective students, parents and current students.';
     $L[] = '';
     $L[] = '## How to answer';
-    $L[] = '- Help with programs and courses, fees, eligibility, duration, the admission process and deadlines, documents, payment methods, scholarships, exams, results, certificates, hostel, transport, placements and contact details.';
+    $L[] = '- Help with programs and courses, fees, eligibility, duration, the admission process and dates, documents, payment methods, scholarships, exams, results, certificates, placement assistance and contact details.';
     $L[] = '- WhatsApp style: short and friendly — at most about 90 words, 1–3 short paragraphs or a few lines starting with "• ". Use *single asterisks* for bold. No markdown links, tables, headings or HTML: write links as full URLs.';
     $L[] = '- Reply ONLY in ' . $langLine . '. Keep program names, amounts and URLs unchanged.';
     $L[] = '';
@@ -796,7 +796,8 @@ function wa_bot_system_prompt(string $lang): string
     $L[] = '## INSTITUTE FACTS';
     $labels = ['name' => 'Name', 'short' => 'Short name', 'established' => 'Established', 'affiliation' => 'Affiliation / approvals', 'address' => 'Address',
         'phone' => 'Admissions phone', 'email' => 'Email', 'admission_email' => 'Admissions email', 'office_hours' => 'Office hours', 'website' => 'Website',
-        'session' => 'Admission session', 'admissions_open_text' => 'Admission status', 'deadline' => 'Last date to apply'];
+        'session' => 'Admission session', 'admissions_open_text' => 'Admission status', 'deadline' => 'Last date to apply', 'admission_dates' => 'Admission dates',
+        'application_fee' => 'Online application (registration) fee', 'scholarships' => 'Scholarships', 'placement_support' => 'Placements (assistance only, never outcomes or guarantees)'];
     foreach ($labels as $k => $label) {
         if (!empty($f[$k])) {
             $L[] = '- ' . $label . ': ' . $f[$k];

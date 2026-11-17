@@ -316,13 +316,83 @@ function institute_name(): string
     return setting('institute_name', 'Global Institute of Management & Technology');
 }
 
+/** Height (px) of the website's small header-logo copy: ~2× the largest displayed height (60 px header, 56 px footer). */
+const SITE_LOGO_COPY_HEIGHT = 128;
+
+/**
+ * Logo URL (Settings › General › logo / logo_white, else the bundled SVG). Inside the <body> of a public website page
+ * (includes/header.php sets $GLOBALS['__site_logo_small'] after the <head>) an uploaded raster logo is served as a small
+ * WebP copy SITE_LOGO_COPY_HEIGHT px high (made once next to the upload — app/upload.php image_derivative()) instead of
+ * the full upload; emails, print views, the admin, the portals and the Organization JSON-LD keep the original file.
+ */
 function logo_url(bool $white = false): string
 {
     $custom = setting($white ? 'logo_white' : 'logo');
     if ($custom) {
+        if (!empty($GLOBALS['__site_logo_small']) && function_exists('image_derivative') && !preg_match('#^https?://#i', (string) $custom)
+            && ($small = image_derivative((string) $custom, 'logo', SITE_LOGO_COPY_HEIGHT))) {
+            return asset($small);
+        }
         return upload_url($custom);
     }
     return asset($white ? 'assets/images/logo-white.svg' : 'assets/images/logo.svg');
+}
+
+/**
+ * Browser-tab / home-screen icon tags for the public website (Settings › General › favicon). An uploaded SVG is linked
+ * as image/svg+xml; an uploaded raster image (PNG / JPEG / WebP) gets square PNG copies made once next to it — 48, 96
+ * and 192 px icons and a 180 px apple-touch-icon on white (app/upload.php image_derivative()) — so browsers and Google
+ * get small square icons with the right type instead of the full upload. Without an upload: the bundled SVG.
+ */
+function site_favicon_links(): string
+{
+    $fav = trim((string) setting('favicon', ''));
+    if ($fav === '') {
+        return '<link rel="icon" type="image/svg+xml" href="' . e(asset('assets/images/favicon.svg')) . '">';
+    }
+    $ext = strtolower(pathinfo((string) (parse_url($fav, PHP_URL_PATH) ?: $fav), PATHINFO_EXTENSION));
+    $types = ['svg' => 'image/svg+xml', 'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'webp' => 'image/webp', 'gif' => 'image/gif', 'ico' => 'image/x-icon'];
+    $local = !preg_match('#^https?://#i', $fav) && function_exists('image_derivative') && in_array($ext, ['png', 'jpg', 'jpeg', 'webp'], true);
+    if ($local) {
+        $links = '';
+        foreach ([48, 96, 192] as $s) {
+            if ($p = image_derivative($fav, 'fav', $s)) {
+                $links .= '<link rel="icon" type="image/png" sizes="' . $s . 'x' . $s . '" href="' . e(asset($p)) . '">';
+            }
+        }
+        if ($links !== '') {
+            $touch = image_derivative($fav, 'touch', 180);
+            return $links . ($touch ? "\n  " . '<link rel="apple-touch-icon" sizes="180x180" href="' . e(asset($touch)) . '">' : '');
+        }
+    }
+    return '<link rel="icon"' . (isset($types[$ext]) ? ' type="' . $types[$ext] . '"' : '') . ' href="' . e(upload_url($fav)) . '">';
+}
+
+/**
+ * Make (or refresh) the header-logo copies and the favicon / apple-touch-icon PNGs for the current settings — used by
+ * tools/img-variants.php after a deploy; the website also makes them on first use. Returns one line per file.
+ */
+function site_brand_icon_files(): array
+{
+    $out = [];
+    if (!function_exists('image_derivative')) {
+        return $out;
+    }
+    foreach (['logo', 'logo_white'] as $key) {
+        $v = trim((string) setting($key, ''));
+        if ($v !== '' && !preg_match('#^https?://#i', $v)) {
+            $p = image_derivative($v, 'logo', SITE_LOGO_COPY_HEIGHT);
+            $out[] = $key . ': ' . ($p ? $p . ' (' . round(filesize(APP_ROOT . '/' . $p) / 1024, 1) . ' KB)' : 'original kept (SVG, already small, or unreadable)');
+        }
+    }
+    $fav = trim((string) setting('favicon', ''));
+    if ($fav !== '' && !preg_match('#^https?://#i', $fav)) {
+        foreach ([['fav', 48], ['fav', 96], ['fav', 192], ['touch', 180]] as [$kind, $s]) {
+            $p = image_derivative($fav, $kind, $s);
+            $out[] = 'favicon ' . $kind . $s . ': ' . ($p ?: 'not made (SVG or unreadable — the original is linked)');
+        }
+    }
+    return $out;
 }
 
 /* ------------------------------------------------------------------

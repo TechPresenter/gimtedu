@@ -36,7 +36,7 @@ import { PhoneInput } from '../forms/PhoneInput';
 import { INDIA_STATES, postalError, postalLabel, postalRequired } from '../forms/address';
 import { emailError, normalizeEmail, suggestEmail } from '../forms/email';
 import { countryName, formatDisplay, loadPhoneLib, phoneError } from '../forms/phone';
-import { initialSecurity, postSecure, preloadCaptcha, pushLead, type CaptchaConfig, type FormSecurity } from '../forms/security';
+import { initialSecurity, postSecure, preloadCaptcha, pushLead, trackEvent, type CaptchaConfig, type FormSecurity } from '../forms/security';
 import { useStaticMode } from '../lib/hooks';
 import type { IslandBaseProps } from '../lib/types';
 
@@ -52,6 +52,8 @@ export interface WizardProgram {
   name: string;
   short: string;
   slug: string;
+  /** program code (programs.code, e.g. "MBA") when the page passes it — analytics `submit_application.program_code` */
+  code?: string;
   /** UG | PG | Diploma | Certificate | PhD */
   level: string;
   levelLabel: string;
@@ -88,6 +90,8 @@ export interface ApplyWizardProps extends IslandBaseProps {
   endpoint: string;
   /** academic session label, e.g. "2026-27" */
   session: string;
+  /** application (registration) fee label, display text only (sa_application_fee(): "₹999") */
+  applicationFee?: string;
   programs: WizardProgram[];
   /** program id preselected via ?program=<slug|id> */
   initialProgram?: number | null;
@@ -947,6 +951,8 @@ export default function ApplyWizard(props: ApplyWizardProps) {
       writeDraft(storageKey, null);
       setResult(json.data);
       pushLead('application', { program: json.data.program });
+      // GA4 key event for a completed application (no personal data: program identifiers only)
+      trackEvent('submit_application', { program_code: program?.code || undefined, program: program?.slug, level: program?.levelLabel });
       setAnnounce(`Application ${json.data.application_no} submitted successfully.`);
       window.setTimeout(() => rootRef.current?.scrollIntoView({ behavior: isStatic ? 'auto' : 'smooth', block: 'start' }), 30);
       return;
@@ -1353,28 +1359,6 @@ export default function ApplyWizard(props: ApplyWizardProps) {
                       emptyLabel="None"
                       help="Optional — considered if seats in your first choice are full."
                     />
-                    <div className="col-span-12 grid gap-3 sm:grid-cols-2">
-                      {(
-                        [
-                          ['hostel_required', 'Hostel accommodation', 'Separate secure hostels for boys and girls'],
-                          ['transport_required', 'College transport', 'Buses across Noida, Greater Noida & Ghaziabad'],
-                        ] as [string, string, string][]
-                      ).map(([name, title, text]) => (
-                        <label
-                          key={name}
-                          className={clsx(
-                            'flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-brand-500/25',
-                            values[name] === '1' ? 'border-brand-300 bg-brand-50/60' : 'border-slate-200 hover:border-brand-200',
-                          )}
-                        >
-                          <input type="checkbox" className="form-check mt-0.5" checked={values[name] === '1'} disabled={submitting} onChange={(e) => set(name, e.target.checked ? '1' : '')} />
-                          <span>
-                            <span className="block text-sm font-semibold text-brand-900">I need {title.toLowerCase()}</span>
-                            <span className="block text-xs text-slate-500">{text}</span>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
                   </div>
                 </div>
               )}
@@ -1639,7 +1623,6 @@ export default function ApplyWizard(props: ApplyWizardProps) {
                       ['Second preference', programs.find((p) => String(p.id) === values.second_program_id)?.name],
                       ['Category', label(options.categories, values.category)],
                       ['Admission quota', label(options.quotas, values.quota)],
-                      ['Facilities', [values.hostel_required === '1' && 'Hostel', values.transport_required === '1' && 'Transport'].filter(Boolean).join(', ') || 'None'],
                     ]}
                   />
                   <ReviewBlock
@@ -1698,7 +1681,7 @@ export default function ApplyWizard(props: ApplyWizardProps) {
                     <p className="flex items-start gap-2 rounded-2xl bg-accent-50 px-4 py-3 text-[13px] text-accent-800 ring-1 ring-accent-100">
                       <Sparkles className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                       <span>
-                        There is no fee to apply online. The admission fee of <strong>{program.admissionFee}</strong> is payable only after your application is approved.
+                        The online application (registration) fee is <strong>{props.applicationFee || '₹999'}</strong>. The admission fee of <strong>{program.admissionFee}</strong> is payable only after your application is approved.
                       </span>
                     </p>
                   )}

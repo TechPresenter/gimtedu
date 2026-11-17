@@ -18,6 +18,11 @@
  */
 require_once APP_ROOT . '/app/services/seo.php';
 require_once __DIR__ . '/partials/consent.php';
+// Performance output filter (site_perf_html() in includes/config.php): runs once on the finished page — hero images
+// with fetchpriority="high" get their WebP srcset and image preloads get the matching imagesrcset / imagesizes.
+if (function_exists('site_perf_html')) {
+    ob_start('site_perf_html');
+}
 $page = $GLOBALS['__site_page'] ?? [];
 // Redirect manager: a 404 consults the admin rules (301/302/410), lower-case and trailing-slash variants and is logged;
 // a live page only follows explicit admin 3xx rules. Runs before any output.
@@ -69,13 +74,33 @@ $announceItems = is_string($announce) ? site_announcement_items($announce) : ($a
   <?php endforeach; ?>
 <?= site_csp_tag(seo_head_extras($page['head'] ?? [])) ?>
 <?= seo_verification_meta() ?>
-  <link rel="icon" type="image/svg+xml" href="<?= e(setting('favicon') ? upload_url(setting('favicon')) : asset('assets/images/favicon.svg')) ?>">
+  <?= site_favicon_links() /* square PNG copies of an uploaded favicon + apple-touch-icon (app/functions.php) */ ?>
+
 <?php require_once APP_ROOT . '/app/services/site_brand.php'; /* admin brand colours & fonts (Settings › Website) */ ?>
-  <?php foreach (site_font_preloads() as $fontHref): ?><link rel="preload" href="<?= e($fontHref) ?>" as="font" type="font/woff2" crossorigin>
-  <?php endforeach; ?>
-  <?php foreach ((array) ($page['preload'] ?? []) as $pre): $href = is_array($pre) ? ($pre['href'] ?? '') : $pre; if ($href === '') continue; ?><link rel="preload" as="image" href="<?= e($href) ?>"<?= is_array($pre) && !empty($pre['media']) ? ' media="' . e($pre['media']) . '"' : '' ?> fetchpriority="high">
+<?php
+// Image preload = the page's LCP image only: the first entry (plus entries limited by a media query, e.g. a separate
+// phone / desktop hero). Further entries would compete with the stylesheet and fonts for the first round trips; their
+// <img> tags carry fetchpriority="high" themselves. site_perf_html() adds imagesrcset / imagesizes from the matching <img>.
+$imagePreloads = [];
+$plainPreload = false;
+foreach ((array) ($page['preload'] ?? []) as $pre) {
+    $href = is_array($pre) ? (string) ($pre['href'] ?? '') : (string) $pre;
+    $media = is_array($pre) ? (string) ($pre['media'] ?? '') : '';
+    if ($href === '' || ($media === '' && $plainPreload)) {
+        continue;
+    }
+    $plainPreload = $plainPreload || $media === '';
+    $imagePreloads[] = [$href, $media];
+}
+?>
+  <?php foreach ($imagePreloads as [$href, $media]): ?><link rel="preload" as="image" href="<?= e($href) ?>"<?= $media !== '' ? ' media="' . e($media) . '"' : '' ?> fetchpriority="high">
   <?php endforeach; ?>
   <link rel="stylesheet" href="<?= e(asset('assets/css/style.css')) ?>">
+  <?php foreach (site_font_preloads() as $fontHref): ?><link rel="preload" href="<?= e($fontHref) ?>" as="font" type="font/woff2" crossorigin>
+  <?php endforeach; ?>
+  <?php /* an admission bar the visitor dismissed stays hidden from the first paint (core/effects.ts initDismiss hides it
+     only once the bundle has run — the page would jump up) */ ?>
+  <script<?= site_nonce_attr() ?>>(function(){try{var c="",k,i;for(i=0;i<localStorage.length;i++){k=localStorage.key(i);if(k&&k.indexOf("gimt.bar.")===0&&localStorage.getItem(k)==="1")c+='[data-dismiss="'+k.replace(/[^\w.-]/g,"")+'"]{display:none!important}'}if(c){var s=document.createElement("style");s.textContent=c;document.head.appendChild(s)}}catch(e){}})()</script>
 <?= site_brand_style() ?>
 <?= consent_head() ?>
 <?= site_csp_tag(seo_error_reporter_head()) ?>
@@ -83,6 +108,7 @@ $announceItems = is_string($announce) ? site_announcement_items($announce) : ($a
   <?= site_assets_head() ?>
 <?= seo_jsonld_html($page, $seo, $title, $httpStatus) ?>
 <?= site_custom_code('head') ?>
+<?php $GLOBALS['__site_logo_small'] = true; /* from here on logo_url() serves the small WebP copy of an uploaded logo (the JSON-LD above keeps the original) */ ?>
 </head>
 <body class="<?= e($bodyClass) ?>"<?= $cursor ? ' data-cursor' : '' ?>>
 <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[110] focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg">Skip to main content</a>

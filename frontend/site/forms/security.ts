@@ -9,10 +9,13 @@
  *    loaded only when the visitor starts filling a form, never on page load, and only when a provider is configured.
  *  - postSecure(): FormData POST with CSRF header, token + captcha answer, automatic single retry for an expired token
  *    / session (419) or a too-fast submission.
- *  - pushLead(): window.dataLayer conversion event {event: 'generate_lead', form} (consent is handled by the
- *    cookie-consent / Consent Mode layer of the SEO unit; no personal data is pushed).
+ *  - pushLead(): conversion event {event: 'generate_lead', form} via window.gimtTrack (core/track.ts; consent is
+ *    handled by the cookie-consent / Consent Mode layer, includes/partials/consent.php; no personal data is pushed).
  */
 import { csrfToken } from '../core/dom';
+import { trackEvent, type TrackParams } from '../core/track';
+
+export { trackEvent };
 
 export interface CaptchaConfig {
   provider: 'recaptcha_v3' | 'turnstile' | 'hcaptcha';
@@ -239,14 +242,9 @@ export async function postSecure<T = unknown>(body: FormData, o: SecureOptions):
  * Conversion event for Google Tag Manager / GA4 (contract with the SEO unit's consent layer). Also announces the lead on
  * window as `gimt:lead` ({form}) — core/popup.ts then stops the automatic enquiry popup for 30 days.
  */
-export function pushLead(form: string, extra: Record<string, string | number | boolean> = {}): void {
-  try {
-    const w = window as unknown as { dataLayer?: unknown[] };
-    w.dataLayer = w.dataLayer || [];
-    w.dataLayer.push({ event: 'generate_lead', form, ...extra });
-  } catch {
-    /* never block the success state */
-  }
+export function pushLead(form: string, extra: TrackParams = {}): void {
+  // through the consent layer (core/track.ts): nothing is pushed when no tag is configured; never personal data
+  trackEvent('generate_lead', { form, ...extra });
   try {
     window.dispatchEvent(new CustomEvent('gimt:lead', { detail: { form } }));
   } catch {

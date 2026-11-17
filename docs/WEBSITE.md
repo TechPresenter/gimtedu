@@ -614,3 +614,76 @@ overlays stay navy). Do not link `style.css` from print views.
   0 violations). Enforcing it later = rename the header to `Content-Security-Policy` once the report endpoint shows no
   violations for a while (GTM Custom-HTML tags need GTM's nonce-aware setup first).
 * **Consent**: forms that show a consent box post `consent_required=1` (§14), and the server rejects them without consent.
+
+## 17. Analytics events
+
+Owner: tracking (`includes/partials/consent.php`, `assets/js/consent.js`, `frontend/site/core/track.ts`). Tags are set in
+Admin › SEO › Integrations: `google_analytics_id` (GA4), `gtm_id`, `meta_pixel_id`, `clarity_project_id` (env `GIMT_CLARITY_ID`),
+`track_click_events` (default `1`).
+
+**Pipeline.** `consent_head()` prints one inline `<head>` script (nonce). It sets Consent Mode v2 defaults (denied), reads the
+`gimt_consent` cookie and loads the tags that the choice allows: GTM (analytics or marketing, or advanced mode), GA4 (analytics or
+advanced mode), **Microsoft Clarity (analytics consent only, never in advanced / "off" mode)** and Meta Pixel (marketing). It
+defines `window.gimtTrack(event, params)`. That function pushes `{event, …params}` to `window.dataLayer` only when at least
+one tag ID is configured. Without an ID it is a no-op, and `window.dataLayer` is not even created. Each push is forwarded:
+* GTM: the events are in the dataLayer. Create *Custom Event* triggers with the names below.
+* GA4 loaded directly (no GTM): `gtag('event', name, params)`.
+* Meta Pixel: `generate_lead` / `newsletter_signup` → Lead, `submit_application` → SubmitApplication, `phone_click` /
+  `whatsapp_click` / `email_click` → Contact, `course_view` → ViewContent.
+* Clarity: `clarity('event', name)`, which lets you filter recordings.
+
+Site code never writes to `dataLayer` directly. Use `trackEvent()` from `frontend/site/core/track.ts` (bundle) or `window.gimtTrack`.
+Nothing is loaded or pushed in the admin preview frame (`?preview=admin`), on portals or in the admin. Those pages do not
+print `consent_head()`.
+
+| Event | When | Parameters | Source |
+|-------|------|------------|--------|
+| `phone_click` | click on a `tel:` link | `link_location` | consent.js |
+| `whatsapp_click` | click on `wa.me`, `api.whatsapp.com`, `web.whatsapp.com` or `whatsapp:` links | `link_location` | consent.js |
+| `email_click` | click on a `mailto:` link | `link_location` | consent.js |
+| `apply_click` | same-site link to `/apply` (not `?ack=`) or `/admissions-open[/{program}]` | `link_location`, `program` (from `?program=` / the landing slug) | consent.js |
+| `brochure_download` | link with `?brochure=`, a `.pdf` link or `[data-brochure="<program>"]` | `link_location`, `program`, `file_name` (PDF only) | consent.js |
+| `course_view` | once per page view on `/programs/{slug}` | `program_code` (JSON-LD `courseCode`), `program` (slug), `level` (JSON-LD `educationalLevel`) | consent.js |
+| `fee_view` | once, when `#fees` or `[data-track-section="fees"]` scrolls into view (program pages, /admissions) | `program_code` (program pages) | consent.js |
+| `newsletter_signup` | `form:success` of a plain `form[data-ajax-form]` posting to `/newsletter` (or `data-secure="newsletter"`) | `form_location` | consent.js |
+| `generate_lead` | `form:success` of any other plain `form[data-ajax-form]` | `form` (`data-track-form` / `data-secure` key, default `enquiry`) | consent.js |
+| `generate_lead` | lead sent by an island: EnquiryForm (`enquiry` / `counselling` / `contact` …), SmartEnquiry, chat callback card (`chatbot_lead`), ApplyWizard (`application`) | `form`, optional `variant` / `program` (name) | `pushLead()` forms/security.ts |
+| `submit_application` | ApplyWizard final submit succeeded | `program` (slug), `program_code` (when the page passes `code`), `level` | ApplyWizard.tsx |
+| `enquiry_popup_open` / `notice_popup_open` | the popups open (§10, §14) | `trigger`, `notice` | core/popup.ts |
+| `consent_update` | the visitor saves a cookie choice | `consent_analytics`, `consent_marketing`, `consent_action` | consent.js |
+
+* `link_location` values: `header`, `mobile_menu`, `announcement_bar`, `mobile_bar`, `floating_button` (call / WhatsApp
+  buttons), `chatbot`, `popup` (any dialog), `footer`, `content` (inside `<main>`) or `page`. An ancestor
+  `data-track-location="hero"` overrides the value.
+* `track_click_events = 0` turns off the automatic click and view events (`*_click`, `brochure_download`, `course_view`,
+  `fee_view`). Form conversions (`generate_lead`, `newsletter_signup`, `submit_application`) are always recorded when a tag is set.
+* An ApplyWizard submission fires **both** `generate_lead` (`form: application`) and `submit_application`. In GA4, mark
+  `generate_lead`, `submit_application`, `phone_click` and `whatsapp_click` as **key events**. To count each application
+  once, exclude `form = application` from the lead count, or mark only `submit_application` for applications.
+* **No personal data, ever**: no names, phone numbers, e-mail addresses, message text, free-text answers or tel / mailto /
+  WhatsApp link targets. Parameters are short identifiers only. consent.js drops any value that contains `@` or seven or more
+  digits. Island code passes identifiers only (form key, program slug or code).
+* Pages without the Vite bundle (`assets/js/main.js` fallback) still send everything except the island events, because the
+  listeners live in `assets/js/consent.js`. That file is printed by `consent_banner()`, and also in banner mode "off" when a
+  tag is configured. main.js dispatches a bubbling `form:success`.
+
+**Microsoft Clarity privacy.** Clarity is loaded only after Analytics consent. When consent is given it calls
+`clarity('consentv2', {analytics_Storage, ad_Storage})` with the stored choice. Withdrawing consent sends `consentv2` denied
+plus `clarity('consent', false)`, which erases Clarity's cookies, and consent.js also expires `_clck` / `_clsk`. Before the tag
+loads, the head script adds `data-clarity-mask="true"` to these elements:
+* every `form`, `input`, `textarea`, `select` and `[contenteditable]`;
+* the lead islands (EnquiryForm, SmartEnquiry, ApplyWizard, ScholarshipAssistant) and the chat widget `#gimt-chat`;
+* anything marked `[data-clarity-private]`;
+* the whole page on `?ack=` acknowledgements and `/verify-certificate`.
+
+A MutationObserver applies the same masking to elements added later. **Set Masking mode to "Strict" in the Clarity project
+(Settings › Masking)** so that text the site does not mark is also masked. Clarity cookies are listed under Analytics in the
+cookie modal: `_clck`, `_clsk`, and `CLID` / `MUID` / `ANONCHK` / `SM` / `MR` on Microsoft domains. Clarity's terms say it
+should not be used on sites aimed at users under 18. Verify an install by watching for POSTs to `https://*.clarity.ms/collect`.
+
+Proof run (2026-11-17): Playwright on :8002 with test IDs; third-party hosts were stubbed and never contacted. Results:
+* no IDs: no dataLayer and no tag requests;
+* before a choice and after "Reject all": no GA4 / GTM / Clarity requests or cookies;
+* after "Accept all": the three tags load, and Clarity masking is on all 58 form elements;
+* every event above was captured on `/`, `/programs/master-of-business-administration`, `/contact` and `/apply`, with no PII
+  and 0 console errors.

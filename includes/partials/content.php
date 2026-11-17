@@ -1306,7 +1306,7 @@ function cp_popular_links(): array
         ['Notice Board', '/notices', 'megaphone', 'Latest notices and circulars'],
         ['Contact Us', '/contact', 'phone', 'Call, email or visit the campus'],
         ['FAQs', '/faq', 'circle-help', 'Answers to common questions'],
-        ['Campus Life', '/campus', 'building-2', 'Facilities, hostel and clubs'],
+        ['Campus Life', '/campus', 'building-2', 'Classrooms, library and clubs'],
         ['Academics', '/academics', 'book-open', 'Departments and academic calendar'],
     ];
     return array_values(array_filter($c, fn ($l) => cp_route_ok($l[1])));

@@ -6,11 +6,27 @@ export interface SlotItem {
   html: string;
   /** The element's data-* attributes (camelCased keys, e.g. data-filter-item -> filterItem). */
   data: Record<string, string>;
+  /**
+   * The server-rendered element itself (detached from the page once the island renders). An island may move it into
+   * its own markup instead of re-parsing `html` — no new DOM, images keep their loaded state (ProgramExplorer).
+   */
+  node?: HTMLElement;
+}
+
+/** What the visitor already did in the server-rendered fallback before the island mounted (core/islands.ts). */
+export interface FallbackState {
+  /** data-filter key of the pressed [data-filter] button (vanilla filtering ran on the fallback). */
+  filter?: string;
+  /** Value typed into the fallback's search field. */
+  query?: string;
+  /** The fallback's search field had the focus. */
+  searchFocused?: boolean;
 }
 
 /** Props every island receives in addition to its own (decoded from data-props). */
 export interface IslandBaseProps {
   slots?: Record<string, SlotItem[]>;
+  fallbackState?: FallbackState;
 }
 
 export interface LinkProp {

@@ -5,6 +5,8 @@
  * search filters as you type and #faq-{id} deep links (used by /search) open their answer. FAQPage JSON-LD on the
  * unfiltered page; filtered views are noindex,follow with the canonical /faq. "Still have questions?" enquiry form
  * (EnquiryForm island → /api/public/enquiry, source "faq").
+ * While the admin FAQ table has no published entries the page is not empty: it renders generated sections (About GIMT,
+ * Programs, Admissions, Placement assistance, Certificate courses) built only from verified data — sa_generated_faq_sections().
  */
 require __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/errors.php';
@@ -48,13 +50,16 @@ if ($filtered) {
     header('X-Robots-Tag: noindex, follow');
 }
 $schema = [sa_breadcrumb_ld([['Home', ''], ['FAQs', 'faq']])];
+$generated = $all ? [] : sa_generated_faq_sections();
 if (!$filtered && $all && !sa_seo_schema_has('FAQPage', 'route', null, '/faq')) {
     $schema[] = cp_faq_schema($all);
+} elseif (!$filtered && $generated && !sa_seo_schema_has('FAQPage', 'route', null, '/faq') && ($genLd = seo_ld_faq(array_merge(...array_values(array_column($generated, 'items')))))) {
+    $schema[] = $genLd;
 }
 
 site_header([
     'title' => $filtered ? 'FAQs' . ($q !== '' ? ': “' . $q . '”' : ' — ' . $cats[$cat]) : 'Frequently Asked Questions',
-    'description' => 'Answers to common questions about admissions, eligibility, fees, scholarships, academics, hostel, placements and campus life at ' . setting('institute_short_name', 'GIMT') . '.',
+    'description' => 'Answers to common questions about ' . setting('institute_short_name', 'GIMT') . ' ' . setting('city', 'Noida') . ': programs, eligibility, fees, the ' . sa_application_fee() . ' application fee, rolling admissions, scholarships and placement assistance.',
     'active' => 'faq',
     'seo' => $filtered ? null : ['route', '/faq'],
     'canonical' => absolute_url('faq'),
@@ -64,12 +69,40 @@ site_header([
 ]);
 
 page_hero('Frequently Asked Questions', 'Quick answers before you apply', ['FAQs'], 'assets/images/site/students-laptop.jpg',
-    'Find answers about admissions, eligibility, fees, scholarships, academics, hostel, placements and campus life. Can’t find yours? Ask us — we reply within one working day.',
+    'Find answers about programs, admissions, eligibility, fees, scholarships and placement assistance. Can’t find yours? Ask us — we reply within one working day.',
     [], ['image_alt' => 'Students working on laptops in a GIMT classroom', 'highlight' => 'Questions']);
 ?>
 
 <?= section_open(['id' => 'faq-list', 'padding' => 'normal', 'class' => 'scroll-mt-24']) ?>
-  <?php if (!$all): ?>
+  <?php if (!$all && $generated): ?>
+  <div class="grid gap-10 lg:grid-cols-12 lg:gap-12">
+    <div class="min-w-0 lg:col-span-8">
+      <nav class="pill-row scrollbar-none" aria-label="FAQ topics">
+        <?php foreach ($generated as $key => $g): ?><a href="#cat-<?= e($key) ?>" class="chip"><?= e($g['label']) ?> <span class="chip-count"><?= count($g['items']) ?></span></a><?php endforeach; ?>
+      </nav>
+      <div class="faq mt-6 space-y-10">
+        <?php $gi = 0; foreach ($generated as $key => $g): ?>
+          <section id="cat-<?= e($key) ?>" class="scroll-mt-28" aria-labelledby="cat-<?= e($key) ?>-title">
+            <h2 id="cat-<?= e($key) ?>-title" class="mb-4 flex items-center gap-3 font-display text-xl font-extrabold text-brand-900">
+              <span class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent-50 text-accent-600"><?= icon($g['icon'], 'h-5 w-5') ?></span><?= e($g['label']) ?>
+            </h2>
+            <div class="space-y-3" data-accordion="multi">
+              <?php foreach ($g['items'] as $f): $gi++; ?>
+                <details id="q-<?= e($key) ?>-<?= $gi ?>" class="acc-item scroll-mt-28"<?= $gi === 1 ? ' open' : '' ?>>
+                  <summary><?= e($f['q']) ?></summary>
+                  <div><p><?= sa_linkify(e($f['a'])) ?></p></div>
+                </details>
+              <?php endforeach; ?>
+            </div>
+          </section>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <aside class="lg:col-span-4" aria-label="More help">
+      <div class="space-y-5 lg:sticky lg:top-28"><?= cp_help_card($c) ?></div>
+    </aside>
+  </div>
+  <?php elseif (!$all): ?>
     <div class="mx-auto max-w-2xl rounded-[24px] border border-dashed border-warm-2 bg-warm/60 p-10 text-center">
       <span class="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-white text-accent-600 shadow-sm"><?= icon('circle-help', 'h-7 w-7') ?></span>
       <h2 class="mt-4 font-display text-xl font-extrabold text-brand-900">Our FAQs are being updated</h2>
@@ -82,7 +115,7 @@ page_hero('Frequently Asked Questions', 'Quick answers before you apply', ['FAQs
       <form action="<?= e(site_url('faq')) ?>#faq-list" method="get" role="search" class="flex items-center gap-2 rounded-full border border-warm-2 bg-white p-1.5 pl-5 shadow-sm focus-within:ring-2 focus-within:ring-accent-500" data-faq-form>
         <label for="faq-q" class="sr-only">Search the FAQs</label>
         <?= icon('search', 'h-5 w-5 shrink-0 text-slate-400') ?>
-        <input id="faq-q" name="q" type="search" value="<?= e($q) ?>" maxlength="100" placeholder="Search questions, e.g. hostel fee, eligibility, scholarship" class="h-11 w-0 min-w-0 flex-1 border-0 bg-transparent text-base text-brand-900 placeholder:text-slate-400 focus:outline-none focus:ring-0" autocomplete="off" data-faq-search>
+        <input id="faq-q" name="q" type="search" value="<?= e($q) ?>" maxlength="100" placeholder="Search questions, e.g. fees, eligibility, scholarship" class="h-11 w-0 min-w-0 flex-1 border-0 bg-transparent text-base text-brand-900 placeholder:text-slate-400 focus:outline-none focus:ring-0" autocomplete="off" data-faq-search>
         <?php if ($cat !== ''): ?><input type="hidden" name="category" value="<?= e($cat) ?>"><?php endif; ?>
         <button type="submit" class="btn btn-explore btn-sm shrink-0 !py-2.5">Search</button>
       </form>
@@ -145,7 +178,7 @@ page_hero('Frequently Asked Questions', 'Quick answers before you apply', ['FAQs
           <p class="font-display text-lg font-extrabold text-brand-900">Helpful links</p>
           <ul class="mt-3 space-y-1 text-sm">
             <?php foreach ([['Admission process', '/admissions#process', 'clipboard-check'], ['Fees & scholarships', '/admissions#fees', 'wallet'], ['Apply online', '/apply', 'file-check'],
-                ['Explore courses', '/programs', 'graduation-cap'], ['Hostel & campus life', '/campus#hostel', 'building-2'], ['Policies & disclosures', '/policies', 'scroll-text']] as [$label, $href, $ic]):
+                ['Explore courses', '/programs', 'graduation-cap'], ['Campus & facilities', '/campus#facilities', 'building-2'], ['Policies & disclosures', '/policies', 'scroll-text']] as [$label, $href, $ic]):
                 if (!cp_url_ok($href)) continue; ?>
               <li><a href="<?= e(cms_link($href)) ?>" class="group flex items-center gap-3 rounded-xl px-2 py-2 font-medium text-brand-900 transition hover:bg-warm"><?= icon($ic, 'h-4 w-4 text-accent-600') ?><span class="flex-1"><?= e($label) ?></span><?= icon('arrow-right', 'h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5') ?></a></li>
             <?php endforeach; ?>

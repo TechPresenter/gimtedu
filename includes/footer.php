@@ -86,6 +86,23 @@ $chatStyle = (string) ($opts['chat'] ?? setting('site_chat_style', 'tab'));
         'Admissions' => site_menu('footer_admissions') ?: [['title' => 'Admission Process', 'url' => '/admissions#process'], ['title' => 'Apply Online', 'url' => '/apply'], ['title' => 'Fees & Scholarships', 'url' => '/admissions#fees'], ['title' => 'Scholarships', 'url' => '/admissions#scholarships'], ['title' => 'Enquire Now', 'url' => '/admissions#enquiry'], ['title' => 'Verify Certificate', 'url' => '/verify-certificate']],
         'Student Corner' => site_menu('footer_support') ?: [['title' => 'Student Portal', 'url' => '/portal/student/login'], ['title' => 'Faculty Portal', 'url' => '/portal/faculty/login'], ['title' => 'Campus Life', 'url' => '/campus'], ['title' => 'Placements', 'url' => '/placement'], ['title' => 'Notices', 'url' => '/notices'], ['title' => 'FAQs', 'url' => '/faq']],
     ];
+    // level / department landing pages (/programs/undergraduate, /programs/{department}): the footer's level links and the
+    // directory's department headings point to them (the old ?category= filter links are rewritten when a page exists)
+    require_once __DIR__ . '/partials/site_academic.php';
+    $landings = sa_landing_pages();
+    $landingFor = ['ug' => 'undergraduate', 'undergraduate' => 'undergraduate', 'pg' => 'postgraduate', 'postgraduate' => 'postgraduate'];
+    foreach ($cols['Programs'] as &$l) {
+        if (preg_match('~^/?programs\?category=([a-z-]+)~', (string) ($l['url'] ?? ''), $m) && isset($landingFor[$m[1]], $landings[$landingFor[$m[1]]])) {
+            $l['url'] = '/programs/' . $landingFor[$m[1]];
+        }
+    }
+    unset($l);
+    $deptUrl = [];
+    foreach ($landings as $lp) {
+        if ($lp['type'] === 'department' && !empty($lp['department']['name'])) {
+            $deptUrl[$lp['department']['name']] = site_url('programs/' . $lp['slug']);
+        }
+    }
     $social = social_links();
     $dirPrograms = ($opts['directory'] ?? true) ? site_programs() : [];
     $courses = $dirPrograms ? site_program_courses() : [];
@@ -153,7 +170,7 @@ $chatStyle = (string) ($opts['chat'] ?? setting('site_chat_style', 'tab'));
           <div class="pb-2">
             <?php foreach ($byDept as $dept => $list): ?>
               <div class="footer-dir-group">
-                <h3><?= e($dept) ?></h3>
+                <h3><?= isset($deptUrl[$dept]) ? '<a href="' . e($deptUrl[$dept]) . '">' . e($dept) . '</a>' : e($dept) ?></h3>
                 <ul class="footer-dir-links">
                   <?php foreach ($list as $p): $url = site_url('programs/' . $p['slug']); ?>
                     <li><a href="<?= e($url) ?>"><?= e($p['name']) ?><?= ($sfx = program_title_suffix($p)) !== '' ? ' (' . e($sfx) . ')' : '' ?></a></li>

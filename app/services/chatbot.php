@@ -33,14 +33,13 @@ function chatbot_defaults(): array
         'chatbot_greeting' => 'Hi! 👋 Admissions are open for {session} — how can I help you?',
         'chatbot_greeting_delay' => '4',
         'chatbot_welcome' => 'How can I help you?',
-        'chatbot_welcome_sub' => 'Ask me about programs, fees, scholarships, eligibility, hostel or placements — in English or Hindi.',
+        'chatbot_welcome_sub' => 'Ask me about programs, fees, scholarships, eligibility, admissions or placement assistance — in English or Hindi.',
         'chatbot_quick_replies' => json_encode([
             ['label' => 'Programs & courses', 'message' => 'Which programs do you offer?'],
             ['label' => 'Fees & scholarships', 'message' => 'What are the fees and scholarships?'],
             ['label' => 'Admission process', 'message' => 'How do I apply for admission?'],
             ['label' => 'Eligibility', 'message' => 'What is the eligibility for admission?'],
-            ['label' => 'Hostel & transport', 'message' => 'Tell me about hostel and transport facilities.'],
-            ['label' => 'Placements', 'message' => 'How are the placements?'],
+            ['label' => 'Placement assistance', 'message' => 'Do you provide placement assistance?'],
             ['label' => 'Talk to a counsellor', 'action' => 'lead'],
             ['label' => 'WhatsApp us', 'action' => 'whatsapp'],
         ], JSON_UNESCAPED_UNICODE),
@@ -65,7 +64,8 @@ function chatbot_defaults(): array
         'chatbot_lead_capture' => '1',
         'chatbot_streaming' => '0',
         'chatbot_retention_days' => '180',
-        'chatbot_sources' => json_encode(array_fill_keys(array_keys(chatbot_source_labels()), true)),
+        // hostel / college-bus answers off by default (owner decision 2026-11-17: no hostel or transport claims)
+        'chatbot_sources' => json_encode(array_merge(array_fill_keys(array_keys(chatbot_source_labels()), true), ['hostel' => false, 'transport' => false])),
         'chatbot_max_input' => '500',
         'chatbot_rate_ip' => '30',
         'chatbot_daily_ai_limit' => '1500',
@@ -378,7 +378,7 @@ function chatbot_system_prompt(): string
         . '. You chat with prospective students and their parents in a small chat window on the website.';
     $L[] = '';
     $L[] = '## How to answer';
-    $L[] = '- Help visitors with programs and courses, fees, scholarships, eligibility, the admission process and deadlines, documents, hostel and transport, placements, campus life and contact details, and guide them to apply online or to talk to a human counsellor.';
+    $L[] = '- Help visitors with programs and courses, fees, scholarships, eligibility, the admission process (rolling admissions — until seats are filled), documents, placement assistance, student life and contact details, and guide them to apply online or to talk to a human counsellor.';
     $L[] = '- Be warm, clear and brief: 2–5 short sentences or a short bullet list (about 120 words at most) unless the visitor asks for more detail. Use **bold** for key numbers and names.';
     $L[] = '- Formatting: plain text with **bold**, "- " bullet lists and markdown links [text](url) only. No tables, headings, images, code blocks or HTML.';
     $L[] = '- Links: never paste a bare URL. Always a short markdown link, e.g. [View course details](/programs/bba), [Apply online](/apply), and for WhatsApp exactly [Chat on WhatsApp](https://wa.me/…).';
@@ -387,7 +387,7 @@ function chatbot_system_prompt(): string
     $L[] = '- When it helps, end with one short follow-up question or a next step (view the program page, apply online, or request a callback).';
     $L[] = '';
     $L[] = '## Accuracy rules (most important)';
-    $L[] = '- Institute facts — fees, dates, deadlines, eligibility, seats, scholarships, placement figures, hostel/transport charges, approvals, rankings, contact details, policies — must come ONLY from the INSTITUTE FACTS and PROGRAMS below or from the <reference_data> in the visitor\'s message. Never guess, estimate, combine into new totals or invent numbers, rankings, approvals, recruiters, cut-offs, policies or people.';
+    $L[] = '- Institute facts — fees, dates, deadlines, eligibility, seats, scholarships, placement figures, facilities, approvals, rankings, contact details, policies — must come ONLY from the INSTITUTE FACTS and PROGRAMS below or from the <reference_data> in the visitor\'s message. Never guess, estimate, combine into new totals or invent numbers, rankings, approvals, recruiters, cut-offs, policies or people.';
     $L[] = '- If the answer is not in that data, say "I\'m not sure about that — let me connect you with our admissions team." and offer a callback. End such a reply with the marker [[LEAD]].';
     $L[] = '- Fees are per year unless the data says otherwise (certificate fees are for the whole course). Say that the admissions office confirms the final fee structure when you quote fees.';
     $L[] = '- If the visitor wants a callback, wants to talk to a person, wants to apply or join, or shares a phone number, invite them to use the callback form shown below your message and end the reply with [[LEAD]].';
@@ -405,7 +405,7 @@ function chatbot_system_prompt(): string
         'All programs' => $r('/programs'), 'Apply online' => $r('/apply'), 'Apply for a specific program' => $r('/apply') ? '/apply?program={program-slug}' : null,
         'Admission process' => $r('/admissions#process'), 'Eligibility' => $r('/admissions#eligibility'), 'Fees' => $r('/admissions#fees'),
         'Scholarships' => $r('/admissions#scholarships'), 'Documents required' => $r('/admissions#documents'), 'Important dates' => $r('/admissions#dates'),
-        'Admission FAQs' => $r('/admissions#faq'), 'Campus, hostel & transport' => $r('/campus'), 'Placements' => $r('/placement'), 'About' => $r('/about'),
+        'Admission FAQs' => $r('/admissions#faq'), 'Campus' => $r('/campus'), 'Placement assistance' => $r('/placement'), 'About' => $r('/about'),
         'Contact' => $r('/contact'), 'Privacy policy' => $r('/privacy-policy'),
     ]);
     foreach ($links as $label => $url) {

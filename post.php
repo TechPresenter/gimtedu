@@ -13,6 +13,7 @@
  */
 require __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/partials/news_gallery.php';
+require_once APP_ROOT . '/app/services/seo_schema.php'; // seo_ld_org_ref(): author / publisher = the site organisation @id
 
 $slug = strtolower(trim((string) (is_string($_GET['slug'] ?? null) ? $_GET['slug'] : '')));
 $post = $slug !== '' ? ng_post_by_slug($slug) : null;
@@ -69,9 +70,9 @@ if (!ng_seo_schema_has(['BlogPosting'], 'post', $id)) {
         'mainEntityOfPage' => ['@type' => 'WebPage', '@id' => $url],
         'headline' => mb_substr((string) $post['title'], 0, 110), 'description' => $excerpt, 'image' => [ng_abs($imgPath)],
         'datePublished' => date('c', $pubTs), 'dateModified' => date('c', $modTs),
-        'author' => $author['org'] ? ['@type' => 'Organization', 'name' => institute_name(), 'url' => absolute_url('')]
-                                   : array_filter(['@type' => 'Person', 'name' => $author['name'], 'jobTitle' => $author['role'] ?: null, 'worksFor' => ['@type' => 'CollegeOrUniversity', 'name' => institute_name()]]),
-        'publisher' => ['@type' => 'Organization', 'name' => institute_name(), 'logo' => ['@type' => 'ImageObject', 'url' => absolute_url('assets/images/logo.svg')]],
+        'author' => $author['org'] ? seo_ld_org_ref()
+                                   : array_filter(['@type' => 'Person', 'name' => $author['name'], 'jobTitle' => $author['role'] ?: null, 'worksFor' => seo_ld_org_ref()]),
+        'publisher' => seo_ld_org_ref(), // the site organisation entity (name, url, logo) printed in the header
         'articleSection' => $post['category_name'] ?: null, 'keywords' => $tags ? implode(', ', $tags) : null,
         'wordCount' => $words ?: null, 'inLanguage' => 'en-IN',
     ], fn ($v) => $v !== null && $v !== '');

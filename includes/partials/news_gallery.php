@@ -70,11 +70,8 @@ function ng_like(string $s): string
 /** BreadcrumbList JSON-LD from [[name, path|null], …] (null = current page). */
 function ng_breadcrumb_ld(array $crumbs, string $current): array
 {
-    $items = [];
-    foreach (array_values($crumbs) as $i => [$name, $path]) {
-        $items[] = ['@type' => 'ListItem', 'position' => $i + 1, 'name' => $name, 'item' => $path === null ? $current : absolute_url(ltrim((string) $path, '/'))];
-    }
-    return ['@context' => 'https://schema.org', '@type' => 'BreadcrumbList', 'itemListElement' => $items];
+    require_once APP_ROOT . '/app/services/seo_schema.php';
+    return seo_ld_breadcrumb($crumbs, ['current' => $current]);
 }
 
 /** Does the admin SEO record already print JSON-LD of one of $types (header.php renders seo_settings.schema_json)? */
@@ -820,7 +817,15 @@ function ng_album_items(array $album): array
             continue;
         }
         $n++;
-        $alt = trim((string) ($r['alt_text'] ?? '')) ?: ($caption !== '' ? $caption : $album['title'] . ' — photo ' . $n);
+        // a caption / alt text that looks like a file name or code ("Lib", "45345348", "IMG_0042.jpg") is not a description:
+        // the photo gets "<Album title> — photo N" instead (display only — the stored caption is unchanged)
+        $codeLike = fn (string $t) => $t === '' || mb_strlen($t) <= 4 || preg_match('/^[\d\s._-]+$/', $t) || preg_match('/\.(jpe?g|png|gif|webp|avif|svg|heic|bmp|tiff?)\b/i', $t)
+            || preg_match('/^(img|dsc|pxl|photo|image|wa)[\s_-]?\d+/i', $t);
+        if ($caption !== '' && $codeLike($caption)) {
+            $caption = '';
+        }
+        $altText = trim((string) ($r['alt_text'] ?? ''));
+        $alt = ($altText !== '' && !$codeLike($altText) ? $altText : '') ?: ($caption !== '' ? $caption : $album['title'] . ' — photo ' . $n);
         $w = (int) ($r['width'] ?? 0);
         $h = (int) ($r['height'] ?? 0);
         if ((!$w || !$h || $r['media_path'] !== $path) && $n <= 80) { // gi.image without a media row: read the file header

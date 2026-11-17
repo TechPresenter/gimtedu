@@ -248,24 +248,104 @@ function brand_channels(string $hex): string
     return implode(' ', brand_rgb($hex));
 }
 
+/**
+ * Metric-matched fallback descriptors per catalog font, measured in Chrome (canvas text width of a typical English
+ * paragraph + the font's ascent / descent / line gap) per weight — 400, 500 (vs Arial / Roboto), 600, 700, 800 (vs Arial
+ * Bold / Roboto Bold); a weight the family does not have uses its nearest file, as the browser does. Each entry is
+ * [size-adjust, ascent-override, descent-override, line-gap-override] in %. A "<Family> Fallback" face set built from
+ * them sits right after the web font in the stack, so text keeps its line breaks and height when the web font swaps in
+ * (no layout shift). Inter and Plus Jakarta Sans have theirs in style.css (same numbers).
+ */
+function site_font_fallback_metrics(): array
+{
+    return [
+        // key => ['a' => Arial-based [400, 500, 600, 700, 800], 'r' => Roboto-based (Android) [400, 500, 600, 700, 800]]
+        'inter' => ['a' => [[106.78, 90.84, 22.48, 0], [107.89, 89.91, 22.24, 0], [101.19, 95.86, 23.72, 0], [102.21, 94.9, 23.48, 0], [102.21, 94.9, 23.48, 0]],
+            'r' => [[107.17, 90.51, 22.39, 0], [108.29, 89.58, 22.16, 0], [107.61, 90.14, 22.3, 0], [108.69, 89.25, 22.08, 0], [108.69, 89.25, 22.08, 0]]],
+        'plus-jakarta-sans' => ['a' => [[104.91, 99.13, 20.97, 0], [106.18, 97.95, 20.72, 0], [99.69, 104.32, 22.07, 0], [100.82, 103.16, 21.82, 0], [101.9, 102.06, 21.59, 0]],
+            'r' => [[105.3, 98.76, 20.89, 0], [106.57, 97.59, 20.64, 0], [106.01, 98.11, 20.75, 0], [107.21, 97.01, 20.52, 0], [108.36, 95.98, 20.3, 0]]],
+        'poppins' => ['a' => [[112.03, 93.72, 31.24, 8.93], [113.26, 92.71, 30.9, 8.83], [106.03, 99.03, 33.01, 9.43], [107.02, 98.11, 32.7, 9.34], [107.87, 97.34, 32.45, 9.27]],
+            'r' => [[112.45, 93.38, 31.13, 8.89], [113.68, 92.37, 30.79, 8.8], [112.75, 93.13, 31.04, 8.87], [113.8, 92.26, 30.75, 8.79], [114.71, 91.54, 30.51, 8.72]]],
+        'montserrat' => ['a' => [[112.08, 86.55, 22.31, 0], [113.9, 85.16, 21.95, 0], [107.63, 90.13, 23.23, 0], [109.66, 88.46, 22.8, 0], [111.86, 86.71, 22.35, 0]],
+            'r' => [[112.49, 86.23, 22.22, 0], [114.32, 84.85, 21.87, 0], [114.45, 84.76, 21.84, 0], [116.61, 83.18, 21.44, 0], [118.95, 81.55, 21.02, 0]]],
+        'dm-sans' => ['a' => [[103.72, 95.45, 29.89, 0], [105.59, 93.76, 29.36, 0], [100.22, 98.78, 30.93, 0], [101.88, 97.17, 30.43, 0], [102.42, 96.67, 30.27, 0]],
+            'r' => [[104.1, 95.1, 29.78, 0], [105.98, 93.41, 29.25, 0], [106.57, 92.9, 29.09, 0], [108.34, 91.38, 28.61, 0], [108.91, 90.9, 28.46, 0]]],
+        'manrope' => ['a' => [[102.32, 104.58, 29.32, 0], [104.14, 102.75, 28.81, 0], [98.39, 108.75, 30.49, 0], [100.06, 106.94, 29.98, 0], [101.75, 105.16, 29.48, 0]],
+            'r' => [[102.69, 104.19, 29.21, 0], [104.52, 102.37, 28.7, 0], [104.62, 102.27, 28.67, 0], [106.4, 100.56, 28.2, 0], [108.2, 98.89, 27.73, 0]]],
+        'outfit' => ['a' => [[98.91, 101.1, 26.29, 0], [99.08, 100.93, 26.24, 0], [93.53, 106.91, 27.8, 0], [95.01, 105.26, 27.37, 0], [96.51, 103.62, 26.94, 0]],
+            'r' => [[99.27, 100.73, 26.19, 0], [99.45, 100.56, 26.15, 0], [99.46, 100.54, 26.14, 0], [101.03, 98.98, 25.74, 0], [102.63, 97.44, 25.33, 0]]],
+        'nunito-sans' => ['a' => [[100.95, 100.05, 34.67, 0], [101.81, 99.2, 34.38, 0], [95.36, 105.91, 36.7, 0], [97.33, 103.77, 35.96, 0], [99.5, 101.51, 35.18, 0]],
+            'r' => [[101.32, 99.68, 34.54, 0], [102.19, 98.84, 34.25, 0], [101.41, 99.6, 34.51, 0], [103.5, 97.59, 33.82, 0], [105.81, 95.46, 33.08, 0]]],
+        'open-sans' => ['a' => [[104.59, 102.3, 27.73, 0], [106.47, 100.5, 27.24, 0], [100.58, 106.38, 28.83, 0], [104.02, 102.86, 27.88, 0], [107.58, 99.46, 26.96, 0]],
+            'r' => [[104.97, 101.93, 27.63, 0], [106.86, 100.13, 27.14, 0], [106.96, 100.04, 27.11, 0], [110.62, 96.73, 26.22, 0], [114.4, 93.53, 25.35, 0]]],
+        'lato' => ['a' => [[97.02, 102.04, 21.64, 0], [97.02, 102.04, 21.64, 0], [92.2, 107.38, 22.78, 0], [92.2, 107.38, 22.78, 0], [92.2, 107.38, 22.78, 0]],
+            'r' => [[97.38, 101.66, 21.56, 0], [97.38, 101.66, 21.56, 0], [98.04, 100.98, 21.42, 0], [98.04, 100.98, 21.42, 0], [98.04, 100.98, 21.42, 0]]],
+        'roboto' => ['a' => [[99.63, 95.35, 25.09, 0], [100.53, 94.5, 24.87, 0], [100.53, 94.5, 24.87, 0], [94.04, 101.02, 26.58, 0], [94.04, 101.02, 26.58, 0]],
+            'r' => [[100, 95, 25, 0], [100.9, 94.15, 24.78, 0], [100.9, 94.15, 24.78, 0], [100, 95, 25, 0], [100, 95, 25, 0]]],
+        'mukta' => ['a' => [[93.2, 121.24, 56.86, 0], [94.93, 119.04, 55.83, 0], [89.59, 126.13, 59.16, 0], [91.11, 124.03, 58.17, 0], [92.61, 122.02, 57.23, 0]],
+            'r' => [[93.55, 120.8, 56.66, 0], [95.27, 118.6, 55.63, 0], [95.27, 118.61, 55.63, 0], [96.88, 116.63, 54.7, 0], [98.48, 114.75, 53.82, 0]]],
+    ];
+}
+
+/** CSS family name of a catalog font (without the "(English + हिन्दी)" note). */
+function site_font_family(string $key): string
+{
+    return (string) preg_replace('/\s*\(.*\)$/', '', site_font_catalog()[$key][0] ?? 'Inter');
+}
+
 /** CSS font stack for a catalog font (the standard stacks stay with the Tailwind fallbacks). */
 function site_font_stack(string $key, string $role): string
 {
-    $family = site_font_catalog()[$key][0] ?? 'Inter';
-    $family = preg_replace('/\s*\(.*\)$/', '', $family);
+    $family = site_font_family($key);
     $generic = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-    return '"' . $family . '"' . ($role === 'display' ? ', Inter, "Inter Fallback"' : '') . ', ' . $generic;
+    $fallback = isset(site_font_fallback_metrics()[$key]) ? ', "' . $family . ' Fallback"' : '';
+    return '"' . $family . '"' . $fallback . ($role === 'display' && $key !== 'inter' ? ', Inter, "Inter Fallback"' : '') . ', ' . $generic;
 }
 
-/** @font-face rules for a bundled font that style.css does not declare. */
+/**
+ * The "<Family> Fallback" @font-face set of a catalog font (one face per weight group, each for Arial and for Android's
+ * Roboto — Chrome uses the last face whose local() font exists).
+ */
+function site_font_fallback_faces(string $key): string
+{
+    $m = site_font_fallback_metrics()[$key] ?? null;
+    if (!$m) {
+        return '';
+    }
+    $family = site_font_family($key) . ' Fallback';
+    $src = [
+        'a' => ["local('Arial'),local('Helvetica'),local('Liberation Sans')", "local('Arial Bold'),local('Arial-BoldMT'),local('Helvetica Bold'),local('Liberation Sans Bold')"],
+        'r' => ["local('Roboto'),local('Roboto-Regular'),local('Roboto Regular')", "local('Roboto Bold'),local('Roboto-Bold')"],
+    ];
+    $css = '';
+    $groups = [['100 400', 0], ['500', 0], ['600', 1], ['700', 1], ['800 900', 1]]; // weight range, bold local font?
+    foreach (['a', 'r'] as $set) {
+        foreach ($groups as $i => [$weights, $bold]) {
+            [$size, $asc, $desc, $gap] = $m[$set][$i];
+            $css .= '@font-face{font-family:"' . $family . '";font-weight:' . $weights . ';src:' . $src[$set][$bold] . ';size-adjust:' . $size . '%;ascent-override:' . $asc . '%;descent-override:' . $desc . '%;line-gap-override:' . $gap . '%}';
+        }
+    }
+    return $css;
+}
+
+/**
+ * URL of a bundled font file exactly as its @font-face references it — preloads must use the same URL or the browser
+ * downloads the font twice (style.css declares Inter + Plus Jakarta Sans without a version; site_font_faces() adds ?v=).
+ */
+function site_font_url(string $key, string $file): string
+{
+    return in_array($key, ['inter', 'plus-jakarta-sans'], true) ? base_url($file) : asset($file);
+}
+
+/** @font-face rules (+ the metric-matched fallback faces) for a bundled font that style.css does not declare. */
 function site_font_faces(string $key): string
 {
     $cat = site_font_catalog();
     if (!isset($cat[$key]) || in_array($key, ['inter', 'plus-jakarta-sans'], true)) {
         return '';
     }
-    [$family, $weights, $subsets] = $cat[$key];
-    $family = preg_replace('/\s*\(.*\)$/', '', $family);
+    [, $weights, $subsets] = $cat[$key];
+    $family = site_font_family($key);
     $css = '';
     foreach ($weights as $w) {
         foreach (['latin' => null] + $subsets as $subset => $range) {
@@ -273,14 +353,17 @@ function site_font_faces(string $key): string
             if (!is_file(APP_ROOT . '/' . $file)) {
                 continue;
             }
-            $css .= '@font-face{font-family:"' . $family . '";font-style:normal;font-weight:' . $w . ';font-display:swap;src:url("' . asset($file) . '") format("woff2")'
+            $css .= '@font-face{font-family:"' . $family . '";font-style:normal;font-weight:' . $w . ';font-display:swap;src:url("' . site_font_url($key, $file) . '") format("woff2")'
                 . ($range ? ';unicode-range:' . $range : '') . '}';
         }
     }
-    return $css;
+    return $css . site_font_fallback_faces($key);
 }
 
-/** Font files worth preloading: the heading font at its boldest weight ≤ 800 and the body font at 400. */
+/**
+ * Font files worth preloading (the text of the first screen): the heading font at its boldest weight ≤ 800 (hero
+ * titles are extrabold) and the body font at 400 — with the exact URL their @font-face uses.
+ */
 function site_font_preloads(): array
 {
     $s = site_brand_settings();
@@ -290,7 +373,7 @@ function site_font_preloads(): array
         $weights = array_filter($cat[$key][1] ?? [], fn ($w) => $w <= $want) ?: ($cat[$key][1] ?? [400]);
         $file = 'assets/fonts/' . $key . '-latin-' . max($weights) . '-normal.woff2';
         if (is_file(APP_ROOT . '/' . $file)) {
-            $out[] = base_url($file);
+            $out[] = site_font_url($key, $file);
         }
     }
     return array_values(array_unique($out));

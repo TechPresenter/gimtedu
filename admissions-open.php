@@ -13,6 +13,7 @@
  * Course + FAQPage JSON-LD. Not linked from the site navigation (ads only).
  */
 require __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/partials/site_academic.php'; // verified admission facts (owner decisions 2026-11-17)
 
 $programs = site_programs();
 $key = strtolower(trim((string) ($_GET['program'] ?? ''), " /\t\n"));
@@ -160,14 +161,25 @@ try {
 /* ------------------------------------------------------------------ copy */
 $name = institute_name();
 if ($program) {
-    $title = $program['name'] . ' (' . $program['short_name'] . ') Admissions ' . $sessionName;
-    $desc = 'Apply for ' . $program['name'] . ' at ' . $name . ' — ' . $program['duration_label'] . ' ' . strtolower(program_level_label($program['level'])) . ' program'
-        . ((float) $program['fee_per_year'] > 0 ? ', fee ' . money($program['fee_per_year']) . ' per year' : '') . '. Eligibility, scholarships, placements and free career counselling.';
+    // unique per program, ~60 characters with the " | GIMT" suffix (no repeated "Certificate in MS Office (MS Office)")
+    $isCertLp = $program['level'] === 'Certificate';
+    $lpSuffix = program_title_suffix($program);
+    $lpShort = trim((string) $program['short_name']);
+    $title = site_fit_title(array_filter([
+        $program['name'] . ($lpSuffix !== '' ? ' (' . $lpSuffix . ')' : '') . ' Admissions ' . $sessionName,
+        $program['name'] . ' Admissions ' . $sessionName,
+        $lpShort !== '' && $lpShort !== $program['name'] ? $lpShort . ($isCertLp ? ' Course' : '') . ' Admissions ' . $sessionName : null,
+        $program['name'] . ' Admissions',
+        $program['name'],
+    ]), 60);
+    $feeUnit = stripos((string) $program['fee_label'], 'course') !== false ? ' per course' : (stripos((string) $program['fee_label'], 'year') !== false ? ' per year' : '');
+    $desc = site_meta_description('Apply for ' . $program['name'] . ' at ' . setting('institute_short_name', 'GIMT') . ' ' . setting('city', 'Noida') . ' — ' . $program['duration_label'] . ' ' . strtolower(program_level_label($program['level'])) . ($isCertLp ? ' course' : ' program')
+        . ((float) $program['fee_per_year'] > 0 ? ', fee ' . money($program['fee_per_year']) . $feeUnit : '') . '. Eligibility, scholarships and free career counselling.');
     $heroTitle = 'Admissions Open ' . $sessionName . ':';
     $heroPill = $program['name'] . ' at GIMT';
 } else {
-    $title = 'Admissions Open ' . $sessionName . ' — UG, PG, Diploma & Certificate Programs';
-    $desc = 'Admissions open at ' . $name . ' for ' . $sessionName . '. Explore UG, PG, diploma and certificate programs, scholarships and fees, and book a free career counselling session.';
+    $title = site_fit_title(['Admissions Open ' . $sessionName . ' — UG, PG, Diploma & Certificate Programs', 'Admissions Open ' . $sessionName . ': UG, PG, Diploma & Certificates', 'Admissions ' . $sessionName . ': UG, PG, Diploma & Certificates', 'Admissions Open ' . $sessionName], 60);
+    $desc = site_meta_description('Admissions open at ' . $name . ' for ' . $sessionName . '. Explore UG, PG, diploma and certificate programs, scholarships and fees, and book a free career counselling session.');
     $heroTitle = (string) setting('landing_hero_title', 'Industry-Ready UG & PG Programs at');
     $heroPill = (string) setting('landing_hero_pill', $name);
 }
@@ -176,7 +188,7 @@ $stripItems = (string) setting('landing_strip_text', '');
 if ($stripItems === '') {
     $stripItems = implode(' | ', array_filter([
         ($program ? $program['short_name'] . ' admissions open for ' : 'Admissions open for ') . $sessionName,
-        $deadline ? 'Last date to apply: ' . date('d M Y', $deadline) : null,
+        $deadline ? 'Last date to apply: ' . date('d M Y', $deadline) : sa_admission_window(),
         $schText ?: null,
         'Free career counselling: ' . $phone,
     ]));
@@ -184,9 +196,9 @@ if ($stripItems === '') {
 $brochure = $program ? (!empty($program['brochure']) ? site_image($program['brochure']) : site_url('programs?brochure=1&program=' . rawurlencode($program['slug']))) : site_url('programs?brochure=1');
 // Tall arch frame: use the program's own photo only when it is tall enough (program card photos are wide banners and
 // would be upscaled), else a portrait-friendly campus photo varied per program.
-$heroImg = 'assets/images/site/students-lawn.jpg';
+$heroImg = 'assets/images/site/students-laptop.jpg';
 if ($program) {
-    $pool = ['students-laptop.jpg', 'students-atrium.jpg', 'hero-campus-students.jpg', 'students-lawn.jpg'];
+    $pool = ['students-laptop.jpg', 'students-atrium.jpg', 'hero-campus-students.jpg'];
     $heroImg = 'assets/images/site/' . $pool[(int) $program['id'] % count($pool)];
     $own = ltrim((string) ($program['image'] ?? ''), '/');
     if ($own !== '' && !preg_match('~^https?://~i', $own) && is_file(APP_ROOT . '/' . $own) && ((@getimagesize(APP_ROOT . '/' . $own))[1] ?? 0) >= 480) {
@@ -231,7 +243,7 @@ if ($seats !== null) {
 }
 $leadForm = fn (string $theme, string $form, ?string $footer = null, ?string $id = null) => enquiry_form([
     'endpoint' => base_url('api/public/enquiry'), 'theme' => $theme, 'compact' => $theme === 'lead', 'captureUtm' => true, 'id' => $id,
-    'title' => $theme === 'lead' ? (string) setting('landing_form_title', 'Talk to an Admission Expert') : '',
+    'title' => $theme === 'lead' ? (string) setting('landing_form_title', 'Talk to an Admission Expert') : '', 'titleTag' => 'h2', // h1 → h2 heading order
     'titleHighlight' => (string) setting('landing_form_highlight', 'Admission Expert'),
     'tags' => $theme === 'lead' ? array_values(array_filter([['icon' => 'wallet', 'label' => 'Semester-wise fee payment'], $maxSch ? ['icon' => 'award', 'label' => 'Merit scholarships'] : null])) : [],
     'subtitle' => $theme === 'lead' ? (string) setting('landing_form_subtitle', 'Get a Free Career Counselling Session') : '',
@@ -258,10 +270,13 @@ if ($program) {
     }
     if ($scholarships) {
         $faqItems[] = ['q' => 'Are scholarships available for ' . $pn . '?', 'a' => 'Yes. Eligible students can apply for: ' . implode('; ', array_map(fn ($s) => $s['name'] . ' (' . $schLabel($s) . ')', $scholarships)) . '. Criteria are verified at the time of admission.'];
+    } else {
+        $faqItems[] = ['q' => 'Are scholarships available for ' . $pn . '?', 'a' => sa_scholarship_statement() . '.'];
     }
     if ((int) $program['intake_capacity'] > 0) {
-        $faqItems[] = ['q' => 'How many seats are available in ' . $pn . '?', 'a' => 'The approved intake is ' . (int) $program['intake_capacity'] . ' seats per year. Seats are allotted in order of merit and completed applications.'];
+        $faqItems[] = ['q' => 'How many seats are available in ' . $pn . '?', 'a' => 'The intake is ' . (int) $program['intake_capacity'] . ' seats per year. ' . sa_admission_window() . '.'];
     }
+    $faqItems[] = ['q' => 'How do I apply for ' . $pn . '?', 'a' => sa_how_to_apply($program)];
     if ($placement) {
         $faqItems[] = ['q' => 'What about placements for ' . $pn . ' students?', 'a' => 'Our placement records show ' . (int) $placement['offers'] . ' offers from ' . (int) $placement['companies'] . ' recruiters for ' . $pn . ' students, with a highest package of ' . rtrim(rtrim(number_format((float) $placement['highest'], 1), '0'), '.') . ' LPA. The training & placement cell prepares students from the first year.'];
     }
@@ -269,16 +284,13 @@ if ($program) {
 foreach ($faqs as $f) {
     $faqItems[] = ['q' => $f['question'], 'a' => strip_tags((string) $f['answer'])];
 }
-$schema = [];
-if ($faqItems) {
-    $schema[] = ['@context' => 'https://schema.org', '@type' => 'FAQPage', 'mainEntity' => array_map(fn ($f) => ['@type' => 'Question', 'name' => $f['q'], 'acceptedAnswer' => ['@type' => 'Answer', 'text' => $f['a']]], $faqItems)];
-}
-if ($program) {
-    $schema[] = ['@context' => 'https://schema.org', '@type' => 'Course', 'name' => $program['name'], 'courseCode' => $program['code'], 'description' => str_limit(strip_tags((string) ($program['overview'] ?: $desc)), 300),
-        'url' => absolute_url('admissions-open/' . $program['slug']), 'educationalCredentialAwarded' => $program['degree'] ?: $program['short_name'],
-        'provider' => ['@type' => 'CollegeOrUniversity', 'name' => $name, 'sameAs' => absolute_url('')],
-        'hasCourseInstance' => ['@type' => 'CourseInstance', 'courseMode' => 'onsite', 'location' => (string) setting('city', 'Noida')]];
-}
+// FAQPage of the FAQs shown + the program's Course (the same entity, @id and URL as its /programs/{slug} page;
+// provider = the site organisation @id; offers / instances only from the program row)
+require_once APP_ROOT . '/app/services/seo_schema.php';
+$schema = array_values(array_filter([
+    seo_ld_faq($faqItems),
+    $program ? seo_ld_course($program, ['description' => (string) ($program['overview'] ?: $desc)]) : null,
+]));
 
 site_header([
     'title' => $title, 'description' => $desc, 'robots' => $robots, 'active' => 'admissions-open',
@@ -338,9 +350,9 @@ site_header([
           ? [['clock', 'Duration', $program['duration_label'] . ((int) $program['total_semesters'] ? ' · ' . (int) $program['total_semesters'] . ' semesters' : '')],
              ['graduation-cap', 'Eligibility', $program['eligibility'] ? str_limit(strip_tags((string) $program['eligibility']), 70) : program_level_label($program['level'])],
              ['wallet', 'Fee', (float) $program['fee_per_year'] > 0 ? money($program['fee_per_year']) . ' ' . ($program['fee_label'] ?: '/ year') : 'As per fee structure'],
-             ['briefcase-business', 'Career outcomes', $placement ? (int) $placement['offers'] . ' placement offers on record' : 'Training & placement support']]
+             ['briefcase-business', 'Placement assistance', $placement ? (int) $placement['offers'] . ' placement offers on record' : 'Career guidance, CV & interview preparation']]
           : [['book-open', 'Programs', count($programs) . ' UG, PG, diploma & certificate programs'], ['users', 'Faculty', 'Experienced faculty & industry mentors'],
-             ['briefcase-business', 'Placements', $placement ? (int) $placement['offers'] . ' offers from ' . (int) $placement['companies'] . ' recruiters on record' : 'Dedicated placement cell'],
+             ['briefcase-business', 'Placement assistance', $placement ? (int) $placement['offers'] . ' offers from ' . (int) $placement['companies'] . ' recruiters on record' : 'Career guidance, CV & interview preparation'],
              ['award', 'Scholarships', $maxSch ? 'Merit scholarships up to ' . $maxSch . '%' : 'Scholarships for eligible students']];
       foreach ($hl as $i => [$ic, $label, $val]): ?>
         <li class="lp-feature"><?= icon_circle($ic, $i % 2 ? 'orange' : 'navy') ?><span><span class="block text-[12px] font-bold uppercase tracking-[0.12em] text-slate-500"><?= e($label) ?></span><span class="block"><?= e($val) ?></span></span></li>
@@ -448,7 +460,7 @@ site_header([
 <?php if ($placement || ($program && !empty($program['career_prospects']))): ?>
 <!-- 6. Career outcomes & placements (navy band) -->
 <?= section_open(['id' => 'careers', 'bg' => 'ink']) ?>
-  <?= section_heading($program ? 'Career Outcomes for ' . $program['short_name'] : 'Placements at GIMT', $placement ? 'Figures from our placement records (offers made to GIMT students; declined offers excluded).' : 'Roles our graduates prepare for.', '', 'left', '', ['highlight' => $program ? 'Outcomes' : 'Placements', 'scribble' => 'light']) ?>
+  <?= section_heading($program ? 'Career Paths for ' . $program['short_name'] : 'Placement Assistance', $placement ? 'Figures from our placement records (offers made to GIMT students; declined offers excluded).' : ($program ? 'Roles this program prepares you for. ' : '') . sa_placement_statement(), '', 'left', '', ['highlight' => $program ? 'Career Paths' : 'Assistance', 'scribble' => 'light']) ?>
   <?php if ($placement): ?>
     <?= stat_counter(array_values(array_filter([
         ['value' => (int) $placement['offers'], 'label' => 'Offers on record'],
@@ -484,8 +496,8 @@ site_header([
       $adv = [
           ['icon' => 'briefcase-business', 'title' => 'Industry-aligned curriculum', 'text' => 'Programs designed with practical projects, case studies and industry interaction.'],
           ['icon' => 'users', 'title' => 'Experienced faculty & mentors', 'text' => 'Learn from qualified faculty who guide you through academics and career choices.'],
-          ['icon' => 'handshake', 'title' => 'Training & placement cell', 'text' => 'Aptitude, soft-skills and interview preparation with campus recruitment drives.'],
-          ['icon' => 'building-2', 'title' => 'Campus in ' . setting('city', 'Noida'), 'text' => 'Classrooms, labs, library, hostel and transport facilities on campus.'],
+          ['icon' => 'handshake', 'title' => 'Placement assistance', 'text' => 'Career guidance, CV and interview preparation, and help applying to recruiters.'],
+          ['icon' => 'map-pin', 'title' => 'Located in ' . setting('city', 'Noida'), 'text' => trim((string) setting('address', '')) ?: 'Classes in ' . setting('city', 'Noida') . '.'],
       ];
   }
   ?>

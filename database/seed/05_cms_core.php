@@ -37,7 +37,7 @@ return function (array $opts): void {
     $now = date('Y-m-d H:i:s');
     $published = date('Y-m-d H:i:s', strtotime('-120 days'));
     $img = fn (string $f) => 'assets/images/site/' . $f;
-    // og-gimt.jpg = 1200×630 share card (logo, name, campus photo) for routes whose own photo is too small for social cards
+    // assets/images/og/gimt-share.jpg = 1200×630 share card (logo, name, "Sector 18, Noida") for routes whose own photo is too small for social cards
     $b = function (string $type, array $data, array $settings = []) {
         static $n = 0;
         $n++;
@@ -59,12 +59,12 @@ return function (array $opts): void {
     $pages[] = ['about', 'About GIMT', 'Empowering Minds. Shaping Futures.',
         'Global Institute of Management & Technology (GIMT) is committed to providing high-quality, industry-oriented education with a focus on innovation, research and holistic development.',
         $img('campus-building.jpg'),
-        '<p>Founded in 2008 in Knowledge Park, Greater Noida, the Global Institute of Management &amp; Technology began with programs in management and commerce and a simple belief: that education should prepare students for the world as it is, and the world they will build. Today GIMT offers undergraduate, postgraduate, diploma and certificate programs across management, technology, computer applications, commerce and data science.</p>'
+        '<p>Based in Sector 18, Noida, the Global Institute of Management &amp; Technology is built on a simple belief: that education should prepare students for the world as it is, and the world they will build. Today GIMT offers undergraduate, postgraduate, diploma and certificate programs across management, technology, computer applications, commerce and data science.</p>'
         . '<p>Our classrooms are deliberately small and our faculty deliberately accessible. Every student is assigned a faculty mentor in the first semester, works on live projects with industry partners and completes at least one internship before graduating. The result is a campus where theory meets practice every single day.</p>'
-        . '<p>We measure our success by the success of our graduates — the managers, engineers, analysts and entrepreneurs who carry the GIMT name into leading organisations across India and abroad.</p>',
+        . '<p>We measure our success by the success of our students, and we support every one of them with placement assistance: career guidance, CV and interview preparation, and help applying to recruiters.</p>',
         [
             $b('statistics', ['eyebrow' => 'GIMT at a glance', 'heading' => 'A growing community of learners', 'subheading' => 'Numbers update automatically from our records.', 'variant' => 'band',
-                'items' => [$stat('12', 'Programs', 'graduation-cap', 'programs'), $stat('1000', 'Students', 'users', 'students'), $stat('50', 'Faculty members', 'user-check', 'faculty'), $stat('18', 'Years of excellence', 'award', 'years')]],
+                'items' => [$stat('12', 'Programs', 'graduation-cap', 'programs'), $stat('1000', 'Students', 'users', 'students'), $stat('50', 'Faculty members', 'user-check', 'faculty')]],
                 ['background' => 'dark']),
             $b('cards', ['eyebrow' => 'What we stand for', 'heading' => 'Vision, Mission & Values', 'subheading' => '', 'style' => 'pastel', 'columns' => '3', 'items' => [
                 ['icon' => 'eye', 'title' => 'Our Vision', 'text' => 'To be a globally recognised institution for excellence in education and innovation, creating leaders who make a positive impact on society.', 'tint' => 'lavender', 'url' => '/vision-mission', 'link_label' => 'Read more'],
@@ -125,30 +125,26 @@ return function (array $opts): void {
                 . '<h3>Consultancy</h3><p>Faculty undertake consultancy and training assignments for industry and government organisations, bringing real problems — and case studies — back into the classroom.</p>', 'align' => 'left', 'width' => 'normal']),
             $b('cta', ['eyebrow' => '', 'title' => 'Collaborate with GIMT', 'text' => 'Industry partners, researchers and alumni are welcome to propose joint projects, internships and guest lectures.', 'primary' => ['label' => 'Get in Touch', 'url' => '/contact'], 'secondary' => ['label' => '', 'url' => ''], 'image' => '', 'theme' => 'orange']),
         ], 'academics', 4];
-    $pages[] = ['campus-life', 'Campus Life', 'A Place to Learn, Grow and Thrive', 'Clubs, sports, festivals, hostels and student support — life on the GIMT campus beyond the classroom.', $img('students-lawn.jpg'),
+    $pages[] = ['campus-life', 'Campus Life', 'A Place to Learn, Grow and Thrive', 'Clubs, festivals and student support — student life at GIMT beyond the classroom.', $img('students-lawn.jpg'),
         '',
         [
-            $b('hero', ['eyebrow' => 'Student life', 'title' => 'Campus Life at GIMT', 'highlight' => 'Learn, grow and thrive.', 'text' => 'Our green, safe campus is home to clubs, sports, cultural festivals and a close-knit community that makes every student feel at home.',
-                'image' => $img('students-lawn.jpg'), 'image_alt' => 'Students relaxing on the GIMT lawn', 'align' => 'left', 'size' => 'md', 'primary_cta' => ['label' => 'Visit the Campus', 'url' => '/contact?type=campus_visit#message'], 'secondary_cta' => ['label' => 'Hostel Facilities', 'url' => '/campus#hostel'],
-                'chips' => [['icon' => 'trees', 'label' => 'Green Campus'], ['icon' => 'shield-check', 'label' => 'Safe & Secure'], ['icon' => 'dumbbell', 'label' => 'Sports Complex']]]),
+            $b('hero', ['eyebrow' => 'Student life', 'title' => 'Campus Life at GIMT', 'highlight' => 'Learn, grow and thrive.', 'text' => 'GIMT is home to student clubs, cultural festivals and a close-knit community that makes every student feel at home.',
+                'image' => $img('students-lawn.jpg'), 'image_alt' => 'Students at GIMT', 'align' => 'left', 'size' => 'md', 'primary_cta' => ['label' => 'Visit the Campus', 'url' => '/contact?type=campus_visit#message'], 'secondary_cta' => ['label' => 'Explore Programs', 'url' => '/programs'],
+                'chips' => [['icon' => 'shield-check', 'label' => 'Safe & Secure']]]),
             $b('gallery', ['eyebrow' => 'Facilities', 'heading' => 'Spaces designed for students', 'subheading' => '', 'source' => 'manual', 'gallery_id' => null, 'layout' => 'bento', 'columns' => '3', 'items' => [
                 ['image' => $img('facility-classroom.jpg'), 'alt' => 'Smart classroom with interactive panels', 'caption' => 'Smart Classrooms'],
                 ['image' => $img('facility-labs.jpg'), 'alt' => 'Students in an advanced computer laboratory', 'caption' => 'Advanced Laboratories'],
-                ['image' => $img('facility-library.jpg'), 'alt' => 'Digital library with book stacks', 'caption' => 'Digital Library'],
-                ['image' => $img('facility-hostel.jpg'), 'alt' => 'Hostel common room', 'caption' => 'Hostel Facilities'],
-                ['image' => $img('facility-sports.jpg'), 'alt' => 'Outdoor sports courts', 'caption' => 'Sports & Recreation'],
-                ['image' => $img('facility-green-campus.jpg'), 'alt' => 'Tree-lined green campus', 'caption' => 'Green & Safe Campus']]],
+                ['image' => $img('facility-library.jpg'), 'alt' => 'Digital library with book stacks', 'caption' => 'Digital Library']]],
                 ['background' => 'light']),
             $b('cards', ['eyebrow' => 'Get involved', 'heading' => 'Clubs & societies', 'subheading' => 'Student-run clubs organise events, competitions and community projects every semester.', 'style' => 'pastel', 'columns' => '4', 'items' => [
                 ['icon' => 'code-xml', 'title' => 'Coding Club', 'text' => 'Hackathons, open-source sprints and competitive programming.', 'tint' => 'lavender'],
                 ['icon' => 'briefcase-business', 'title' => 'Entrepreneurship Cell', 'text' => 'Start-up talks, pitch days and the annual business plan contest.', 'tint' => 'sky'],
                 ['icon' => 'palette', 'title' => 'Cultural Society', 'text' => 'Music, dance, theatre and the flagship cultural festival.', 'tint' => 'aqua'],
-                ['icon' => 'dumbbell', 'title' => 'Sports Council', 'text' => 'Cricket, football, basketball, athletics and indoor games.', 'tint' => 'cream'],
                 ['icon' => 'heart', 'title' => 'NSS & Social Outreach', 'text' => 'Literacy drives, blood donation camps and village adoption.', 'tint' => 'sand'],
                 ['icon' => 'presentation', 'title' => 'Debating & Literary Club', 'text' => 'Debates, MUNs, quizzes and the campus magazine.', 'tint' => 'lavender'],
                 ['icon' => 'image', 'title' => 'Photography Club', 'text' => 'Photo walks, exhibitions and event coverage.', 'tint' => 'sky'],
                 ['icon' => 'leaf', 'title' => 'Eco Club', 'text' => 'Tree plantation, waste segregation and green audits.', 'tint' => 'aqua']]]),
-            $b('text', ['heading' => 'Support beyond academics', 'html' => '<p>Our student welfare team includes a full-time counsellor, a medical room with a visiting doctor, and an anti-ragging squad that keeps the campus safe. Separate hostels for boys and girls offer wardens on site, Wi-Fi, a mess serving nutritious meals and transport to key points in Delhi NCR.</p>', 'align' => 'left', 'width' => 'normal']),
+            $b('text', ['heading' => 'Support beyond academics', 'html' => '<p>Our student welfare team includes a full-time counsellor and an anti-ragging squad that keeps the campus safe.</p>', 'align' => 'left', 'width' => 'normal']),
         ], 'campus', 5];
 
     $legal = function (string $intro, array $sections) use ($updated): string {
@@ -191,7 +187,7 @@ return function (array $opts): void {
                 . '<tr><td>16 to 30 days after the notified last date of admission</td><td>50%</td></tr>'
                 . '<tr><td>More than 30 days after the notified last date of admission</td><td>No refund</td></tr></tbody></table>'
                 . '<p>[To be confirmed by GIMT: confirm the refund schedule adopted for the 2026-27 session as per the applicable UGC / AICTE fee-refund notification and the affiliating university]</p>',
-            '3. Hostel and transport fees' => '<p>Hostel and transport fees are refunded on a pro-rata basis for the unused period, after deducting any dues. Caution money and security deposits are refunded after all dues are cleared [To be confirmed by GIMT: timeline for refund of caution money / security deposits].</p>',
+            '3. Caution money and deposits' => '<p>Caution money and security deposits are refunded after all dues are cleared [To be confirmed by GIMT: timeline for refund of caution money / security deposits].</p>',
             '4. How to apply for a refund' => '<p>Submit the withdrawal / refund form at the admissions or accounts office, or write to <a href="mailto:' . e($email) . '">' . e($email) . '</a> with your name, application or enrolment number, the reason for withdrawal, the bank account details of the student or parent (with a cancelled cheque) and the original fee receipts. Original documents deposited with the institute are returned on withdrawal.</p>',
             '5. Processing time' => '<p>Approved refunds are credited to the bank account of the student or parent; cash refunds are not made [To be confirmed by GIMT: refund processing time, e.g. within 15 working days of approval].</p>',
         ]), [], null, 22];
@@ -209,8 +205,8 @@ return function (array $opts): void {
         ['programs', 'Academic Programs', 'Future-Ready Programs for a Brighter Tomorrow', 'Explore industry-aligned undergraduate, postgraduate, diploma and certificate programs in management, technology, computer applications, commerce and data science.', $img('students-laptop.jpg'), 10],
         ['admissions', 'Admissions', 'Your Journey to GIMT Starts Here', 'Everything you need to apply — eligibility, the admission process, fees, scholarships, documents and important dates.', $img('hero-campus-students.jpg'), 11],
         ['academics', 'Academics', 'Learning That Works in the Real World', 'Departments, experienced faculty, outcome-based curriculum, academic calendar and research at GIMT.', $img('facility-classroom.jpg'), 12],
-        ['campus', 'Campus Life', 'A Place to Learn, Grow and Thrive', 'Smart classrooms, labs, library, hostels, sports and a vibrant student community on a green, safe campus.', $img('students-lawn.jpg'), 13],
-        ['placement', 'Placements', 'Building Careers, Not Just Résumés', 'Training, internships and placements with leading recruiters across consulting, IT, banking, analytics and FMCG.', $img('placement-student.jpg'), 14],
+        ['campus', 'Campus Life', 'A Place to Learn, Grow and Thrive', 'Smart classrooms, computer labs, a library and a vibrant student community in Sector 18, Noida.', $img('students-lawn.jpg'), 13],
+        ['placement', 'Placements', 'Building Careers, Not Just Résumés', 'Placement assistance for every student: career guidance, aptitude training, CV and interview preparation, and help applying to recruiters. No job guarantee.', $img('placement-student.jpg'), 14],
         ['alumni', 'Alumni', 'Once a GIMTian, Always a GIMTian', 'Our alumni network connects graduates across industries for mentoring, jobs, events and giving back.', $img('graduation.jpg'), 15],
         ['faculty', 'Our Faculty', 'Experienced Academics & Industry Mentors', 'Meet the qualified, experienced faculty who teach, mentor and research at GIMT.', $img('facility-classroom.jpg'), 16],
         ['contact', 'Contact Us', "We're Here to Help", 'Call, email or visit us — our admissions and student support teams are happy to help.', $img('campus-building.jpg'), 17],
@@ -292,36 +288,36 @@ return function (array $opts): void {
         'address' => ['@type' => 'PostalAddress', 'streetAddress' => $address, 'addressLocality' => 'Greater Noida', 'addressRegion' => 'Uttar Pradesh', 'postalCode' => '201310', 'addressCountry' => 'IN']];
     $seo = [
         // route => [title, description, keywords, og image, robots, priority, changefreq, schema]
-        '/' => ['GIMT Greater Noida — Management & Technology Institute', 'Global Institute of Management & Technology (GIMT), Greater Noida: industry-focused BBA, MBA, B.Tech, BCA, MCA and B.Com programs with placement support.',
-            'GIMT, Global IMT, college in Greater Noida, MBA college, B.Tech college, BBA, BCA, MCA', 'og-gimt.jpg', 'index,follow', 1.0, 'daily',
+        '/' => ['GIMT Noida — Management & Technology Institute', 'GIMT, Sector 18, Noida: BBA, MBA, B.Tech, BCA, MCA, B.Com, diploma and certificate programs. Rolling admissions for 2026-27, with placement assistance.',
+            'GIMT Noida, Global Institute of Management and Technology Noida, college in Sector 18 Noida, MBA college in Noida, BBA college in Noida, BCA, MCA', 'assets/images/og/gimt-share.jpg', 'index,follow', 1.0, 'daily',
             ['@context' => 'https://schema.org', '@type' => 'WebSite', 'name' => institute_name(), 'url' => $site,
              'potentialAction' => ['@type' => 'SearchAction', 'target' => $site . 'search?q={search_term_string}', 'query-input' => 'required name=search_term_string']]],
-        '/about' => ['About GIMT — Our Story, Vision & Leadership', 'Since 2008, GIMT has offered industry-focused education in Greater Noida. Discover our story, vision and mission, leadership, campus and approvals.',
-            'about GIMT, GIMT history, vision mission, leadership', 'campus-building.jpg', 'index,follow', 0.8, 'monthly', ['@context' => 'https://schema.org', '@type' => 'AboutPage', 'name' => 'About GIMT', 'url' => $site . 'about']],
-        '/programs' => ['Programs & Courses — UG, PG, Diploma | GIMT', 'Explore BBA, MBA, B.Tech (CSE, AI & DS), BCA, MCA, B.Com (Hons), M.Com, B.Sc Data Science, diploma and certificate programs at GIMT Greater Noida.',
-            'BBA, MBA, B.Tech CSE, BCA, MCA, B.Com Hons, data science courses, Greater Noida', 'students-laptop.jpg', 'index,follow', 0.9, 'weekly', null],
+        '/about' => ['About GIMT Noida — Our Story, Vision & Mission', 'About Global Institute of Management & Technology (GIMT), Sector 18, Noida: our story, vision and mission, and the programs we offer.',
+            'about GIMT Noida, GIMT vision and mission, Global Institute of Management and Technology', 'campus-building.jpg', 'index,follow', 0.8, 'monthly', ['@context' => 'https://schema.org', '@type' => 'AboutPage', 'name' => 'About GIMT', 'url' => $site . 'about']],
+        '/programs' => ['Programs & Courses — UG, PG, Diploma | GIMT', 'Explore BBA, MBA, B.Tech (CSE, AI & DS), BCA, MCA, B.Com (Hons), M.Com, B.Sc Data Science, diploma and certificate programs at GIMT Noida.',
+            'BBA, MBA, B.Tech CSE, BCA, MCA, B.Com Hons, data science courses, Noida', 'students-laptop.jpg', 'index,follow', 0.9, 'weekly', null],
         '/admissions' => ['Admissions 2026-27 — Apply Online | GIMT', 'Admissions are open for 2026-27. Check eligibility, admission process, fees, scholarships and documents, then apply online to GIMT in minutes.',
-            'GIMT admission 2026, apply online, eligibility, fee structure, scholarships', 'hero-campus-students.jpg', 'index,follow', 0.9, 'weekly', null],
+            'GIMT admission 2026, apply online, eligibility, fee structure, scholarships', 'assets/images/og/gimt-share.jpg', 'index,follow', 0.9, 'weekly', null],
         '/academics' => ['Academics, Departments & Faculty | GIMT', 'Six departments, experienced faculty, outcome-based curriculum, academic calendar and research at Global Institute of Management & Technology.',
-            'GIMT departments, faculty, academic calendar, research', 'og-gimt.jpg', 'index,follow', 0.8, 'monthly', null],
-        '/campus' => ['Campus Life & Facilities | GIMT Greater Noida', 'Smart classrooms, advanced labs, digital library, hostels, sports and student clubs on a green, safe campus in Knowledge Park, Greater Noida.',
-            'GIMT campus, hostel, library, labs, student clubs', 'students-lawn.jpg', 'index,follow', 0.7, 'monthly', null],
-        '/placement' => ['Placements & Recruiters | GIMT', 'Placement statistics, top recruiters, training and internships — see how the GIMT Training & Placement Cell builds careers in consulting, IT, banking and analytics.',
-            'GIMT placements, recruiters, highest package, internships', 'og-gimt.jpg', 'index,follow', 0.8, 'monthly', null],
+            'GIMT departments, faculty, academic calendar, research', 'assets/images/og/gimt-share.jpg', 'index,follow', 0.8, 'monthly', null],
+        '/campus' => ['Campus & Facilities — GIMT, Sector 18, Noida', 'Smart classrooms, computer labs, a digital library and student clubs at GIMT, Wave One, Sector 18, Noida.',
+            'GIMT Noida campus, library, computer labs, student clubs', 'assets/images/og/gimt-share.jpg', 'index,follow', 0.7, 'monthly', null],
+        '/placement' => ['Placement Assistance & Career Support | GIMT Noida', 'Placement assistance at GIMT Noida: career guidance, aptitude training, CV and interview preparation, and help applying to recruiters. No job guarantee.',
+            'GIMT Noida placements, placement assistance, career guidance, internships', 'assets/images/og/gimt-share.jpg', 'index,follow', 0.8, 'monthly', null],
         '/alumni' => ['Alumni Network & Success Stories | GIMT', 'Connect with GIMT alumni across industries — success stories, mentoring, alumni events and job opportunities for graduates of Global IMT.',
-            'GIMT alumni, alumni network, success stories', 'graduation.jpg', 'index,follow', 0.6, 'monthly', null],
+            'GIMT alumni, alumni network, success stories', 'assets/images/og/gimt-share.jpg', 'index,follow', 0.6, 'monthly', null],
         '/faculty' => ['Our Faculty — Experienced Academics | GIMT', 'Meet the qualified and experienced faculty of GIMT across management, computer science, computer applications, commerce and sciences.',
-            'GIMT faculty, professors, teachers', 'og-gimt.jpg', 'index,follow', 0.6, 'monthly', null],
-        '/contact' => ['Contact GIMT — Admissions & Student Support', 'Call +91 99554 46477, email info@gimt.ac.in or visit our campus in Knowledge Park, Greater Noida. Admissions, support and campus visit enquiries.',
+            'GIMT faculty, professors, teachers', 'assets/images/og/gimt-share.jpg', 'index,follow', 0.6, 'monthly', null],
+        '/contact' => ['Contact GIMT — Admissions & Student Support', 'Call +91 90600 31540, email admission@gimtedu.com or visit us at Wave One, Sector 18, Noida. Admissions, support and campus visit enquiries.',
             'contact GIMT, GIMT phone number, GIMT address, campus visit', 'campus-building.jpg', 'index,follow', 0.7, 'yearly', ['@context' => 'https://schema.org', '@type' => 'ContactPage', 'name' => 'Contact GIMT', 'url' => $site . 'contact', 'mainEntity' => $org]],
         '/apply' => ['Apply Online for Admission 2026-27 | GIMT', 'Apply online to GIMT in seven simple steps — choose your program, fill in your details, upload documents and track your application.',
             'GIMT application form, apply online', 'students-laptop.jpg', 'index,follow', 0.8, 'monthly', null],
         '/blog' => ['News, Events & Achievements | GIMT Blog', 'The latest news, achievements, events and articles from the students and faculty of Global Institute of Management & Technology.',
-            'GIMT news, GIMT blog, campus events', 'og-gimt.jpg', 'index,follow', 0.7, 'daily', null],
-        '/faq' => ['Frequently Asked Questions | GIMT', 'Answers to common questions about admissions, eligibility, fees, scholarships, hostel, transport and placements at GIMT Greater Noida.',
-            'GIMT FAQ, admission questions, fees, hostel', 'og-gimt.jpg', 'index,follow', 0.6, 'monthly', null],
-        '/admissions-open' => ['Admissions Open 2026-27 — Free Counselling | GIMT', 'Admissions open for BBA, MBA, B.Tech, BCA, MCA and B.Com at GIMT Greater Noida. Get free career counselling and apply now.',
-            'GIMT admissions open, free counselling', 'hero-campus-students.jpg', 'noindex,follow', 0.5, 'weekly', null],
+            'GIMT news, GIMT blog, campus events', 'assets/images/og/gimt-share.jpg', 'index,follow', 0.7, 'daily', null],
+        '/faq' => ['Frequently Asked Questions | GIMT', 'Common questions about admissions, eligibility, fees, scholarships and programs at GIMT Noida, answered by the admissions team.',
+            'GIMT FAQ, GIMT admission questions, fees, scholarships', 'assets/images/og/gimt-share.jpg', 'index,follow', 0.6, 'monthly', null],
+        '/admissions-open' => ['Admissions Open 2026-27 — Free Counselling | GIMT', 'Admissions open for BBA, MBA, B.Tech, BCA, MCA and B.Com at GIMT Noida. Get free career counselling and apply now.',
+            'GIMT admissions open, free counselling', 'assets/images/og/gimt-share.jpg', 'noindex,follow', 0.5, 'weekly', null],
         '/verify-certificate' => ['Verify a GIMT Certificate', 'Verify the authenticity of a certificate issued by Global Institute of Management & Technology using its certificate number or QR code.',
             'GIMT certificate verification', 'campus-building.jpg', 'index,follow', 0.3, 'yearly', null],
     ];
@@ -332,18 +328,18 @@ return function (array $opts): void {
     db_exec("DELETE FROM seo_settings WHERE entity_type = 'page' AND entity_id IN (" . implode(',', array_fill(0, count($ownPageIds), '?')) . ')', $ownPageIds);
     foreach ($seo as $route => [$title, $desc, $keywords, $og, $robots, $prio, $freq, $schema]) {
         db_insert('seo_settings', ['entity_type' => 'route', 'entity_id' => null, 'route' => $route, 'meta_title' => $title, 'meta_description' => $desc, 'meta_keywords' => $keywords,
-            'og_title' => $title, 'og_description' => $desc, 'og_image' => $img($og), 'robots' => $robots, 'include_in_sitemap' => $robots === 'index,follow' ? 1 : 0,
+            'og_title' => $title, 'og_description' => $desc, 'og_image' => str_contains($og, '/') ? $og : $img($og), 'robots' => $robots, 'include_in_sitemap' => $robots === 'index,follow' ? 1 : 0,
             'sitemap_priority' => $prio, 'sitemap_changefreq' => $freq, 'schema_json' => $schema ? json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null,
             'updated_at' => date('Y-m-d H:i:s', strtotime('-' . mt_rand(3, 60) . ' days'))]);
     }
     $pageSeo = [
         'vision-mission' => ['Vision, Mission & Core Values | GIMT', 'The vision, mission, core values and quality policy that guide teaching, research and student life at Global Institute of Management & Technology.'],
-        'leadership' => ['Leadership & Governance | GIMT', 'Meet the Chairman, Director and Academic Dean of GIMT and learn how the Governing Body and Academic Council guide the institute.'],
+        'leadership' => ['Leadership & Governance | GIMT', 'How the Governing Body and the Academic Council guide Global Institute of Management & Technology (GIMT), Noida.'],
         'research' => ['Research & Innovation at GIMT', 'Faculty and student research in AI, data science, business analytics, finance and sustainability, plus incubation and consultancy at GIMT.'],
-        'campus-life' => ['Student Life, Clubs & Facilities | GIMT', 'Clubs and societies, sports, cultural festivals, hostels and student support — discover life on the GIMT campus beyond the classroom.'],
+        'campus-life' => ['Student Life, Clubs & Facilities | GIMT', 'Clubs and societies, cultural festivals and student support — discover student life at GIMT Noida beyond the classroom.'],
         'privacy-policy' => ['Privacy Policy | GIMT', 'How Global Institute of Management & Technology collects, uses, stores and protects personal information submitted through its website and forms.'],
         'terms-and-conditions' => ['Terms & Conditions | GIMT', 'Terms of use for the GIMT website, online application and other online services of Global Institute of Management & Technology.'],
-        'refund-policy' => ['Fee Refund Policy | GIMT', 'Rules for the refund of admission, tuition, hostel and transport fees when a student withdraws from a program at GIMT Greater Noida.'],
+        'refund-policy' => ['Fee Refund Policy | GIMT', 'Rules for the refund of admission and tuition fees when a student withdraws from a program at GIMT Noida.'],
         'accessibility' => ['Accessibility Statement | GIMT', 'Our commitment to an accessible website and campus for everyone, the standards we follow and how to report an accessibility problem.'],
     ];
     foreach ($pageSeo as $slug => [$title, $desc]) {

@@ -10,7 +10,7 @@
 return function (array $opts): void {
     $deptId = (int) db_value("SELECT id FROM departments WHERE code = 'PSD'");
     if (!$deptId) {
-        $deptId = (int) db_insert('departments', ['name' => 'School of Professional & Skill Development', 'code' => 'PSD', 'established_year' => 2018,
+        $deptId = (int) db_insert('departments', ['name' => 'School of Professional & Skill Development', 'code' => 'PSD', 'established_year' => null,
             'description' => 'Short-term certificate courses in management, computers, communication, AI and career skills.', 'status' => 'active']);
     }
     $hasDetails = (bool) db_value("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'programs' AND COLUMN_NAME = 'details_html'");

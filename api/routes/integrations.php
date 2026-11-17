@@ -12,9 +12,15 @@
  *   GET    /api/integrations/errors                  ?channel=client|server|all&q=&level=&days=&page=  (settings.view or security.view)
  *   POST   /api/integrations/errors/clear            {channel, older_than_days?}   (settings.edit)
  * Sitemaps & robots (seo.view / seo.edit):
- *   GET    /api/integrations/robots                  served robots.txt + recommended default
+ *   GET    /api/integrations/robots                  served robots.txt + recommended default + AI crawler policy
  *   GET    /api/integrations/sitemaps                child sitemaps (name, url, URL count, lastmod)
- *   POST   /api/integrations/sitemaps/rebuild        clear the sitemap cache and rebuild
+ *   POST   /api/integrations/sitemaps/rebuild        clear the sitemap cache and rebuild (+ IndexNow "changed" submission when on)
+ * AI crawlers, llms.txt, IndexNow (seo.view; submitting / new key needs seo.edit):
+ *   GET    /api/integrations/ai-policy               AI crawler policy rows (bot, vendor, purpose, allowed, doc) + llms.txt URLs
+ *   GET    /api/integrations/indexnow                {enabled, key, key_url, endpoint, pending_count, last_runs, cron (seo.manage)}
+ *   POST   /api/integrations/indexnow/submit         {mode: changed|all|urls, urls?} → {submitted, http_status, message}
+ *   POST   /api/integrations/indexnow/key            new key (the old key file stops answering)
+ *   GET|POST /api/integrations/indexnow/cron?token=  server cron (no session; HMAC token from the app key): submits changed URLs
  * SEO audit (seo.view; starting / stepping / cancelling / deleting needs seo.edit):
  *   GET    /api/integrations/seo-audit               latest + running audit, history, issue definitions
  *   POST   /api/integrations/seo-audit               {max_pages} start (or return the running audit)
@@ -26,6 +32,8 @@
  *   DELETE /api/integrations/seo-audit/{id}
  */
 require_once APP_ROOT . '/app/services/seo.php';
+require_once APP_ROOT . '/app/services/seo_ai.php';
+require_once APP_ROOT . '/app/services/seo_indexnow.php';
 
 /** Status cards for the Integrations tab (no secret values). */
 function integrations_status(): array
@@ -41,7 +49,9 @@ function integrations_status(): array
     return [
         'captcha' => ['provider' => $provider, 'ready' => $provider === 'none' || ($v('captcha_site_key') !== '' && $secretSet), 'secret_set' => $secretSet],
         'analytics' => ['ga' => $v('google_analytics_id') !== '', 'gtm' => $v('gtm_id') !== '', 'pixel' => $v('meta_pixel_id') !== '',
-            'gsc' => $v('search_console_verification') !== '', 'bing' => $v('bing_site_verification') !== '', 'mode' => $v('consent_mode') ?: 'basic'],
+            'gsc' => $v('search_console_verification') !== '', 'bing' => $v('bing_site_verification') !== '', 'mode' => $v('consent_mode') ?: 'basic',
+            'yandex' => $v('yandex_verification') !== '', 'baidu' => $v('baidu_verification') !== '', 'naver' => $v('naver_verification') !== '',
+            'clarity' => $v('clarity_project_id') !== '', 'click_events' => $v('track_click_events') !== '0'],
         'consent' => ['mode' => $consent['mode'], 'banner' => $consent['banner'], 'version' => $consent['v'], 'policy' => $consent['policy']],
         'maps' => ['embed' => $v('map_embed_url') !== '', 'key' => $v('google_maps_api_key') !== ''],
         'monitoring' => seo_error_log_stats() + ['enabled' => $v('client_error_logging') !== '0', 'sentry' => $v('sentry_dsn') !== ''],
@@ -52,6 +62,11 @@ function integrations_status(): array
         'search' => ['blocked' => setting('seo_block_indexing', '0') === '1', 'sitemap_url' => absolute_url('sitemap.xml'), 'robots_url' => absolute_url('robots.txt'),
             'robots_custom' => trim((string) setting('robots_txt', '')) !== '',
             'last_audit' => $audit ? array_map(fn ($x) => is_numeric($x) ? (int) $x : $x, $audit) : null],
+        'ai' => ['search' => $v('ai_search_crawlers') !== 'block', 'training' => $v('ai_training_crawlers') !== 'block',
+            'llms' => seo_llms_enabled(), 'llms_custom' => $v('llms_txt_custom') !== '', 'llms_url' => absolute_url('llms.txt'), 'llms_full_url' => absolute_url('llms-full.txt')],
+        'indexnow' => ['enabled' => seo_indexnow_enabled(), 'key_url' => seo_indexnow_key_url(), 'last_run' => setting('_indexnow_last_run') ?: null,
+            'blocked_reason' => seo_indexnow_enabled() ? seo_indexnow_guard() : null],
+        'pagespeed' => ['key' => $v('pagespeed_api_key') !== ''],
     ];
 }
 
@@ -164,7 +179,7 @@ route('POST', '/integrations/errors/clear', function () {
 route('GET', '/integrations/robots', function () {
     api_require('seo', 'view');
     api_ok(['served' => seo_robots_txt(), 'default' => rtrim(seo_default_robots_txt()), 'is_custom' => trim((string) setting('robots_txt', '')) !== '',
-        'blocked' => setting('seo_block_indexing', '0') === '1', 'robots_url' => absolute_url('robots.txt')]);
+        'blocked' => setting('seo_block_indexing', '0') === '1', 'robots_url' => absolute_url('robots.txt'), 'ai_policy' => seo_ai_crawler_policy()]);
 });
 
 route('GET', '/integrations/sitemaps', function () {
@@ -187,7 +202,16 @@ route('POST', '/integrations/sitemaps/rebuild', function () {
     }
     $count = substr_count($xml, '<sitemap>');
     log_activity('update', 'seo', 'sitemap', "Rebuilt the XML sitemaps ($count child sitemaps)");
-    api_ok(['sitemaps' => $count], 'Sitemaps rebuilt.');
+    // IndexNow: tell Bing, Yandex … about the URLs that changed since the last submission (never fails the rebuild)
+    $indexnow = null;
+    if (seo_indexnow_enabled()) {
+        try {
+            $indexnow = seo_indexnow_submit('changed', [], 'sitemap');
+        } catch (Throwable $e) {
+            $indexnow = ['submitted' => 0, 'http_status' => null, 'message' => 'IndexNow submission failed.', 'skipped' => true];
+        }
+    }
+    api_ok(['sitemaps' => $count, 'indexnow' => $indexnow], 'Sitemaps rebuilt.' . ($indexnow && !$indexnow['skipped'] ? ' ' . $indexnow['message'] : ''));
 });
 
 /* ------------------------------------------------------------------ SEO audit */
@@ -278,7 +302,7 @@ route('GET', '/integrations/seo-audit/{id:\d+}/export', function ($p) {
     log_activity('export', 'seo', $a['id'], 'Exported SEO audit #' . $a['id'] . ' (' . count($rows) . ' URLs)');
     csv_download('seo-audit-' . $a['id'] . '-' . date('Y-m-d') . '.csv',
         ['URL', 'Kind', 'Status', 'Redirects to', 'Response (ms)', 'Size (KB)', 'Title', 'Title length', 'Description length', 'H1 count', 'Images without alt',
-            'Canonical', 'Robots', 'In sitemap', 'Depth', 'First found on', 'Issues', 'Error'], $rows);
+            'Canonical', 'Robots', 'In sitemap', 'Depth', 'First found on', 'Issues', 'Error / details', 'Schema types'], $rows);
 });
 
 route('DELETE', '/integrations/seo-audit/{id:\d+}', function ($p) {
@@ -291,3 +315,81 @@ route('DELETE', '/integrations/seo-audit/{id:\d+}', function ($p) {
     log_activity('delete', 'seo', $a['id'], 'Deleted SEO audit #' . $a['id']);
     api_ok(null, 'Audit deleted.');
 });
+
+/* ------------------------------------------------------------------ AI crawler policy, llms.txt, IndexNow */
+
+route('GET', '/integrations/ai-policy', function () {
+    api_require('seo', 'view');
+    api_ok(['policy' => seo_ai_crawler_policy(), 'search' => seo_integration_value('ai_search_crawlers', 'allow'),
+        'training' => seo_integration_value('ai_training_crawlers', 'allow'), 'robots_custom' => trim((string) setting('robots_txt', '')) !== '',
+        'llms' => ['enabled' => seo_llms_enabled(), 'custom' => trim((string) seo_integration_value('llms_txt_custom', '')) !== '',
+            'url' => absolute_url('llms.txt'), 'full_url' => absolute_url('llms-full.txt')]]);
+});
+
+route('GET', '/integrations/indexnow', function () {
+    api_require('seo', 'view');
+    api_ok(seo_indexnow_status(can('seo', 'manage')) + ['can' => ['submit' => can('seo', 'edit'), 'key' => can('seo', 'edit') && can('settings', 'edit')]]);
+});
+
+route('POST', '/integrations/indexnow/submit', function () {
+    api_require('seo', 'edit');
+    $mode = api_str(api_param('mode', 'changed'), 'changed');
+    if (!in_array($mode, ['changed', 'all', 'urls'], true)) {
+        api_error('Choose what to submit.', 422, ['mode' => 'Use changed, all or urls.']);
+    }
+    $urls = [];
+    if ($mode === 'urls') {
+        $raw = api_param('urls', []);
+        $urls = is_array($raw) ? array_map('api_str', $raw) : preg_split('/[\s,]+/', api_str($raw));
+        $urls = array_values(array_filter(array_map('trim', $urls), fn ($u) => $u !== ''));
+        if (!$urls) {
+            api_error('Enter at least one URL of this website.', 422, ['urls' => 'Enter at least one URL of this website.']);
+        }
+        if (count($urls) > 10000) {
+            api_error('At most 10,000 URLs per submission.', 422, ['urls' => 'At most 10,000 URLs per submission.']);
+        }
+    }
+    if (!seo_indexnow_enabled()) {
+        api_error('Switch IndexNow on first (Settings → Integrations → IndexNow).', 409);
+    }
+    if (!rate_limit('indexnow-submit:' . (user_id() ?? 0), 20, 3600)) {
+        api_error('Too many submissions — try again later.', 429);
+    }
+    // also answers 200 when nothing was sent (nothing changed, or this copy is not the public site): the message says why
+    $r = seo_indexnow_submit($mode, $urls, 'manual');
+    if (!empty($r['invalid'])) {
+        api_error($r['message'], 422, ['urls' => $r['message']]);
+    }
+    api_ok($r + ['status' => seo_indexnow_status()], $r['message']);
+});
+
+route('POST', '/integrations/indexnow/key', function () {
+    api_require('seo', 'edit');
+    api_require('settings', 'edit');
+    if (seo_integration_env('indexnow_key') !== null) {
+        api_error('The key is set on the server by an environment variable.', 409);
+    }
+    $key = seo_indexnow_generate_key();
+    save_setting('indexnow_key', $key, 'seo');
+    db_exec('DELETE FROM seo_indexnow_urls'); // a new key starts a fresh submission history
+    log_activity('update', 'seo', 'indexnow', 'Generated a new IndexNow key (the previous key file no longer answers)');
+    api_ok(seo_indexnow_status(), 'New IndexNow key created. The key file is ' . seo_indexnow_key_url($key) . '.');
+});
+
+/* Server cron (no session; the token is derived from the application key — see seo_indexnow_cron_info()). */
+$indexnowCron = function () {
+    $token = api_str($_GET['token'] ?? null);
+    if ($token === '' || !hash_equals(seo_indexnow_cron_token(), $token)) {
+        api_error('Invalid token.', 403);
+    }
+    if (!rate_limit('indexnow-cron:' . client_ip(), 30, 3600)) {
+        api_error('Too many requests.', 429);
+    }
+    if (!seo_indexnow_enabled()) {
+        api_ok(['submitted' => 0, 'http_status' => null, 'skipped' => true], 'IndexNow is switched off.');
+    }
+    $r = seo_indexnow_submit('changed', [], 'cron');
+    api_ok($r, $r['message']);
+};
+route('GET', '/integrations/indexnow/cron', $indexnowCron, ['auth' => false, 'csrf' => false]);
+route('POST', '/integrations/indexnow/cron', $indexnowCron, ['auth' => false, 'csrf' => false]);

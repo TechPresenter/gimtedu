@@ -34,7 +34,9 @@ $programCount = count(site_programs());
 $deptCount = count(site_program_departments());
 $seasonName = $season['name'] ?? '';
 [$heroImage, $heroInset] = pc_hero_images(($cms['banner_image'] ?? '') ?: 'assets/images/site/placement-student.jpg', 'assets/images/site/students-laptop.jpg');
-$heroText = ($cms['excerpt'] ?? '') ?: 'Training, internships and campus placements with recruiters across IT, consulting, banking, analytics and FMCG — coordinated by the GIMT Training & Placement Cell.';
+require_once __DIR__ . '/includes/partials/site_academic.php';
+// placement ASSISTANCE wording (owner decision 2026-11-17) unless the CMS page has its own excerpt
+$heroText = ($cms['excerpt'] ?? '') ?: sa_placement_statement();
 $seasonUrl = fn (array $s) => site_url('placement' . ($default && $s['id'] === $default['id'] ? '' : '?season=' . rawurlencode($s['name']))) . '#record';
 
 // Hero chips: data-backed only.
@@ -53,8 +55,11 @@ if (($training['by_type']['mock_test'] ?? 0) + ($training['by_type']['mock_inter
 }
 
 $header = [
-    'title' => 'Placements ' . ($seasonName !== '' ? $seasonName . ' ' : '') . '— Statistics, Recruiters & Training',
-    'description' => 'GIMT placement record' . ($seasonName !== '' ? ' for ' . $seasonName : '') . ': placement rate, highest, average and median packages, department-wise results, top recruiters, training and mock tests, and how to hire from GIMT.',
+    'title' => !empty($stats['offers']) ? 'Placements ' . ($seasonName !== '' ? $seasonName . ' ' : '') . '— Statistics, Recruiters & Training' : 'Placement Assistance — Career Guidance, CV & Interview Prep',
+    // the description promises only what the page shows: the record when offers exist, else the assistance on offer
+    'description' => !empty($stats['offers'])
+        ? 'GIMT placement record' . ($seasonName !== '' ? ' for ' . $seasonName : '') . ': placement rate, highest, average and median packages, department-wise results, recruiters, training and mock tests, and how to hire from GIMT.'
+        : 'Placement assistance at GIMT Noida: career guidance, CV and interview preparation, and help applying to recruiters. Support, not a job guarantee. Recruiters can hire from GIMT.',
     'active' => 'placement',
     'image' => $heroImage,
     'preload' => [site_image($heroImage)],
@@ -402,7 +407,7 @@ page_hero('Placements at GIMT', ($cms['subtitle'] ?? '') ?: 'Building Careers, N
 
 <?php site_footer([
     'cta_title' => 'Start Your Career Journey at GIMT',
-    'cta_text' => 'Industry-focused programs, year-round placement training and a recruiter network that grows every season.',
+    'cta_text' => 'Industry-focused programs with placement assistance: career guidance, CV and interview preparation, and help applying to recruiters.',
     'cta_highlight' => 'Career',
     'cta_primary' => ['label' => 'Apply for Admission', 'url' => '/apply'],
     'cta_secondary' => ['label' => 'Explore Courses', 'url' => '/programs', 'icon' => 'graduation-cap'],

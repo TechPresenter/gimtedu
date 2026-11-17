@@ -11,6 +11,7 @@
  */
 require __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/partials/news_gallery.php';
+require_once APP_ROOT . '/app/services/cms.php'; // cms_thin_listing_paths()
 
 /* ------------------------------------------------------------------ request */
 $categories = ng_categories();
@@ -108,7 +109,8 @@ site_header([
     'active' => 'blog',
     'seo' => $isBase && $pg['page'] === 1 ? ['route', '/blog'] : null,
     'canonical' => $canonical,
-    'robots' => $filtered || ($category && $total === 0) ? 'noindex,follow' : 'index,follow', // empty category pages are thin
+    // empty category pages are thin; so is /blog itself while no post is published (same rule as the sitemap)
+    'robots' => $filtered || ($category && $total === 0) || (!$category && isset(cms_thin_listing_paths()['/blog'])) ? 'noindex,follow' : 'index,follow',
     'image' => $heroImage ?: 'assets/images/site/news-campus.jpg',
     'preload' => $lead ? [site_image($lead['thumbnail'] ?? null, 'assets/images/site/news-campus.jpg')] : [],
     'schema' => $schema,

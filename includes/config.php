@@ -62,13 +62,143 @@ function cms_link(?string $url): string
     return site_url($url);
 }
 
-/** Image URL with fallback to bundled campus imagery. */
+/**
+ * Image URL with fallback to bundled campus imagery. Responsive copies of the same image: site_img_attrs($path, $sizes)
+ * (srcset + sizes for the <img>) / site_image_variants($path).
+ */
 function site_image(?string $path, string $fallback = 'assets/images/site/campus-building.jpg'): string
 {
     if ($path) {
         return str_starts_with($path, 'assets/') ? asset($path) : upload_url($path);
     }
     return asset($fallback);
+}
+
+/**
+ * Relative path (assets/…) of a local jpg / png / webp image, from a stored path or from a URL made by site_image() /
+ * asset() / upload_url() (HTML entities, the base path, the query string and this site's own origin are stripped).
+ * Null for anything else (external URLs, data: URIs, SVG, GIF, the generated copies themselves).
+ */
+function site_image_rel_path(?string $src): ?string
+{
+    $src = trim(html_entity_decode((string) $src, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    if ($src === '' || str_starts_with($src, 'data:') || !function_exists('image_variant_source_ok')) {
+        return null;
+    }
+    if (preg_match('#^(https?:)?//#i', $src)) {
+        $origin = (string) preg_replace('#^(https?://[^/]+).*$#i', '$1', absolute_url(''));
+        if (stripos($src, $origin . '/') !== 0) {
+            return null;
+        }
+        $src = substr($src, strlen($origin));
+    }
+    $src = (string) preg_replace('/[?#].*$/', '', $src);
+    $base = base_path();
+    if ($base !== '' && str_starts_with($src, $base . '/')) {
+        $src = substr($src, strlen($base));
+    }
+    $src = ltrim(rawurldecode($src), '/');
+    return image_variant_source_ok($src) ? $src : null;
+}
+
+/**
+ * The responsive WebP copies of a local image that exist on disk (made at upload time and by tools/img-variants.php —
+ * app/upload.php image_variants_generate()), as a srcset: ['w' => original width, 'h' => height, 'srcset' =>
+ * '…-480w.webp?v=… 480w, …-960w.webp?v=… 960w, … <original width>w']. The widest candidate is the full-size WebP copy,
+ * else the original file. Null when the image has no (fresh) copies — callers then keep the plain src.
+ */
+function site_image_variants(?string $src): ?array
+{
+    static $cache = [];
+    $rel = site_image_rel_path($src);
+    if ($rel === null) {
+        return null;
+    }
+    if (array_key_exists($rel, $cache)) {
+        return $cache[$rel];
+    }
+    $abs = APP_ROOT . '/' . $rel;
+    $info = is_file($abs) ? @getimagesize($abs) : false;
+    if (!$info || $info[0] < 2) {
+        return $cache[$rel] = null;
+    }
+    [$w, $h] = $info;
+    $srcTime = (int) filemtime($abs);
+    $enc = fn (string $p): string => base_url(implode('/', array_map('rawurlencode', explode('/', $p))));
+    $set = [];
+    foreach (array_merge(array_filter(image_variant_widths(), fn ($t) => $t < $w), [$w]) as $t) {
+        $v = image_variant_path($rel, (int) $t);
+        $va = APP_ROOT . '/' . $v;
+        if (is_file($va) && ($mt = (int) filemtime($va)) >= $srcTime) {
+            $set[(int) $t] = $enc($v) . '?v=' . $mt;
+        }
+    }
+    if (!$set) {
+        return $cache[$rel] = null;
+    }
+    $set[$w] ??= $enc($rel) . '?v=' . $srcTime;
+    ksort($set);
+    return $cache[$rel] = ['w' => (int) $w, 'h' => (int) $h, 'srcset' => implode(', ', array_map(fn ($u, $t) => $u . ' ' . $t . 'w', $set, array_keys($set)))];
+}
+
+/**
+ * ' srcset="…" sizes="…"' for an <img> showing $src (stored path or site_image() URL) when responsive copies exist,
+ * else ''. Keep the original as the img's src (fallback, image search). $sizes = the displayed width per breakpoint,
+ * e.g. '(min-width: 1024px) 40vw, 100vw'; lazy images may start with 'auto, …'. The img needs width + height (or CSS
+ * width / height) so the chosen candidate never changes its layout size.
+ */
+function site_img_attrs(?string $src, string $sizes = '100vw'): string
+{
+    $v = site_image_variants($src);
+    return $v ? ' srcset="' . e($v['srcset']) . '" sizes="' . e($sizes) . '"' : '';
+}
+
+/**
+ * Output filter of every public page (ob_start() in includes/header.php; it only runs on the complete page):
+ *  1. hero / LCP images marked fetchpriority="high" that have width + height attributes but no srcset get the WebP
+ *     copies as srcset (sizes from a data-sizes attribute, else 100vw — the upper bound, never too small), so templates
+ *     that print a plain site_image() src still send phones a small WebP;
+ *  2. every <link rel="preload" as="image"> gets the same imagesrcset / imagesizes as the <img> that shows that image —
+ *     otherwise the browser preloads one file and the img downloads another.
+ * Any failure returns the page unchanged.
+ */
+function site_perf_html(string $html, int $phase = 0): string
+{
+    if (!($phase & PHP_OUTPUT_HANDLER_START) || !($phase & PHP_OUTPUT_HANDLER_FINAL) || ($phase & PHP_OUTPUT_HANDLER_CLEAN)) {
+        return $html; // flushed in pieces (or discarded): leave it alone
+    }
+    try {
+        $headEnd = stripos($html, '</head>');
+        if ($headEnd === false || !function_exists('image_variant_path')) {
+            return $html;
+        }
+        $head = substr($html, 0, $headEnd);
+        $body = substr($html, $headEnd);
+        $body = preg_replace_callback('/<img\b[^>]*\bfetchpriority=(["\'])high\1[^>]*>/i', function (array $m): string {
+            $tag = $m[0];
+            if (preg_match('/\ssrcset=/i', $tag) || !preg_match('/\swidth=/i', $tag) || !preg_match('/\sheight=/i', $tag)
+                || !preg_match('/\ssrc=(["\'])([^"\']+)\1/i', $tag, $s) || !($v = site_image_variants($s[2]))) {
+                return $tag;
+            }
+            $sizes = preg_match('/\sdata-sizes=(["\'])([^"\']+)\1/i', $tag, $z) ? $z[2] : '100vw';
+            return '<img srcset="' . e($v['srcset']) . '" sizes="' . $sizes . '"' . substr($tag, 4);
+        }, $body) ?? $body;
+        $head = preg_replace_callback('/<link\b[^>]*\brel=(["\'])preload\1[^>]*>/i', function (array $m) use ($body): string {
+            $tag = $m[0];
+            if (!preg_match('/\sas=(["\'])image\1/i', $tag) || preg_match('/\simagesrcset=/i', $tag) || !preg_match('/\shref=(["\'])([^"\']+)\1/i', $tag, $h)) {
+                return $tag;
+            }
+            if (!preg_match('/<img\b[^>]*\ssrc=(["\'])' . preg_quote($h[2], '/') . '\1[^>]*>/i', $body, $img)
+                || !preg_match('/\ssrcset=(["\'])([^"\']+)\1/i', $img[0], $ss)) {
+                return $tag;
+            }
+            $sizes = preg_match('/\ssizes=(["\'])([^"\']+)\1/i', $img[0], $z) ? (string) preg_replace('/^\s*auto\s*,\s*/i', '', $z[2]) : '100vw';
+            return rtrim(substr($tag, 0, -1), ' /') . ' imagesrcset="' . $ss[2] . '" imagesizes="' . ($sizes !== '' && strcasecmp($sizes, 'auto') !== 0 ? $sizes : '100vw') . '">';
+        }, $head) ?? $head;
+        return $head . $body;
+    } catch (Throwable $e) {
+        return $html;
+    }
 }
 
 /* ------------------------------------------------------------------ CMS data */
@@ -941,7 +1071,7 @@ function page_hero(string $title, string $subtitle = '', array $breadcrumbs = []
         $parallax = $opts['parallax'] ?? true;
         $pad = ($opts['size'] ?? 'md') === 'lg' ? 'py-20 sm:py-28 lg:py-32' : 'py-14 sm:py-20';
         echo '<section class="page-hero page-hero-photo"' . $idAttr . '>';
-        echo '<div class="page-hero-media"><img src="' . e($img) . '" alt="' . e($opts['image_alt'] ?? '') . '" class="' . ($parallax ? 'parallax-media' : '') . '"'
+        echo '<div class="page-hero-media"><img src="' . e($img) . '"' . site_img_attrs($img, '100vw') . ' alt="' . e($opts['image_alt'] ?? '') . '" class="' . ($parallax ? 'parallax-media' : '') . '"'
             . ($parallax ? ' data-parallax="0.12"' : '') . ' fetchpriority="high" decoding="async"></div>';
         echo '<div class="absolute inset-0 -z-[1] bg-hero-overlay"></div>';
         if ($opts['pattern'] ?? true) {
@@ -993,7 +1123,8 @@ function page_hero(string $title, string $subtitle = '', array $breadcrumbs = []
     }
     echo $chips($dark ? 'glass-light' : '') . '</div>';
     if ($split) {
-        $pool = ['assets/images/site/students-lawn.jpg', 'assets/images/site/facility-library.jpg', 'assets/images/site/campus-main.jpg', 'assets/images/site/facility-labs.jpg'];
+        // neutral photos only (owner decision 2026-11-17: no lawns, sports grounds or hostels)
+        $pool = ['assets/images/site/students-laptop.jpg', 'assets/images/site/facility-library.jpg', 'assets/images/site/facility-classroom.jpg', 'assets/images/site/facility-labs.jpg'];
         $inset = $opts['image2'] ?? null;
         if ($inset === null) {
             foreach ($pool as $cand) {
@@ -1007,9 +1138,10 @@ function page_hero(string $title, string $subtitle = '', array $breadcrumbs = []
         echo '<div class="page-hero-visual lg:col-span-5 lg:pl-6">';
         echo '<span class="page-hero-ring" aria-hidden="true"></span>';
         echo blob('-left-16 -top-14 h-[125%] w-[125%]', $dark ? 'navy' : 'flame');
-        echo '<div class="page-hero-frame clip-in"><img src="' . e($img) . '" alt="' . e($opts['image_alt'] ?? '') . '"' . ($parallax ? ' class="parallax-media" data-parallax="0.06"' : '') . ' fetchpriority="high" decoding="async" width="800" height="672"></div>';
+        echo '<div class="page-hero-frame clip-in"><img src="' . e($img) . '"' . site_img_attrs($img, '(min-width: 1024px) 40vw, 100vw') . ' alt="' . e($opts['image_alt'] ?? '') . '"' . ($parallax ? ' class="parallax-media" data-parallax="0.06"' : '') . ' fetchpriority="high" decoding="async" width="800" height="672"></div>';
         if ($inset) {
-            echo '<div class="page-hero-inset"' . reveal_attr('zoom-in', 300) . '><img src="' . e(site_image($inset)) . '" alt="" loading="lazy" decoding="async" width="300" height="300"></div>';
+            $insetSrc = site_image($inset);
+            echo '<div class="page-hero-inset"' . reveal_attr('zoom-in', 300) . '><img src="' . e($insetSrc) . '"' . site_img_attrs($insetSrc, 'auto, (min-width: 1024px) 180px, 124px') . ' alt="" loading="lazy" decoding="async" width="300" height="300"></div>';
         }
         if ($badge && !empty($badge['text'])) {
             echo '<div class="page-hero-badge glass-panel"' . reveal_attr('fade-up', 450) . '><span class="page-hero-badge-icon">' . icon($badge['icon'] ?? 'sparkles', 'h-5 w-5') . '</span><span>' . e($badge['text']) . '</span></div>';

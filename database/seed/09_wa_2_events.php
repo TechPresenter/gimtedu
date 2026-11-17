@@ -30,11 +30,11 @@ return function (array $opts): void {
         'student_name' => 'Priya Verma', 'first_name' => 'Priya', 'phone' => '+919988776655', 'email' => 'priya.verma@example.com',
         'program_id' => 2, 'program_name' => 'Master of Business Administration', 'course_name' => 'Master of Business Administration',
         'course_duration' => '2 Years', 'counsellor_id' => 3, 'counsellor_name' => 'Pooja Malhotra', 'counsellor_phone' => '+918662927009',
-        'last_date' => '30 Nov 2026', 'institute_name' => 'Global Institute of Management & Technology', 'support_number' => '+91 90600 31540'];
+        'last_date' => 'Rolling admissions — until seats are filled', 'institute_name' => 'Global Institute of Management & Technology', 'support_number' => '+91 90600 31540'];
     $lead = ['enquiry_id' => 158, 'name' => 'Aman Gupta', 'student_name' => 'Aman Gupta', 'first_name' => 'Aman', 'phone' => '+919123456780',
         'email' => 'aman.gupta@example.com', 'city' => 'Bhubaneswar', 'program_id' => 3, 'program_name' => 'B.Tech in Computer Science & Engineering',
         'course_name' => 'B.Tech in Computer Science & Engineering', 'source' => 'website', 'consent' => true,
-        'institute_name' => 'Global Institute of Management & Technology', 'support_number' => '+91 90600 31540', 'last_date' => '30 Nov 2026'];
+        'institute_name' => 'Global Institute of Management & Technology', 'support_number' => '+91 90600 31540', 'last_date' => 'Rolling admissions — until seats are filled'];
     $ticket = ['ticket_id' => 142, 'ticket_no' => 'TKT-2026-00142', 'ticket_number' => 'TKT-2026-00142', 'ticket_type' => 'complaint',
         'subject' => 'Wi-Fi not working in Block B', 'issue_summary' => 'Wi-Fi not working in Block B', 'category' => 'Infrastructure'];
     $exam = ['exam_id' => 41, 'exam_name' => 'End Semester Examination – Nov 2026', 'exam_date' => '25 Nov 2026', 'start_date' => '25 Nov 2026',

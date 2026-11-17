@@ -4,11 +4,19 @@
  *
  *   consent_head()           <head>: dataLayer, Consent Mode v2 defaults (everything except security/functionality
  *                            "denied"), stored choice → consent update, and the loader that injects GA4 / GTM (Analytics
- *                            or advanced mode) and Meta Pixel (Marketing) only when allowed and only when an ID is set;
- *                            plain dataLayer conversion events ({event: 'generate_lead', form: 'enquiry'}) are forwarded
- *                            to GA4 (when loaded directly, not through GTM) and to the Meta Pixel (Lead, Contact …).
+ *                            or advanced mode), Microsoft Clarity (Analytics consent only) and Meta Pixel (Marketing)
+ *                            only when allowed and only when an ID is set; plain dataLayer conversion events
+ *                            ({event: 'generate_lead', form: 'enquiry'}) are forwarded to GA4 (when loaded directly, not
+ *                            through GTM), to the Meta Pixel (Lead, Contact …) and to Clarity (custom events).
+ *                            window.gimtTrack(event, params) is the one way site code records an event: a no-op when no
+ *                            tag ID is configured, so nothing is pushed then. Before Clarity loads, every form / field /
+ *                            lead island / the chat widget gets data-clarity-mask="true" (also when added later), and
+ *                            the whole page is masked on pages that show personal data (?ack=, /verify-certificate).
+ *                            Use Masking mode "Strict" in the Clarity project settings.
  *   consent_banner()         footer: banner (Accept all · Reject all · Customise, equal prominence), preferences modal
- *                            (Necessary always on · Analytics · Marketing, cookie list per category) and assets/js/consent.js.
+ *                            (Necessary always on · Analytics · Marketing, cookie list per category) and assets/js/consent.js
+ *                            (also the automatic conversion events: clicks on tel / WhatsApp / mailto / apply / brochure
+ *                            links, newsletter + plain-form leads, course_view, fee_view — docs/WEBSITE.md §17).
  *   consent_settings_link()  "Cookie settings" link for the footer (opens the modal; without JS it goes to the policy).
  *
  * Choice: first-party cookie gimt_consent = v{version}.a{0|1}.m{0|1}.{unix time} (Path=/, SameSite=Lax, Secure on
@@ -34,12 +42,17 @@ function consent_config(): array
     $ga = trim((string) seo_integration_value('google_analytics_id', ''));
     $gtm = trim((string) seo_integration_value('gtm_id', ''));
     $px = trim((string) seo_integration_value('meta_pixel_id', ''));
+    $cl = strtolower(trim((string) seo_integration_value('clarity_project_id', '')));
+    if (!preg_match('/^[a-z0-9]{6,20}$/', $cl)) {
+        $cl = '';
+    }
     $mode = (string) seo_integration_value('consent_banner', 'auto');
     $mode = in_array($mode, ['auto', 'always', 'off'], true) ? $mode : 'auto';
     if (function_exists('site_admin_preview') && site_admin_preview()) {
         // admin preview frame: no tags (no fake visits / ad events) and no banner over the page
-        [$ga, $gtm, $px, $mode] = ['', '', '', 'off'];
+        [$ga, $gtm, $px, $cl, $mode] = ['', '', '', '', 'off'];
     }
+    $tags = $ga !== '' || $gtm !== '' || $px !== '' || $cl !== '';
     $preview = isset($_GET['consent_preview']) && function_exists('is_logged_in') && is_logged_in() && can('settings', 'view');
     $policy = trim((string) seo_integration_value('consent_policy_url', '/cookie-policy')) ?: '/cookie-policy';
     $cfg = [
@@ -49,9 +62,14 @@ function consent_config(): array
         'ga' => $ga !== '' ? $ga : null,
         'gtm' => $gtm !== '' ? $gtm : null,
         'px' => $px !== '' ? $px : null,
+        'cl' => $cl !== '' ? $cl : null,
+        // any tag configured: only then are events recorded (window.gimtTrack) and assets/js/consent.js measures
+        'tags' => $tags,
+        // automatic click / view events (phone, WhatsApp, e-mail, apply, brochure, course_view, fee_view)
+        'clicks' => $tags && (string) seo_integration_value('track_click_events', '1') !== '0',
         'adv' => $mode === 'off' || seo_integration_value('consent_mode', 'basic') === 'advanced',
         'off' => $mode === 'off',
-        'banner' => $mode !== 'off' && ($preview || $mode === 'always' || ($ga !== '' || $gtm !== '' || $px !== '')),
+        'banner' => $mode !== 'off' && ($preview || $mode === 'always' || $tags),
         'preview' => $preview,
         'path' => base_path() . '/',
         'secure' => seo_is_https(),
@@ -64,21 +82,55 @@ function consent_config(): array
 function consent_head(): string
 {
     $c = consent_config();
-    $js = ['v' => $c['v'], 'ga' => $c['ga'], 'gtm' => $c['gtm'], 'px' => $c['px'], 'adv' => $c['adv'], 'off' => $c['off']];
-    $script = '(function(w,d,C){var dl=w.dataLayer=w.dataLayer||[];function gtag(){dl.push(arguments)}if(!w.gtag)w.gtag=gtag;var G=!!(C.ga||C.gtm),L={},'
-        . 'PX={generate_lead:"Lead",submit_application:"SubmitApplication",apply:"SubmitApplication",contact:"Contact",sign_up:"CompleteRegistration",event_registration:"CompleteRegistration",newsletter_signup:"Lead",schedule:"Schedule"};'
-        . 'if(G){gtag("consent","default",{ad_storage:"denied",ad_user_data:"denied",ad_personalization:"denied",analytics_storage:"denied",personalization_storage:"denied",functionality_storage:"granted",security_storage:"granted",wait_for_update:500});gtag("set","ads_data_redaction",true)}'
-        . 'function inject(s){var e=d.createElement("script");e.async=true;e.src=s;(d.head||d.documentElement).appendChild(e)}'
-        . 'function read(){var m=d.cookie.match(/(?:^|;\\s*)gimt_consent=v(\\d+)\\.a([01])\\.m([01])\\.(\\d+)/);if(!m||+m[1]!==C.v)return null;return{a:m[2]==="1",m:m[3]==="1",t:+m[4]}}'
-        . 'function load(c){var g=function(v){return v?"granted":"denied"};if(G)gtag("consent","update",{analytics_storage:g(c.a),ad_storage:g(c.m),ad_user_data:g(c.m),ad_personalization:g(c.m),personalization_storage:g(c.m)});'
-        . 'if(C.gtm&&!L.gtm&&(C.adv||c.a||c.m)){L.gtm=1;dl.push({"gtm.start":new Date().getTime(),event:"gtm.js"});inject("https://www.googletagmanager.com/gtm.js?id="+encodeURIComponent(C.gtm))}'
-        . 'if(C.ga&&!L.ga&&(C.adv||c.a)){L.ga=1;inject("https://www.googletagmanager.com/gtag/js?id="+encodeURIComponent(C.ga));gtag("js",new Date());gtag("config",C.ga)}'
-        . 'if(C.px&&!L.px&&c.m&&!C.off){L.px=1;var n=w.fbq=w.fbq||function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!w._fbq)w._fbq=n;n.push=n;n.loaded=!0;n.version="2.0";n.queue=n.queue||[];'
-        . 'inject("https://connect.facebook.net/en_US/fbevents.js");w.fbq("init",C.px);w.fbq("track","PageView")}else if(L.px&&!c.m&&w.fbq){w.fbq("consent","revoke")}}'
-        . 'var push=dl.push;dl.push=function(){var r=push.apply(dl,arguments);for(var i=0;i<arguments.length;i++)fwd(arguments[i]);return r};'
-        . 'function fwd(o){if(!o||typeof o!=="object"||Object.prototype.toString.call(o)==="[object Arguments]"||typeof o.event!=="string"||/^(gtm\\.|consent_)/.test(o.event))return;'
-        . 'var p={},k;for(k in o)if(k!=="event"&&Object.prototype.hasOwnProperty.call(o,k))p[k]=o[k];if(L.ga&&!C.gtm)gtag("event",o.event,p);if(L.px&&PX[o.event]&&w.fbq)w.fbq("track",PX[o.event],p)}'
-        . 'w.__gimtConsent={cfg:C,read:read,apply:load,loaded:L};var c=read();if(c)load(c);else if(C.adv)load({a:false,m:false})})(window,document,' . js_json($js) . ');';
+    $js = ['v' => $c['v'], 'ga' => $c['ga'], 'gtm' => $c['gtm'], 'px' => $c['px'], 'cl' => $c['cl'], 'on' => $c['tags'], 'clk' => $c['clicks'], 'adv' => $c['adv'], 'off' => $c['off']];
+    // Written readable; every line ends a statement or opens / closes a block, so joining the lines keeps it valid.
+    // No "//" comments inside. Nothing is pushed or loaded when no tag ID is configured (C.on false).
+    $src = <<<'JS'
+(function(w,d,C){
+var L={},on=!!C.on,G=!!(C.ga||C.gtm),HO=Object.prototype.hasOwnProperty,dl=null;
+var PX={generate_lead:"Lead",submit_application:"SubmitApplication",apply:"SubmitApplication",contact:"Contact",phone_click:"Contact",whatsapp_click:"Contact",email_click:"Contact",sign_up:"CompleteRegistration",event_registration:"CompleteRegistration",newsletter_signup:"Lead",schedule:"Schedule",course_view:"ViewContent"};
+function gtag(){dl.push(arguments);}
+function inject(s){var e=d.createElement("script");e.async=true;e.src=s;(d.head||d.documentElement).appendChild(e);}
+function read(){var m=d.cookie.match(/(?:^|;\s*)gimt_consent=v(\d+)\.a([01])\.m([01])\.(\d+)/);if(!m||+m[1]!==C.v)return null;return{a:m[2]==="1",m:m[3]==="1",t:+m[4]};}
+function mask(){
+var S='form,input,textarea,select,[contenteditable],#gimt-chat,[data-island="EnquiryForm"],[data-island="SmartEnquiry"],[data-island="ApplyWizard"],[data-island="ScholarshipAssistant"],[data-clarity-private]';
+var R=d.documentElement;
+if(/[?&](ack|t)=/.test(location.search)||/\/verify-certificate/.test(location.pathname))R.setAttribute("data-clarity-mask","true");
+var m=function(r){if(!r||r.nodeType!==1)return;if(r.matches&&r.matches(S))r.setAttribute("data-clarity-mask","true");var l=r.querySelectorAll(S);for(var i=0;i<l.length;i++)l[i].setAttribute("data-clarity-mask","true");};
+m(R);
+if(w.MutationObserver)new MutationObserver(function(rs){for(var i=0;i<rs.length;i++){for(var j=0;j<rs[i].addedNodes.length;j++)m(rs[i].addedNodes[j]);}}).observe(R,{childList:true,subtree:true});
+}
+function load(c){
+if(!on)return;
+var g=function(v){return v?"granted":"denied";};
+if(G)gtag("consent","update",{analytics_storage:g(c.a),ad_storage:g(c.m),ad_user_data:g(c.m),ad_personalization:g(c.m),personalization_storage:g(c.m)});
+if(C.gtm&&!L.gtm&&(C.adv||c.a||c.m)){L.gtm=1;dl.push({"gtm.start":new Date().getTime(),event:"gtm.js"});inject("https://www.googletagmanager.com/gtm.js?id="+encodeURIComponent(C.gtm));}
+if(C.ga&&!L.ga&&(C.adv||c.a)){L.ga=1;inject("https://www.googletagmanager.com/gtag/js?id="+encodeURIComponent(C.ga));gtag("js",new Date());gtag("config",C.ga);}
+if(C.cl&&c.a&&!L.cl){L.cl=1;mask();w.clarity=w.clarity||function(){(w.clarity.q=w.clarity.q||[]).push(arguments);};w.clarity("consentv2",{ad_Storage:g(c.m),analytics_Storage:"granted"});inject("https://www.clarity.ms/tag/"+encodeURIComponent(C.cl));}
+else if(L.cl&&w.clarity){w.clarity("consentv2",{ad_Storage:g(c.a&&c.m),analytics_Storage:g(c.a)});if(!c.a)w.clarity("consent",false);}
+if(C.px&&!L.px&&c.m&&!C.off){L.px=1;var n=w.fbq=w.fbq||function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments);};if(!w._fbq)w._fbq=n;n.push=n;n.loaded=!0;n.version="2.0";n.queue=n.queue||[];
+inject("https://connect.facebook.net/en_US/fbevents.js");w.fbq("init",C.px);w.fbq("track","PageView");}
+else if(L.px&&!c.m&&w.fbq){w.fbq("consent","revoke");}
+}
+function fwd(o){
+if(!o||typeof o!=="object"||Object.prototype.toString.call(o)==="[object Arguments]"||typeof o.event!=="string"||/^(gtm\.|consent_)/.test(o.event))return;
+var p={},k;for(k in o)if(k!=="event"&&HO.call(o,k))p[k]=o[k];
+if(L.ga&&!C.gtm)gtag("event",o.event,p);
+if(L.px&&PX[o.event]&&w.fbq)w.fbq("track",PX[o.event],p);
+if(L.cl&&w.clarity)w.clarity("event",o.event);
+}
+if(on){
+dl=w.dataLayer=w.dataLayer||[];
+if(!w.gtag)w.gtag=gtag;
+if(G){gtag("consent","default",{ad_storage:"denied",ad_user_data:"denied",ad_personalization:"denied",analytics_storage:"denied",personalization_storage:"denied",functionality_storage:"granted",security_storage:"granted",wait_for_update:500});gtag("set","ads_data_redaction",true);}
+var push=dl.push;dl.push=function(){var r=push.apply(dl,arguments);for(var i=0;i<arguments.length;i++)fwd(arguments[i]);return r;};
+}
+w.gimtTrack=function(e,p){if(!on||typeof e!=="string"||!/^[a-z][a-z0-9_]{1,39}$/.test(e))return;var o={event:e},k,v;if(p&&typeof p==="object")for(k in p)if(HO.call(p,k)){v=p[k];if(v!==undefined&&v!==null&&v!==""&&typeof v!=="object")o[k]=v;}dl.push(o);};
+w.__gimtConsent={cfg:C,read:read,apply:load,loaded:L,on:on};
+var c=read();if(c)load(c);else if(C.adv)load({a:false,m:false});
+})(window,document,
+JS;
+    $script = str_replace(["\r\n", "\n"], '', $src) . js_json($js) . ');';
     return '  <script' . site_nonce_attr() . '>' . $script . "</script>\n";
 }
 
@@ -102,6 +154,11 @@ function consent_cookie_list(): array
     $analytics = [];
     if ($c['ga'] || $c['gtm']) {
         $analytics[] = ['_ga, _ga_*', 'Google Analytics: counts visits and shows which pages are useful, without identifying you (up to 2 years).'];
+    }
+    if ($c['cl']) {
+        $analytics[] = ['_clck', 'Microsoft Clarity: keeps the same anonymous Clarity user id across pages of this website (1 year). Form fields and personal details are masked and never recorded.'];
+        $analytics[] = ['_clsk', 'Microsoft Clarity: joins the pages you view into one session so we can see where pages are hard to use (1 day).'];
+        $analytics[] = ['CLID, MUID, ANONCHK, SM, MR', 'Set by Microsoft on its own domains (clarity.ms / bing.com) when Clarity runs: CLID first time Clarity saw this browser (1 year), MUID browser id used across Microsoft sites (1 year), ANONCHK always 0 in Clarity (10 minutes), SM syncs MUID across Microsoft domains (session), MR whether to refresh MUID (7 days).'];
     }
     $marketing = [];
     if ($c['px']) {
@@ -128,7 +185,8 @@ function consent_banner(): string
 {
     $c = consent_config();
     if ($c['off']) {
-        return '';
+        // consent handled elsewhere: no banner, but the automatic conversion events still need consent.js
+        return $c['tags'] ? '<script src="' . e(asset('assets/js/consent.js')) . '" defer' . site_nonce_attr() . "></script>\n" : '';
     }
     $title = trim((string) seo_integration_value('consent_title', 'We value your privacy')) ?: 'We value your privacy';
     $text = trim((string) seo_integration_value('consent_text', '')) ?: (string) (seo_integration_fields()['consent_text']['default'] ?? '');

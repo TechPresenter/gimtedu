@@ -205,8 +205,9 @@ function program_card(array $p, array $o = []): string
     $short = (string) ($p['short_name'] ?? '');
     $html = '<article class="program-card group ' . dept_hue($p) . ($variant === 'landing' ? ' program-card-landing' : '') . '" data-tilt="4"' . $reveal . '>';
     // the thumbnail is a finished 16:9 graphic: nothing on top of it — the tags sit in a row under it (owner request 2026-11-10)
+    $cardImg = site_image($p['image'] ?? null);
     $html .= '<a href="' . e($url) . '" class="program-card-media" tabindex="-1" aria-hidden="true">'
-        . '<img src="' . e(site_image($p['image'] ?? null)) . '" alt="" loading="lazy" decoding="async" width="640" height="360"></a>';
+        . '<img src="' . e($cardImg) . '"' . site_img_attrs($cardImg, 'auto, (min-width: 1280px) 400px, (min-width: 640px) 50vw, 100vw') . ' alt="" loading="lazy" decoding="async" width="640" height="360"></a>';
     $html .= '<div class="program-tags">' . ($ribbon !== '' ? '<span class="program-ribbon">' . e($ribbon) . '</span>' : '')
         . '<span class="program-level">' . e(program_level_label($p['level'] ?? '')) . '</span>' . dept_chip($p, 'program-chip') . '</div>';
     $html .= '<div class="program-card-body">';
@@ -598,7 +599,7 @@ function announcement_strip(?array $items = null, array $o = []): string
 }
 
 /**
- * Dismissible admission notification bar (orange-red) — e.g. "Admissions Open 2026-27 · Last date 30 Nov" + Apply Now.
+ * Dismissible admission notification bar (orange-red) — e.g. "Admissions Open 2026-27 · Rolling admissions" + Apply Now.
  * Dismissal is remembered per message in localStorage (core/widgets.ts [data-dismiss]). Returns '' without text.
  * @param array $o text (default setting admission_bar_text, else admissions_open_text + real deadline), cta
  *                 ['label', 'url'], key (storage key, default derived from the text)
@@ -757,7 +758,11 @@ function enquiry_popup_image(): array
         return $img = ['src' => asset('assets/images/site/popup-counsellor.webp'), 'webp' => null, 'cutout' => true, 'width' => 640, 'height' => 544];
     }
     $size = @getimagesize($file) ?: [0, 0];
-    return $img = ['src' => site_image($path), 'webp' => null, 'cutout' => enquiry_image_has_alpha($file), 'width' => (int) $size[0], 'height' => (int) $size[1]];
+    $src = site_image($path);
+    // resized WebP copies of the upload (app/upload.php) as the <source>; the photo only loads when the popup opens
+    $copies = function_exists('site_image_variants') ? site_image_variants($src) : null;
+    return $img = ['src' => $src, 'webp' => $copies['srcset'] ?? null, 'sizes' => $copies ? '(min-width: 640px) 320px, 360px' : null,
+        'cutout' => enquiry_image_has_alpha($file), 'width' => (int) $size[0], 'height' => (int) $size[1]];
 }
 
 /** True when a PNG / WebP file declares an alpha channel (transparent cut-out photo). Reads the file header only. */
@@ -828,7 +833,7 @@ function enquiry_modal(array $o = []): string
             ['name' => 'program_id', 'label' => 'Program of interest', 'type' => 'select', 'options' => $options, 'placeholder' => 'Program of interest', 'value' => (string) ($o['program'] ?? '')],
         ],
     ]);
-    $picture = '<picture>' . (!empty($img['webp']) ? '<source srcset="' . e($img['webp']) . '" type="image/webp">' : '')
+    $picture = '<picture>' . (!empty($img['webp']) ? '<source srcset="' . e($img['webp']) . '"' . (!empty($img['sizes']) ? ' sizes="' . e($img['sizes']) . '"' : '') . ' type="image/webp">' : '')
         . '<img src="' . e($img['src']) . '" alt="" width="' . ((int) $img['width'] ?: 564) . '" height="' . ((int) $img['height'] ?: 594) . '" loading="lazy" decoding="async"></picture>';
     $privacy = function_exists('seo_path_exists') && !seo_path_exists('/privacy-policy') ? '' : ' <a href="' . e(site_url('privacy-policy')) . '" target="_blank" rel="noopener">Privacy Policy</a>';
     $auto = (int) ($o['auto'] ?? 0);
@@ -1061,9 +1066,16 @@ function program_explorer(array $programs, array $props = []): string
         $tokens = program_filter_tokens($p);
         $cards .= '<div class="h-full" data-key="' . e($p['slug'] ?? $p['id'] ?? '') . '" data-category="' . e($tokens) . '" data-search="' . e(trim(($p['name'] ?? '') . ' ' . ($p['short_name'] ?? '') . ' ' . ($p['category'] ?? '') . ' ' . program_level_label($p['level'] ?? ''))) . '" data-filter-item="all ' . e($tokens) . '" data-filter-group="' . $group . '">' . program_card($p, $cardOpts) . '</div>';
     }
+    // the island shows a search box unless search => false: the fallback has the same (inactive) field, so the toolbar
+    // keeps its height when the island takes over (it hydrates when idle — core/islands.ts — no layout shift then)
+    $search = ($props['search'] ?? true) !== false;
+    $searchField = $search
+        ? '<label class="search-field">' . icon('search', 'h-4 w-4 shrink-0 text-slate-400') . '<span class="sr-only">Search ' . e($props['itemLabel']['many'] ?? 'programs') . '</span>'
+          . '<input type="search" placeholder="' . e($props['searchPlaceholder'] ?? 'Search programs…') . '" class="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0" disabled></label>'
+        : '';
     $fallback = '<div class="program-explorer"><div class="mb-8 flex flex-col gap-4' . ($layout === 'pills' ? ' lg:flex-row lg:items-center lg:justify-between' : '') . '">'
         . '<div class="' . e($layout === 'tiles' ? ($props['tileClass'] ?? program_tile_grid(count($props['categories']))) : 'pill-row scrollbar-none') . '" role="toolbar" aria-label="Filter ' . e($props['itemLabel']['many'] ?? 'programs') . ' by category">' . $pills . '</div>'
-        . (!empty($props['viewAll']) ? '<div class="flex items-center gap-3"><a href="' . e($props['viewAll']['url']) . '" class="btn btn-outline btn-sm hidden shrink-0 sm:inline-flex">' . e($props['viewAll']['label']) . icon('arrow-right', 'h-4 w-4') . '</a></div>' : '')
+        . ($search || !empty($props['viewAll']) ? '<div class="flex items-center gap-3">' . $searchField . (!empty($props['viewAll']) ? '<a href="' . e($props['viewAll']['url']) . '" class="btn btn-outline btn-sm hidden shrink-0 sm:inline-flex">' . e($props['viewAll']['label']) . icon('arrow-right', 'h-4 w-4') . '</a>' : '') . '</div>' : '')
         . '</div><div class="grid gap-6 ' . e($grid) . '" data-slot="items">' . $cards . '</div></div>';
     return island('ProgramExplorer', $props, $fallback);
 }

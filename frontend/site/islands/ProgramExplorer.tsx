@@ -61,18 +61,36 @@ export default function ProgramExplorer({
   itemLabel = { one: 'program', many: 'programs' },
   viewAll,
   slots,
+  fallbackState,
 }: ProgramExplorerProps) {
+  // The server-rendered cards are MOVED into the grid (s.node) instead of being re-parsed from their HTML: mounting
+  // creates no new card DOM (no image re-decode, no second enhance pass) — the main cost of this island before.
   const cards = useMemo(
     () =>
       (slots?.items ?? []).map((s, i) => {
-        const text = norm(s.html.replace(/<[^>]+>/g, ' '));
-        return { key: s.data.key || String(i), html: s.html, cats: (s.data.category || '').toLowerCase().split(/\s+/).filter(Boolean), text: `${norm(s.data.search || '')} ${text}` };
+        const node = s.node;
+        if (node) {
+          node.classList.remove('hidden', 'filter-in'); // vanilla [data-filter] state of the fallback
+          node.removeAttribute('data-off');
+        }
+        const text = norm(node ? node.textContent || '' : s.html.replace(/<[^>]+>/g, ' '));
+        return { key: s.data.key || String(i), html: s.html, node, cats: (s.data.category || '').toLowerCase().split(/\s+/).filter(Boolean), text: `${norm(s.data.search || '')} ${text}` };
       }),
     [slots],
   );
   const fromUrl = syncParam ? new URLSearchParams(window.location.search).get(syncParam) : null;
-  const [cat, setCat] = useState(() => (fromUrl && categories.some((c) => c.key === fromUrl && !c.href) ? fromUrl : initial || categories[0]?.key || 'all'));
-  const [query, setQuery] = useState(() => (searchParam ? (new URLSearchParams(window.location.search).get(searchParam) ?? '').slice(0, 100) : ''));
+  const usable = (key?: string | null) => !!key && categories.some((c) => c.key === key && !c.href);
+  const [cat, setCat] = useState(() =>
+    usable(fromUrl) ? (fromUrl as string) : usable(fallbackState?.filter) ? (fallbackState!.filter as string) : initial || categories[0]?.key || 'all',
+  );
+  const [query, setQuery] = useState(() =>
+    ((searchParam ? new URLSearchParams(window.location.search).get(searchParam) : null) || fallbackState?.query || '').slice(0, 100),
+  );
+  const searchRef = useRef<HTMLInputElement>(null);
+  // the visitor was typing in the fallback's search field when the island took over: keep the focus there
+  useEffect(() => {
+    if (fallbackState?.searchFocused) searchRef.current?.focus({ preventScroll: true });
+  }, [fallbackState]);
   const q = useDebounced(norm(query).trim(), 160);
   // keep the search term in the URL (shareable, survives reload / back) — replaceState, no history entries
   const qRaw = useDebounced(query.trim(), 400);
@@ -103,8 +121,15 @@ export default function ProgramExplorer({
     prevRects.current = map;
   };
 
+  const firstRender = useRef(true);
   useLayoutEffect(() => {
     const grid = gridRef.current;
+    // first render: nothing moved yet — no layout reads (forced layout) and no enhance pass (the moved cards are already
+    // enhanced; runtime/mount.tsx enhances the island once after mounting)
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
     if (!grid || isStatic) return;
     grid.querySelectorAll<HTMLElement>('[data-card-key]').forEach((el, i) => {
       const before = prevRects.current.get(el.dataset.cardKey!);
@@ -185,6 +210,7 @@ export default function ProgramExplorer({
                 <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                 <span className="sr-only">Search {itemLabel.many}</span>
                 <input
+                  ref={searchRef}
                   type="search"
                   value={query}
                   onChange={(e) => {
@@ -215,9 +241,20 @@ export default function ProgramExplorer({
         {visible.length} {visible.length === 1 ? itemLabel.one : itemLabel.many} shown
       </p>
       <div ref={gridRef} className={clsx('grid gap-6', gridClass)}>
-        {visible.map((c) => (
-          <div key={c.key} data-card-key={c.key} className="h-full [&>*]:h-full" dangerouslySetInnerHTML={{ __html: c.html }} />
-        ))}
+        {visible.map((c) =>
+          c.node ? (
+            <div
+              key={c.key}
+              data-card-key={c.key}
+              className="h-full [&>*]:h-full"
+              ref={(el) => {
+                if (el && c.node && c.node.parentElement !== el) el.appendChild(c.node);
+              }}
+            />
+          ) : (
+            <div key={c.key} data-card-key={c.key} className="h-full [&>*]:h-full" dangerouslySetInnerHTML={{ __html: c.html }} />
+          ),
+        )}
       </div>
       {!visible.length && (
         <div className="empty-state rounded-2xl border border-dashed border-slate-200 bg-slate-50/60">

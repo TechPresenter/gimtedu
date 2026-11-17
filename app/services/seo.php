@@ -12,10 +12,15 @@
  *  4. Redirects ...... seo_redirect_normalize(), seo_redirect_match(), seo_redirect_maybe() (rules, lower-case + trailing
  *                      slash 301s, 410, 404 log), seo_path_exists(), seo_redirect_prepare() (validation, loop + chain
  *                      protection), seo_redirect_flatten_incoming(), seo_redirect_trace() (Test a URL), 404 log
- *  5. robots.txt ..... seo_default_robots_txt(), seo_robots_txt(), seo_robots_rules(), seo_robots_allowed()
- *  6. Sitemaps ....... seo_sitemap_groups(), seo_sitemap_index_xml(), seo_sitemap_xml($group), file cache
+ *                      seo_host_redirect() (www.<host> → canonical), seo_bot_family() / seo_bot_hit() (crawler activity)
+ *  5. robots.txt ..... seo_default_robots_txt() (+ managed AI crawler block, app/services/seo_ai.php), seo_robots_txt(),
+ *                      seo_robots_rules(), seo_robots_allowed()
+ *  6. Sitemaps ....... seo_sitemap_groups() (+ seo_sitemap_excluded_paths()), seo_sitemap_index_xml(), seo_sitemap_xml($group),
+ *                      file cache (also clears the llms.txt cache)
+ * Related: app/services/seo_ai.php (AI crawler policy, llms.txt), app/services/seo_indexnow.php (IndexNow), docs/SEO.md.
  *  7. Client errors .. seo_client_error_store(), seo_error_log_list(), seo_error_log_stats()
- *  8. SEO audit ...... seo_audit_start() / step() / finalize() / report() / pages() / export rows; background worker:
+ *  8. SEO audit ...... seo_audit_start() / step() / finalize() / report() / pages() / export rows, JSON-LD checks
+ *                      (seo_schema_validate()); background worker:
  *                      php app/services/seo.php audit-worker <id>   (used on the single-threaded PHP dev server)
  *
  * No side effects when included (functions only), except the CLI entry point at the very end.
@@ -238,7 +243,18 @@ function seo_integration_sections(): array
                 ['key' => 'search_console_verification', 'label' => 'Google Search Console verification', 'group' => 'analytics', 'env' => 'GIMT_GSC_VERIFICATION', 'col' => 6,
                     'rules' => ['regex:/^[A-Za-z0-9_\-]{10,100}$/'], 'help' => 'Content of the google-site-verification meta tag (HTML tag method).'],
                 ['key' => 'bing_site_verification', 'label' => 'Bing Webmaster verification', 'group' => 'integrations', 'env' => 'GIMT_BING_VERIFICATION', 'col' => 6,
-                    'rules' => ['regex:/^[A-Za-z0-9]{16,64}$/'], 'help' => 'Content of the msvalidate.01 meta tag.'],
+                    'rules' => ['regex:/^[A-Za-z0-9]{16,64}$/'], 'help' => 'Content of the msvalidate.01 meta tag. Bing can also import the site from Search Console.'],
+                ['key' => 'yandex_verification', 'label' => 'Yandex Webmaster verification', 'group' => 'integrations', 'env' => 'GIMT_YANDEX_VERIFICATION', 'col' => 4,
+                    'rules' => ['regex:/^[A-Za-z0-9_\-]{8,100}$/'], 'help' => 'Content of the yandex-verification meta tag (optional).'],
+                ['key' => 'baidu_verification', 'label' => 'Baidu verification', 'group' => 'integrations', 'env' => 'GIMT_BAIDU_VERIFICATION', 'col' => 4,
+                    'rules' => ['regex:/^[A-Za-z0-9_\-]{6,100}$/'], 'help' => 'Content of the baidu-site-verification meta tag (optional).'],
+                ['key' => 'naver_verification', 'label' => 'Naver Search Advisor verification', 'group' => 'integrations', 'env' => 'GIMT_NAVER_VERIFICATION', 'col' => 4,
+                    'rules' => ['regex:/^[A-Za-z0-9_\-]{8,100}$/'], 'help' => 'Content of the naver-site-verification meta tag (optional).'],
+                ['key' => 'clarity_project_id', 'label' => 'Microsoft Clarity project ID', 'group' => 'analytics', 'env' => 'GIMT_CLARITY_ID', 'col' => 6,
+                    'rules' => ['regex:/^[a-z0-9]{8,12}$/'], 'placeholder' => 'abcd1234ef',
+                    'help' => 'Heatmaps and session recordings — loads only with “Analytics” consent. Microsoft says Clarity should not be used on sites aimed at under-18s.'],
+                ['key' => 'track_click_events', 'label' => 'Send click events (phone, WhatsApp, e-mail, apply, brochure) to Analytics', 'type' => 'toggle', 'group' => 'integrations', 'default' => '1', 'col' => 12,
+                    'help' => 'Conversion events in the dataLayer (no personal data). Mark them as key events in GA4.'],
             ],
         ],
         'consent' => [
@@ -296,6 +312,42 @@ function seo_integration_sections(): array
                     'help' => 'For staging / pre-launch copies: robots.txt disallows everything, every page is noindex and the sitemaps are empty.'],
                 ['key' => 'sitemap_images', 'label' => 'Publish an image sitemap', 'type' => 'toggle', 'group' => 'seo', 'default' => '1', 'col' => 12,
                     'help' => 'sitemap-images.xml lists the photos of programs, news, events, albums and pages for Google Images.'],
+            ],
+        ],
+        'ai' => [
+            'title' => 'AI search & llms.txt', 'icon' => 'search',
+            'description' => 'Which AI crawlers robots.txt allows (a managed block, also added to custom rules) and the /llms.txt summary for AI agents. Google Search, Bing, Yandex, Baidu, Naver, DuckDuckGo and Apple search are never blocked here.',
+            'fields' => [
+                ['key' => 'ai_search_crawlers', 'label' => 'AI search & answer engines', 'type' => 'select', 'group' => 'seo', 'default' => 'allow', 'col' => 6,
+                    'options' => ['allow' => 'Allow — ChatGPT search, Claude, Perplexity, Meta AI … may cite the website', 'block' => 'Block (removes the website from those answers)'],
+                    'help' => 'OAI-SearchBot, Claude-SearchBot, PerplexityBot, meta-webindexer, DuckAssistBot, Amzn-SearchBot and the user-triggered fetchers (ChatGPT-User, Claude-User, Perplexity-User …; some of them may ignore robots.txt).'],
+                ['key' => 'ai_training_crawlers', 'label' => 'AI model training', 'type' => 'select', 'group' => 'seo', 'default' => 'allow', 'col' => 6,
+                    'options' => ['allow' => 'Allow', 'block' => 'Block (does not affect search or AI answers)'],
+                    'help' => 'GPTBot, ClaudeBot, Google-Extended (also Gemini app grounding), Applebot-Extended, Amazonbot, meta-externalagent, CCBot, Bytespider.'],
+                ['key' => 'llms_txt_enabled', 'label' => 'Publish /llms.txt and /llms-full.txt', 'type' => 'toggle', 'group' => 'seo', 'default' => '1', 'col' => 12,
+                    'help' => 'Generated from the database: programmes (level, duration, fee, eligibility), admissions and contact pages, policies and FAQs. Google ignores llms.txt; some AI agents read it.'],
+                ['key' => 'llms_txt_custom', 'label' => 'Custom llms.txt (optional)', 'type' => 'textarea', 'group' => 'seo', 'col' => 12, 'rules' => 'max:20000',
+                    'placeholder' => "# Institute name\n\n> One-line summary\n\n## Programmes\n- [MBA](https://…/programs/…): 2 years", 'help' => 'Leave empty to use the generated file. When set, /llms.txt serves exactly this text (llms-full.txt stays generated).'],
+            ],
+        ],
+        'indexnow' => [
+            'title' => 'IndexNow', 'icon' => 'search',
+            'description' => 'Tells Bing, Yandex, Naver, Seznam and Yep which pages changed (Google does not take part). Changed sitemap URLs are sent when the sitemaps are rebuilt, from the SEO page and by the server cron job.',
+            'fields' => [
+                ['key' => 'indexnow_enabled', 'label' => 'Notify IndexNow search engines about changed pages', 'type' => 'toggle', 'group' => 'seo', 'default' => '0', 'col' => 12,
+                    'help' => 'A key is created automatically when you switch this on; the key file is served at /{key}.txt.'],
+                ['key' => 'indexnow_key', 'label' => 'Key', 'group' => 'seo', 'col' => 6, 'rules' => ['regex:/^[a-z0-9\-]{8,128}$/'],
+                    'help' => '8–128 letters, digits or dashes. Public by design (it is published in the key file).'],
+                ['key' => 'indexnow_endpoint', 'label' => 'Endpoint', 'group' => 'seo', 'default' => 'https://api.indexnow.org/indexnow', 'col' => 6,
+                    'rules' => ['max:255', 'regex:/^https?:\/\/[^\s]+$/'], 'help' => 'api.indexnow.org shares every submission with all participating engines.'],
+            ],
+        ],
+        'pagespeed' => [
+            'title' => 'PageSpeed Insights', 'icon' => 'activity',
+            'description' => 'Lab scores and Core Web Vitals from Google PageSpeed Insights, run from SEO Management. Works without a key at a low quota; a Google Cloud API key raises it.',
+            'fields' => [
+                ['key' => 'pagespeed_api_key', 'label' => 'PageSpeed Insights API key (optional)', 'type' => 'password', 'secret' => true, 'group' => 'integrations', 'env' => 'GIMT_PAGESPEED_KEY', 'col' => 8,
+                    'rules' => ['regex:/^[A-Za-z0-9_\-]{20,60}$/'], 'help' => 'Server-side only. Restrict it to the PageSpeed Insights API in Google Cloud Console.'],
             ],
         ],
     ];
@@ -414,6 +466,9 @@ function seo_integration_save(string $section, array $input): array
         if (in_array($k, ['google_analytics_id', 'gtm_id'], true)) {
             $v = strtoupper($v);
         }
+        if ($k === 'indexnow_key') {
+            $v = strtolower($v); // URLs are lower-cased by the router, so the key file /{key}.txt must be lower case
+        }
         $rules = $f['rules'] ?? [];
         $rules = is_array($rules) ? $rules : array_filter(explode('|', (string) $rules));
         if (isset($f['options'])) {
@@ -439,6 +494,14 @@ function seo_integration_save(string $section, array $input): array
             }
         }
     }
+    if ($section === 'indexnow') {
+        $on = ($save['indexnow_enabled'] ?? (string) setting('indexnow_enabled', '0')) === '1';
+        $key = array_key_exists('indexnow_key', $save) ? $save['indexnow_key'] : (string) setting('indexnow_key', '');
+        if ($on && $key === '' && !isset($errors['indexnow_key'])) {
+            require_once __DIR__ . '/seo_indexnow.php';
+            $save['indexnow_key'] = seo_indexnow_generate_key(); // the key file /{key}.txt answers as soon as it is saved
+        }
+    }
     if ($errors) {
         throw new CrudValidationException($errors);
     }
@@ -453,7 +516,7 @@ function seo_integration_save(string $section, array $input): array
         save_setting($k, $v, $groups[$k] ?? ($fields[$k]['group'] ?? 'integrations'));
         $changed[] = $k;
     }
-    if (array_intersect($changed, ['seo_block_indexing', 'sitemap_images'])) {
+    if (array_intersect($changed, ['seo_block_indexing', 'sitemap_images', 'llms_txt_enabled', 'llms_txt_custom'])) {
         seo_sitemap_cache_clear();
     }
     return $changed;
@@ -509,17 +572,42 @@ function seo_canonical_path(string $path): string
     return $path;
 }
 
-/** Real social profile URLs for sameAs (skips placeholders such as "https://facebook.com/"). */
+/**
+ * Real profile URLs for sameAs: social profiles (Settings › Social), Google Business Profile (gbp_url), Wikidata
+ * (wikidata_url) and one URL per line from sameas_extra. Only https URLs with a real path or query (placeholders such
+ * as "https://facebook.com/" are skipped), never this website itself, de-duplicated (case of the host, trailing slash).
+ */
 function seo_same_as(): array
 {
-    $out = [];
-    foreach (social_links() as $url) {
-        $p = parse_url((string) $url);
-        if (!empty($p['host']) && in_array(strtolower($p['scheme'] ?? ''), ['http', 'https'], true) && trim(api_str($p['path'] ?? null), '/') !== '') {
-            $out[] = (string) $url;
-        }
+    $candidates = function_exists('social_links') ? array_values(social_links()) : [];
+    foreach (['gbp_url', 'wikidata_url'] as $k) {
+        $candidates[] = (string) setting($k, '');
     }
-    return array_values(array_unique($out));
+    foreach (preg_split('/[\r\n]+/', (string) setting('sameas_extra', '')) as $line) {
+        $candidates[] = $line;
+    }
+    $out = [];
+    $ownHost = strtolower((string) preg_replace('/^www\./', '', (string) parse_url(seo_origin(), PHP_URL_HOST)));
+    foreach ($candidates as $url) {
+        $url = trim((string) $url);
+        if ($url === '' || preg_match('/[\s<>"]/', $url)) {
+            continue;
+        }
+        if (str_starts_with(strtolower($url), 'http://')) {
+            $url = 'https://' . substr($url, 7); // every profile site serves https
+        }
+        $p = parse_url($url);
+        $host = strtolower((string) ($p['host'] ?? ''));
+        if (!$p || strtolower($p['scheme'] ?? '') !== 'https' || $host === '' || !str_contains($host, '.')
+            || (trim(api_str($p['path'] ?? null), '/') === '' && trim(api_str($p['query'] ?? null)) === '')
+            || preg_replace('/^www\./', '', $host) === $ownHost
+            || (str_ends_with($host, 'wikidata.org') && !preg_match('#^/(wiki|entity)/Q\d+/?$#', api_str($p['path'] ?? null)))) {
+            continue;
+        }
+        $key = preg_replace('/^www\./', '', $host) . rtrim(api_str($p['path'] ?? null), '/') . (isset($p['query']) ? '?' . $p['query'] : '');
+        $out[$key] = $out[$key] ?? $url; // first spelling wins
+    }
+    return array_values($out);
 }
 
 /** "@handle" from the X (Twitter) profile setting, or null. */
@@ -564,11 +652,15 @@ function seo_page_meta(array $page, ?array $seo, int $status = 200): array
     }
     $currentUrl = seo_path_url(seo_canonical_path($path));
 
-    $ogImage = $nz($seo['og_image'] ?? null) ?? $nz($page['image'] ?? null) ?? 'assets/images/site/hero-campus-students.jpg';
+    $ogImage = $nz($seo['og_image'] ?? null) ?? $nz($page['image'] ?? null) ?? 'assets/images/og/gimt-share.jpg'; // 1200×630 logo + name card
     $ogImageUrl = (string) preg_replace('/[?&]v=\d+$/', '', (string) seo_abs_url($ogImage)); // no cache-busting suffix in share cards
     $img = seo_image_meta($ogImageUrl);
     $ogTitle = $nz($seo['og_title'] ?? null) ?? $title;
     $ogDesc = str_limit($nz($seo['og_description'] ?? null) ?? $description, 300);
+    // X (Twitter) card: its own title / description when the admin set them, else the Open Graph values
+    $twTitle = $nz($seo['twitter_title'] ?? null) ?? $ogTitle;
+    $twDesc = str_limit($nz($seo['twitter_description'] ?? null) ?? $ogDesc, 300);
+    $imageAlt = str_limit($nz($seo['image_alt'] ?? null) ?? $nz($page['image_alt'] ?? null) ?? $ogTitle, 190);
 
     return [
         'title' => $title,
@@ -590,15 +682,15 @@ function seo_page_meta(array $page, ?array $seo, int $status = 200): array
             'og:image:type' => $img['mime'] ?? null,
             'og:image:width' => isset($img['width']) ? (string) $img['width'] : null,
             'og:image:height' => isset($img['height']) ? (string) $img['height'] : null,
-            'og:image:alt' => $nz($page['image_alt'] ?? null) ?? $ogTitle,
+            'og:image:alt' => $imageAlt,
         ], fn ($v) => $v !== null && $v !== ''),
         'twitter' => array_filter([
             'twitter:card' => 'summary_large_image',
             'twitter:site' => seo_twitter_handle(),
-            'twitter:title' => $ogTitle,
-            'twitter:description' => $ogDesc,
+            'twitter:title' => $twTitle,
+            'twitter:description' => $twDesc,
             'twitter:image' => $ogImageUrl,
-            'twitter:image:alt' => $nz($page['image_alt'] ?? null) ?? $ogTitle,
+            'twitter:image:alt' => $imageAlt,
         ], fn ($v) => $v !== null && $v !== ''),
     ];
 }
@@ -676,27 +768,56 @@ function seo_breadcrumb_from_path(string $path, string $currentTitle): array
     return ['@context' => 'https://schema.org', '@type' => 'BreadcrumbList', 'itemListElement' => $list];
 }
 
-/** Site-wide CollegeOrUniversity entity (settings only — verified data). */
+/**
+ * Raster logo for structured data (Google: PNG/JPG/WebP/GIF, at least 112 × 112, crawlable): the uploaded logo
+ * (Settings › General) when it is a raster image, otherwise the bundled assets/images/logo-email.png, otherwise the
+ * SVG logo. ['url' => absolute URL, 'width' => ?, 'height' => ?].
+ */
+function seo_logo_image(): array
+{
+    $candidates = [];
+    if ($custom = setting('logo')) {
+        $candidates[] = function_exists('upload_url') ? upload_url($custom) : (string) $custom;
+    }
+    $candidates[] = 'assets/images/logo-email.png';
+    foreach ($candidates as $c) {
+        $url = (string) preg_replace('/[?&]v=\d+$/', '', (string) seo_abs_url($c));
+        $meta = seo_image_meta($url);
+        if ($url !== '' && in_array($meta['mime'] ?? '', ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], true)) {
+            return ['url' => $url, 'width' => $meta['width'] ?? null, 'height' => $meta['height'] ?? null];
+        }
+    }
+    return ['url' => (string) preg_replace('/[?&]v=\d+$/', '', (string) seo_abs_url(function_exists('logo_url') ? logo_url() : 'assets/images/logo.svg')), 'width' => null, 'height' => null];
+}
+
+/** Site-wide CollegeOrUniversity entity (settings only — verified data; nothing is assumed when a setting is empty). */
 function seo_organization_entity(): array
 {
     $site = seo_site_url();
-    $logo = (string) preg_replace('/\?v=\d+$/', '', (string) seo_abs_url(function_exists('logo_url') ? logo_url() : 'assets/images/logo.svg'));
-    $phone = (string) setting('phone', '');
-    $email = (string) setting('email', '');
-    $addr = array_filter(['@type' => 'PostalAddress', 'streetAddress' => setting('address'), 'addressLocality' => setting('city', 'Noida'),
-        'addressRegion' => setting('state', 'Uttar Pradesh'), 'postalCode' => setting('pincode'), 'addressCountry' => 'IN']);
+    $logo = seo_logo_image();
+    $s = fn (string $k) => trim((string) setting($k, ''));
+    $phone = $s('phone');
+    $email = $s('email');
+    $addr = array_filter(['@type' => 'PostalAddress', 'streetAddress' => $s('address'), 'addressLocality' => $s('city'),
+        'addressRegion' => $s('state'), 'postalCode' => $s('pincode')], fn ($v) => $v !== '');
+    if (count($addr) > 2) {
+        $addr['addressCountry'] = $s('country') !== '' ? $s('country') : 'IN'; // Indian institute: the state / PIN code settings are Indian
+    }
     $lat = setting('latitude');
     $lng = setting('longitude');
+    $area = $s('area_served');
     return array_filter([
         '@type' => 'CollegeOrUniversity', '@id' => $site . '#organization', 'name' => institute_name(),
-        'alternateName' => array_values(array_unique(array_filter([setting('brand_name', 'Global IMT'), setting('institute_short_name', 'GIMT')]))),
-        'url' => $site, 'logo' => ['@type' => 'ImageObject', 'url' => $logo], 'image' => $logo,
+        'alternateName' => array_values(array_unique(array_filter([$s('brand_name'), $s('institute_short_name')]))),
+        'url' => $site, 'logo' => array_filter(['@type' => 'ImageObject', '@id' => $site . '#logo', 'url' => $logo['url'], 'contentUrl' => $logo['url'],
+            'width' => $logo['width'], 'height' => $logo['height']], fn ($v) => $v !== null), 'image' => $logo['url'],
         'email' => $email ?: null, 'telephone' => $phone ?: null,
-        'foundingDate' => setting('established_year') ? (string) setting('established_year') : null,
-        'address' => count($addr) > 2 ? $addr : null,
+        'foundingDate' => $s('established_year') ?: null,
+        'address' => count($addr) > 3 ? $addr : null,
         'geo' => is_numeric($lat) && is_numeric($lng) ? ['@type' => 'GeoCoordinates', 'latitude' => (float) $lat, 'longitude' => (float) $lng] : null,
-        'contactPoint' => $phone || setting('admission_email') ? [array_filter(['@type' => 'ContactPoint', 'contactType' => 'admissions', 'telephone' => $phone ?: null,
-            'email' => setting('admission_email') ?: ($email ?: null), 'areaServed' => 'IN'])] : null,
+        'areaServed' => $area ?: null,
+        'contactPoint' => $phone || $s('admission_email') ? [array_filter(['@type' => 'ContactPoint', 'contactType' => 'admissions', 'telephone' => $phone ?: null,
+            'email' => $s('admission_email') ?: ($email ?: null), 'areaServed' => $area ?: null])] : null,
         'sameAs' => seo_same_as() ?: null,
     ], fn ($v) => $v !== null && $v !== '' && $v !== []);
 }
@@ -727,7 +848,7 @@ function seo_jsonld_html(array $page, ?array $seo, string $title, int $status = 
     $flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP;
     $tag = fn ($data) => '  <script type="application/ld+json">' . json_encode($data, $flags) . "</script>\n";
     $out = '';
-    $pageSchemas = array_values(array_filter((array) ($page['schema'] ?? []), 'is_array'));
+    $pageSchemas = array_values(array_filter((array) ($page['schema'] ?? []), fn ($s) => is_array($s) && $s !== [])); // builders return [] / null when data is missing
     $families = seo_schema_families($pageSchemas);
     foreach ($pageSchemas as $s) {
         $out .= $tag($s);
@@ -806,15 +927,20 @@ function seo_head_extras($items): string
     return $out;
 }
 
-/** Search engine verification meta tags (Google Search Console, Bing). They set no cookies, so no consent is needed. */
+/**
+ * Search engine verification meta tags (Google Search Console, Bing, Yandex, Baidu, Naver). They set no cookies, so
+ * no consent is needed; engines re-check them periodically, so they stay on every page.
+ */
 function seo_verification_meta(): string
 {
     $out = '';
-    if ($v = seo_integration_value('search_console_verification')) {
-        $out .= '  <meta name="google-site-verification" content="' . e($v) . "\">\n";
-    }
-    if ($v = seo_integration_value('bing_site_verification')) {
-        $out .= '  <meta name="msvalidate.01" content="' . e($v) . "\">\n";
+    foreach (['search_console_verification' => 'google-site-verification', 'bing_site_verification' => 'msvalidate.01',
+        'yandex_verification' => 'yandex-verification', 'baidu_verification' => 'baidu-site-verification',
+        'naver_verification' => 'naver-site-verification'] as $key => $name) {
+        $v = trim((string) seo_integration_value($key, ''));
+        if ($v !== '' && preg_match('/^[A-Za-z0-9_\-.]{4,120}$/', $v)) {
+            $out .= '  <meta name="' . $name . '" content="' . e($v) . "\">\n";
+        }
     }
     return $out;
 }
@@ -917,10 +1043,90 @@ function seo_redirect_reserved(string $path): ?string
     if (preg_match('#^/(admin|api|assets|portal|storage)(/|$)#', $p)) {
         return 'Paths under /admin, /api, /assets, /portal and /storage cannot be redirected.';
     }
-    if (in_array($p, ['/sitemap.xml', '/robots.txt'], true) || preg_match('#^/sitemap-[a-z]+\.xml$#', $p)) {
-        return 'sitemap.xml and robots.txt cannot be redirected.';
+    if (in_array($p, ['/sitemap.xml', '/robots.txt', '/llms.txt', '/llms-full.txt'], true) || preg_match('#^/sitemap-[a-z]+\.xml$#', $p)
+        || seo_is_indexnow_key_path($p)) {
+        return 'sitemap.xml, robots.txt, llms.txt and the IndexNow key file cannot be redirected.';
     }
     return null;
+}
+
+/** Is this path the IndexNow key file (/{key}.txt of the configured key)? */
+function seo_is_indexnow_key_path(string $path): bool
+{
+    if (!preg_match('#^/([A-Za-z0-9\-]{8,128})\.txt$#', $path, $m)) {
+        return false;
+    }
+    $key = trim((string) setting('indexnow_key', ''));
+    return $key !== '' && hash_equals($key, $m[1]);
+}
+
+/**
+ * www.<canonical host> → canonical origin (301, same path + query) when the configured site URL has no "www." — a
+ * fallback for servers where .htaccess does not do it (Apache does it before PHP). GET/HEAD only.
+ */
+function seo_host_redirect(): void
+{
+    if (PHP_SAPI === 'cli' || headers_sent() || !in_array(strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')), ['GET', 'HEAD'], true)) {
+        return;
+    }
+    $reqHost = strtolower((string) preg_replace('/:\d+$/', '', (string) ($_SERVER['HTTP_HOST'] ?? '')));
+    $canon = strtolower((string) parse_url(seo_origin(), PHP_URL_HOST));
+    if ($reqHost === '' || $canon === '' || str_starts_with($canon, 'www.') || $reqHost !== 'www.' . $canon) {
+        return;
+    }
+    $uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+    $uri = str_starts_with($uri, '/') && !str_starts_with($uri, '//') ? $uri : '/';
+    seo_send_redirect(seo_origin() . $uri, 301);
+}
+
+/** Crawler family of a user agent (Googlebot, GPTBot, … 'other-bot'), or null for browsers. */
+function seo_bot_family(?string $ua = null): ?string
+{
+    $ua = $ua ?? (string) ($_SERVER['HTTP_USER_AGENT'] ?? '');
+    if ($ua === '' || str_contains($ua, 'GIMT-SEO-Audit')) {
+        return null;
+    }
+    static $families = [
+        'OAI-SearchBot' => '/OAI-SearchBot/i', 'ChatGPT-User' => '/ChatGPT-User/i', 'GPTBot' => '/GPTBot/i',
+        'Claude-SearchBot' => '/Claude-SearchBot/i', 'Claude-User' => '/Claude-User/i', 'ClaudeBot' => '/ClaudeBot/i',
+        'Perplexity-User' => '/Perplexity-User/i', 'PerplexityBot' => '/PerplexityBot/i',
+        'Meta-ExternalAgent' => '/meta-externalagent/i', 'meta-webindexer' => '/meta-webindexer/i', 'meta-externalfetcher' => '/meta-externalfetcher/i',
+        'Amzn-SearchBot' => '/Amzn-SearchBot/i', 'Amzn-User' => '/Amzn-User/i', 'DuckAssistBot' => '/DuckAssistBot/i',
+        'Amazonbot' => '/Amazonbot/i', 'CCBot' => '/CCBot/i', 'Bytespider' => '/Bytespider/i',
+        'Googlebot' => '/Googlebot|Google-InspectionTool|Storebot-Google/i', 'Bingbot' => '/bingbot|BingPreview|msnbot/i',
+        'YandexBot' => '/Yandex(Bot|Images|Mobile|Additional|Metrika|Accessibility|Video|Renderer)/i', 'Baiduspider' => '/Baiduspider/i',
+        'Yeti' => '/\bYeti\//i', 'DuckDuckBot' => '/DuckDuckBot/i', 'Applebot' => '/Applebot/i',
+    ];
+    foreach ($families as $name => $re) {
+        if (preg_match($re, $ua)) {
+            return $name;
+        }
+    }
+    return preg_match('/bot\b|bot\/|crawl|spider|slurp|facebookexternalhit|embedly|preview|fetcher|scraper|python-requests|curl\/|wget/i', $ua) ? 'other-bot' : null;
+}
+
+/** Count one crawler hit per request in seo_bot_hits (daily counter per bot family; no IP or user agent stored). */
+function seo_bot_hit(?string $path = null): void
+{
+    static $done = false;
+    if ($done || PHP_SAPI === 'cli') {
+        return;
+    }
+    $done = true;
+    $bot = seo_bot_family();
+    if ($bot === null) {
+        return;
+    }
+    try {
+        $path = mb_substr($path ?? seo_site_path(), 0, 500);
+        db_exec('INSERT INTO seo_bot_hits (hit_date, bot, hits, last_path) VALUES (?, ?, 1, ?) ON DUPLICATE KEY UPDATE hits = hits + 1, last_path = VALUES(last_path)',
+            [date('Y-m-d'), $bot, $path]);
+        if (random_int(1, 500) === 1) {
+            db_exec('DELETE FROM seo_bot_hits WHERE hit_date < ?', [date('Y-m-d', strtotime('-400 days'))]);
+        }
+    } catch (Throwable $e) {
+        // table missing (schema 57 not applied) — never break a page for a counter
+    }
 }
 
 /** Paths left alone by the automatic lower-case / trailing-slash 301s (codes are case-sensitive there). */
@@ -1045,6 +1251,10 @@ function seo_redirect_maybe(bool $missing = true): ?int
     if (preg_match('/[A-Z]/', $norm) && !seo_redirect_case_sensitive($norm)) {
         $norm = mb_strtolower($norm);
     }
+    // /About.php (Apache sends mixed-case URLs here before its .php rule) → /about in one hop
+    if (preg_match('#^/([a-z0-9\-]+)\.php$#', $norm, $m) && is_file(APP_ROOT . '/' . $m[1] . '.php')) {
+        $norm = $m[1] === 'index' ? '/' : '/' . $m[1];
+    }
     if ($norm !== $path && seo_path_exists($norm)) {
         seo_send_redirect(seo_path_url($norm) . ($query !== '' ? '?' . $query : ''), 301);
     }
@@ -1058,6 +1268,8 @@ function seo_redirect_maybe(bool $missing = true): ?int
  */
 function seo_redirect_on_render(int $status): int
 {
+    seo_host_redirect();   // www.<host> → canonical host
+    seo_bot_hit();         // crawler activity (one cheap upsert, bots only)
     if ($status === 404) {
         return seo_redirect_maybe(true) ?? 404;
     }
@@ -1087,6 +1299,11 @@ function seo_path_exists(string $path): bool
             $ok = is_file($root . '/' . explode('/', ltrim($p, '/'))[0] . '/index.php');
         } elseif (in_array($p, ['/sitemap.xml', '/robots.txt'], true) || preg_match('#^/sitemap-[a-z]+\.xml$#', $p)) {
             $ok = true;
+        } elseif (in_array($p, ['/llms.txt', '/llms-full.txt'], true)) {
+            require_once __DIR__ . '/seo_ai.php';
+            $ok = seo_llms_enabled();
+        } elseif (seo_is_indexnow_key_path($p)) {
+            $ok = setting('indexnow_enabled', '0') === '1';
         } elseif (str_starts_with($p, '/assets/')) {
             $ok = !str_contains($p, '..') && is_file($root . $p);
         } elseif (preg_match('#^/verify-(certificate|marksheet)(/.*)?$#', $p)) {
@@ -1103,7 +1320,7 @@ function seo_path_exists(string $path): bool
                 'admissions-open' => (bool) db_value("SELECT COUNT(*) FROM programs WHERE status = 'active' AND (slug = ? OR LOWER(code) = ? OR LOWER(REPLACE(REPLACE(short_name, '.', ''), ' ', '-')) = ?)", [$slug, $slug, $slug]),
             };
         } elseif (preg_match('#^/([a-z0-9-]+)$#', $p, $m)) {
-            $internal = ['index', 'site-kit', '404', '500', 'page', 'post', 'event', 'notice', 'program', 'gallery-item', 'sitemap', 'robots'];
+            $internal = ['index', 'site-kit', '404', '500', 'page', 'post', 'event', 'notice', 'program', 'gallery-item', 'sitemap', 'robots', 'llms', 'indexnow'];
             $ok = (is_file($root . '/' . $m[1] . '.php') && !in_array($m[1], $internal, true))
                 || (bool) db_value("SELECT COUNT(*) FROM pages WHERE slug = ? AND status = 'published' AND (published_at IS NULL OR published_at <= NOW())", [$m[1]]);
         }
@@ -1442,25 +1659,48 @@ function seo_robots_blocked_params(): array
     return ['q', 'search', 'sort', 'order', 'tag', 'from', 'to', 'date', 'ack', 'preview', 'consent_preview', 'brochure', 'print'];
 }
 
-/** Recommended rules: allow the website, keep out admin / portals / API / internal search and filtered URLs. */
-function seo_default_robots_txt(): string
+/** The "User-agent: *" rules of the recommended robots.txt as [[allow(bool), pattern], …]. */
+function seo_default_robots_rules(): array
 {
     $base = base_path();
-    $lines = ['# robots.txt — ' . institute_name(), 'User-agent: *', 'Allow: /'];
+    $rules = [[true, '/']];
     // "/search$" + "/search?" block the internal search page only (not CMS pages such as /search-engine-marketing)
     foreach (['/admin/', '/api/', '/portal/', '/storage/', '/search$', '/search?'] as $p) {
-        $lines[] = 'Disallow: ' . $base . $p;
+        $rules[] = [false, $base . $p];
     }
     foreach (seo_robots_blocked_params() as $param) {
-        $lines[] = 'Disallow: ' . $base . '/*?' . $param . '=';
-        $lines[] = 'Disallow: ' . $base . '/*&' . $param . '=';
+        $rules[] = [false, $base . '/*?' . $param . '='];
+        $rules[] = [false, $base . '/*&' . $param . '='];
+    }
+    return $rules;
+}
+
+/**
+ * Recommended rules: allow the website, keep out admin / portals / API / internal search and filtered URLs, then the
+ * managed AI crawler block (AI search / training policy, app/services/seo_ai.php) and the Sitemap line.
+ */
+function seo_default_robots_txt(): string
+{
+    require_once __DIR__ . '/seo_ai.php';
+    $rules = seo_default_robots_rules();
+    $lines = ['# robots.txt — ' . institute_name(), 'User-agent: *'];
+    foreach ($rules as [$allow, $p]) {
+        $lines[] = ($allow ? 'Allow: ' : 'Disallow: ') . $p;
     }
     $lines[] = '';
+    $ai = seo_robots_ai_block($rules);
+    if ($ai !== '') {
+        $lines[] = rtrim($ai);
+        $lines[] = '';
+    }
     $lines[] = 'Sitemap: ' . absolute_url('sitemap.xml');
     return implode("\n", $lines) . "\n";
 }
 
-/** robots.txt served at /robots.txt: blocked staging → disallow all; custom CMS rules (+ Sitemap line); else defaults. */
+/**
+ * robots.txt served at /robots.txt: blocked staging → disallow all; custom CMS rules (the managed AI block is
+ * appended / replaced between its markers, + Sitemap line); else the recommended defaults.
+ */
 function seo_robots_txt(): string
 {
     if (setting('seo_block_indexing', '0') === '1') {
@@ -1470,6 +1710,8 @@ function seo_robots_txt(): string
     if ($custom === '') {
         return seo_default_robots_txt();
     }
+    require_once __DIR__ . '/seo_ai.php';
+    $custom = rtrim(seo_robots_with_ai_block($custom));
     if (!preg_match('/^\s*sitemap\s*:/im', $custom)) {
         $custom .= "\n\nSitemap: " . absolute_url('sitemap.xml');
     }
@@ -1562,10 +1804,82 @@ function seo_sitemap_groups(): array
             $byType[$t] = $g;
         }
     }
+    $drop = seo_sitemap_excluded_paths();
     foreach (cms_sitemap_urls() as $u) {
+        if (isset($drop[$u['path']])) {
+            continue;
+        }
         $groups[$byType[$u['type']] ?? 'pages'][] = $u;
     }
     return $groups;
+}
+
+/**
+ * Paths that must not be in the sitemaps although cms_sitemap_urls() lists them (only canonical, indexable 200 URLs
+ * belong there): listing pages that render noindex while empty (/events without upcoming events, /notices without
+ * current notices) and URLs whose admin canonical points to another URL. path => reason.
+ */
+function seo_sitemap_excluded_paths(): array
+{
+    $out = [];
+    $now = date('Y-m-d H:i:s');
+    try {
+        require_once APP_ROOT . '/includes/partials/notices_events.php'; // functions only
+        if (function_exists('ne_event_where')) {
+            [$w, $a] = ne_event_where('upcoming', $now);
+            if ((int) db_value("SELECT COUNT(*) FROM events e WHERE $w", $a) === 0) {
+                $out['/events'] = 'no upcoming events (the page is noindex while empty)';
+            }
+        }
+        if (function_exists('ne_notice_where')) {
+            [$w, $a] = ne_notice_where('current', $now);
+            if ((int) db_value("SELECT COUNT(*) FROM notices n WHERE $w", $a) === 0) {
+                $out['/notices'] = 'no current notices (the page is noindex while empty)';
+            }
+        }
+    } catch (Throwable $e) {
+    }
+    try {
+        $rows = db_all("SELECT s.entity_type, s.entity_id, s.route, s.canonical_url, p.slug AS program_slug, b.slug AS post_slug, ev.slug AS event_slug,
+                               n.slug AS notice_slug, pg.slug AS page_slug, pg.is_system AS page_system
+                        FROM seo_settings s
+                        LEFT JOIN programs p ON s.entity_type = 'program' AND p.id = s.entity_id
+                        LEFT JOIN blog_posts b ON s.entity_type = 'post' AND b.id = s.entity_id
+                        LEFT JOIN events ev ON s.entity_type = 'event' AND ev.id = s.entity_id
+                        LEFT JOIN notices n ON s.entity_type = 'notice' AND n.id = s.entity_id
+                        LEFT JOIN pages pg ON s.entity_type = 'page' AND pg.id = s.entity_id
+                        WHERE s.canonical_url IS NOT NULL AND s.canonical_url <> ''");
+    } catch (Throwable $e) {
+        $rows = [];
+    }
+    foreach ($rows as $r) {
+        $path = match ($r['entity_type']) {
+            'route' => (string) $r['route'],
+            'program' => $r['program_slug'] ? '/programs/' . $r['program_slug'] : null,
+            'post' => $r['post_slug'] ? '/blog/' . $r['post_slug'] : null,
+            'event' => $r['event_slug'] ? '/events/' . $r['event_slug'] : null,
+            'notice' => $r['notice_slug'] ? '/notices/' . $r['notice_slug'] : null,
+            'page' => $r['page_slug'] && function_exists('cms_page_url') ? cms_page_url(['slug' => $r['page_slug'], 'is_system' => $r['page_system']]) : null,
+            default => null,
+        };
+        if ($path === null) {
+            continue;
+        }
+        $c = trim((string) $r['canonical_url']);
+        if (preg_match('#^https?://#i', $c)) {
+            if (stripos($c . '/', seo_origin() . '/') !== 0) {
+                $out[$path] = 'canonical points to another website';
+                continue;
+            }
+            $c = substr($c, strlen(seo_origin())) ?: '/';
+        }
+        $cPath = seo_site_path($c);
+        $cQuery = str_contains($c, '?') ? explode('?', $c, 2)[1] : '';
+        if (mb_strtolower(rtrim($cPath, '/') ?: '/') !== mb_strtolower(rtrim($path, '/') ?: '/') || $cQuery !== '') {
+            $out[$path] = 'canonical points to ' . $cPath . ($cQuery !== '' ? '?' . $cQuery : '');
+        }
+    }
+    return $out;
 }
 
 /** Images per indexable URL for sitemap-images.xml: path => [[loc, title], …] (max 1000 per URL). */
@@ -1672,7 +1986,7 @@ function seo_sitemap_cached(string $name, callable $build): string
 function seo_sitemap_cache_clear(): int
 {
     $n = 0;
-    foreach (glob(seo_sitemap_cache_dir() . '/sitemap-*') ?: [] as $f) {
+    foreach (array_merge(glob(seo_sitemap_cache_dir() . '/sitemap-*') ?: [], glob(seo_sitemap_cache_dir() . '/llms-*') ?: []) as $f) {
         if (@unlink($f)) {
             $n++;
         }
@@ -1927,7 +2241,95 @@ function seo_audit_issue_defs(): array
         'og_image_small' => ['Social share image narrower than 600 px (1200 × 630 recommended)', 'notice'],
         'heavy' => ['HTML larger than 1.5 MB', 'notice'],
         'lang_missing' => ['No lang attribute on <html>', 'notice'],
+        'schema_invalid_json' => ['Structured data (JSON-LD) that is not valid JSON', 'error'],
+        'schema_missing_required' => ['Structured data missing required properties', 'warning'],
+        'schema_none' => ['No structured data (JSON-LD)', 'notice'],
     ];
+}
+
+/**
+ * Required properties per schema.org type checked by the audit (Google's documented required fields, plus provider
+ * for Course and url/logo for the organisation). Subtypes map to their base type.
+ */
+function seo_schema_required_props(): array
+{
+    return [
+        'Course' => ['name', 'description', 'provider'],
+        'Event' => ['name', 'startDate', 'location'],
+        'Article' => ['headline', 'datePublished', 'image'],
+        'BreadcrumbList' => ['itemListElement'],
+        'FAQPage' => ['mainEntity'],
+        'Organization' => ['name', 'url', 'logo'],
+    ];
+}
+
+/** Base type used for the required-property check (BlogPosting → Article, CollegeOrUniversity → Organization …), or null. */
+function seo_schema_check_type(string $type): ?string
+{
+    $fam = seo_schema_family($type);
+    return match ($fam) {
+        'course' => $type === 'CourseInstance' ? null : 'Course',
+        'event' => 'Event',
+        'article' => 'Article',
+        'breadcrumb' => 'BreadcrumbList',
+        'faq' => 'FAQPage',
+        'organization' => 'Organization',
+        default => null,
+    };
+}
+
+/**
+ * Validate the JSON-LD blocks of a page: ['types' => [...], 'invalid' => n, 'missing' => ['Course "MBA": provider', …]].
+ * Checks top-level entities (and @graph members) plus the items of an ItemList (course / event carousels).
+ */
+function seo_schema_validate(array $blocks): array
+{
+    $types = [];
+    $invalid = 0;
+    $missing = [];
+    $req = seo_schema_required_props();
+    $check = function (array $e, bool $topLevel) use (&$types, &$missing, $req) {
+        foreach ((array) ($e['@type'] ?? []) as $t) {
+            if (!is_string($t) || $t === '') {
+                continue;
+            }
+            $types[$t] = true;
+            $base = seo_schema_check_type($t);
+            if ($base === null || ($base === 'Organization' && !$topLevel)) {
+                continue; // nested provider / organizer orgs only need a name or @id
+            }
+            $gaps = [];
+            foreach ($req[$base] as $prop) {
+                $v = $e[$prop] ?? null;
+                if ($v === null || $v === '' || $v === []) {
+                    $gaps[] = $prop;
+                }
+            }
+            if ($gaps) {
+                $label = is_string($e['name'] ?? $e['headline'] ?? null) ? ' "' . mb_substr((string) ($e['name'] ?? $e['headline']), 0, 40) . '"' : '';
+                $missing[] = $t . $label . ': ' . implode(', ', $gaps);
+            }
+        }
+    };
+    foreach ($blocks as $raw) {
+        $data = json_decode(trim((string) $raw), true);
+        if (!is_array($data)) {
+            $invalid++;
+            continue;
+        }
+        foreach (seo_schema_entities($data) as $e) {
+            $check($e, true);
+            if (in_array('ItemList', (array) ($e['@type'] ?? []), true)) {
+                foreach ((array) ($e['itemListElement'] ?? []) as $li) {
+                    $item = is_array($li) && is_array($li['item'] ?? null) ? $li['item'] : (is_array($li) && ($li['@type'] ?? '') !== 'ListItem' ? $li : null);
+                    if (is_array($item) && isset($item['@type'])) {
+                        $check($item, false);
+                    }
+                }
+            }
+        }
+    }
+    return ['types' => array_keys($types), 'invalid' => $invalid, 'missing' => array_values(array_unique($missing))];
 }
 
 /** Background worker mode? (the PHP built-in dev server is single-threaded: it cannot answer its own crawl requests) */
@@ -2159,7 +2561,7 @@ function seo_http_fetch_many(array $reqs, int $concurrency = 1): array
                 $ch = $make($r, $buf, (string) $k);
                 curl_exec($ch);
                 $out[$k] = $result($ch, (string) $k, curl_errno($ch) && !$buf[(string) $k]['truncated'] ? curl_error($ch) : null);
-                curl_close($ch);
+                unset($ch); // curl_close() is a no-op since PHP 8 (deprecated in 8.5)
             }
             continue;
         }
@@ -2179,7 +2581,6 @@ function seo_http_fetch_many(array $reqs, int $concurrency = 1): array
             $err = curl_error($ch);
             $out[$k] = $result($ch, (string) $k, $err !== '' && !$buf[(string) $k]['truncated'] ? $err : null);
             curl_multi_remove_handle($mh, $ch);
-            curl_close($ch);
         }
         curl_multi_close($mh);
     }
@@ -2190,7 +2591,11 @@ function seo_http_fetch_many(array $reqs, int $concurrency = 1): array
 function seo_audit_parse_html(string $html, bool $https): array
 {
     $out = ['title' => null, 'description' => null, 'robots' => null, 'canonical' => null, 'og_image' => null, 'lang' => null, 'h1' => [],
-        'images' => 0, 'images_no_alt' => 0, 'links' => [], 'mixed' => 0];
+        'images' => 0, 'images_no_alt' => 0, 'links' => [], 'mixed' => 0, 'jsonld' => []];
+    // JSON-LD blocks (regex: DOMDocument would mangle script contents with "</" inside strings)
+    if (preg_match_all('#<script\b[^>]*\btype\s*=\s*["\']?application/ld\+json["\']?[^>]*>(.*?)</script>#is', $html, $mm)) {
+        $out['jsonld'] = $mm[1];
+    }
     if (!class_exists('DOMDocument')) {
         if (preg_match('#<title[^>]*>(.*?)</title>#is', $html, $m)) {
             $out['title'] = trim(html_entity_decode(strip_tags($m[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
@@ -2386,6 +2791,20 @@ function seo_audit_process(array $audit, array $row, array $res, array $rules, b
         }
         if ($p['mixed'] > 0) {
             $issues[] = 'mixed_content';
+        }
+        $schema = seo_schema_validate($p['jsonld']);
+        $upd['schema_types'] = $schema['types'] ? mb_substr(implode(', ', $schema['types']), 0, 500) : null;
+        if ($schema['invalid'] > 0) {
+            $issues[] = 'schema_invalid_json';
+        }
+        if ($schema['missing']) {
+            $issues[] = 'schema_missing_required';
+            if (empty($upd['error'])) {
+                $upd['error'] = mb_substr('Schema: ' . implode('; ', $schema['missing']), 0, 255); // which entity misses what
+            }
+        }
+        if (!$p['jsonld']) {
+            $issues[] = 'schema_none';
         }
         if (!empty($res['truncated']) || (int) $res['bytes'] > 1.5 * 1024 * 1024) {
             $issues[] = 'heavy';
@@ -2626,7 +3045,7 @@ function seo_audit_pages(int $id, array $f, int $page = 1, int $perPage = 25): a
     $total = (int) db_value('SELECT COUNT(*)' . $sql, $args);
     $p = paginate($total, $page, $perPage);
     $rows = db_all('SELECT id, url, path, kind, source, in_sitemap, depth, found_on, state, status_code, redirect_to, content_type, response_ms, bytes, title, description,
-                    h1, h1_count, images, images_no_alt, canonical, robots, issues, error' . $sql . " ORDER BY $sort $dir, id ASC LIMIT " . (int) $p['per_page'] . ' OFFSET ' . (int) $p['offset'], $args);
+                    h1, h1_count, images, images_no_alt, canonical, robots, schema_types, issues, error' . $sql . " ORDER BY $sort $dir, id ASC LIMIT " . (int) $p['per_page'] . ' OFFSET ' . (int) $p['offset'], $args);
     foreach ($rows as &$r) {
         $r['issues'] = json_decode((string) $r['issues'], true) ?: [];
         foreach (['id', 'in_sitemap', 'depth', 'status_code', 'response_ms', 'bytes', 'h1_count', 'images', 'images_no_alt'] as $k) {
@@ -2647,7 +3066,7 @@ function seo_audit_export_rows(int $id): array
         $out[] = [$r['url'], $r['kind'], $r['state'] === 'done' ? ($r['status_code'] ?: 'failed') : $r['state'], $r['redirect_to'], $r['response_ms'],
             $r['bytes'] !== null ? round((int) $r['bytes'] / 1024, 1) : '', $r['title'], $r['title'] !== null ? mb_strlen((string) $r['title']) : '',
             $r['description'] !== null ? mb_strlen((string) $r['description']) : '', $r['h1_count'], $r['images_no_alt'], $r['canonical'], $r['robots'],
-            $r['in_sitemap'] ? 'yes' : 'no', $r['depth'], $r['found_on'], implode('; ', array_map(fn ($c) => $defs[$c][0] ?? $c, $iss)), $r['error']];
+            $r['in_sitemap'] ? 'yes' : 'no', $r['depth'], $r['found_on'], implode('; ', array_map(fn ($c) => $defs[$c][0] ?? $c, $iss)), $r['error'], $r['schema_types'] ?? ''];
     }
     return $out;
 }

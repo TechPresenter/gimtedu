@@ -2,7 +2,7 @@
 /**
  * SEO Management (docs/CMS.md §6).
  *   GET    /api/seo/overview                                  score, coverage, issues per type, worst URLs
- *   GET    /api/seo/entries?type=&issue=&status=&q=&page=     coverage table (server-side filter + pagination)
+ *   GET    /api/seo/entries?type=&issue=&status=&index=&q=&page= coverage table (server-side filter + pagination)
  *   GET    /api/seo/entry?type=page&id=5 | ?type=route&route=/about
  *   PUT    /api/seo/entry                                     {type, id|route, meta_title, …}  upsert
  *   DELETE /api/seo/entry?type=&id=|route=                    reset to defaults (delete the record)
@@ -28,15 +28,58 @@ function seo_entry_payload(array $target): array
     $row = cms_seo_find($target);
     $e = $target['entity'];
     $suffix = cms_seo_suffix();
+    $path = strtok((string) $e['url'], '?') ?: '/';
+    $path = $path === '/' ? '/' : rtrim($path, '/');
+    $audit = cms_seo_audit_index()[$path] ?? null;
+    // Effective title / description of every other public URL (duplicate checks while typing in the drawer)
+    $myKey = $target['ref_type'] === 'route' ? 'route:' . $target['ref_route'] : $target['ref_type'] . ':' . $target['ref_id'];
+    $titles = [];
+    $descs = [];
+    $inSitemap = false;
+    foreach (cms_seo_entries() as $x) {
+        if ($x['key'] === $myKey) {
+            continue;
+        }
+        if (!$x['is_public'] || in_array('noindex', $x['issues'], true) || in_array('canonical_elsewhere', $x['issues'], true)) {
+            continue;
+        }
+        if ($x['effective_title'] !== '') {
+            $titles[mb_strtolower($x['effective_title'])] ??= $x['url'];
+        }
+        if ($x['effective_description'] !== '') {
+            $descs[mb_strtolower($x['effective_description'])] ??= $x['url'];
+        }
+    }
+    foreach (cms_sitemap_urls() as $u) {
+        if ((strtok($u['path'], '?') ?: '/') === $path) {
+            $inSitemap = true;
+            break;
+        }
+    }
+    $seo = null;
+    if ($row) {
+        $seo = array_merge($row, ['id' => (int) $row['id'], 'include_in_sitemap' => (bool) $row['include_in_sitemap'], 'sitemap_priority' => (float) $row['sitemap_priority'],
+            'index_checked_at' => $row['index_checked_at'] ? substr((string) $row['index_checked_at'], 0, 10) : null]);
+    }
     return [
         'entity' => ['type' => $e['type'], 'id' => $e['id'], 'route' => $e['route'], 'title' => $e['title'], 'url' => $e['url'], 'absolute_url' => absolute_url(ltrim($e['url'], '/')), 'status' => $e['status']],
         'ref' => ['type' => $target['ref_type'], 'id' => $target['ref_id'], 'route' => $target['ref_route']],
-        'seo' => $row ? array_merge($row, ['id' => (int) $row['id'], 'include_in_sitemap' => (bool) $row['include_in_sitemap'], 'sitemap_priority' => (float) $row['sitemap_priority']]) : null,
+        'seo' => $seo,
         'defaults' => [
             'meta_title' => ($e['type'] === 'route' && $e['route'] === '/') ? institute_name() . $suffix : $e['title'] . $suffix,
             'meta_description' => str_limit((string) $e['fallback_description'], 160),
-            'og_image' => $e['fallback_image'] ?: 'assets/images/site/hero-campus-students.jpg',
+            'og_image' => $e['fallback_image'] ?: 'assets/images/og/gimt-share.jpg',
             'site_name' => institute_name(),
+        ],
+        'context' => [
+            'audit' => $audit ? ['title' => $audit['title'], 'description' => $audit['description'], 'h1' => $audit['h1'], 'h1_count' => $audit['h1_count'],
+                'images_no_alt' => $audit['images_no_alt'], 'schema_types' => $audit['schema_types'], 'issues' => $audit['issues'], 'status_code' => $audit['status_code'],
+                'crawled_at' => $audit['crawled_at']] : null,
+            'other_titles' => (object) $titles,
+            'other_descriptions' => (object) $descs,
+            'in_sitemap' => $inSitemap,
+            'og_image_missing' => cms_seo_image_file_missing((string) ($row['og_image'] ?? '') ?: (string) ($e['fallback_image'] ?: 'assets/images/og/gimt-share.jpg')),
+            'index_statuses' => cms_seo_index_statuses(),
         ],
     ];
 }
@@ -56,13 +99,15 @@ route('GET', '/seo/entries', function () {
     $issue = api_str($_GET['issue'] ?? null);
     $status = api_str($_GET['status'] ?? null);
     $q = mb_strtolower(trim(api_str($_GET['q'] ?? null)));
-    $rows = array_values(array_filter($rows, function ($r) use ($issue, $status, $q) {
+    $info = cms_seo_info_issues();
+    $index = api_str($_GET['index'] ?? null);
+    $rows = array_values(array_filter($rows, function ($r) use ($issue, $status, $q, $info, $index) {
         if ($issue === 'any') {
-            if (!array_diff($r['issues'], ['noindex', 'auto_description'])) {
+            if (!array_diff($r['issues'], $info)) {
                 return false;
             }
         } elseif ($issue === 'ok') {
-            if (array_diff($r['issues'], ['auto_description'])) {
+            if (array_diff($r['issues'], $info)) {
                 return false;
             }
         } elseif ($issue !== '' && !in_array($issue, $r['issues'], true)) {
@@ -80,7 +125,10 @@ route('GET', '/seo/entries', function () {
         if ($status === 'default' && $r['has_seo']) {
             return false;
         }
-        if ($q !== '' && !str_contains(mb_strtolower($r['title'] . ' ' . $r['url'] . ' ' . $r['effective_title']), $q)) {
+        if ($index !== '' && ($r['index_status'] ?: 'unknown') !== $index) {
+            return false;
+        }
+        if ($q !== '' && !str_contains(mb_strtolower($r['title'] . ' ' . $r['url'] . ' ' . $r['effective_title'] . ' ' . $r['focus_keyword']), $q)) {
             return false;
         }
         return true;
@@ -96,7 +144,7 @@ route('GET', '/seo/entries', function () {
     [$page, $perPage] = api_pagination(25);
     $p = paginate(count($rows), $page, $perPage);
     api_ok(['rows' => array_slice($rows, $p['offset'], $p['per_page']), 'total' => $p['total'], 'page' => $p['page'], 'per_page' => $p['per_page'], 'pages' => $p['pages'],
-        'from' => $p['from'], 'to' => $p['to'], 'issue_labels' => cms_seo_issue_labels()]);
+        'from' => $p['from'], 'to' => $p['to'], 'issue_labels' => cms_seo_issue_labels(), 'info_issues' => $info, 'index_statuses' => cms_seo_index_statuses()]);
 });
 
 route('GET', '/seo/entry', function () {

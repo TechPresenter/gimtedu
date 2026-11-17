@@ -1,8 +1,9 @@
 <?php
 /**
  * Campus Life (/campus) — facilities (image-zoom tiles with live counts), virtual campus tour (VideoLightbox when the
- * campus_tour_video_url setting is set), photo gallery (GalleryLightbox: CMS gallery items + bundled photos), hostel
- * & transport highlights (hostel / transport modules), clubs & societies, campus events (events + calendar),
+ * campus_tour_video_url setting is set), photo gallery (GalleryLightbox: CMS gallery items + bundled photos), clubs &
+ * societies, campus events (events + calendar). No hostel / transport / sports-ground / green-campus claims (owner
+ * decision 2026-11-17: the institute works from Wave One, 36th Floor, Sector 18, Noida),
  * testimonials (TestimonialSlider, only when the CMS testimonials table has active entries), CTA.
  */
 require __DIR__ . '/includes/config.php';
@@ -11,45 +12,35 @@ require_once __DIR__ . '/includes/partials/site_academic.php';
 $counts = sa_counts();
 $seats = sa_classroom_seats();
 $library = sa_library_summary();
-$hostel = sa_hostel_summary();
-$transport = sa_transport_summary();
 $spaces = sa_learning_spaces();
 $gallery = sa_gallery(13);
 $gallery = array_slice($gallery, 0, max(1, count($gallery) - ((count($gallery) + 3) % 4))); // full rows in the 4-column bento
 $events = sa_events(4);
 $testimonials = sa_testimonials(8);
 $tour = trim((string) setting('campus_tour_video_url', ''));
-$auditorium = current(array_filter($spaces, fn ($s) => $s['type'] === 'auditorium')) ?: null;
 
 $facilities = [
-    ['facility-classroom.jpg', 'Smart Classrooms', 'Air-conditioned classrooms with projectors and interactive panels for engaging, discussion-led lectures.',
-        $counts['classrooms'] ? $counts['classrooms'] . ' classrooms' . ($seats ? ' · ' . number_format($seats) . ' seats' : '') : 'Projector-equipped rooms', 'presentation'],
-    ['facility-labs.jpg', 'Advanced Laboratories', 'Computer, AI & data science and electronics labs with modern workstations and licensed software.',
-        $counts['labs'] ? $counts['labs'] . ' specialised labs' : 'Modern workstations', 'cpu'],
-    ['facility-library.jpg', 'Digital Library', 'Text and reference books, journals and e-resources in a quiet, air-conditioned reading hall.',
-        $library ? number_format($library['titles']) . ' titles · ' . number_format($library['copies']) . ' volumes' : 'Books, journals & e-resources', 'library'],
-    ['facility-hostel.jpg', 'Hostel Facilities', 'Separate, secure hostels for boys and girls with mess, Wi-Fi and round-the-clock support.',
-        $hostel ? $hostel['count'] . ' hostels · ' . number_format($hostel['beds']) . ' beds' : 'Boys & girls hostels', 'bed-double'],
-    ['facility-sports.jpg', 'Sports & Recreation', 'Courts for basketball, volleyball and badminton, indoor games and an annual inter-department sports meet.',
-        'Indoor & outdoor sports', 'trophy'],
-    ['facility-green-campus.jpg', 'Green & Safe Campus', 'Tree-lined lawns, CCTV coverage, 24×7 security and a ragging-free, inclusive environment.',
-        $auditorium ? $auditorium['name'] . ' · ' . (int) $auditorium['capacity'] . ' seats' : '24×7 security', 'shield-check'],
+    ['facility-classroom.jpg', 'Classrooms', 'Classrooms for lectures, discussions and presentations.',
+        $counts['classrooms'] ? $counts['classrooms'] . ' classrooms' . ($seats ? ' · ' . number_format($seats) . ' seats' : '') : 'Lectures & discussions', 'presentation'],
+    ['facility-labs.jpg', 'Computer Lab', 'Workstations for practical sessions in computers, data and office tools.',
+        $counts['labs'] ? $counts['labs'] . ' lab' . ($counts['labs'] === 1 ? '' : 's') : 'Practical sessions', 'cpu'],
+    ['facility-library.jpg', 'Library', 'Text and reference books for study and coursework.',
+        $library ? number_format($library['titles']) . ' titles · ' . number_format($library['copies']) . ' volumes' : 'Books for study', 'library'],
 ];
 $clubs = [
     ['code-xml', 'Coding Club', 'Hackathons, competitive programming and open-source sprints.', 'blue'],
     ['rocket', 'Entrepreneurship Cell', 'Startup bootcamps, pitch days and founder talks.', 'amber'],
     ['palette', 'Cultural Society', 'Dance, drama and the annual cultural fest.', 'rose'],
-    ['trophy', 'Sports Club', 'Inter-college tournaments and fitness programmes.', 'green'],
     ['megaphone', 'Literary & Debating', 'Debates, MUNs, quizzing and the campus magazine.', 'violet'],
     ['image', 'Photography & Media', 'Campus photography, short films and social media.', 'cyan'],
     ['heart', 'NSS & Community Service', 'Literacy drives, blood donation and cleanliness campaigns.', 'rose'],
     ['briefcase-business', 'Finance & Marketing Club', 'Stock-market games, case competitions and brand challenges.', 'navy'],
 ];
 
-$heroImg = 'assets/images/site/students-lawn.jpg';
+$heroImg = 'assets/images/site/students-atrium.jpg';
 site_header([
-    'title' => 'Campus Life — Facilities, Hostel & Student Clubs',
-    'description' => 'Campus life at GIMT Noida: smart classrooms, labs, digital library' . ($hostel ? ', ' . $hostel['count'] . ' hostels' : ', hostels') . ($transport ? ', ' . $transport['routes'] . ' bus routes' : ', transport') . ', sports, student clubs, events and a green, safe campus.',
+    'title' => 'Campus Life — Classrooms, Library & Student Clubs',
+    'description' => 'Campus life at GIMT, Sector 18, Noida: classrooms, a computer lab and library, student clubs and events. Book a visit during office hours.',
     'active' => 'campus',
     'seo' => ['route', '/campus'],
     'image' => $heroImg,
@@ -58,35 +49,38 @@ site_header([
 ]);
 
 page_hero('Campus Life', 'Learn. Live. Belong.', ['Campus Life'], $heroImg,
-    'A green, safe and vibrant campus in Sector 18, Noida — with modern facilities, hostels, transport and a calendar full of clubs, fests and sports.',
+    'Classes, clubs and events at ' . (trim((string) setting('address', '')) ?: 'GIMT, ' . setting('city', 'Noida')) . '.',
     [
-        ['icon' => 'presentation', 'label' => 'Smart Classrooms'],
-        ['icon' => 'bed-double', 'label' => 'Hostel & Mess'],
-        ['icon' => 'trophy', 'label' => 'Sports & Fitness'],
+        ['icon' => 'presentation', 'label' => 'Classrooms'],
+        ['icon' => 'cpu', 'label' => 'Computer Lab'],
+        ['icon' => 'library', 'label' => 'Library'],
         ['icon' => 'party-popper', 'label' => 'Clubs & Events'],
     ],
-    ['image_alt' => 'Students studying together on the GIMT campus lawn',
+    ['image_alt' => 'GIMT students between classes',
      'actions' => button_link('Explore Facilities', '#facilities', 'accent', ['shine' => true]) . ($tour !== '' ? '<a href="' . e($tour) . '" data-lightbox data-caption="GIMT Virtual Campus Tour" class="btn btn-outline-light">' . icon('circle-play', 'h-4 w-4') . 'Virtual Campus Tour</a>' : button_link('Photo Gallery', '#gallery', 'outline-light', ['icon' => 'images']))]);
 ?>
 
 <!-- At a glance -->
 <?= section_open(['id' => 'glance', 'padding' => 'tight']) ?>
   <h2 class="sr-only">Campus at a glance</h2>
-  <?= stat_counter(array_values(array_filter([
-      $counts['classrooms'] ? ['value' => $counts['classrooms'], 'label' => 'Smart classrooms', 'icon' => 'presentation'] : null,
-      $counts['labs'] ? ['value' => $counts['labs'], 'label' => 'Specialised labs', 'icon' => 'cpu'] : null,
-      $hostel ? ['value' => $hostel['beds'], 'label' => 'Hostel beds', 'icon' => 'bed-double'] : ['value' => $counts['students'], 'label' => 'Students on campus', 'icon' => 'users'],
-      $transport ? ['value' => $transport['routes'], 'label' => 'Bus routes', 'icon' => 'bus'] : ($library ? ['value' => $library['copies'], 'label' => 'Library volumes', 'icon' => 'library'] : null),
-  ])), ['variant' => 'cards']) ?>
+  <?php // figures of 0 (e.g. no students recorded yet) are never shown
+  $glanceStats = array_values(array_filter([
+      $counts['classrooms'] ? ['value' => $counts['classrooms'], 'label' => 'Classrooms', 'icon' => 'presentation'] : null,
+      $counts['labs'] ? ['value' => $counts['labs'], 'label' => 'Labs', 'icon' => 'cpu'] : null,
+      $counts['students'] > 0 ? ['value' => $counts['students'], 'label' => 'Students', 'icon' => 'users'] : null,
+      $library && $library['copies'] > 0 ? ['value' => $library['copies'], 'label' => 'Library volumes', 'icon' => 'library'] : null,
+  ])); ?>
+  <?php // 4-digit figures fit two columns at 390 px (same sizing as the About page stat cards) ?>
+  <div class="[&_.stat-value]:text-[1.45rem] sm:[&_.stat-value]:text-[1.6rem]"><?= $glanceStats ? stat_counter($glanceStats, ['variant' => 'cards']) : '' ?></div>
 <?= section_close() ?>
 
 <!-- Facilities -->
 <?= section_open(['id' => 'facilities', 'bg' => 'brand-soft', 'class' => 'scroll-mt-20']) ?>
-  <?= section_heading('World-Class Facilities', 'Everything you need to learn, create, compete and unwind — on one green campus.', 'Our Campus', 'left', '<a href="' . e(site_url('academics#facilities')) . '" class="link-arrow">Labs &amp; library details' . icon('arrow-right', 'h-4 w-4') . '</a>') ?>
+  <?= section_heading('Facilities', 'Where you learn at GIMT, Sector 18, Noida.', 'Our Campus', 'left', '<a href="' . e(site_url('academics#facilities')) . '" class="link-arrow">Labs &amp; library details' . icon('arrow-right', 'h-4 w-4') . '</a>') ?>
   <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" data-stagger="80">
     <?php foreach ($facilities as [$img, $title, $text, $fact, $ic]): ?>
       <article class="group relative overflow-hidden rounded-2xl bg-brand-900 shadow-card transition duration-300 hover:-translate-y-1 hover:shadow-soft">
-        <div class="img-zoom aspect-[16/9] overflow-hidden"><img src="<?= e(asset('assets/images/site/' . $img)) ?>" alt="<?= e($title . ' at GIMT') ?>" loading="lazy" decoding="async" class="h-full w-full object-cover"></div>
+        <div class="img-zoom aspect-[16/9] overflow-hidden"><img src="<?= e(asset('assets/images/site/' . $img)) ?>" alt="<?= e($title . ' at GIMT') ?>"<?= seo_ld_img_dims('assets/images/site/' . $img) ?> loading="lazy" decoding="async" class="h-full w-full object-cover"></div>
         <div class="relative p-5 text-white">
           <span class="absolute -top-6 right-5 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-accent-600 text-white shadow-soft ring-4 ring-brand-900 transition duration-500 group-hover:-rotate-6 group-hover:scale-105"><?= icon($ic, 'h-6 w-6') ?></span>
           <h3 class="font-display text-lg font-extrabold text-white"><?= e($title) ?></h3>
@@ -104,7 +98,7 @@ page_hero('Campus Life', 'Learn. Live. Belong.', ['Campus Life'], $heroImg,
     <div class="lg:col-span-5"<?= reveal_attr('slide-left') ?>>
       <p class="eyebrow mb-2"><?= $tour !== '' ? 'Virtual Campus Tour' : 'Visit Us' ?></p>
       <h2 class="section-title"><?= $tour !== '' ? 'See GIMT Before You Arrive' : 'Experience the Campus in Person' ?></h2>
-      <p class="section-lead"><?= $tour !== '' ? 'Walk through our academic blocks, labs, library, hostels and sports facilities in a short guided video.' : 'Walk through our academic blocks, labs, library, hostels and sports facilities with a student ambassador. Campus visits run Monday to Saturday.' ?></p>
+      <p class="section-lead"><?= $tour !== '' ? 'See our classrooms, computer lab and library in a short video.' : 'Visit us to see our classrooms, computer lab and library and to meet the admissions team. Visits run during office hours.' ?></p>
       <ul class="mt-6 space-y-3 text-sm text-slate-600">
         <li class="flex gap-3"><?= icon('map-pin', 'mt-0.5 h-5 w-5 shrink-0 text-accent-600') ?><span><?= e(setting('address', 'Wave One, 36th Floor, L-2A, Pocket G, Sector 18, Noida, Uttar Pradesh - 201301')) ?></span></li>
         <li class="flex gap-3"><?= icon('clock', 'mt-0.5 h-5 w-5 shrink-0 text-accent-600') ?><span><?= e(setting('office_hours', 'Mon - Sat, 9:00 AM - 6:00 PM')) ?></span></li>
@@ -129,73 +123,8 @@ page_hero('Campus Life', 'Learn. Live. Belong.', ['Campus Life'], $heroImg,
 
 <!-- Gallery -->
 <?= section_open(['id' => 'gallery', 'bg' => 'light', 'class' => 'scroll-mt-20']) ?>
-  <?= section_heading('Life on Campus', 'Moments from classrooms, labs, hostels, sports fields and festivals. Select a photo to view it full screen.', 'Photo Gallery') ?>
+  <?= section_heading('Life at GIMT', 'Moments from classrooms, labs and events. Select a photo to view it full screen.', 'Photo Gallery') ?>
   <?= sa_gallery_grid($gallery, ['layout' => 'bento', 'columns' => 4, 'ariaLabel' => 'GIMT campus photo gallery']) ?>
-<?= section_close() ?>
-
-<!-- Hostel & transport -->
-<?= section_open(['id' => 'hostel', 'class' => 'scroll-mt-20']) ?>
-  <?= section_heading('Hostel & Transport', 'A home away from home, and a safe ride to campus from across Delhi NCR.', 'Living at GIMT') ?>
-  <div class="grid gap-6 lg:grid-cols-2">
-    <article class="group overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-card"<?= reveal_attr('slide-left') ?>>
-      <div class="img-zoom relative aspect-[16/7] overflow-hidden"><img src="<?= e(asset('assets/images/site/campus-hostel.jpg')) ?>" alt="GIMT hostel building" loading="lazy" decoding="async" class="h-full w-full object-cover">
-        <?php if ($hostel && $hostel['fee_from']): ?><span class="glass absolute bottom-4 left-4 rounded-xl px-3 py-2 text-sm font-semibold text-brand-900">From <?= e(money($hostel['fee_from'])) ?> / year</span><?php endif; ?>
-      </div>
-      <div class="p-6 sm:p-7">
-        <h3 class="flex items-center gap-2 font-display text-xl font-extrabold text-brand-900"><?= icon('bed-double', 'h-5 w-5 text-accent-600') ?>Hostel &amp; Mess</h3>
-        <p class="mt-2 text-sm leading-relaxed text-slate-600">Separate hostels for boys and girls with resident wardens, nutritious mess food, study areas and 24×7 security.</p>
-        <?php if ($hostel): ?>
-          <ul class="mt-5 grid grid-cols-3 gap-3 text-center">
-            <li class="rounded-xl bg-slate-50 p-3"><span class="block font-display text-xl font-extrabold text-brand-900"><?= (int) $hostel['count'] ?></span><span class="text-xs text-slate-500">Hostels</span></li>
-            <li class="rounded-xl bg-slate-50 p-3"><span class="block font-display text-xl font-extrabold text-brand-900" data-count="<?= (int) $hostel['rooms'] ?>"><?= number_format($hostel['rooms']) ?></span><span class="text-xs text-slate-500">Rooms</span></li>
-            <li class="rounded-xl bg-slate-50 p-3"><span class="block font-display text-xl font-extrabold text-brand-900" data-count="<?= (int) $hostel['beds'] ?>"><?= number_format($hostel['beds']) ?></span><span class="text-xs text-slate-500">Beds</span></li>
-          </ul>
-          <?php if ($hostel['amenities']): ?>
-            <ul class="mt-5 flex flex-wrap gap-2">
-              <?php foreach ($hostel['amenities'] as $a): ?><li class="inline-flex items-center gap-1.5 rounded-full bg-accent-50 px-3 py-1 text-xs font-semibold text-accent-800"><?= icon('check', 'h-3.5 w-3.5') ?><?= e($a) ?></li><?php endforeach; ?>
-            </ul>
-          <?php endif; ?>
-          <ul class="mt-5 divide-y divide-slate-100 text-sm">
-            <?php foreach ($hostel['hostels'] as $h): ?>
-              <li class="flex items-center justify-between gap-3 py-2.5"><span class="font-semibold text-slate-800"><?= e($h['name']) ?></span><span class="badge <?= $h['type'] === 'girls' ? 'badge-purple' : 'badge-blue' ?>"><?= e(ucfirst($h['type'])) ?></span></li>
-            <?php endforeach; ?>
-          </ul>
-          <?php if (!empty($hostel['hostels'][0]['visiting_hours'])): ?><p class="mt-3 flex items-center gap-2 text-xs text-slate-500"><?= icon('clock', 'h-3.5 w-3.5') ?>Visiting hours: <?= e((string) $hostel['hostels'][0]['visiting_hours']) ?></p><?php endif; ?>
-        <?php else: ?>
-          <?= check_list(['Separate boys and girls hostels', 'Hygienic mess with balanced meals', 'Wi-Fi, laundry and power backup', 'Resident wardens and CCTV security'], 'mt-5 text-sm') ?>
-        <?php endif; ?>
-      </div>
-    </article>
-    <article id="transport" class="relative scroll-mt-24 overflow-hidden rounded-3xl bg-brand-900 p-6 text-white shadow-soft sm:p-7"<?= reveal_attr('slide-right', 100) ?>>
-      <div class="pattern-layer pattern-grid-light pattern-fade animate-pattern-drift" aria-hidden="true"></div>
-      <div class="blob -right-16 -top-16 h-56 w-56 bg-accent-500/25" aria-hidden="true"></div>
-      <div class="relative">
-        <span class="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-accent-300 ring-1 ring-white/15"><?= icon('bus', 'h-7 w-7') ?></span>
-        <h3 class="mt-4 font-display text-xl font-extrabold text-white">Campus Transport</h3>
-        <p class="mt-2 text-sm leading-relaxed text-white/75">GPS-ready college buses with trained drivers connect Delhi, Noida, Greater Noida and Ghaziabad to the campus every working day.</p>
-        <?php if ($transport): ?>
-          <ul class="mt-6 grid grid-cols-3 gap-3 text-center">
-            <li class="rounded-xl bg-white/10 p-3 ring-1 ring-white/10"><span class="block font-display text-2xl font-extrabold" data-count="<?= (int) $transport['routes'] ?>"><?= (int) $transport['routes'] ?></span><span class="text-xs text-white/70">Routes</span></li>
-            <li class="rounded-xl bg-white/10 p-3 ring-1 ring-white/10"><span class="block font-display text-2xl font-extrabold" data-count="<?= (int) $transport['vehicles'] ?>"><?= (int) $transport['vehicles'] ?></span><span class="text-xs text-white/70">Buses</span></li>
-            <li class="rounded-xl bg-white/10 p-3 ring-1 ring-white/10"><span class="block font-display text-2xl font-extrabold" data-count="<?= (int) $transport['stops'] ?>"><?= (int) $transport['stops'] ?></span><span class="text-xs text-white/70">Pick-up stops</span></li>
-          </ul>
-          <?php if ($transport['areas']): ?>
-            <h4 class="mt-6 font-sans text-xs font-bold uppercase tracking-wider text-white/60">Areas covered</h4>
-            <ul class="mt-3 flex flex-wrap gap-2">
-              <?php foreach ($transport['areas'] as $a): ?><li class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white ring-1 ring-white/10"><?= icon('map-pin', 'h-3.5 w-3.5 text-accent-300') ?><?= e($a) ?></li><?php endforeach; ?>
-            </ul>
-          <?php endif; ?>
-          <dl class="mt-6 grid gap-3 text-sm sm:grid-cols-2">
-            <?php if ($transport['first_pickup']): ?><div class="flex items-center gap-2"><?= icon('clock', 'h-4 w-4 text-accent-300') ?><dt class="text-white/70">First pick-up</dt><dd class="font-semibold"><?= e(format_time($transport['first_pickup'])) ?></dd></div><?php endif; ?>
-            <?php if ($transport['fare_min']): ?><div class="flex items-center gap-2"><?= icon('wallet', 'h-4 w-4 text-accent-300') ?><dt class="text-white/70">Annual fare</dt><dd class="font-semibold"><?= e(money($transport['fare_min'])) ?><?= $transport['fare_max'] > $transport['fare_min'] ? '–' . e(money($transport['fare_max'])) : '' ?></dd></div><?php endif; ?>
-          </dl>
-        <?php else: ?>
-          <?= check_list(['Routes across Delhi, Noida, Greater Noida and Ghaziabad', 'Trained drivers and attendants', 'Morning pick-up and evening drop'], 'mt-5 text-sm text-white/85') ?>
-        <?php endif; ?>
-        <div class="mt-7"><?= button_link('Ask About Your Route', '/contact?type=general#message', 'accent', ['size' => 'sm']) ?></div>
-      </div>
-    </article>
-  </div>
 <?= section_close() ?>
 
 <!-- Clubs & societies -->
@@ -212,7 +141,7 @@ page_hero('Campus Life', 'Learn. Live. Belong.', ['Campus Life'], $heroImg,
     <div class="lg:col-span-4"<?= reveal_attr('slide-left') ?>>
       <p class="eyebrow mb-2">Events &amp; Festivals</p>
       <h2 class="section-title">Always Something Happening</h2>
-      <p class="section-lead">Tech fests, sports meets, cultural nights, guest lectures and industry conclaves fill the campus calendar.</p>
+      <p class="section-lead">Tech fests, cultural nights, guest lectures and workshops fill the calendar.</p>
       <div class="mt-7"><?= button_link('Full Academic Calendar', '/academics#calendar', 'outline', ['icon' => 'calendar-days']) ?></div>
     </div>
     <div class="lg:col-span-8">

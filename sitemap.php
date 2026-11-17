@@ -12,6 +12,8 @@
 require __DIR__ . '/app/init.php';
 require_once APP_ROOT . '/app/services/seo.php';
 
+seo_host_redirect();   // www.<host> → canonical host
+seo_bot_hit();         // crawler activity
 $name = strtolower(trim(api_str($_GET['type'] ?? null)));   // api_str: ?type[]=x is '' (no Array to string warning)
 if ($name === '' || $name === 'index') {
     seo_send_xml(seo_sitemap_index_xml());
